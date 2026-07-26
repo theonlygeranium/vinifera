@@ -12,10 +12,10 @@
 :root {
   --wine:#6B1E30; --wine-dark:#4A1220; --wine-light:#F9F0F2; --wine-mid:#8B3045;
   --gold:#C9993A; --gold-light:#FDF6E8;
-  --text-primary:#1C1917; --text-secondary:#6B7280; --text-muted:#9CA3AF;
+  --text-primary:#1C1917; --text-secondary:#5B6470; --text-muted:#5B6470;
   --bg-page:#F7F5F3; --bg-card:#FFFFFF; --bg-sidebar:#1C0D13;
   --border:#E5E0DC; --border-strong:#D1C9C3;
-  --success:#16A34A; --success-bg:#F0FDF4;
+  --success:#15803D; --success-bg:#F0FDF4;
   --warning:#B45309; --warning-bg:#FFFBEB;
   --danger:#DC2626; --danger-bg:#FEF2F2;
   --info:#2563EB; --info-bg:#EFF6FF;
@@ -35,9 +35,9 @@ body { font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
 .logo-icon { width:30px; height:30px; background:var(--wine); border-radius:7px; display:flex; align-items:center; justify-content:center; color:#fff; }
 .logo-icon i { width:16px; height:16px; }
 .logo-text { color:#fff; font-weight:700; font-size:16px; letter-spacing:-0.02em; }
-.logo-sub { color:rgba(255,255,255,0.35); font-size:10px; text-transform:uppercase; letter-spacing:0.08em; }
+.logo-sub { color:rgba(255,255,255,0.75); font-size:10px; text-transform:uppercase; letter-spacing:0.08em; }
 .sidebar-section { padding:14px 10px 6px; }
-.sidebar-section-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:rgba(255,255,255,0.28); padding:0 8px; margin-bottom:3px; }
+.sidebar-section-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:rgba(255,255,255,0.6); padding:0 8px; margin-bottom:3px; }
 .nav-item { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:7px; color:rgba(255,255,255,0.5); font-size:13px; font-weight:500; cursor:pointer; transition:all var(--transition); margin-bottom:1px; border:none; background:none; width:100%; text-align:left; }
 .nav-item:hover { background:rgba(255,255,255,0.07); color:rgba(255,255,255,0.85); }
 .nav-item.active { background:var(--wine); color:#fff; }
@@ -47,7 +47,7 @@ body { font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
 .user-row { display:flex; align-items:center; gap:9px; }
 .user-avatar { width:30px; height:30px; border-radius:50%; background:var(--wine-mid); color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
 .user-name { color:rgba(255,255,255,0.75); font-size:12.5px; font-weight:500; }
-.user-role { color:rgba(255,255,255,0.35); font-size:11px; }
+.user-role { color:rgba(255,255,255,0.75); font-size:11px; }
 
 /* ==== MAIN ==== */
 .main { margin-left:var(--sidebar-w); flex:1; display:flex; flex-direction:column; min-height:100vh; }

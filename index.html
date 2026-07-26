@@ -19,7 +19,7 @@
   --border:     #E8E0D6;
   --text:       #1A1208;
   --text-2:     #5C4F3A;
-  --text-3:     #9C8C78;
+  --text-3:     #6B5D4A;
   --white:      #FFFFFF;
   --radius:     10px;
   --radius-lg:  18px;
@@ -95,7 +95,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
 .nav-logo-text { font-size: 19px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
 .nav-logo-sub { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-top: -2px; }
 .nav-links { display: flex; align-items: center; gap: 28px; }
-.nav-link { font-size: 14px; font-weight: 500; color: var(--text-2); transition: color 0.15s; }
+.nav-link { font-size: 14px; font-weight: 500; color: var(--text-2); transition: color 0.15s; padding: 6px 4px; display: inline-block; }
 .nav-link:hover { color: var(--wine); }
 .nav-cta { display: flex; align-items: center; gap: 10px; }
 .btn-nav { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 8px; font-size: 13.5px; font-weight: 600; }
@@ -498,22 +498,22 @@ button { cursor: pointer; font-family: inherit; border: none; }
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 .footer { background: var(--wine-dark); padding: 56px 0 32px; }
 .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; margin-bottom: 48px; }
-.footer-brand-sub { font-size: 13.5px; color: rgba(255,255,255,0.45); line-height: 1.7; margin-top: 12px; max-width: 260px; }
-.footer-col-title { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.45); margin-bottom: 16px; }
+.footer-brand-sub { font-size: 13.5px; color: rgba(255,255,255,0.72); line-height: 1.7; margin-top: 12px; max-width: 260px; }
+.footer-col-title { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.72); margin-bottom: 16px; }
 .footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-.footer-link { font-size: 14px; color: rgba(255,255,255,0.55); transition: color 0.15s; }
+.footer-link { font-size: 14px; color: rgba(255,255,255,0.72); transition: color 0.15s; padding: 4px 0; display: inline-block; min-height: 44px; display: flex; align-items: center; }
 .footer-link:hover { color: var(--white); }
 .footer-bottom { border-top: 1px solid rgba(255,255,255,0.08); padding-top: 24px; display: flex; align-items: center; justify-content: space-between; }
-.footer-copy { font-size: 12.5px; color: rgba(255,255,255,0.3); }
+.footer-copy { font-size: 12.5px; color: rgba(255,255,255,0.72); }
 .footer-legal { display: flex; gap: 20px; }
-.footer-legal a { font-size: 12.5px; color: rgba(255,255,255,0.3); transition: color 0.15s; }
+.footer-legal a { font-size: 12.5px; color: rgba(255,255,255,0.72); transition: color 0.15s; padding: 4px 0; }
 .footer-legal a:hover { color: rgba(255,255,255,0.65); }
 
 /* ── Integrations strip ─────────────────────────────────────────────────── */
 .int-strip { padding: 52px 0; background: var(--white); border-bottom: 1px solid var(--border); }
 .int-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); text-align: center; margin-bottom: 24px; }
 .int-logos { display: flex; align-items: center; justify-content: center; gap: 32px; flex-wrap: wrap; }
-.int-logo-item { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--text-3); opacity: 0.65; transition: opacity 0.18s; }
+.int-logo-item { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--text-2); opacity: 0.85; transition: opacity 0.18s; }
 .int-logo-item:hover { opacity: 1; }
 .int-logo-icon { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; }
 
@@ -748,6 +748,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
 <body>
 
 <!-- ── NAV ───────────────────────────────────────────────────────────────── -->
+<header>
 <nav class="nav">
   <div class="container">
     <div class="nav-inner">
@@ -782,8 +783,10 @@ button { cursor: pointer; font-family: inherit; border: none; }
   <a href="/app/" class="btn-nav btn-nav-ghost" style="display:block;margin:8px 16px 4px;text-align:center;padding:11px 16px"><i data-lucide="layout-dashboard" style="width:14px;height:14px;display:inline;vertical-align:middle;margin-right:6px"></i> Live Demo</a>
   <a href="#pricing" class="btn-nav btn-nav-wine" style="display:block;margin:4px 16px 8px;text-align:center;padding:11px 16px">Start Free Trial</a>
 </div>
+</header>
 
 <!-- ── HERO ──────────────────────────────────────────────────────────────── -->
+<main>
 <section class="hero">
   <svg class="hero-illustration" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
     <defs>
@@ -1313,6 +1316,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
     </div>
   </div>
 </section>
+</main>
 
 <!-- ── FOOTER ─────────────────────────────────────────────────────────────── -->
 <footer class="footer">
