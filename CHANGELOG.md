@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.0] — 2026-07-26
+
+### Added
+
+- Tenant-owned transactional email templates, durable outbox claims, delivery
+  log, six lifecycle triggers, preview/test sends, and signed unsubscribe links.
+- Fail-closed Resend batch adapter with idempotency and raw-body Svix webhook
+  verification; test-only deterministic delivery remains unavailable in
+  production.
+- Explainable rules-based churn scoring with nightly snapshots, risk queue,
+  filters, and contributing-factor detail.
+- Configurable four-step cancellation interception with pause, downgrade,
+  shipment swap, final cancellation, and outcome analytics.
+- Append-only loyalty lots and ledger with shipment, referral, event, birthday,
+  anniversary, manual adjustment, 24-month expiration, and FIFO redemption.
+- Loyalty-adjusted Stripe shipment charge, retry, and refund convergence.
+- Phase 3 ADR, Resend activation runbook, QA report, visual evidence, and
+  reproducible embedded database verification in CI.
+
+### Changed
+
+- Added birthday and same-tenant referrer data to member management.
+- Extended the hourly Worker schedule for email, churn, and loyalty maintenance.
+- Made Phase 2 and Phase 3 embedded database gates locked, repeatable CI steps.
+- Extended setup, architecture, continuity, and secret contracts for Phase 3.
+
+### Security
+
+- Forced row-level security across every Phase 3 tenant table.
+- Restricted scheduled and redemption-finalization RPCs to the service role.
+- Sanitized email HTML, kept provider secrets server-side, replay-protected
+  delivery events, and rejected production simulators.
+
 ## [0.2.0] — 2026-07-26
 
 ### Added

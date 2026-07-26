@@ -5,6 +5,7 @@ import { createApp } from "./app";
 import { withSecurityHeaders } from "./lib/security";
 import { runCoreClubSchedule } from "./services/core-club";
 import { reconcileSubscriptionAccess } from "./services/production-foundation";
+import { runRetentionSchedule } from "./services/retention";
 import type { WorkerEnv } from "./types";
 
 const API_PORT = 8788;
@@ -94,6 +95,7 @@ export default {
       Promise.all([
         reconcileSubscriptionAccess(workerEnv),
         runCoreClubSchedule(workerEnv),
+        runRetentionSchedule(workerEnv),
       ]).then(() => undefined),
     );
   },

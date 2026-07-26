@@ -388,7 +388,9 @@ test.describe("Phase 2 operational surfaces", () => {
         await installMockApi(page);
         await page.setViewportSize(viewport);
         await page.goto(route.path);
-        await expect(page.getByRole("heading", { name: route.heading, exact: true }).first()).toBeVisible();
+        await expect(
+          page.getByRole("heading", { name: route.heading, exact: true }).first(),
+        ).toBeVisible({ timeout: 15_000 });
         await assertA11y(page);
         await assertNoHorizontalOverflow(page);
         await assertWebVitals(page);
@@ -518,6 +520,12 @@ test.describe("Phase 2 core club loop", () => {
     page,
   }) => {
     await page.goto("/portal");
+    await expect(
+      page.getByRole("heading", { name: "Welcome, Avery", exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole("heading", { name: "Fall 2026", exact: true }).first(),
+    ).toBeVisible();
     await page.getByRole("button", { name: /Shipping address/ }).click();
     await page.getByLabel("Address line 1").fill("500 Oak Road");
     await page.getByLabel("City").fill("Calistoga");

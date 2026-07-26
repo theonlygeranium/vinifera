@@ -14,6 +14,7 @@ import {
   isTrustedRequestOrigin,
 } from "./lib/security";
 import { createProductionFoundationService } from "./services/production-foundation";
+import { verifyUnsubscribeToken } from "./services/retention";
 import type {
   ApplicationService,
   ClubTierInput,
@@ -23,6 +24,7 @@ import type {
   ReleaseInput,
   FoundationServiceFactory,
   PlanTier,
+  RetentionService,
   WorkerEnv,
 } from "./types";
 
@@ -56,6 +58,25 @@ const invitationSchema = z.object({
 });
 const billingSchema = z.object({ planTier });
 const memberMagicLinkSchema = z.object({ email });
+const templateVariableSchema = z.record(
+  z.string().regex(/^[a-z][a-z0-9_]*$/i),
+  z.string().max(2_000),
+);
+const emailTrigger = z.enum([
+  "welcome",
+  "pre_shipment",
+  "payment_decline",
+  "shipped",
+  "birthday",
+  "re_engagement",
+]);
+const emailTemplateSchema = z.object({
+  body: z.string().trim().min(1).max(100_000),
+  daysBefore: z.number().int().min(1).max(30).optional(),
+  enabled: z.boolean().default(true),
+  subject: z.string().trim().min(1).max(200),
+  triggerType: emailTrigger,
+});
 const uuid = z.uuid();
 const memberStatus = z.enum(["active", "paused", "cancelled"]);
 const shipmentStatus = z.enum([
@@ -95,12 +116,14 @@ const clubTierSchema = z.object({
 const clubTierPatchSchema = clubTierSchema.partial();
 const memberSchema = z.object({
   address: addressSchema.nullable().optional(),
+  birthday: z.iso.date().nullable().optional(),
   clubTierId: uuid.nullable().optional(),
   email,
   firstName: z.string().trim().min(1).max(100),
   joinDate: z.iso.date().optional(),
   lastName: z.string().trim().min(1).max(100),
   phone: z.string().trim().min(7).max(30).nullable().optional(),
+  referredByMemberId: uuid.nullable().optional(),
   shippingAddress: addressSchema.nullable().optional(),
   status: memberStatus.optional(),
   tierId: uuid.nullable().optional(),
@@ -180,12 +203,14 @@ function asMemberInput(
   input: z.infer<typeof memberSchema>,
 ): MemberInput {
   return {
+    birthday: input.birthday,
     clubTierId: input.clubTierId ?? input.tierId,
     email: input.email,
     firstName: input.firstName,
     joinDate: input.joinDate,
     lastName: input.lastName,
     phone: input.phone,
+    referredByMemberId: input.referredByMemberId,
     shippingAddress: (input.shippingAddress ?? input.address) as
       | PostalAddress
       | null
@@ -284,6 +309,20 @@ export function createApp(options: AppOptions): express.Express {
     }
     return candidate as ApplicationService;
   };
+  const retentionService = (
+    request: Request,
+    response: Response,
+  ): RetentionService => {
+    const candidate = createService(request, response);
+    if (!("listEmailTemplates" in candidate)) {
+      throw new AppError(
+        503,
+        "activation_required",
+        "The retention and communications service is not connected.",
+      );
+    }
+    return candidate as unknown as RetentionService;
+  };
 
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -338,6 +377,55 @@ export function createApp(options: AppOptions): express.Express {
       data(response, { received: true, ...result });
     },
   );
+
+  app.post(
+    ["/api/webhooks/resend", "/api/email/webhook"],
+    express.raw({ limit: "1mb", type: "application/json" }),
+    async (request, response) => {
+      const id = request.get("svix-id");
+      const signature = request.get("svix-signature");
+      const timestamp = request.get("svix-timestamp");
+      if (!id || !signature || !timestamp) {
+        throw new AppError(
+          400,
+          "invalid_request",
+          "The Resend webhook signature headers are missing.",
+        );
+      }
+      const result = await retentionService(
+        request,
+        response,
+      ).handleResendWebhook(request.body as Buffer, {
+        id,
+        signature,
+        timestamp,
+      });
+      data(response, { received: true, ...result });
+    },
+  );
+
+  app.get("/api/communications/unsubscribe", async (request, response) => {
+    const token = z.string().min(32).max(4_096).parse(request.query.token);
+    await verifyUnsubscribeToken(options.getEnv(), token);
+    const action = `/api/communications/unsubscribe?token=${encodeURIComponent(
+      token,
+    )}`;
+    response
+      .status(200)
+      .type("html")
+      .send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Email preferences</title></head>
+<body><main><h1>Email preferences</h1><p>Confirm that you want to stop optional transactional notifications. Essential billing and account notices may still be sent.</p><form method="post" action="${action}"><button type="submit" style="min-height:44px;min-width:44px">Update email preference</button></form></main></body></html>`);
+  });
+
+  app.post("/api/communications/unsubscribe", async (request, response) => {
+    const token = z.string().min(32).max(4_096).parse(request.query.token);
+    await retentionService(request, response).applyUnsubscribe(token);
+    data(response, {
+      message: "Your optional transactional email preference has been updated.",
+      unsubscribed: true,
+    });
+  });
 
   app.use(express.json({ limit: "256kb", strict: true }));
   app.use(assertTrustedOrigin(options.getEnv));
@@ -449,9 +537,21 @@ export function createApp(options: AppOptions): express.Express {
       return;
     }
     const principal = await createService(request, response).getMemberSession();
+    const publicPrincipal = principal
+      ? {
+          ...principal,
+          user: {
+            email: principal.user.email,
+            firstName: principal.user.firstName,
+            id: principal.user.id,
+            lastName: principal.user.lastName,
+            status: principal.user.status,
+          },
+        }
+      : null;
     data(response, {
       authenticated: Boolean(principal),
-      ...(principal ?? {}),
+      ...(publicPrincipal ?? {}),
     });
   });
 
@@ -467,6 +567,337 @@ export function createApp(options: AppOptions): express.Express {
 
   app.post("/api/billing/portal", async (request, response) => {
     data(response, await createService(request, response).createBillingPortal());
+  });
+
+  app.get("/api/email/templates", async (request, response) => {
+    data(
+      response,
+      await retentionService(request, response).listEmailTemplates(),
+    );
+  });
+
+  app.post("/api/email/templates", async (request, response) => {
+    const input = parseBody(emailTemplateSchema, request);
+    data(
+      response,
+      await retentionService(request, response).upsertEmailTemplate(input),
+      201,
+    );
+  });
+
+  app.patch("/api/email/templates/:id", async (request, response) => {
+    const input = parseBody(emailTemplateSchema.partial(), request);
+    if (!Object.keys(input).length) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "Choose at least one template field to update.",
+      );
+    }
+    data(
+      response,
+      await retentionService(request, response).updateEmailTemplate(
+        uuid.parse(request.params.id),
+        input,
+      ),
+    );
+  });
+
+  app.delete("/api/email/templates/:id", async (request, response) => {
+    await retentionService(request, response).deleteEmailTemplate(
+      uuid.parse(request.params.id),
+    );
+    response.status(204).end();
+  });
+
+  app.post("/api/email/templates/:id/preview", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        body: z.string().trim().min(1).max(100_000).optional(),
+        subject: z.string().trim().min(1).max(200).optional(),
+        variables: templateVariableSchema.optional(),
+      }),
+      request,
+    );
+    data(
+      response,
+      await retentionService(request, response).previewEmailTemplate(
+        uuid.parse(request.params.id),
+        input,
+      ),
+    );
+  });
+
+  app.post(
+    ["/api/email/templates/:id/test", "/api/email/templates/:id/test-send"],
+    async (request, response) => {
+    const input = parseBody(
+      z.object({
+        email: email.optional(),
+        recipient: email.optional(),
+        variables: templateVariableSchema.optional(),
+      }).refine((value) => Boolean(value.email ?? value.recipient), {
+        message: "A test recipient is required.",
+        path: ["recipient"],
+      }),
+      request,
+    );
+    data(
+      response,
+      await retentionService(request, response).sendEmailTemplateTest(
+        uuid.parse(request.params.id),
+        {
+          email: input.email ?? input.recipient ?? "",
+          variables: input.variables,
+        },
+      ),
+      202,
+    );
+    },
+  );
+
+  app.get("/api/email/log", async (request, response) => {
+    const query = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+        offset: z.coerce.number().int().min(0).default(0),
+        status: z.string().trim().max(32).optional(),
+        triggerType: emailTrigger.optional(),
+      })
+      .parse(request.query);
+    data(
+      response,
+      await retentionService(request, response).listEmailLog(query),
+    );
+  });
+
+  app.get("/api/churn-scores", async (request, response) => {
+    const query = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+        offset: z.coerce.number().int().min(0).default(0),
+        riskLevel: z.enum(["low", "medium", "high"]).optional(),
+        search: z.string().trim().max(120).optional(),
+      })
+      .parse(request.query);
+    data(
+      response,
+      await retentionService(request, response).listChurnScores(query),
+    );
+  });
+
+  app.get("/api/members/:id/churn-score", async (request, response) => {
+    data(
+      response,
+      await retentionService(request, response).getChurnScore(
+        uuid.parse(request.params.id),
+      ),
+    );
+  });
+
+  app.get("/api/cancel-flow/config", async (request, response) => {
+    data(
+      response,
+      await retentionService(
+        request,
+        response,
+      ).getCancelFlowConfiguration(),
+    );
+  });
+
+  app.patch("/api/cancel-flow/config", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        steps: z
+          .array(
+            z.object({
+              enabled: z.boolean(),
+              id: z.enum(["pause", "downgrade", "swap", "confirm"]),
+              order: z.number().int().min(1).max(4).optional(),
+              position: z.number().int().min(1).max(4).optional(),
+              stepId: uuid.optional(),
+            }).refine((step) => Boolean(step.order ?? step.position), {
+              message: "A cancel-flow order is required.",
+            }),
+          )
+          .length(4)
+          .refine(
+            (steps) =>
+              new Set(steps.map((step) => step.id)).size === steps.length &&
+              new Set(steps.map((step) => step.order ?? step.position)).size ===
+                steps.length,
+            "Each cancel-flow step and position must be unique.",
+          ),
+      }),
+      request,
+    );
+    data(
+      response,
+      await retentionService(request, response).updateCancelFlowConfiguration({
+        steps: input.steps.map((step) => ({
+          enabled: step.enabled,
+          id: step.id,
+          position: step.order ?? step.position ?? 1,
+          stepId: step.stepId,
+        })),
+      }),
+    );
+  });
+
+  app.get("/api/cancel-flow/analytics", async (request, response) => {
+    data(
+      response,
+      await retentionService(request, response).getCancelFlowAnalytics(),
+    );
+  });
+
+  app.get("/api/member/cancel-flow", async (request, response) => {
+    data(
+      response,
+      await retentionService(request, response).getMemberCancelFlow(),
+    );
+  });
+
+  app.post("/api/member/cancel-flow", async (request, response) => {
+    parseBody(z.object({ confirmed: z.literal(true) }), request);
+    data(
+      response,
+      await retentionService(request, response).startMemberCancelFlow(),
+      201,
+    );
+  });
+
+  app.post("/api/member/cancel-flow/events", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        action: z.enum([
+          "continued",
+          "paused",
+          "downgraded",
+          "swapped",
+          "cancelled",
+        ]).optional(),
+        attemptId: uuid.optional(),
+        details: z.record(z.string(), z.unknown()).optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+        offerId: z.string().max(200).optional(),
+        outcome: z.enum([
+          "continued",
+          "paused",
+          "downgraded",
+          "swapped",
+          "cancelled",
+        ]).optional(),
+        step: z.enum(["pause", "downgrade", "swap", "confirm"]).optional(),
+        stepId: z.union([
+          uuid,
+          z.enum(["pause", "downgrade", "swap", "confirm"]),
+        ]).optional(),
+      }).refine(
+        (value) =>
+          Boolean(value.action ?? value.outcome) &&
+          Boolean(value.step ?? value.stepId),
+        "A cancellation step and outcome are required.",
+      ),
+      request,
+    );
+    data(
+      response,
+      await retentionService(request, response).processCancelFlowEvent({
+        action: input.action ?? input.outcome ?? "continued",
+        attemptId: input.attemptId,
+        details: {
+          ...(input.details ?? input.metadata ?? {}),
+          ...(input.offerId ? { offer_id: input.offerId } : {}),
+        },
+        stepId: input.stepId ?? input.step ?? "confirm",
+      }),
+    );
+  });
+
+  app.get("/api/loyalty/members", async (request, response) => {
+    const query = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+        offset: z.coerce.number().int().min(0).default(0),
+        search: z.string().trim().max(120).optional(),
+      })
+      .parse(request.query);
+    data(
+      response,
+      await retentionService(request, response).listLoyaltyMembers(query),
+    );
+  });
+
+  app.post("/api/loyalty/members/:id/adjust", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        points: z.number().int().min(-100_000).max(100_000).refine(Boolean),
+        reason: z.string().trim().min(3).max(500),
+      }),
+      request,
+    );
+    data(
+      response,
+      await retentionService(request, response).adjustLoyaltyPoints(
+        uuid.parse(request.params.id),
+        input,
+      ),
+      201,
+    );
+  });
+
+  app.post("/api/loyalty/members/:id/events", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        eventId: uuid,
+        eventType: z.literal("event_attendance").default("event_attendance"),
+        idempotencyKey: z.string().trim().min(8).max(200).optional(),
+        occurredAt: z.iso.datetime().optional(),
+        reason: z.string().trim().min(3).max(500).optional(),
+      }),
+      request,
+    );
+    data(
+      response,
+      await retentionService(request, response).recordLoyaltyEvent(
+        uuid.parse(request.params.id),
+        input,
+      ),
+      201,
+    );
+  });
+
+  app.get("/api/loyalty/members/:id", async (request, response) => {
+    data(
+      response,
+      await retentionService(request, response).getStaffMemberLoyalty(
+        uuid.parse(request.params.id),
+      ),
+    );
+  });
+
+  app.get("/api/member/loyalty", async (request, response) => {
+    data(
+      response,
+      await retentionService(request, response).getMemberLoyalty(),
+    );
+  });
+
+  app.post("/api/member/loyalty/redeem", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        idempotencyKey: z.string().trim().min(16).max(200),
+        points: z.number().int().positive().max(100_000),
+        shipmentId: uuid,
+      }),
+      request,
+    );
+    data(
+      response,
+      await retentionService(request, response).redeemMemberLoyalty(input),
+      201,
+    );
   });
 
   app.get("/api/club-tiers", async (request, response) => {
@@ -649,6 +1080,7 @@ export function createApp(options: AppOptions): express.Express {
     const memberId = uuid.parse(request.params.id);
     const raw = parseBody(memberPatchSchema, request);
     const input: Partial<MemberInput> = {
+      birthday: raw.birthday,
       ...(raw.address !== undefined || raw.shippingAddress !== undefined
         ? {
             shippingAddress: (raw.shippingAddress ?? raw.address) as
@@ -664,6 +1096,7 @@ export function createApp(options: AppOptions): express.Express {
       joinDate: raw.joinDate,
       lastName: raw.lastName,
       phone: raw.phone,
+      referredByMemberId: raw.referredByMemberId,
       status: raw.status,
     };
     data(

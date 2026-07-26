@@ -27,6 +27,10 @@ import {
 import { useApiResource } from "../staff/phase2/useApiResource";
 import { date, money, sentence } from "../staff/phase2/format";
 import { useMemberSession } from "./MemberSessionContext";
+import {
+  MemberLoyaltyPanel,
+  MemberRetentionControls,
+} from "./phase3/RetentionLoyalty";
 
 const blankAddress: Address = {
   line1: "",
@@ -272,8 +276,11 @@ export function MemberPortal() {
                     <small>Use Stripe’s secure payment update page</small>
                   </span>
                 </button>
+                <MemberRetentionControls />
               </div>
             </section>
+
+            <MemberLoyaltyPanel shipmentId={upcoming?.id ?? null} />
 
             <section className="operation-panel portal-history" aria-labelledby="shipment-history-title">
               <div className="panel-heading">
@@ -319,19 +326,18 @@ export function MemberPortal() {
                 />
               )}
             </section>
+            <section className="member-security" aria-labelledby="member-security-title">
+              <ShieldCheck aria-hidden="true" />
+              <div>
+                <h2 id="member-security-title">Secure member access</h2>
+                <p>
+                  Your session is separate from winery staff accounts. Payment
+                  details stay with Stripe and are never stored by Vinifera.
+                </p>
+              </div>
+            </section>
           </>
         )}
-
-        <section className="member-security" aria-labelledby="member-security-title">
-          <ShieldCheck aria-hidden="true" />
-          <div>
-            <h2 id="member-security-title">Secure member access</h2>
-            <p>
-              Your session is separate from winery staff accounts. Payment
-              details stay with Stripe and are never stored by Vinifera.
-            </p>
-          </div>
-        </section>
       </main>
 
       <Dialog

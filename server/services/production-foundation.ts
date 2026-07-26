@@ -9,7 +9,7 @@ import Stripe from "stripe";
 import { getConfigurationReport, isProduction } from "../config";
 import { assertStaffRole } from "../lib/authorization";
 import { AppError, requireConfigured } from "../lib/errors";
-import { ProductionCoreClubService } from "./core-club";
+import { ProductionRetentionService } from "./retention";
 import type {
   ApplicationService,
   AuthSurface,
@@ -177,7 +177,7 @@ function stripeObjectId(value: string | { id: string } | null): string | null {
 }
 
 export class ProductionFoundationService
-  extends ProductionCoreClubService
+  extends ProductionRetentionService
   implements ApplicationService
 {
   constructor(
@@ -316,9 +316,10 @@ export class ProductionFoundationService
       .single();
     if (organizationError || !organizationData) return null;
 
-    return {
+    const principal: MemberPrincipal = {
       organization: organizationData as { id: string; name: string },
       user: {
+        authUserId: data.user.id,
         email: member.email,
         firstName: member.first_name,
         id: member.id,
@@ -326,6 +327,16 @@ export class ProductionFoundationService
         status: member.status,
       },
     };
+    await this.recordMemberPortalLogin(principal).catch(() => {
+      console.error(
+        JSON.stringify({
+          event: "member.portal_login_activity_failed",
+          memberId: principal.user.id,
+          organizationId: principal.organization.id,
+        }),
+      );
+    });
+    return principal;
   }
 
   async staffSignup(input: {
@@ -491,6 +502,8 @@ export class ProductionFoundationService
       }
       const { error: refreshError } = await client.auth.refreshSession();
       if (refreshError) throw authFailure();
+      const principal = await this.getMemberSession();
+      if (!principal) throw authFailure();
     }
     return {
       destination: surface === "staff" ? "/app" : "/portal",

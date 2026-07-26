@@ -6,11 +6,11 @@
 ## System overview
 
 Vinifera is transitioning from a static Cloudflare Pages prototype to a
-full-stack SaaS application. The Phase 1 foundation and Phase 2 core-club
-architecture use a same-origin React application and Express API packaged in one
+full-stack SaaS application. The Phase 1 foundation, Phase 2 core-club, and
+Phase 3 retention architecture use a same-origin React application and Express API packaged in one
 Cloudflare Worker. Supabase provides Auth and PostgreSQL; Stripe provides SaaS
 subscriptions and club-shipment payments; EasyPost is the first shipping
-adapter.
+adapter; Resend is the first transactional email adapter.
 
 ```text
 Browser
@@ -22,7 +22,8 @@ Cloudflare Worker + Static Assets
   └── /api/* ──────────────────── Express 5 BFF
                                       ├── Supabase Auth/PostgreSQL
                                       ├── Stripe Billing + PaymentIntents
-                                      └── EasyPost labels + tracking
+                                      ├── EasyPost labels + tracking
+                                      └── Resend transactional delivery
 ```
 
 The existing Pages custom-domain deployment remains the live baseline until the new Worker staging deployment passes the complete Phase 1 activation and QA gate.
@@ -72,6 +73,33 @@ exactly once. The Worker never relies on in-memory state between requests.
 
 Audit entries are append-only and hash-chained per organization so deleted or
 rewritten history is detectable.
+
+---
+
+## Retention and communications
+
+```text
+member/release/payment/shipment event
+  → idempotent PostgreSQL email outbox
+  → bounded Worker claim
+  → sanitized responsive render
+  → Resend batch send
+  → signed raw-body webhook
+  → delivery and engagement ledger
+
+nightly schedule
+  ├── explainable rules-based churn snapshots
+  ├── birthday and anniversary loyalty awards
+  ├── loyalty expiration
+  └── due/retry email claims
+```
+
+Cancellation is an authenticated member state machine. Pause, tier downgrade,
+shipment swap, and final cancellation write append-only attempt events; an
+accepted alternative terminates the attempt exactly once. Loyalty awards use
+stable source-event keys, positive expiring lots, first-expiring-first-out
+redemption, and an explicit reservation/finalization boundary around Stripe
+shipment charges and refunds.
 
 ---
 
@@ -128,6 +156,7 @@ The Worker serves `/app/*` and `/portal/*` from the Vite shell with `text/html; 
 | Stripe | SaaS subscriptions and portal | Billing operations return `503 activation_required` |
 | Stripe PaymentIntents | Release charges, retries, refunds | Shipment billing returns `503 activation_required` |
 | EasyPost | Address verification, carrier rates, labels, tracking | Shipping returns `503 activation_required` |
+| Resend | Transactional templates, batch delivery, events | Delivery returns `503 activation_required`; durable work remains queued |
 | Google via Supabase | Staff OAuth | OAuth route remains disabled until configured |
 | SMTP via Supabase | Invite/reset/magic-link delivery | Delivery QA remains pending |
 
@@ -158,8 +187,12 @@ All animations are disabled under `@media (prefers-reduced-motion: reduce)`.
 - EasyPost requires a server-only test key and a complete per-winery origin
   address. The shipping simulator is accepted only in an explicitly enabled
   non-production test runtime.
+- Resend requires a server-only API key, verified winery sender domain, signed
+  webhook secret, and unsubscribe signing secret. The email simulator is
+  rejected outside an explicitly enabled test runtime.
 - The Worker custom-domain cutover occurs only after live Phase 1 exit verification.
 
 See [the Phase 1 ADR](./decisions/2026-07-26-phase-1-foundation-architecture.md)
 and [the Phase 2 ADR](./decisions/2026-07-26-phase-2-core-club-loop.md) for
-rationale and tradeoffs.
+rationale and tradeoffs. Retention-specific decisions are recorded in
+[the Phase 3 ADR](./decisions/2026-07-26-phase-3-retention-communications.md).

@@ -7,7 +7,7 @@
 A web-based platform for wine club operations — member management, shipment processing, AI churn prediction, and a passwordless member portal — designed for small to mid-size wineries.
 
 [![Live Site](https://img.shields.io/badge/🌐_Live_Site-vinifera.edstratumlabs.ai-6B1E30?style=for-the-badge)](https://vinifera.edstratumlabs.ai/)
-[![Production Build](https://img.shields.io/badge/Production_Build-Phase_2_Architecture-C9993A?style=for-the-badge)](./docs/build-specs/phase-2-core-club-loop.md)
+[![Production Build](https://img.shields.io/badge/Production_Build-Phase_3_Architecture-C9993A?style=for-the-badge)](./docs/build-specs/phase-3-retention-comms.md)
 [![Investor's Guide](https://img.shields.io/badge/📖_Investor's_Guide-Full_Story-3D0E1B?style=for-the-badge)](https://vinifera.edstratumlabs.ai/guide/)
 
 [![WCAG 2.1 AA](https://img.shields.io/badge/WCAG_2.1_AA-✓_0_Violations-success?style=flat-square)](https://vinifera.edstratumlabs.ai/)
@@ -20,7 +20,7 @@ A web-based platform for wine club operations — member management, shipment pr
 
 ## Overview
 
-Vinifera is a production wine club management platform under active build. The repository contains the verified original prototype plus the real Phase 1 foundation and Phase 2 core club architecture: a React/Vite staff application and member portal, an Express API on Cloudflare Workers, Supabase Auth/PostgreSQL with forced tenant RLS, Stripe subscription and shipment billing, and an EasyPost fulfillment adapter.
+Vinifera is a production wine club management platform under active build. The repository contains the verified original prototype plus the real Phase 1–3 architecture: a React/Vite staff application and member portal, an Express API on Cloudflare Workers, Supabase Auth/PostgreSQL with forced tenant RLS, Stripe subscription and shipment billing, EasyPost fulfillment, Resend transactional delivery, explainable churn scoring, cancellation interception, and a durable loyalty ledger.
 
 Provider integrations are connection-ready and fail closed when credentials or control-plane settings are not active. Production code does not emit mock dashboard rows or store JWTs in browser storage.
 
@@ -86,6 +86,7 @@ npm run dev:worker
 # Full local verification
 npm run check
 npm run qa:db:phase2
+npm run qa:db:phase3
 npm run qa:e2e
 ```
 
@@ -111,8 +112,9 @@ serve the React application instead.
 |--------|--------|
 | Static marketing/guide baseline | Previously verified for accessibility and responsive layout; rerun as a regression gate |
 | Phase 1 foundation | Architecture, API, browser, Worker, and embedded PostgreSQL gates pass |
-| Phase 2 core club | 25 service tests, 145 database assertions, and 34 route/functional/browser checks pass locally |
-| Provider activation | Pending hosted Supabase migrations, Stripe test webhook/payment data, EasyPost test key, Google OAuth, and SMTP |
+| Phase 2 core club | 145 database assertions plus service and browser regression gates pass locally |
+| Phase 3 retention | Email, rules scoring, cancel-flow, and loyalty architecture plus database/service/browser gates pass locally |
+| Provider activation | Pending hosted Supabase migrations, Stripe test data, EasyPost, Resend sender/webhook, Google OAuth, and SMTP |
 | Public deployment | Pages continues serving the verified prototype until the Worker activation runbooks pass |
 
 ## Repository Structure
@@ -132,7 +134,8 @@ vinifera/
 │   └── _headers             # Security headers + Content-Type overrides
 ├── scripts/
 │   ├── build.mjs            # Adds static public surfaces after Vite build
-│   └── verify-phase2-db.mjs # Embedded migration, pgTAP-compatible, and scale QA
+│   ├── verify-phase2-db.mjs # Core-club embedded database and scale QA
+│   └── verify-phase3-db.mjs # Retention database, RLS, RPC, and scale QA
 ├── docs/                    # Architecture, setup, ADRs, runbooks
 ├── .github/workflows/       # CI/CD pipeline
 ├── AGENTS.md                # AI agent collaboration guide

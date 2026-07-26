@@ -48,6 +48,8 @@ export interface MemberSummary {
   lastName: string;
   email: string;
   phone?: string | null;
+  birthday?: string | null;
+  referredByMemberId?: string | null;
   status: MemberStatus;
   tier?: Pick<ClubTier, "id" | "name"> | null;
   joinedAt: string;

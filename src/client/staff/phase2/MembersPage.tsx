@@ -45,6 +45,7 @@ import {
 } from "../../shared/OperationalState";
 import { StaffShell } from "../StaffShell";
 import { useStaffSession } from "../StaffSessionContext";
+import { MemberChurnFactors } from "../phase3/ChurnWatchPage";
 import { date, money, sentence } from "./format";
 import { useApiResource } from "./useApiResource";
 
@@ -53,6 +54,8 @@ interface MemberFormValues {
   lastName: string;
   email: string;
   phone: string;
+  birthday: string;
+  referredByMemberId: string;
   tierId: string;
   status: MemberStatus;
   line1: string;
@@ -67,6 +70,8 @@ const initialMember: MemberFormValues = {
   lastName: "",
   email: "",
   phone: "",
+  birthday: "",
+  referredByMemberId: "",
   tierId: "",
   status: "active",
   line1: "",
@@ -85,6 +90,8 @@ function MemberForm({
   tiers,
   busy,
   submitLabel,
+  referrerOptions,
+  excludeReferrerId,
   onChange,
   onSubmit,
 }: {
@@ -92,6 +99,8 @@ function MemberForm({
   tiers: ClubTier[];
   busy: boolean;
   submitLabel: string;
+  referrerOptions: MemberSummary[];
+  excludeReferrerId?: string;
   onChange: (values: MemberFormValues) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -120,6 +129,39 @@ function MemberForm({
             value={values.lastName}
             onChange={(event) => field("lastName", event.target.value)}
           />
+        </div>
+      </div>
+      <div className="form-grid">
+        <div className="form-field">
+          <label htmlFor="member-birthday">Birthday (optional)</label>
+          <input
+            id="member-birthday"
+            type="date"
+            value={values.birthday}
+            onChange={(event) => field("birthday", event.target.value)}
+          />
+        </div>
+        <div className="form-field">
+          <label htmlFor="member-referrer">Referred by (optional)</label>
+          <select
+            id="member-referrer"
+            value={values.referredByMemberId}
+            onChange={(event) =>
+              field("referredByMemberId", event.target.value)
+            }
+          >
+            <option value="">No referring member</option>
+            {referrerOptions
+              .filter((member) => member.id !== excludeReferrerId)
+              .map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.firstName} {member.lastName} · {member.email}
+                </option>
+              ))}
+          </select>
+          <p className="field-message">
+            Referral points are awarded by the server after eligibility checks.
+          </p>
         </div>
       </div>
       <div className="form-grid">
@@ -290,6 +332,8 @@ export function MembersPage() {
         lastName: memberForm.lastName,
         email: memberForm.email,
         phone: memberForm.phone || null,
+        birthday: memberForm.birthday || null,
+        referredByMemberId: memberForm.referredByMemberId || null,
         tierId: memberForm.tierId,
         status: memberForm.status,
         address: {
@@ -655,6 +699,7 @@ export function MembersPage() {
           tiers={tierOptions}
           busy={busy}
           submitLabel="Add member"
+          referrerOptions={memberRows}
           onChange={setMemberForm}
           onSubmit={saveMember}
         />
@@ -718,6 +763,14 @@ export function MemberDetailPage({ memberId }: { memberId: string }) {
     [],
   );
   const tiers = useApiResource(loadTiers, [loadTiers]);
+  const loadReferrers = useCallback(
+    () =>
+      apiRequest<PageResult<MemberSummary> | MemberSummary[]>(
+        queryPath("/api/members", { limit: "100" }),
+      ).then(asPageResult),
+    [],
+  );
+  const referrers = useApiResource(loadReferrers, [loadReferrers]);
 
   async function transition(status: MemberStatus) {
     setBusy(true);
@@ -751,6 +804,11 @@ export function MemberDetailPage({ memberId }: { memberId: string }) {
       lastName: record.lastName,
       email: record.email,
       phone: record.phone ?? "",
+      birthday: record.birthday ?? "",
+      referredByMemberId:
+        record.referredByMemberId === memberId
+          ? ""
+          : (record.referredByMemberId ?? ""),
       tierId: record.tier?.id ?? "",
       status: record.status,
       line1: record.address?.line1 ?? "",
@@ -772,6 +830,11 @@ export function MemberDetailPage({ memberId }: { memberId: string }) {
         lastName: form.lastName,
         email: form.email,
         phone: form.phone || null,
+        birthday: form.birthday || null,
+        referredByMemberId:
+          form.referredByMemberId && form.referredByMemberId !== memberId
+            ? form.referredByMemberId
+            : null,
         tierId: form.tierId,
         status: form.status,
         address: {
@@ -953,6 +1016,8 @@ export function MemberDetailPage({ memberId }: { memberId: string }) {
             </article>
           </div>
 
+          <MemberChurnFactors memberId={memberId} />
+
           <div className="detail-grid">
             <section className="operation-panel" aria-labelledby="member-activity-title">
               <div className="panel-heading">
@@ -1024,6 +1089,10 @@ export function MemberDetailPage({ memberId }: { memberId: string }) {
           tiers={tierOptions}
           busy={busy}
           submitLabel="Save changes"
+          referrerOptions={
+            referrers.state.status === "ready" ? referrers.state.data.items : []
+          }
+          excludeReferrerId={memberId}
           onChange={setForm}
           onSubmit={saveEdit}
         />

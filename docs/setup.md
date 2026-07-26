@@ -140,6 +140,33 @@ Phase 2 CSV imports accept generic mappings plus Commerce7 and WineDirect
 headers. Preview and validation occur before commit; do not upload files that
 contain full payment-card data.
 
+## Phase 3 communications and retention
+
+Email work is persisted before provider delivery. To activate Resend, configure
+the following server-only bindings after the winery domain is verified:
+
+```text
+EMAIL_PROVIDER=resend
+EMAIL_SIMULATOR_ENABLED=false
+RESEND_API_KEY
+RESEND_FROM
+RESEND_SENDING_DOMAIN
+RESEND_DOMAIN_VERIFIED=true
+RESEND_WEBHOOK_SECRET
+UNSUBSCRIBE_SIGNING_SECRET
+```
+
+Register `POST /api/webhooks/resend` and keep its raw-body signature
+verification enabled. Missing or unverified configuration leaves email work
+queued and returns an explicit activation state. A deterministic email adapter
+is accepted only in the test runtime with both simulator gates enabled.
+
+Nightly Worker scheduling recalculates explainable churn scores, enqueues due
+messages, expires loyalty points, awards birthday/anniversary points, and
+reclaims bounded outbox work. See
+`docs/runbooks/phase-3-resend-activation.md` for DNS, webhook, trigger, and
+rollback proof.
+
 ## Build and verify
 
 ```bash
@@ -148,6 +175,8 @@ npm run typecheck
 npm test
 npm run build
 npm run build:worker
+npm run qa:db:phase2
+npm run qa:db:phase3
 npm run qa:e2e
 ```
 

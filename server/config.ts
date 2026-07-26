@@ -21,6 +21,57 @@ export function getAllowedOrigins(env: WorkerEnv): string[] {
 }
 
 export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
+  const communications =
+    env.EMAIL_PROVIDER === "resend"
+      ? capability(env, [
+          "EMAIL_PROVIDER",
+          "RESEND_API_KEY",
+          "RESEND_FROM",
+          "RESEND_SENDING_DOMAIN",
+          "RESEND_DOMAIN_VERIFIED",
+          "RESEND_WEBHOOK_SECRET",
+          "UNSUBSCRIBE_SIGNING_SECRET",
+        ])
+      : env.EMAIL_PROVIDER === "simulated" &&
+          env.APP_ENV === "test" &&
+          env.EMAIL_SIMULATOR_ENABLED === "true" &&
+          Boolean(env.UNSUBSCRIBE_SIGNING_SECRET)
+        ? { configured: true, missing: [] }
+        : {
+            configured: false,
+            missing:
+              env.EMAIL_PROVIDER === "simulated"
+                ? [
+                    ...(env.APP_ENV === "test" ? [] : ["APP_ENV"]),
+                    ...(env.EMAIL_SIMULATOR_ENABLED === "true"
+                      ? []
+                      : ["EMAIL_SIMULATOR_ENABLED"]),
+                    ...(env.UNSUBSCRIBE_SIGNING_SECRET
+                      ? []
+                      : ["UNSUBSCRIBE_SIGNING_SECRET"]),
+                  ]
+                : ["EMAIL_PROVIDER"],
+          };
+  if (
+    env.EMAIL_PROVIDER === "resend" &&
+    env.RESEND_DOMAIN_VERIFIED !== "true" &&
+    !communications.missing.includes("RESEND_DOMAIN_VERIFIED")
+  ) {
+    communications.configured = false;
+    communications.missing.push("RESEND_DOMAIN_VERIFIED");
+  }
+  if (env.EMAIL_PROVIDER === "resend" && env.RESEND_FROM && env.RESEND_SENDING_DOMAIN) {
+    const fromAddress = env.RESEND_FROM.match(
+      /(?:<)?([^<>\s]+@([^<>\s]+))(?:>)?$/,
+    )?.[1];
+    const fromDomain = fromAddress?.split("@")[1]?.toLowerCase();
+    if (fromDomain !== env.RESEND_SENDING_DOMAIN.toLowerCase()) {
+      communications.configured = false;
+      if (!communications.missing.includes("RESEND_FROM")) {
+        communications.missing.push("RESEND_FROM");
+      }
+    }
+  }
   const shipping =
     env.SHIPPING_PROVIDER === "easypost"
       ? capability(env, ["SHIPPING_PROVIDER", "EASYPOST_API_KEY"])
@@ -54,6 +105,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
       "STRIPE_PRICE_ESTATE",
       "STRIPE_PRICE_RESERVE",
     ]),
+    communications,
     webhook: capability(env, ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]),
     googleOAuth: {
       configured: env.GOOGLE_OAUTH_ENABLED === "true",

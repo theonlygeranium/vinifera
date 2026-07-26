@@ -133,7 +133,7 @@ function service(overrides: Partial<ApplicationService> = {}): ApplicationServic
       valid: true,
     }),
     ...overrides,
-  };
+  } as ApplicationService;
 }
 
 function testApp(
@@ -232,6 +232,7 @@ describe("Phase 1 API", () => {
           name: staffPrincipal.organization.name,
         },
         user: {
+          authUserId: "90000000-0000-4000-8000-000000000001",
           email: "member@example.com",
           firstName: "Avery",
           id: "30000000-0000-4000-8000-000000000001",
@@ -259,6 +260,7 @@ describe("Phase 1 API", () => {
 
     expect(staff.body.data.user.email).toBe("owner@example.com");
     expect(member.body.data.user.email).toBe("member@example.com");
+    expect(member.body.data.user.authUserId).toBeUndefined();
     expect(member.body.data.user.role).toBeUndefined();
   });
 
@@ -319,6 +321,33 @@ describe("Phase 1 API", () => {
     expect(response.status).toBe(503);
     expect(response.body.error.code).toBe("activation_required");
     expect(response.body.error.requestId).toBeTruthy();
+  });
+});
+
+describe("Phase 3 member retention fields", () => {
+  it("accepts birthday and same-tenant referral identifiers through member CRUD", async () => {
+    const createMember = vi.fn().mockResolvedValue({
+      id: "30000000-0000-4000-8000-000000000009",
+    });
+    const foundation = service({ createMember });
+    const response = await request(testApp(foundation))
+      .post("/api/members")
+      .set("Origin", "https://vinifera.test")
+      .send({
+        birthday: "1990-07-26",
+        email: "new-member@example.com",
+        firstName: "New",
+        lastName: "Member",
+        referredByMemberId: "30000000-0000-4000-8000-000000000001",
+      });
+
+    expect(response.status).toBe(201);
+    expect(createMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        birthday: "1990-07-26",
+        referredByMemberId: "30000000-0000-4000-8000-000000000001",
+      }),
+    );
   });
 });
 

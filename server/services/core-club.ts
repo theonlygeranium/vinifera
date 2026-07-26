@@ -98,6 +98,7 @@ interface OrganizationRow {
 
 interface MemberRow {
   auth_user_id?: string | null;
+  birthday?: string | null;
   club_tier_id?: string | null;
   email: string;
   first_name: string;
@@ -105,6 +106,7 @@ interface MemberRow {
   last_name: string;
   organization_id: string;
   phone?: string | null;
+  referred_by_member_id?: string | null;
   shipping_address_line1?: string | null;
   shipping_address_line2?: string | null;
   shipping_city?: string | null;
@@ -120,6 +122,8 @@ interface ShipmentPaymentRow {
   charge_amount_cents: number;
   id: string;
   member_id: string;
+  loyalty_discount_cents?: number;
+  loyalty_redemption_id?: string | null;
   organization_id: string;
   release_id: string;
   retry_count: number;
@@ -331,6 +335,7 @@ function toPublicMember(value: unknown): Record<string, unknown> {
       title: `Shipment ${String(shipment.status ?? "").replaceAll("_", " ")}`,
     })),
     address,
+    birthday: row.birthday,
     churnRisk: "not_scored",
     createdAt: row.created_at,
     email: row.email,
@@ -341,6 +346,7 @@ function toPublicMember(value: unknown): Record<string, unknown> {
     lifetimeValueCents: row.lifetime_value_cents,
     orderCount: shipments.length,
     phone: row.phone,
+    referredByMemberId: row.referred_by_member_id,
     status: row.status,
     tier: tier ? { id: tier.id, name: tier.name } : null,
     updatedAt: row.updated_at,
@@ -471,6 +477,12 @@ function toPublicShipment(value: unknown): Record<string, unknown> {
       ? `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim()
       : "",
     nextRetryDate: row.next_retry_at,
+    loyaltyDiscountCents: Number(row.loyalty_discount_cents ?? 0),
+    payableAmountCents: Math.max(
+      0,
+      Number(row.charge_amount_cents ?? 0) -
+        Number(row.loyalty_discount_cents ?? 0),
+    ),
     releaseId: row.release_id,
     releaseName: release?.name ?? "",
     retryCount: row.retry_count,
@@ -509,12 +521,16 @@ function addressToDatabase(address: PostalAddress | null | undefined):
 
 function memberToDatabase(input: Partial<MemberInput>): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
+  if (input.birthday !== undefined) payload.birthday = input.birthday;
   if (input.clubTierId !== undefined) payload.club_tier_id = input.clubTierId;
   if (input.email !== undefined) payload.email = normalizeEmail(input.email);
   if (input.firstName !== undefined) payload.first_name = input.firstName.trim();
   if (input.joinDate !== undefined) payload.joined_on = input.joinDate;
   if (input.lastName !== undefined) payload.last_name = input.lastName.trim();
   if (input.phone !== undefined) payload.phone = input.phone?.trim() || null;
+  if (input.referredByMemberId !== undefined) {
+    payload.referred_by_member_id = input.referredByMemberId;
+  }
   if (input.shippingAddress !== undefined) {
     if (input.shippingAddress === null) {
       Object.assign(payload, {
@@ -1203,6 +1219,13 @@ function paymentIdempotencyKey(
     : `shipment:${shipment.id}:manual-retry:${shipment.retry_count + 1}`;
 }
 
+function payableShipmentAmount(shipment: ShipmentPaymentRow): number {
+  return Math.max(
+    0,
+    shipment.charge_amount_cents - Number(shipment.loyalty_discount_cents ?? 0),
+  );
+}
+
 export class ProductionCoreClubService implements CoreClubService {
   protected readonly admin: SupabaseClient;
 
@@ -1214,7 +1237,7 @@ export class ProductionCoreClubService implements CoreClubService {
     this.admin = createAdminClient(env);
   }
 
-  private async requireStaff(roles?: StaffRole[]): Promise<StaffPrincipal> {
+  protected async requireStaff(roles?: StaffRole[]): Promise<StaffPrincipal> {
     const client = createSurfaceClient(
       this.env,
       this.request,
@@ -1272,7 +1295,7 @@ export class ProductionCoreClubService implements CoreClubService {
     return principal;
   }
 
-  private async requireMember(): Promise<MemberPrincipal> {
+  protected async requireMember(): Promise<MemberPrincipal> {
     const client = createSurfaceClient(
       this.env,
       this.request,
@@ -1297,6 +1320,7 @@ export class ProductionCoreClubService implements CoreClubService {
     return {
       organization: organization as { id: string; name: string },
       user: {
+        authUserId: authData.user.id,
         email: member.email,
         firstName: member.first_name,
         id: member.id,
@@ -1306,7 +1330,7 @@ export class ProductionCoreClubService implements CoreClubService {
     };
   }
 
-  private async audit(
+  protected async audit(
     principal: StaffPrincipal,
     action: string,
     entityType: string,
@@ -1326,7 +1350,7 @@ export class ProductionCoreClubService implements CoreClubService {
     if (error) throw databaseError("The audit entry could not be persisted.");
   }
 
-  private organizationId(principal: StaffPrincipal): string {
+  protected organizationId(principal: StaffPrincipal): string {
     if (!principal.organization) throw authFailure();
     return principal.organization.id;
   }
@@ -1490,6 +1514,14 @@ export class ProductionCoreClubService implements CoreClubService {
         "Club tier",
       );
     }
+    if (input.referredByMemberId) {
+      await this.assertTenantEntity(
+        "members",
+        input.referredByMemberId,
+        organizationId,
+        "Referring member",
+      );
+    }
     let stripeCustomerId: string | null = null;
     if (this.env.STRIPE_SECRET_KEY) {
       const customer = await createStripe(this.env).customers.create(
@@ -1545,6 +1577,21 @@ export class ProductionCoreClubService implements CoreClubService {
         input.clubTierId,
         organizationId,
         "Club tier",
+      );
+    }
+    if (input.referredByMemberId === memberId) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "A member cannot refer themselves.",
+      );
+    }
+    if (input.referredByMemberId) {
+      await this.assertTenantEntity(
+        "members",
+        input.referredByMemberId,
+        organizationId,
+        "Referring member",
       );
     }
     const { data, error } = await this.admin
@@ -1990,7 +2037,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const { data: shipments, error } = await this.admin
       .from("shipments")
       .select(
-        "id,organization_id,member_id,release_id,status,charge_amount_cents,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
+        "id,organization_id,member_id,release_id,status,charge_amount_cents,loyalty_discount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
       )
       .eq("organization_id", organizationId)
       .eq("release_id", releaseId)
@@ -2059,7 +2106,7 @@ export class ProductionCoreClubService implements CoreClubService {
     let query = this.admin
       .from("shipments")
       .select(
-        "id,member_id,release_id,status,shipping_address,tracking_number,carrier,charge_amount_cents,decline_reason,retry_count,next_retry_at,created_at,updated_at,members(first_name,last_name,email),releases(name),release_tiers(tier_name),shipment_items(id,wine_name,quantity,price_cents)",
+        "id,member_id,release_id,status,shipping_address,tracking_number,carrier,charge_amount_cents,loyalty_discount_cents,decline_reason,retry_count,next_retry_at,created_at,updated_at,members(first_name,last_name,email),releases(name),release_tiers(tier_name),shipment_items(id,wine_name,quantity,price_cents)",
         { count: "exact" },
       )
       .eq("organization_id", organizationId);
@@ -2132,7 +2179,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const { data: shipment, error } = await this.admin
       .from("shipments")
       .select(
-        "id,status,charge_amount_cents,refund_amount_cents,stripe_payment_intent_id,stripe_charge_id",
+        "id,status,charge_amount_cents,loyalty_discount_cents,refund_amount_cents,stripe_payment_intent_id,stripe_charge_id",
       )
       .eq("id", shipmentId)
       .eq("organization_id", organizationId)
@@ -2149,7 +2196,25 @@ export class ProductionCoreClubService implements CoreClubService {
     if (!shipment.stripe_payment_intent_id) {
       throw new AppError(409, "conflict", "The Stripe payment reference is missing.");
     }
-    const refundAmount = input.amountCents ?? shipment.charge_amount_cents;
+    const capturedAmount = Math.max(
+      0,
+      Number(shipment.charge_amount_cents) -
+        Number(shipment.loyalty_discount_cents ?? 0),
+    );
+    const alreadyRefunded = Number(shipment.refund_amount_cents ?? 0);
+    const remainingRefundable = Math.max(0, capturedAmount - alreadyRefunded);
+    const refundAmount = input.amountCents ?? remainingRefundable;
+    if (
+      !Number.isInteger(refundAmount) ||
+      refundAmount <= 0 ||
+      refundAmount > remainingRefundable
+    ) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "Refund amount must be a positive number of cents no greater than the remaining captured amount.",
+      );
+    }
     const idempotencyKey = `shipment:${shipmentId}:refund:${Number(
       shipment.refund_amount_cents ?? 0,
     )}:${refundAmount}`;
@@ -2211,7 +2276,7 @@ export class ProductionCoreClubService implements CoreClubService {
       amountCents: refund.amount,
       id: shipmentId,
       status:
-        refundAmount >= shipment.charge_amount_cents
+        alreadyRefunded + refundAmount >= capturedAmount
           ? "refunded"
           : shipment.status,
     };
@@ -2781,7 +2846,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const { data, error } = await this.admin
       .from("shipments")
       .select(
-        "id,member_id,release_id,status,shipping_address,tracking_number,carrier,charge_amount_cents,created_at,updated_at,releases(id,name,description,processing_date,embargo_date),shipment_items(id,wine_name,quantity,price_cents)",
+        "id,member_id,release_id,status,shipping_address,tracking_number,carrier,charge_amount_cents,loyalty_discount_cents,created_at,updated_at,releases(id,name,description,processing_date,embargo_date),shipment_items(id,wine_name,quantity,price_cents)",
       )
       .eq("organization_id", principal.organization.id)
       .eq("member_id", principal.user.id)
@@ -2977,7 +3042,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const { data, error } = await this.admin
       .from("shipments")
       .select(
-        "id,organization_id,member_id,release_id,status,charge_amount_cents,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
+        "id,organization_id,member_id,release_id,status,charge_amount_cents,loyalty_discount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
       )
       .eq("id", shipmentId)
       .eq("organization_id", organizationId)
@@ -3012,6 +3077,17 @@ export class ProductionCoreClubService implements CoreClubService {
       source,
       null,
     );
+    const payableAmount = payableShipmentAmount(shipment);
+    if (payableAmount === 0) {
+      await this.recordPaymentOutcome(shipment, principal, billingAttemptId, {
+        chargeId: null,
+        declineReason: null,
+        paymentIntentId: null,
+        source,
+        status: "charged",
+      });
+      return "charged";
+    }
     const paymentMethodId = await resolveStripePaymentMethod(
       stripe,
       this.admin,
@@ -3031,7 +3107,7 @@ export class ProductionCoreClubService implements CoreClubService {
     try {
       paymentIntent = await stripe.paymentIntents.create(
         {
-          amount: shipment.charge_amount_cents,
+          amount: payableAmount,
           automatic_payment_methods: { enabled: true },
           confirm: true,
           currency: "usd",
@@ -3131,13 +3207,28 @@ export class ProductionCoreClubService implements CoreClubService {
       p_stripe_event_id: null,
     });
     if (error) throw databaseError("The shipment payment state could not be persisted.");
+    if (outcome.status === "charged" && shipment.loyalty_redemption_id) {
+      const { error: loyaltyError } = await this.admin.rpc(
+        "finalize_loyalty_redemption",
+        {
+          p_actor_user_id: principal.user.id,
+          p_apply: true,
+          p_organization_id: organizationId,
+          p_redemption_id: shipment.loyalty_redemption_id,
+        },
+      );
+      if (loyaltyError) {
+        throw databaseError("The loyalty redemption could not be finalized.");
+      }
+    }
     await this.audit(
       principal,
       outcome.status === "charged" ? "shipment.charged" : "shipment.declined",
       "shipment",
       shipment.id,
       {
-        amount_cents: shipment.charge_amount_cents,
+        amount_cents: payableShipmentAmount(shipment),
+        loyalty_discount_cents: Number(shipment.loyalty_discount_cents ?? 0),
         decline_reason: outcome.declineReason,
         source: outcome.source,
         stripe_payment_intent_id: outcome.paymentIntentId,
@@ -3146,7 +3237,7 @@ export class ProductionCoreClubService implements CoreClubService {
     if (outcome.status === "declined") {
       console.info(
         JSON.stringify({
-          event: "member.decline_notification.stub",
+          event: "member.decline_notification.queued_by_database",
           memberId: shipment.member_id,
           organizationId,
           shipmentId: shipment.id,
@@ -3164,7 +3255,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const organizationId = this.organizationId(principal);
     const { data, error } = await this.admin.rpc("record_billing_attempt", {
       p_actor_user_id: principal.user.id,
-      p_amount_cents: shipment.charge_amount_cents,
+      p_amount_cents: payableShipmentAmount(shipment),
       p_attempt_kind: source === "release_processing" ? "charge" : "retry",
       p_idempotency_key: paymentIdempotencyKey(shipment, source),
       p_metadata: { source },
@@ -3224,7 +3315,7 @@ async function attachSystemPaymentIntent(
 ): Promise<string> {
   const { data, error } = await admin.rpc("record_billing_attempt", {
     p_actor_user_id: null,
-    p_amount_cents: shipment.charge_amount_cents,
+    p_amount_cents: payableShipmentAmount(shipment),
     p_attempt_kind: options.attemptKind,
     p_idempotency_key: options.idempotencyKey,
     p_metadata: { automatic: true },
@@ -3297,6 +3388,17 @@ async function chargeSystemShipment(
       ...options,
       paymentIntentId: null,
     }));
+  const payableAmount = payableShipmentAmount(shipment);
+  if (payableAmount === 0) {
+    await applySystemPaymentOutcome(admin, shipment, attemptId, {
+      chargeId: null,
+      declineCode: null,
+      declineReason: null,
+      paymentIntentId: null,
+      status: "succeeded",
+    });
+    return "charged";
+  }
   const paymentMethodId = await resolveStripePaymentMethod(stripe, admin, member);
   if (!member.stripe_customer_id || !paymentMethodId) {
     await applySystemPaymentOutcome(admin, shipment, attemptId, {
@@ -3313,7 +3415,7 @@ async function chargeSystemShipment(
   try {
     paymentIntent = await stripe.paymentIntents.create(
       {
-        amount: shipment.charge_amount_cents,
+        amount: payableAmount,
         automatic_payment_methods: { enabled: true },
         confirm: true,
         currency: "usd",
@@ -3508,7 +3610,7 @@ export async function runCoreClubSchedule(
   const { data: pending, error: pendingError } = await admin
     .from("shipments")
     .select(
-      "id,organization_id,member_id,release_id,status,charge_amount_cents,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id),releases!inner(status)",
+      "id,organization_id,member_id,release_id,status,charge_amount_cents,loyalty_discount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id),releases!inner(status)",
     )
     .eq("status", "pending")
     .eq("releases.status", "processing")
@@ -3535,7 +3637,7 @@ export async function runCoreClubSchedule(
   const { data: processingAttempts, error: processingAttemptsError } = await admin
     .from("billing_attempts")
     .select(
-      "id,idempotency_key,attempt_kind,status,shipments!inner(id,organization_id,member_id,release_id,status,charge_amount_cents,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id))",
+      "id,idempotency_key,attempt_kind,status,shipments!inner(id,organization_id,member_id,release_id,status,charge_amount_cents,loyalty_discount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id))",
     )
     .in("attempt_kind", ["charge", "retry"])
     .in("status", ["processing", "queued"])
@@ -3600,7 +3702,7 @@ export async function runCoreClubSchedule(
         const { data, error } = await admin
           .from("shipments")
           .select(
-            "id,organization_id,member_id,release_id,status,charge_amount_cents,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
+            "id,organization_id,member_id,release_id,status,charge_amount_cents,loyalty_discount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
           )
           .eq("id", retry.shipment_id)
           .eq("organization_id", retry.organization_id)

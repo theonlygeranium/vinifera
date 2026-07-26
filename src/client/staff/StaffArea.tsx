@@ -18,6 +18,10 @@ import {
   ResetPasswordPage,
   SignupPage,
 } from "./StaffAuthPages";
+import { ChurnWatchPage } from "./phase3/ChurnWatchPage";
+import { CommunicationsPage } from "./phase3/CommunicationsPage";
+import { LoyaltyPage } from "./phase3/LoyaltyPage";
+import { RetentionPage } from "./phase3/RetentionPage";
 import {
   StaffSessionProvider,
   useStaffSession,
@@ -119,6 +123,34 @@ function StaffRoutes() {
     return (
       <ProtectedPage>
         <ImportMembersPage />
+      </ProtectedPage>
+    );
+  }
+  if (route === "/app/communications") {
+    return (
+      <ProtectedPage>
+        <CommunicationsPage />
+      </ProtectedPage>
+    );
+  }
+  if (route === "/app/churn-watch") {
+    return (
+      <ProtectedPage>
+        <ChurnWatchPage />
+      </ProtectedPage>
+    );
+  }
+  if (route === "/app/retention") {
+    return (
+      <ProtectedPage>
+        <RetentionPage />
+      </ProtectedPage>
+    );
+  }
+  if (route === "/app/loyalty") {
+    return (
+      <ProtectedPage>
+        <LoyaltyPage />
       </ProtectedPage>
     );
   }

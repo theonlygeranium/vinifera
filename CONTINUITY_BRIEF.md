@@ -15,7 +15,7 @@ Read `AGENTS.md`, the phase specification, and this brief before editing.
 
 ## Current production state
 
-The public custom domain still serves the verified static Cloudflare Pages prototype. The repository now contains the Phase 1 foundation and Phase 2 core-club production architecture:
+The public custom domain still serves the verified static Cloudflare Pages prototype. The repository now contains the Phase 1–3 production architecture:
 
 - React 19 + Tailwind/Vite staff and member applications
 - Express 5 API in a Cloudflare Worker with Static Assets
@@ -24,9 +24,11 @@ The public custom domain still serves the verified static Cloudflare Pages proto
 - Tenant-owned tiers, member CRM, release snapshots, shipments, recovery, fulfillment, and durable CSV import
 - Stripe test-mode shipment PaymentIntents, retries, refunds, and an hourly resumable release runner
 - EasyPost address/label adapter with fail-closed activation and a test-only deterministic simulator
+- Durable Resend email outbox, six lifecycle triggers, signed delivery webhooks, and unsubscribe handling
+- Explainable nightly churn snapshots, a configurable four-step cancellation flow, and a FIFO loyalty ledger
 - GitHub-hosted CI, conditional migrations, Worker staging deployment, and Playwright/axe QA
 
-The Worker is connection-ready but must not replace the Pages custom-domain baseline until the hosted Supabase, Stripe, and EasyPost activation checks in the Phase 1 and Phase 2 QA reports pass.
+The Worker is connection-ready but must not replace the Pages custom-domain baseline until the hosted Supabase, Stripe, EasyPost, and Resend activation checks in the Phase 1–3 QA reports pass.
 
 ## Runtime architecture
 
@@ -36,7 +38,7 @@ The Worker is connection-ready but must not replace the Pages custom-domain base
 | `/app/*` | React staff application |
 | `/portal/*` | React member portal |
 | `/api/*` | Express backend-for-frontend |
-| hourly cron | Stripe access-state reconciliation, due releases, and decline retries |
+| hourly cron | access reconciliation, releases/retries, email claims, churn, and loyalty schedules |
 
 Staff and member JWTs live only in distinct secure HTTP-only cookies. Provider secrets exist only in the Worker. Production dashboards contain no mock rows.
 
@@ -63,15 +65,18 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 - `npm audit`: zero known dependency vulnerabilities
 - TypeScript: pass
-- Vitest: 25/25 pass
+- Vitest: 42/42 pass
 - Phase 1 Playwright: 21/21 pass
 - Phase 2 Playwright: 34 route, workflow, responsive, and performance checks
-- axe WCAG 2.1 AA: zero violations across every Phase 1 and Phase 2 application surface
+- Phase 3 Playwright: 21 retention, communications, loyalty, and responsive checks
+- Complete Phase 1–3 Playwright regression: 76/76
+- axe WCAG 2.1 AA: zero violations across every Phase 1–3 application surface
 - Breakpoints: 375, 768, and 1440 pass; orientation change passes
 - Initial application JavaScript: 62.25 KB gzip
 - Worker dry-run bundle: pass
 - Embedded PostgreSQL functional preflight: pass
 - Phase 2 embedded PostgreSQL: 145/145 plan-balanced schema, RLS, and RPC assertions
+- Phase 3 embedded PostgreSQL: migration, forced-RLS, retention RPC, and performance gates pass
 
 ## Activation gates
 
@@ -84,7 +89,8 @@ The code must remain fail-closed until these external connections are active:
 5. Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled.
 6. Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof.
 7. Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests.
-8. Move the custom domain only after the hosted exit criteria are evidenced.
+8. Verify a Resend sending domain, signed webhook, and at least two real staging triggers.
+9. Move the custom domain only after the hosted exit criteria are evidenced.
 
 See `.env.example` and `docs/setup.md` for exact variable names. Never print or commit values.
 
@@ -98,6 +104,7 @@ npm test
 npm run build
 npm run build:worker
 npm run qa:db:phase2
+npm run qa:db:phase3
 npm run qa:e2e
 ```
 

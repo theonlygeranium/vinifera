@@ -26,6 +26,19 @@ export type StaffRole =
   | "manager"
   | "staff"
   | "super_admin";
+export type EmailTriggerType =
+  | "welcome"
+  | "pre_shipment"
+  | "payment_decline"
+  | "shipped"
+  | "birthday"
+  | "re_engagement";
+export type CancelFlowOutcome =
+  | "continued"
+  | "paused"
+  | "downgraded"
+  | "swapped"
+  | "cancelled";
 
 export interface WorkerEnv {
   ALLOWED_ORIGINS?: string;
@@ -36,6 +49,13 @@ export interface WorkerEnv {
   GOOGLE_OAUTH_ENABLED?: "true" | "false";
   RATE_LIMIT_PEPPER?: string;
   EASYPOST_API_KEY?: string;
+  EMAIL_PROVIDER?: "resend" | "simulated";
+  EMAIL_SIMULATOR_ENABLED?: "true" | "false";
+  RESEND_API_KEY?: string;
+  RESEND_DOMAIN_VERIFIED?: "true" | "false";
+  RESEND_FROM?: string;
+  RESEND_SENDING_DOMAIN?: string;
+  RESEND_WEBHOOK_SECRET?: string;
   SHIPPING_ALLOWED_STATES?: string;
   SHIPPING_PROVIDER?: "easypost" | "simulated";
   SHIPPING_SIMULATOR_ENABLED?: "true" | "false";
@@ -50,6 +70,7 @@ export interface WorkerEnv {
   SUPABASE_SECRET_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   SUPABASE_URL?: string;
+  UNSUBSCRIBE_SIGNING_SECRET?: string;
 }
 
 export interface StaffPrincipal {
@@ -81,6 +102,7 @@ export interface MemberPrincipal {
     name: string;
   };
   user: {
+    authUserId: string;
     email: string;
     firstName: string;
     id: string;
@@ -140,12 +162,14 @@ export interface ClubTierInput {
 }
 
 export interface MemberInput {
+  birthday?: string | null;
   clubTierId?: string | null;
   email: string;
   firstName: string;
   joinDate?: string;
   lastName: string;
   phone?: string | null;
+  referredByMemberId?: string | null;
   shippingAddress?: PostalAddress | null;
   status?: MemberStatus;
 }
@@ -303,7 +327,108 @@ export interface CoreClubService {
   ): Promise<{ address: PostalAddress; messages: string[]; valid: boolean }>;
 }
 
-export type ApplicationService = FoundationService & CoreClubService;
+export interface EmailTemplateInput {
+  body: string;
+  daysBefore?: number;
+  enabled: boolean;
+  subject: string;
+  triggerType: EmailTriggerType;
+}
+
+export interface RetentionService {
+  applyUnsubscribe(token: string): Promise<void>;
+  adjustLoyaltyPoints(
+    memberId: string,
+    input: { points: number; reason: string },
+  ): Promise<Record<string, unknown>>;
+  deleteEmailTemplate(templateId: string): Promise<void>;
+  getCancelFlowAnalytics(): Promise<Record<string, unknown>>;
+  getCancelFlowConfiguration(): Promise<Record<string, unknown>>;
+  getChurnScore(memberId: string): Promise<Record<string, unknown>>;
+  getMemberCancelFlow(): Promise<Record<string, unknown>>;
+  getMemberLoyalty(): Promise<Record<string, unknown>>;
+  getStaffMemberLoyalty(memberId: string): Promise<Record<string, unknown>>;
+  handleResendWebhook(
+    payload: Buffer,
+    headers: { id: string; signature: string; timestamp: string },
+  ): Promise<{ duplicate: boolean; ignored?: boolean }>;
+  listChurnScores(input: {
+    limit: number;
+    offset: number;
+    riskLevel?: "low" | "medium" | "high";
+    search?: string;
+  }): Promise<{
+    calculatedAt: string | null;
+    highCount: number;
+    items: Array<Record<string, unknown>>;
+    lowCount: number;
+    mediumCount: number;
+    scoredCount: number;
+    total: number;
+  }>;
+  listEmailLog(input: {
+    limit: number;
+    offset: number;
+    status?: string;
+    triggerType?: EmailTriggerType;
+  }): Promise<{ items: Array<Record<string, unknown>>; total: number }>;
+  listEmailTemplates(): Promise<Array<Record<string, unknown>>>;
+  listLoyaltyMembers(input: {
+    limit: number;
+    offset: number;
+    search?: string;
+  }): Promise<{ items: Array<Record<string, unknown>>; total: number }>;
+  previewEmailTemplate(
+    templateId: string,
+    input: {
+      body?: string;
+      subject?: string;
+      variables?: Record<string, string>;
+    },
+  ): Promise<{ body: string; html: string; subject: string }>;
+  processCancelFlowEvent(input: {
+    action: CancelFlowOutcome;
+    attemptId?: string;
+    details?: Record<string, unknown>;
+    stepId: string;
+  }): Promise<Record<string, unknown>>;
+  recordLoyaltyEvent(
+    memberId: string,
+    input: {
+      eventId: string;
+      eventType: "event_attendance";
+      occurredAt?: string;
+      reason?: string;
+    },
+  ): Promise<Record<string, unknown>>;
+  redeemMemberLoyalty(input: {
+    idempotencyKey: string;
+    points: number;
+    shipmentId: string;
+  }): Promise<Record<string, unknown>>;
+  sendEmailTemplateTest(
+    templateId: string,
+    input: { email: string; variables?: Record<string, string> },
+  ): Promise<{ accepted: boolean; deliveryId: string }>;
+  startMemberCancelFlow(): Promise<Record<string, unknown>>;
+  updateCancelFlowConfiguration(input: {
+    steps: Array<{
+      enabled: boolean;
+      id: "pause" | "downgrade" | "swap" | "confirm";
+      position: number;
+      stepId?: string;
+    }>;
+  }): Promise<Record<string, unknown>>;
+  updateEmailTemplate(
+    templateId: string,
+    input: Partial<EmailTemplateInput>,
+  ): Promise<Record<string, unknown>>;
+  upsertEmailTemplate(input: EmailTemplateInput): Promise<Record<string, unknown>>;
+}
+
+export type ApplicationService = FoundationService &
+  CoreClubService &
+  RetentionService;
 
 export type FoundationServiceFactory = (
   request: Request,
@@ -323,6 +448,7 @@ export interface ConfigurationCapability {
 export interface ConfigurationReport {
   app: ConfigurationCapability;
   billing: ConfigurationCapability;
+  communications: ConfigurationCapability;
   database: ConfigurationCapability;
   email: ConfigurationCapability;
   googleOAuth: ConfigurationCapability;
