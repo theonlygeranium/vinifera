@@ -1,1 +1,22 @@
-aW1wb3J0ICcuL2luZGV4LmNzcycKCmZ1bmN0aW9uIEFwcCgpIHsKICByZXR1cm4gKAogICAgPGRpdiBjbGFzc05hbWU9ImFwcCI+CiAgICAgIDxoMT5SRVBPLU5BTUU8L2gxPgogICAgICA8cD5SZXBsYWNlIHRoaXMgd2l0aCB5b3VyIGFwcGxpY2F0aW9uLjwvcD4KICAgICAgPHAgY2xhc3NOYW1lPSJtZXRhIj4KICAgICAgICBIb3N0ZWQgb257JyAnfQogICAgICAgIDxhIGhyZWY9Imh0dHBzOi8vcGFnZXMuY2xvdWRmbGFyZS5jb20iIHRhcmdldD0iX2JsYW5rIiByZWw9Im5vcmVmZXJyZXIiPgogICAgICAgICAgQ2xvdWRmbGFyZSBQYWdlcwogICAgICAgIDwvYT57JyAnfQogICAgICAgIMK3IEJ1aWx0IGJ5eycgJ30KICAgICAgICA8YSBocmVmPSJodHRwczovL2Vkc3RyYXR1bWxhYnMuYWkiIHRhcmdldD0iX2JsYW5rIiByZWw9Im5vcmVmZXJyZXIiPgogICAgICAgICAgRWRTdHJhdHVtIExhYnMKICAgICAgICA8L2E+CiAgICAgIDwvcD4KICAgIDwvZGl2PgogICkKfQoKZXhwb3J0IGRlZmF1bHQgQXBwCg==
+import './index.css'
+
+function App() {
+  return (
+    <div className="app">
+      <h1>vinifera</h1>
+      <p>Replace this with your application.</p>
+      <p className="meta">
+        Hosted on{' '}
+        <a href="https://pages.cloudflare.com" target="_blank" rel="noreferrer">
+          Cloudflare Pages
+        </a>{' '}
+        · Built by{' '}
+        <a href="https://edstratumlabs.ai" target="_blank" rel="noreferrer">
+          EdStratum Labs
+        </a>
+      </p>
+    </div>
+  )
+}
+
+export default App

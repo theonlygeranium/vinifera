@@ -1,1 +1,9 @@
-LyoKICBYLUZyYW1lLU9wdGlvbnM6IERFTlkKICBYLUNvbnRlbnQtVHlwZS1PcHRpb25zOiBub3NuaWZmCiAgWC1YU1MtUHJvdGVjdGlvbjogMTsgbW9kZT1ibG9jawogIFJlZmVycmVyLVBvbGljeTogc3RyaWN0LW9yaWdpbi13aGVuLWNyb3NzLW9yaWdpbgogIFBlcm1pc3Npb25zLVBvbGljeTogY2FtZXJhPSgpLCBtaWNyb3Bob25lPSgpLCBnZW9sb2NhdGlvbj0oKSwgcGF5bWVudD0oKQoKL2Fzc2V0cy8qCiAgQ2FjaGUtQ29udHJvbDogcHVibGljLCBtYXgtYWdlPTMxNTM2MDAwLCBpbW11dGFibGUK
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

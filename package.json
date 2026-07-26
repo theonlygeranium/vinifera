@@ -1,1 +1,20 @@
-ewogICJuYW1lIjogIlJFUE8tTkFNRSIsCiAgInByaXZhdGUiOiB0cnVlLAogICJ2ZXJzaW9uIjogIjAuMC4xIiwKICAidHlwZSI6ICJtb2R1bGUiLAogICJzY3JpcHRzIjogewogICAgImRldiI6ICJ2aXRlIiwKICAgICJidWlsZCI6ICJ2aXRlIGJ1aWxkIiwKICAgICJwcmV2aWV3IjogInZpdGUgcHJldmlldyIsCiAgICAibGludCI6ICJlc2xpbnQgLiAtLWV4dCBqcyxqc3giCiAgfSwKICAiZGVwZW5kZW5jaWVzIjogewogICAgInJlYWN0IjogIl4xOC4zLjEiLAogICAgInJlYWN0LWRvbSI6ICJeMTguMy4xIgogIH0sCiAgImRldkRlcGVuZGVuY2llcyI6IHsKICAgICJAdml0ZWpzL3BsdWdpbi1yZWFjdCI6ICJeNC4zLjAiLAogICAgInZpdGUiOiAiXjYuMy4wIgogIH0KfQo=
+{
+  "name": "vinifera",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext js,jsx"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.0",
+    "vite": "^6.3.0"
+  }
+}

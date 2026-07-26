@@ -1,1 +1,41 @@
-OnJvb3QgewogIGZvbnQtZmFtaWx5OiBJbnRlciwgc3lzdGVtLXVpLCBBdmVuaXIsIEhlbHZldGljYSwgQXJpYWwsIHNhbnMtc2VyaWY7CiAgbGluZS1oZWlnaHQ6IDEuNTsKICBmb250LXdlaWdodDogNDAwOwogIGNvbG9yLXNjaGVtZTogbGlnaHQgZGFyazsKICBjb2xvcjogcmdiYSgyNTUsIDI1NSwgMjU1LCAwLjg3KTsKICBiYWNrZ3JvdW5kLWNvbG9yOiAjMjQyNDI0Owp9Cgpib2R5IHsKICBtYXJnaW46IDA7CiAgbWluLWhlaWdodDogMTAwdmg7CiAgZGlzcGxheTogZmxleDsKICBhbGlnbi1pdGVtczogY2VudGVyOwogIGp1c3RpZnktY29udGVudDogY2VudGVyOwp9CgouYXBwIHsKICB0ZXh0LWFsaWduOiBjZW50ZXI7CiAgcGFkZGluZzogMnJlbTsKfQoKaDEgewogIGZvbnQtc2l6ZTogMi41cmVtOwogIG1hcmdpbi1ib3R0b206IDFyZW07Cn0KCi5tZXRhIHsKICBmb250LXNpemU6IDAuODVyZW07CiAgb3BhY2l0eTogMC42OwogIG1hcmdpbi10b3A6IDJyZW07Cn0KCmEgewogIGNvbG9yOiAjZjM4MDIwOwogIHRleHQtZGVjb3JhdGlvbjogbm9uZTsKfQoKYTpob3ZlciB7CiAgdGV4dC1kZWNvcmF0aW9uOiB1bmRlcmxpbmU7Cn0K
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app {
+  text-align: center;
+  padding: 2rem;
+}
+
+h1 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.meta {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  margin-top: 2rem;
+}
+
+a {
+  color: #f38020;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
