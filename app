@@ -602,8 +602,11 @@ select.form-control { cursor:pointer; }
 <body>
 <div class='app'>
 
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
 <!-- SIDEBAR -->
-<aside class="sidebar">
+<aside class="sidebar" id="appSidebar">
   <div class="sidebar-logo">
     <div class="logo-mark">
       <div class="logo-icon"><i data-lucide="grape"></i></div>
