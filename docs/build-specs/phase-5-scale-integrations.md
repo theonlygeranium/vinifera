@@ -353,6 +353,27 @@ If time or scope requires prioritization, implement in this order:
 
 ---
 
+## Pre-Provisioned Credentials
+
+Phase 5 builds on Phases 1–4 credentials. The following additional credentials are NOT pre-provisioned and must be obtained before starting this phase:
+
+| Secret name | Purpose | How to obtain |
+|-------------|---------|---------------|
+| `KLAVIYO_API_KEY` | Klaviyo marketing automation | Register at https://klaviyo.com, create private API key |
+| `QUICKBOOKS_CLIENT_ID` | QuickBooks OAuth client | Register app at https://developer.intuit.com |
+| `QUICKBOOKS_CLIENT_SECRET` | QuickBooks OAuth secret | Same as above |
+| `AVALARA_API_KEY` | Avalara tax compliance | Register at https://developer.avalara.com |
+| `META_APP_ID` | Meta Conversions API | Register at https://developers.facebook.com |
+| `META_APP_SECRET` | Meta app secret | Same as above |
+| `APPLE_DEVELOPER_TEAM_ID` | iOS app distribution | Apple Developer Program ($99/yr) |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT` | Android app distribution | Google Play Developer account ($25 one-time) |
+
+**App store credentials** require paid developer accounts. If these are not available, Codex should build and test the mobile app via local builds and emulators, and escalate to the human supervisor for store submission.
+
+**Stripe production keys** — Phase 5 is the transition from test mode to production. The `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY` GitHub repo secrets must be updated from `sk_test_*`/`pk_test_*` to `sk_live_*`/`pk_live_*` before production launch. Codex should escalate to the human supervisor for this transition — it should not be automated.
+
+---
+
 ## Constraints
 
 - **Integrations are opt-in.** Wineries must explicitly connect each integration. No data leaves Vinifera without explicit consent.

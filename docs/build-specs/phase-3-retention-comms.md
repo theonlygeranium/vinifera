@@ -261,6 +261,18 @@ Codex should spawn subagents for:
 
 ---
 
+## Pre-Provisioned Credentials
+
+Phase 3 builds on Phase 1 and 2 credentials. The following additional credential is NOT pre-provisioned and must be obtained before starting this phase:
+
+| Secret name | Purpose | How to obtain |
+|-------------|---------|---------------|
+| `RESEND_API_KEY` | Resend API for transactional email | Register at https://resend.com, create an API key, store as GitHub repo secret |
+
+**DKIM/SPF setup** also requires access to the winery's DNS records. For development, use Resend's default sender domain (`onboarding@resend.dev`). For production, the winery must add DKIM and SPF TXT records to their domain's DNS. Codex should document the DNS records needed and escalate to the human supervisor for DNS configuration.
+
+---
+
 ## Constraints
 
 - **Rules-based churn scoring only in this phase.** ML-assisted scoring is Phase 4.
@@ -268,3 +280,4 @@ Codex should spawn subagents for:
 - **Cancel-flow is the centerpiece.** This is the feature that differentiates Vinifera from every competitor. It must work flawlessly on mobile.
 - **Loyalty points expire.** Expiration logic must be tested — expired points should not be redeemable.
 - **The prototype's AI Churn Watch panel is the visual spec** for the churn dashboard.
+- **Never commit secret values to source files.** The repository is public. All credentials are stored as encrypted GitHub repository secrets.

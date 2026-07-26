@@ -287,6 +287,22 @@ The critical path is: **Tier config → Member assignment → Release creation �
 
 ---
 
+## Pre-Provisioned Credentials
+
+| Secret name | Purpose | Scope |
+|-------------|---------|-------|
+| `STRIPE_SECRET_KEY` | Stripe test-mode secret key | Server-only |
+| `STRIPE_PUBLISHABLE_KEY` | Stripe test-mode publishable key | Client-safe |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role | Server-only |
+
+**Phase 2 also requires a carrier API key** (UPS recommended) which is NOT pre-provisioned. Codex must either:
+- Register for a UPS Developer Kit API key at https://developer.ups.com and store it as `UPS_API_KEY` and `UPS_ACCOUNT_NUMBER` GitHub repo secrets, or
+- Use a shipping label API aggregator (e.g., EasyPost, Shippo) that abstracts carrier APIs, storing the aggregator's key as a GitHub repo secret.
+
+If neither is available, Codex should escalate to the human supervisor — shipping label generation is a Phase 2 exit criterion and cannot be stubbed indefinitely.
+
+---
+
 ## Constraints
 
 - **The exit criterion is non-negotiable.** If the money doesn't move and the wine doesn't ship, this phase is not complete.
@@ -295,3 +311,4 @@ The critical path is: **Tier config → Member assignment → Release creation �
 - **No email automation in this phase.** Stub with `console.log` — full email integration is Phase 3.
 - **State compliance is a stub.** Use a hardcoded state whitelist for now — ShipCompliant integration is Phase 4.
 - **The prototype is the visual spec.** Match the dashboard, member list, shipment processing, and release calendar screens.
+- **Never commit secret values to source files.** The repository is public. All credentials are stored as encrypted GitHub repository secrets.

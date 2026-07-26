@@ -213,6 +213,29 @@ Codex may spawn subagents for: frontend scaffolding, backend API setup, database
 
 ---
 
+## Pre-Provisioned Credentials
+
+The following credentials are already stored as encrypted GitHub repository secrets. Codex should read them from the repo environment — do NOT hardcode values in source files, and do NOT request them from the human supervisor.
+
+| Secret name | Purpose | Scope |
+|-------------|---------|-------|
+| `SUPABASE_URL` | Supabase project URL | Client + server |
+| `SUPABASE_ANON_KEY` | Supabase anon/public key | Client-safe |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | **Server-only** — bypasses RLS, never expose client-side |
+| `SUPABASE_PUBLISHABLE_KEY` | Supabase new-format publishable key | Client-safe |
+| `SUPABASE_SECRET_KEY` | Supabase new-format secret key | Server-only |
+| `STRIPE_PUBLISHABLE_KEY` | Stripe test-mode publishable key | Client-safe |
+| `STRIPE_SECRET_KEY` | Stripe test-mode secret key | Server-only |
+
+**Stripe webhook secret** (`STRIPE_WEBHOOK_SECRET`) is not pre-provisioned. Codex must create the webhook endpoint in the Stripe dashboard, then store the webhook signing secret as a new GitHub repo secret.
+
+**Security rules:**
+- The `SUPABASE_SERVICE_ROLE_KEY` bypasses all Row-Level Security. It must NEVER appear in client-side code, frontend bundles, or environment variables exposed to the browser. Use it only in server-side API routes and backend services.
+- The `STRIPE_SECRET_KEY` must never appear client-side. Use `STRIPE_PUBLISHABLE_KEY` for client-side Stripe.js.
+- All secrets should be accessed via the repo's secret management (GitHub Actions secrets for CI/CD, `.env` for local development — `.env` is gitignored and must never be committed).
+
+---
+
 ## Constraints
 
 - **No wine club features in this phase.** No member management, no shipments, no club tiers. Only infrastructure.
@@ -220,3 +243,4 @@ Codex may spawn subagents for: frontend scaffolding, backend API setup, database
 - **Supabase RLS is non-negotiable.** Application-level authorization alone is insufficient — it must be enforced at the database layer.
 - **Magic-link for members is mandatory.** No passwords for members. This is a product differentiator.
 - **The prototype at `https://vinifera.edstratumlabs.ai/app/` is the visual spec.** Match its design language, color palette, and layout patterns.
+- **Never commit secret values to source files.** The repository is public. All credentials are stored as encrypted GitHub repository secrets.

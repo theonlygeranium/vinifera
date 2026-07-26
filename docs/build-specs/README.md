@@ -36,6 +36,33 @@ The phase sequencing is deliberate: each phase builds on verified output from th
 
 Every phase spec embeds QA gates from the [Web & Mobile QA Tester](https://github.com/theonlygeranium/vinifera) skill. Each phase must pass its QA gate before the next phase begins. The QA gates are non-negotiable — a phase is not complete until its QA checklist passes.
 
+## Credentials
+
+Credentials are stored as **encrypted GitHub repository secrets** — never committed to source files. The repository is public, so no secret values may appear in any tracked file.
+
+**Pre-provisioned (Phase 1):**
+
+| Secret | Scope |
+|--------|-------|
+| `SUPABASE_URL` | Client + server |
+| `SUPABASE_ANON_KEY` | Client-safe |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Server-only** — bypasses RLS |
+| `SUPABASE_PUBLISHABLE_KEY` | Client-safe |
+| `SUPABASE_SECRET_KEY` | Server-only |
+| `STRIPE_PUBLISHABLE_KEY` | Client-safe (test mode) |
+| `STRIPE_SECRET_KEY` | Server-only (test mode) |
+
+**Not pre-provisioned (obtain per phase):**
+
+| Phase | Secret | Purpose |
+|-------|--------|---------|
+| 2 | `UPS_API_KEY` / `UPS_ACCOUNT_NUMBER` | Shipping labels |
+| 3 | `RESEND_API_KEY` | Transactional email |
+| 4 | `SHIPCOMPLIANT_API_KEY` | Compliance checks |
+| 5 | `KLAVIYO_API_KEY`, `QUICKBOOKS_*`, `AVALARA_API_KEY`, `META_*` | Third-party integrations |
+
+See `.env.example` for the full variable list.
+
 ## Codex Execution
 
 To execute the full build end-to-end, see [CODEX-PROMPT.md](./CODEX-PROMPT.md) — a single prompt that instructs Codex to orchestrate all five phases sequentially, with full autonomy to implement decisions and spawn subagents as needed.

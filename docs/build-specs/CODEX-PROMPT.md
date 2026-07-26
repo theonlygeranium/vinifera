@@ -119,6 +119,26 @@ For each phase:
 11. Confirm Cloudflare Pages deployment succeeded
 12. Move to the next phase
 
+## Environment Variables
+
+**Phase 1 credentials are pre-provisioned.** The following are already stored as encrypted GitHub repository secrets — Codex should read them from the repo environment and NOT request them from the human supervisor:
+
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`
+- `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`
+
+**Stripe webhook secret** (`STRIPE_WEBHOOK_SECRET`) is NOT pre-provisioned — Codex must create the webhook endpoint in the Stripe dashboard and store the signing secret as a new GitHub repo secret.
+
+**Later phases require additional credentials** that are NOT pre-provisioned. Codex should escalate to the human supervisor when it reaches a phase that needs credentials not yet available:
+- Phase 2: carrier API key (UPS or aggregator like EasyPost/Shippo)
+- Phase 3: Resend API key
+- Phase 4: ShipCompliant API key
+- Phase 5: Klaviyo, QuickBooks, Avalara, Meta API keys + Apple/Google developer accounts
+
+**Security rules:**
+- The `SUPABASE_SERVICE_ROLE_KEY` bypasses all Row-Level Security. It must NEVER appear in client-side code, frontend bundles, or browser-exposed environment variables. Server-only.
+- The `STRIPE_SECRET_KEY` must never appear client-side. Use `STRIPE_PUBLISHABLE_KEY` for client-side Stripe.js.
+- The repository is **public**. NEVER commit secret values to source files, markdown, or any tracked file. All credentials live as encrypted GitHub repository secrets only.
+
 ## Start Here
 
 1. Clone the repository: `git clone https://github.com/theonlygeranium/vinifera`

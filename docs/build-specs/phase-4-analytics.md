@@ -308,6 +308,18 @@ Codex should spawn subagents for:
 
 ---
 
+## Pre-Provisioned Credentials
+
+Phase 4 builds on Phases 1–3 credentials. The following additional credential is NOT pre-provisioned and must be obtained before starting this phase:
+
+| Secret name | Purpose | How to obtain |
+|-------------|---------|---------------|
+| `SHIPCOMPLIANT_API_KEY` | ShipCompliant API for compliance checks | Register at https://shipcompliant.com, request API access, store key as GitHub repo secret |
+
+**ShipCompliant sandbox access** may be available for development. Codex should check whether a sandbox/test environment exists and use it for development before hitting production compliance checks.
+
+---
+
 ## Constraints
 
 - **ML accuracy target is 75–85%.** If not achievable with available data, document the gap and escalate. Do not ship a model worse than Phase 3's rules-based scorer.
@@ -316,3 +328,4 @@ Codex should spawn subagents for:
 - **ShipCompliant replaces the state whitelist.** The hardcoded whitelist from Phase 2 must be removed once ShipCompliant is live.
 - **Analytics data is real.** No mock data in the dashboard — all numbers must come from actual operations. If insufficient data exists, display an empty state with guidance.
 - **Charts must be accessible.** Every chart needs a data table alternative or text summary for screen readers.
+- **Never commit secret values to source files.** The repository is public. All credentials are stored as encrypted GitHub repository secrets.
