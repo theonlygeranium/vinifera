@@ -106,7 +106,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
 .hero {
-  background: linear-gradient(160deg, #0F0208 0%, #2A0A14 40%, #6B1E30 75%, #C9993A 100%);
+  background: linear-gradient(160deg, #1A0610 0%, #2A0A14 50%, #1A0610 100%);
   padding: 100px 0 0;
   overflow: hidden;
   position: relative;
@@ -123,8 +123,9 @@ button { cursor: pointer; font-family: inherit; border: none; }
 .hero::before {
   content: '';
   position: absolute; inset: 0;
-  background: radial-gradient(ellipse 80% 60% at 60% 40%, rgba(201,153,58,0.12) 0%, transparent 70%);
+  background: radial-gradient(ellipse 60% 50% at 70% 25%, rgba(201,153,58,0.08) 0%, transparent 70%);
   pointer-events: none;
+  z-index: 0;
 }
 .hero-eyebrow {
   display: inline-flex; align-items: center; gap: 7px;
