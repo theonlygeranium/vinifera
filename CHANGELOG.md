@@ -35,6 +35,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Authorized the reviewed Stripe test account fingerprint after successful
+  read-only run `30218422165`; the fingerprint is a one-way target binding and
+  the canonical Product/Price catalog remains uncreated pending a separately
+  reviewed bootstrap operation.
 - Removed the implicit native production-origin fallback. Compile-only,
   isolated staging, and explicitly authorized production builds now have
   distinct fail-closed profiles and artifact labels.

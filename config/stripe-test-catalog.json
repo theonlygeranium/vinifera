@@ -4,7 +4,9 @@
   "catalogVersion": "2026-07-26-v1",
   "currency": "usd",
   "interval": "month",
-  "accountIdSha256": [],
+  "accountIdSha256": [
+    "68553e47ea38fac215456d533cd92d08e3ff6a6e5af9f5e5d509d1576f531bf2"
+  ],
   "plans": [
     {
       "plan": "vine",

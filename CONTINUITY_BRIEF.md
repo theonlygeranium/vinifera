@@ -132,10 +132,11 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   test credentials are reachable. The Supabase Phase 1/5 tables do not yet
   exist, Stripe still needs all four test Prices and its webhook secret, and
   the current Cloudflare token is valid but lacks Workers read capability.
-- `.github/workflows/stripe-test-catalog.yml` is the next executable provider
-  gate. Its initial account allowlist is empty, so only the read-only `probe`
-  operation can succeed until the returned fingerprint is reviewed and
-  committed.
+- Stripe test-catalog probe
+  [`30218422165`](https://github.com/theonlygeranium/vinifera/actions/runs/30218422165)
+  passed against the generic test credential without a provider write. Its
+  sanitized account SHA-256 fingerprint is now tracked; bootstrap remains a
+  separate protected operation and no Product/Price is yet claimed as created.
 - GitHub environments `staging`, `production`, and `mobile-release` are
   restricted to `main` and require review by `theonlygeranium`; self-review is
   currently allowed because no second human reviewer is configured.
@@ -162,8 +163,8 @@ The code must remain fail-closed until these external connections are active:
    `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` only for the isolated
    `vinifera-staging` Worker.
 3. Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP.
-4. Run the Stripe test-catalog probe, review and commit its account
-   fingerprint, bootstrap/verify the four recurring Prices, then register
+4. After the account-fingerprint authorization commit passes CI,
+   bootstrap/verify the four recurring Stripe test Prices, then register
    `/api/billing/webhook` and add its signing secret.
 5. Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled.
 6. Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof.
