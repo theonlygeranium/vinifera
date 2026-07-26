@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "vite build && node scripts/build.mjs",
+    "build:pages": "CF_PAGES=1 npm run build",
     "build:worker": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
     "check": "npm run typecheck && npm run test && npm run build && npm run build:worker",
     "cf-typegen": "wrangler types",

@@ -125,6 +125,11 @@ npm run qa:e2e
 
 `npm run build` runs Vite, then copies the marketing site, investor guide, and static metadata into `dist/`. The original `app` prototype is retained in source as a visual reference and is not included in the authenticated production bundle.
 
+Cloudflare Pages automatically sets `CF_PAGES=1`; that build additionally copies
+the original extensionless `app` file so the custom-domain rollback baseline is
+not replaced before Worker activation. Reproduce that artifact locally with
+`npm run build:pages`.
+
 ## CI/CD
 
 `.github/workflows/ci.yml` uses GitHub-hosted runners:

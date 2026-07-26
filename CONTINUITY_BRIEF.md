@@ -52,7 +52,9 @@ docs/build-specs/       Sequential phase specifications and QA reports
 wrangler.jsonc          Worker/static assets/cron configuration
 ```
 
-The extensionless root `app` file is the accepted visual prototype and is not copied into the production build.
+The extensionless root `app` file is the accepted visual prototype. It is
+copied only when Cloudflare Pages injects `CF_PAGES=1`, preserving the public
+rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Verified Phase 1 evidence
 

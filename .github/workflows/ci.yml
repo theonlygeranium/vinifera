@@ -63,6 +63,12 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Validate Pages rollback artifact
+        run: |
+          npm run build:pages
+          test -f dist/app
+          grep -q "Fall 2026 Club Release" dist/app
+
   database:
     name: Apply Supabase migrations when activated
     needs: quality

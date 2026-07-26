@@ -99,7 +99,9 @@ The build emits code-split React assets, then copies `index.html`, `guide`, and 
 | `/guide/*` | `guide` (extensionless, via `_redirects`) | `text/html` |
 | `/api/*` | Express BFF | `application/json` |
 
-The original extensionless `app` file remains in source as the visual specification but is not shipped by the production build.
+The original extensionless `app` file remains the visual specification. It is
+shipped only by the temporary Cloudflare Pages rollback build; Worker builds
+serve the React application instead.
 
 ## Quality status
 

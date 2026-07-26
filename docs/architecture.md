@@ -21,6 +21,11 @@ Cloudflare Worker + Static Assets
 
 The existing Pages custom-domain deployment remains the live baseline until the new Worker staging deployment passes the complete Phase 1 activation and QA gate.
 
+Cloudflare Pages injects `CF_PAGES=1`. In that environment the build also copies
+the original extensionless `app` prototype, so the Git-integrated Pages project
+continues serving the verified rollback surface. Worker builds omit that file
+and route `/app/*` to the React shell.
+
 ### Pages
 
 | Surface | Source | Route | Runtime |

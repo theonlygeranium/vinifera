@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Made disconnected session probes fail closed without producing noisy browser errors.
 - Gated Worker deployment behind an explicit activation flag after the existing Cloudflare token proved to lack Workers Scripts permission.
 - Updated GitHub checkout, Node setup, and artifact actions to their Node 24-based v7 releases.
+- Preserved the verified static `/app` prototype in Cloudflare Pages builds while keeping Worker builds on the React application.
 
 ---
 

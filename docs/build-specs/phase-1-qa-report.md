@@ -19,6 +19,7 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 | API/unit integration | Pass | Vitest 10/10 |
 | Browser QA | Pass | Playwright 21/21 |
 | Worker packaging | Pass | Wrangler dry run |
+| Pages rollback packaging | Pass | `CF_PAGES=1` preserves the original extensionless app |
 | Initial JS | Pass | 62.25 KB gzip, budget < 200 KB |
 | Accessibility | Pass | axe WCAG 2.1 AA, 0 violations |
 | Responsive layout | Pass | 375, 768, 1440; no horizontal overflow |
