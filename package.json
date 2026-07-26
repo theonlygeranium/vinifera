@@ -30,6 +30,7 @@
     "qa:mobile-release": "vitest run tests/scripts/mobile-release.test.mjs",
     "qa:mobile:identity": "node scripts/verify-mobile-identity.mjs",
     "qa:production-release": "vitest run tests/server/production-release.test.mjs",
+    "qa:stripe-catalog": "vitest run tests/scripts/stripe-test-catalog.test.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

@@ -21,6 +21,8 @@ project and Stripe test mode.
 ## 1. Provision the isolated staging boundary
 
 1. Create a GitHub `staging` environment.
+   Require repository-owner review and restrict it to `main`; self-review is
+   currently permitted until a second authorized reviewer exists.
 2. Add the staging Supabase project reference and Cloudflare account ID to the
    repository's reviewed, hashed target allowlist. Do not reuse a production
    target.
@@ -116,17 +118,51 @@ The Pages custom domain remains untouched during this phase.
 ## 5. Activate Stripe test subscriptions
 
 Use a Stripe test secret only. Keep `LIVE_BILLING_ENABLED=false` or unset.
-Create four recurring test Prices and set:
+
+### 5.1 Probe and authorize the test account
+
+Dispatch `Stripe test catalog activation` from the exact `main` commit:
 
 ```text
-STAGING_STRIPE_SECRET_KEY
+operation: probe
+git_sha: <full main SHA>
+confirmation: PROBE VINIFERA STRIPE TEST ACCOUNT
+```
+
+The sanitized artifact contains an account SHA-256 fingerprint, credential
+source classification, and no raw account ID or secret. Review the fingerprint
+and add it to `config/stripe-test-catalog.json`. The empty initial allowlist
+blocks every catalog write.
+
+### 5.2 Bootstrap and verify the recurring catalog
+
+From the reviewed allowlist commit, dispatch:
+
+```text
+operation: bootstrap
+git_sha: <full reviewed main SHA>
+confirmation: BOOTSTRAP VINIFERA STRIPE TEST CATALOG
+```
+
+The operation creates or reuses only Vine $149, Cellar $349, Estate $749, and
+Reserve $1,500 monthly test Prices. Versioned lookup keys and Stripe
+idempotency keys prevent duplicate creation. A conflicting Price or Product
+fails closed rather than being edited.
+
+Provision the authorized test credential separately as
+`STAGING_STRIPE_SECRET_KEY`. Store the artifact's non-secret Price IDs under
+the four matching names:
+
+```text
 STAGING_STRIPE_PRICE_VINE
 STAGING_STRIPE_PRICE_CELLAR
 STAGING_STRIPE_PRICE_ESTATE
 STAGING_STRIPE_PRICE_RESERVE
 ```
 
-Configure the test Customer Portal. Register the staging endpoint:
+Run the read-only `verify` operation with confirmation
+`VERIFY VINIFERA STRIPE TEST CATALOG`. Configure the test Customer Portal.
+Register the staging endpoint:
 
 ```text
 POST https://<staging-worker>/api/billing/webhook
@@ -134,6 +170,11 @@ POST https://<staging-worker>/api/billing/webhook
 
 Subscribe it to the implemented subscription and invoice events, then set
 `STAGING_STRIPE_WEBHOOK_SECRET`.
+
+The staging deployment pipeline repeats semantic verification with only
+staging-scoped credentials. Deployment fails before any Worker upload if a
+configured Price ID is missing, belongs to another catalog, is inactive, or
+has a mismatched Product, amount, currency, or recurrence.
 
 Prove:
 

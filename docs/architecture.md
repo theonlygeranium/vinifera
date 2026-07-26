@@ -231,6 +231,17 @@ production release ──> Worker bootstrap/version/deploy/domain/Pages restore
 mobile release ──────> immutable signed AAB/IPA ──> optional internal tracks
 ```
 
+Stripe test catalog activation is a fourth, narrowly bounded provider control.
+Its probe retrieves only the authenticated test account identity and emits a
+SHA-256 fingerprint. Bootstrap remains unavailable until that fingerprint is
+reviewed in `config/stripe-test-catalog.json`; it can then create or reuse only
+the four versioned monthly Prices. Stable lookup keys and request idempotency
+keys prevent reruns from creating duplicate catalog objects. It has no
+customer, Checkout, subscription, charge, refund, portal, or webhook method.
+The staging Worker pipeline re-runs the read-only semantic verifier and
+requires each configured `STAGING_STRIPE_PRICE_*` value to match that catalog
+before it can deploy.
+
 Production Worker bootstrap contains no route or custom-domain declaration.
 Public cutover requires all Phase 1–5 configuration capabilities and retains
 the active Pages project for automatic/manual restoration. The release
@@ -258,6 +269,9 @@ controller enforces Stripe test mode and cannot enable live billing.
 - Stripe secret format and environment are validated at runtime. Live
   credentials are rejected outside production, and live charge/Checkout paths
   require the independent `LIVE_BILLING_ENABLED=true` authority.
+- Stripe catalog writes separately require a test key, exact operation
+  confirmation, immutable `main` commit, account fingerprint allowlist, and
+  exact Product/Price contract. A mismatched existing lookup key fails closed.
 - Production QuickBooks, Avalara, and APNs endpoints are rejected outside
   `APP_ENV=production`; Avalara accepts only its canonical sandbox or production
   origin.

@@ -56,6 +56,9 @@ connection-ready source architecture:
   staging/production target authorization, linked hosted pgTAP/RLS, a retained
   Pages rollback controller, and ephemeral signed mobile/internal-track
   workflows
+- A Stripe test-only catalog controller that probes an account fingerprint
+  without writes, then creates or verifies the four canonical recurring Prices
+  only after tracked account authorization and exact confirmation
 
 The Worker is connection-ready but must not replace the Pages custom-domain
 baseline until the hosted Supabase, Stripe, provider, DNS, physical-device, and
@@ -129,10 +132,13 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   test credentials are reachable. The Supabase Phase 1/5 tables do not yet
   exist, Stripe still needs all four test Prices and its webhook secret, and
   the current Cloudflare token is valid but lacks Workers read capability.
+- `.github/workflows/stripe-test-catalog.yml` is the next executable provider
+  gate. Its initial account allowlist is empty, so only the read-only `probe`
+  operation can succeed until the returned fingerprint is reviewed and
+  committed.
 - GitHub environments `staging`, `production`, and `mobile-release` are
-  restricted to `main`. Production and signed-mobile jobs require review by
-  `theonlygeranium`; self-review is currently allowed because no second human
-  reviewer is configured.
+  restricted to `main` and require review by `theonlygeranium`; self-review is
+  currently allowed because no second human reviewer is configured.
 - The current Phase 5 evidence and any remaining local checks belong in
   `docs/build-specs/phase-5-qa-report.md`; do not copy pending checks here as
   passes.
@@ -156,7 +162,9 @@ The code must remain fail-closed until these external connections are active:
    `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` only for the isolated
    `vinifera-staging` Worker.
 3. Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP.
-4. Add Stripe recurring test Price IDs, register `/api/billing/webhook`, and add its signing secret.
+4. Run the Stripe test-catalog probe, review and commit its account
+   fingerprint, bootstrap/verify the four recurring Prices, then register
+   `/api/billing/webhook` and add its signing secret.
 5. Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled.
 6. Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof.
 7. Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests.

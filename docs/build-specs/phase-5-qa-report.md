@@ -31,7 +31,7 @@ live provider or production-store result.
 | --- | --- | --- |
 | Phase 5 embedded database | Pass — 167/167 assertions | Hosted Supabase native pgcrypto/pgTAP remains deferred |
 | Prior-phase embedded database regression | Pass — Phase 2 145/145, Phase 3 138/138, Phase 4 121/121 | Hosted Supabase remains deferred |
-| Type, unit/integration, build, Worker package | Pass — `npm run check`, 174/174 tests across 15 files | No hosted Worker claim |
+| Type, unit/integration, build, Worker package | Pass — `npm run check`, 189/189 tests across 16 files | Includes Stripe catalog control tests; no hosted Worker claim |
 | Dependency audit | Pass — zero vulnerabilities in production and full audits | Snapshot from this run |
 | Full responsive/axe browser suite | Pass — 122/122 in 2.5 minutes | Local browser evidence; no hosted-provider claim |
 | Phase 5 visual review | Pass — six staff screenshots manually inspected | Physical-device and store screenshots remain deferred |
@@ -75,11 +75,10 @@ The post-phase release hardening additionally provides:
   Play internal/TestFlight delivery path.
 
 The `staging`, `production`, and `mobile-release` GitHub environments now have
-`main`-only branch policies. Production and signed-mobile jobs require review
-by the repository owner. Self-review remains allowed because a second human
-reviewer has not been configured; exact confirmations, immutable commit
-binding, target hashes, and the default-off live-billing gate remain
-independent controls.
+`main`-only branch policies and require review by the repository owner.
+Self-review remains allowed because a second human reviewer has not been
+configured; exact confirmations, immutable commit binding, target hashes, and
+the default-off live-billing gate remain independent controls.
 
 See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 [production cutover](../runbooks/production-cutover-rollback.md), and
@@ -283,7 +282,8 @@ verification.
 
 | Command/check | Result |
 | --- | --- |
-| `npm run check` | Pass — TypeScript zero errors, 174/174 Vitest tests across 15 files, Vite build, Worker dry run |
+| `npm run check` | Pass — TypeScript zero errors, 189/189 Vitest tests across 16 files, Vite build, Worker dry run |
+| `npm run qa:stripe-catalog` | Pass — 15/15 account, test-mode, allowlist, idempotency, drift, workflow, semantic-deploy, and sanitization tests |
 | `npm run qa:production-release` | Pass — 14/14 fail-closed production release/control tests |
 | `npm run qa:mobile-release` | Pass — 7/7 immutable signing and internal-store release tests |
 | `npm run build:worker:production` | Pass — route-free production Worker version dry run with live billing disabled |

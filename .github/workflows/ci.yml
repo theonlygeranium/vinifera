@@ -261,6 +261,23 @@ jobs:
           npm ci
           npm run build
 
+      - name: Verify configured Stripe test catalog semantics
+        if: steps.activation.outputs.ready == 'true'
+        env:
+          STAGING_STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
+          STAGING_STRIPE_PRICE_CELLAR: ${{ secrets.STAGING_STRIPE_PRICE_CELLAR }}
+          STAGING_STRIPE_PRICE_ESTATE: ${{ secrets.STAGING_STRIPE_PRICE_ESTATE }}
+          STAGING_STRIPE_PRICE_RESERVE: ${{ secrets.STAGING_STRIPE_PRICE_RESERVE }}
+          STAGING_STRIPE_PRICE_VINE: ${{ secrets.STAGING_STRIPE_PRICE_VINE }}
+          STRIPE_CATALOG_CONFIRMATION: VERIFY VINIFERA STRIPE TEST CATALOG
+          STRIPE_CATALOG_GIT_SHA: ${{ github.sha }}
+        run: |
+          umask 077
+          node scripts/stripe-test-catalog.mjs \
+            verify \
+            --output "$RUNNER_TEMP/stripe-test-catalog-verification.json" \
+            --markdown "$GITHUB_STEP_SUMMARY"
+
       - name: Prepare available Worker secrets
         id: worker-secrets
         if: steps.activation.outputs.ready == 'true'
@@ -454,6 +471,8 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: staging-runtime-evidence
-          path: ${{ runner.temp }}/vinifera-staging-runtime.json
+          path: |
+            ${{ runner.temp }}/vinifera-staging-runtime.json
+            ${{ runner.temp }}/stripe-test-catalog-verification.json
           if-no-files-found: ignore
           retention-days: 14

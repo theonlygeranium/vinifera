@@ -10,6 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added a protected Stripe test-catalog workflow with a read-only account
+  fingerprint probe, tracked SHA-256 account authorization, exact typed
+  confirmations, idempotent Product/Price creation, drift verification, and
+  sanitized non-secret Price evidence.
+- Expanded the integrated application/control suite to 189/189 tests across 16
+  files.
 - Added a GET-only hosted-readiness workflow that classifies staging versus
   generic Cloudflare, Supabase, and Stripe test credentials without retaining
   values, provider bodies, URLs, or identifiers.
@@ -69,6 +75,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- Restricted catalog bootstrap to `sk_test_*`, the canonical four monthly plan
+  contracts, an immutable `main` commit, an allowlisted account fingerprint,
+  stable lookup/idempotency keys, and a workflow that cannot create customers,
+  subscriptions, charges, refunds, portals, or webhooks.
+- Made staging Worker deployment verify the configured Price IDs against the
+  allowlisted Stripe test catalog before uploading any Worker version.
 - Enforced Secure cookies in hosted staging as well as production.
 - Rejected Stripe live credentials outside production and required the
   independent, default-off `LIVE_BILLING_ENABLED` authority for every Checkout
@@ -87,6 +99,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Provisioned `staging`, `production`, and `mobile-release` GitHub environments
   with `main`-only deployment policies; production and mobile release require
   repository-owner review.
+- Added repository-owner review to `staging`, covering catalog activation,
+  hosted readiness, Supabase migration, and isolated Worker deployment.
 - Added durable QuickBooks/Avalara refund checkpoints and crash reconciliation,
   including exact 4,863 + 4,862 = 9,725 cent convergence and SHA-256-derived
   Intuit request IDs.
@@ -96,6 +110,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Deferred
 
+- The Stripe test account fingerprint is intentionally unresolved in the
+  initial catalog policy. Probe, review, allowlist, bootstrap, Price-secret
+  promotion, and staging webhook registration remain activation steps.
 - Hosted target IDs/hashes, staging-scoped provider credentials, production
   control-plane credentials, native signing credentials, store authority,
   provider round trips, physical-device QA, and Stripe live approval remain

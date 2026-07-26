@@ -107,7 +107,27 @@ After the migration is applied to a hosted project:
 
 ## Stripe test mode
 
-Create four monthly recurring test Prices and store their IDs in the matching `STRIPE_PRICE_*` secrets. Register:
+Use `.github/workflows/stripe-test-catalog.yml` to create the four monthly
+recurring test Prices:
+
+1. Dispatch `probe` from the exact `main` SHA with confirmation
+   `PROBE VINIFERA STRIPE TEST ACCOUNT`.
+2. Review the sanitized `accountIdSha256` value and add it to
+   `config/stripe-test-catalog.json`.
+3. Dispatch `bootstrap` from that reviewed commit with confirmation
+   `BOOTSTRAP VINIFERA STRIPE TEST CATALOG`.
+4. Store the returned non-secret Price IDs under the matching
+   `STAGING_STRIPE_PRICE_*` environment secret names.
+5. Dispatch `verify` with confirmation
+   `VERIFY VINIFERA STRIPE TEST CATALOG` after any catalog change.
+
+The workflow prefers `STAGING_STRIPE_SECRET_KEY`. Until that secret is
+provisioned, only this catalog-specific workflow may use the pre-provisioned
+generic test key for a write. The controller is account-hash allowlisted,
+idempotent, and has no customer, subscription, payment, refund, portal, or
+webhook operation.
+
+After the isolated Worker exists, register:
 
 ```text
 POST https://<staging-worker>/api/billing/webhook
@@ -364,6 +384,8 @@ Additional manual workflows provide:
 
 - a GET-only hosted-readiness report that may classify legacy generic
   credentials but never mutates;
+- an account-hash-authorized, idempotent Stripe test Product/Price catalog
+  probe/bootstrap/verifier;
 - protected production Worker bootstrap, immutable version upload/deploy,
   14-capability custom-domain cutover, Worker rollback, and Pages restoration;
   and

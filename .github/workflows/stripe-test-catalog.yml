@@ -1,0 +1,99 @@
+name: Stripe test catalog activation
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Read-only probe, idempotent bootstrap, or read-only verification
+        required: true
+        type: choice
+        options:
+          - probe
+          - bootstrap
+          - verify
+      git_sha:
+        description: Exact 40-character commit on canonical main
+        required: true
+        type: string
+      confirmation:
+        description: Exact operation confirmation from the activation runbook
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  deployments: none
+
+concurrency:
+  group: vinifera-stripe-test-catalog
+  cancel-in-progress: false
+
+jobs:
+  catalog:
+    name: ${{ inputs.operation }} Stripe test catalog
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: staging
+      deployment: false
+    steps:
+      - name: Validate canonical source target
+        env:
+          CATALOG_GIT_SHA: ${{ inputs.git_sha }}
+        run: |
+          [[ "$GITHUB_REPOSITORY" == "theonlygeranium/vinifera" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$CATALOG_GIT_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Check out immutable source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.git_sha }}
+
+      - name: Verify immutable canonical commit
+        env:
+          CATALOG_GIT_SHA: ${{ inputs.git_sha }}
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$CATALOG_GIT_SHA" ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          [[ "$(git rev-parse origin/main)" == "$CATALOG_GIT_SHA" ]]
+
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.22.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify catalog control suite
+        run: npm run qa:stripe-catalog
+
+      - name: Run credential-gated Stripe test operation
+        env:
+          GENERIC_STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STAGING_STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
+          STAGING_STRIPE_PRICE_CELLAR: ${{ secrets.STAGING_STRIPE_PRICE_CELLAR }}
+          STAGING_STRIPE_PRICE_ESTATE: ${{ secrets.STAGING_STRIPE_PRICE_ESTATE }}
+          STAGING_STRIPE_PRICE_RESERVE: ${{ secrets.STAGING_STRIPE_PRICE_RESERVE }}
+          STAGING_STRIPE_PRICE_VINE: ${{ secrets.STAGING_STRIPE_PRICE_VINE }}
+          STRIPE_CATALOG_CONFIRMATION: ${{ inputs.confirmation }}
+          STRIPE_CATALOG_GIT_SHA: ${{ inputs.git_sha }}
+        run: |
+          umask 077
+          node scripts/stripe-test-catalog.mjs \
+            "${{ inputs.operation }}" \
+            --output "$RUNNER_TEMP/stripe-test-catalog-report.json" \
+            --markdown "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sanitized catalog evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: stripe-test-catalog-report
+          path: ${{ runner.temp }}/stripe-test-catalog-report.json
+          if-no-files-found: error
+          retention-days: 1

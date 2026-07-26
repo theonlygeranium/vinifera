@@ -156,7 +156,7 @@ serve the React application instead.
 | Phase 3 retention | Email, rules scoring, cancel-flow, and loyalty architecture plus database/service/browser gates pass locally |
 | Phase 4 intelligence | Local architecture release gate passes: analytics, ML lifecycle, benchmark privacy, compliance, database, service, browser, accessibility, and performance checks are green; hosted real-data, model, cohort, and provider evidence remain gated |
 | Phase 5 scale | Version 0.5.0 source architecture is complete for connectors, multi-brand isolation, white label, and native shells; the Phase 5 QA report records architecture evidence and deferred hosted checks |
-| Release controls | Read-only readiness, staging target guards, native hosted pgTAP, production Worker/Pages rollback control, and signed internal-store workflows are source-complete; credential-bound execution remains deferred |
+| Release controls | Read-only readiness, Stripe test-catalog bootstrap, staging target guards, native hosted pgTAP, production Worker/Pages rollback control, and signed internal-store workflows are source-complete; credential-bound execution remains gated |
 | Provider activation | Pending hosted Supabase, Stripe/provider test and live accounts, custom-domain DNS/certificates, APNs/FCM, signing, physical devices, and store tracks |
 | Public deployment | Pages continues serving the verified prototype until the Worker activation runbooks pass |
 

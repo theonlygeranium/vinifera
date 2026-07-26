@@ -20,9 +20,11 @@ therefore cannot be treated as deployment authorization.
 
 Hosted activation uses four independent controls:
 
-1. **Environment scope.** Mutating workflows consume only `STAGING_*`,
+1. **Environment scope.** General mutating workflows consume only `STAGING_*`,
    `PRODUCTION_*`, or mobile-release environment secrets. Generic repository
-   secrets are accepted only by the manual, read-only readiness probe.
+   secrets are accepted by the manual, read-only readiness probe and by one
+   narrowly bounded Stripe test-catalog bootstrap that cannot create billing
+   activity.
 2. **Hashed target policy.** Staging Supabase/Cloudflare targets and production
    Cloudflare resources are SHA-256 allowlisted in tracked policy. Empty
    allowlists fail closed. Raw account, project, zone, and Worker-origin values
@@ -41,6 +43,14 @@ The production release workflow accepts Stripe test-mode keys only and forces
 `LIVE_BILLING_ENABLED=false`. Live billing is a separate human-approved
 operation and is not implied by a production Worker or store release.
 
+The Stripe catalog exception exists because the build specification
+pre-provisioned a repository test key before a staging environment existed.
+The workflow first emits only a SHA-256 account fingerprint. Writes require
+that fingerprint in tracked policy, an exact typed confirmation, an immutable
+`main` commit, and an `sk_test_*` credential. The controller exposes only
+Product/Price list and create operations for four fixed monthly contracts.
+Stable lookup keys and Stripe idempotency keys make bootstrap rerunnable.
+
 Mobile compilation remains credential-free. Signed Android App Bundles and iOS
 archives materialize credentials only in ephemeral runner paths. Store delivery
 requires a second exact confirmation and uses the official Google Play edit
@@ -52,6 +62,9 @@ transaction or Apple upload tooling.
   without inventing credentials or production mocks.
 - Adding a secret alone cannot deploy, cut over a domain, enable live billing,
   or upload to a store.
+- The pre-provisioned Stripe test key can establish the non-secret billing
+  catalog without gaining authority to create customers, subscriptions,
+  charges, refunds, webhooks, or live-mode resources.
 - Activating a new target requires a small reviewed policy change and the
   corresponding documentation/changelog commit.
 - The current Pages project remains a non-destructive rollback surface.
@@ -73,7 +86,7 @@ transaction or Apple upload tooling.
 ## Verification
 
 - Run `npm test`, including the activation, production-release, hosted
-  readiness, and mobile-release suites.
+  readiness, Stripe catalog, and mobile-release suites.
 - Run `npm run build:worker` and `npm run build:worker:production`.
 - Parse every workflow as YAML.
 - Confirm all tracked target allowlists are empty until independently resolved
