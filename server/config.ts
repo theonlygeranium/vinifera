@@ -147,6 +147,11 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
     ]),
     compliance,
     communications,
+    customDomains: capability(env, [
+      "CLOUDFLARE_CUSTOM_HOSTNAME_API_TOKEN",
+      "CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN",
+      "CLOUDFLARE_ZONE_ID",
+    ]),
     webhook: capability(env, ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]),
     googleOAuth: {
       configured: env.GOOGLE_OAUTH_ENABLED === "true",
@@ -156,6 +161,39 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
       configured: env.AUTH_EMAIL_ENABLED === "true",
       missing: env.AUTH_EMAIL_ENABLED === "true" ? [] : ["AUTH_EMAIL_ENABLED"],
     },
+    integrationEncryption: capability(env, [
+      "INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION",
+      "INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS",
+    ]),
+    mobile: capability(env, [
+      "MOBILE_ANDROID_LATEST_VERSION",
+      "MOBILE_ANDROID_MINIMUM_VERSION",
+      "MOBILE_ANDROID_PACKAGE_NAME",
+      "MOBILE_ANDROID_SIGNING_CERT_SHA256",
+      "MOBILE_APPLE_TEAM_ID",
+      "MOBILE_AUTH_EMAIL_TEMPLATE_ENABLED",
+      "MOBILE_AUTH_STATE_SIGNING_SECRET",
+      "MOBILE_IOS_BUNDLE_ID",
+      "MOBILE_IOS_LATEST_VERSION",
+      "MOBILE_IOS_MINIMUM_VERSION",
+    ]),
+    quickBooksOAuth: capability(env, [
+      "QUICKBOOKS_CLIENT_ID",
+      "QUICKBOOKS_CLIENT_SECRET",
+      "QUICKBOOKS_ENVIRONMENT",
+      "QUICKBOOKS_REDIRECT_URI",
+      "QUICKBOOKS_STATE_SIGNING_SECRET",
+    ]),
+    push: capability(env, [
+      "APNS_BUNDLE_ID",
+      "APNS_ENVIRONMENT",
+      "APNS_KEY_ID",
+      "APNS_PRIVATE_KEY",
+      "APNS_TEAM_ID",
+      "FCM_CLIENT_EMAIL",
+      "FCM_PRIVATE_KEY",
+      "FCM_PROJECT_ID",
+    ]),
     shipping,
   };
 }

@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 22 (see `.nvmrc`; CI uses Node 22)
+- Node.js 22.12 or newer (CI uses Node 22.22.0)
 - npm
 - Git
 - Docker Desktop only when running the complete local Supabase stack
@@ -110,7 +110,10 @@ Subscribe the endpoint to:
 
 Store the resulting signing secret as `STRIPE_WEBHOOK_SECRET`. Configure the Stripe Customer Portal before testing `/api/billing/portal`.
 
-Phases 1–4 must remain in Stripe test mode.
+Phases 1–4 remain in Stripe test mode. Phase 5 includes the independent-brand
+billing architecture, but replacing test keys with approved live keys,
+registering live webhooks, and running a controlled real charge/refund are
+human-authorized launch operations.
 
 ## Phase 2 shipment processing
 
@@ -208,6 +211,80 @@ deterministic compliance simulator is accepted only in an explicitly enabled
 test runtime. See `docs/runbooks/phase-4-shipcompliant-activation.md` for
 sandbox, mapping, label-block, tax, and rollback evidence.
 
+## Phase 5 scale, brands, integrations, and mobile
+
+Phase 5 adds a common server-only connector lifecycle. A connection begins as
+`activation_required`, becomes `configured` only after opt-in and credential
+validation, and becomes `active` only after its bootstrap/reconciliation gate.
+Missing credentials do not create a simulated production connection or transmit
+member data.
+
+Winery-specific Klaviyo, Avalara, and Meta credentials are submitted through
+the staff integration flow and persisted as versioned AES-256-GCM envelopes.
+Configure the Worker keyring before accepting them:
+
+```text
+INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION
+INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS
+```
+
+QuickBooks uses Worker-level Intuit application OAuth configuration:
+
+```text
+QUICKBOOKS_CLIENT_ID
+QUICKBOOKS_CLIENT_SECRET
+QUICKBOOKS_ENVIRONMENT=sandbox
+QUICKBOOKS_REDIRECT_URI
+QUICKBOOKS_STATE_SIGNING_SECRET
+```
+
+The returned QuickBooks access and rolling refresh tokens are encrypted per
+connection in the same database envelope boundary. They are not shared
+environment variables.
+
+Multi-brand rows are protected by forced RLS, and service-role queries validate
+the active brand independently of browser input. Existing organizations receive
+one additive default brand. Owners/admins may use explicit all-brand aggregate
+routes; restricted staff and members remain bound to granted brands.
+
+White-label hostname activation additionally requires:
+
+```text
+CLOUDFLARE_CUSTOM_HOSTNAME_API_TOKEN
+CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN
+CLOUDFLARE_ZONE_ID
+MEMBER_BRAND_CONTEXT_SECRET
+```
+
+A hostname is not active until Cloudflare reports both domain-control and
+certificate activation. Winery DNS changes remain human-controlled.
+
+The checked-in Capacitor projects use `VITE_MOBILE_API_ORIGIN` only as a
+non-secret build-time HTTPS origin. The native shell defaults to the public
+Vinifera origin, so set the repository variable to an isolated HTTPS staging
+Worker before runtime QA. Mobile auth, association files, store policy, APNs,
+and FCM use the server-only bindings listed in `.env.example`. Signing files,
+Firebase application files, provisioning profiles, and store credentials remain
+local/CI secrets and must never be committed.
+
+Build or synchronize the native projects with:
+
+```bash
+npm run qa:mobile:identity   # verify app IDs, versions, links, privacy, and assets
+npm run generate:mobile:assets # regenerate branded native artwork from mobile/assets
+npm run build:mobile           # prepare web bundle and sync both projects
+npm run build:mobile:android   # sync Android and assemble a debug APK
+npm run build:mobile:android:release # sync Android and exercise R8 shrinking
+npm run build:mobile:ios       # sync and invoke the iOS build
+```
+
+The iOS simulator and Android debug/minified release APKs prove only native
+compilation and shell behavior. APNs/FCM delivery and secure-storage behavior
+on physical devices, release signing, TestFlight, Play internal track, privacy
+metadata, and store
+review remain activation evidence. See
+`docs/runbooks/phase-5-provider-mobile-activation.md`.
+
 ## Build and verify
 
 ```bash
@@ -219,7 +296,11 @@ npm run build:worker
 npm run qa:db:phase2
 npm run qa:db:phase3
 npm run qa:db:phase4
+npm run qa:db:phase5
+npm run qa:mobile:identity
 npm run qa:e2e
+npm run build:mobile:web
+npm run build:mobile:android
 ```
 
 `npm run build` runs Vite, then copies the marketing site, investor guide, and static metadata into `dist/`. The original `app` prototype is retained in source as a visual reference and is not included in the authenticated production bundle.
@@ -231,22 +312,28 @@ not replaced before Worker activation. Reproduce that artifact locally with
 
 ## CI/CD
 
-`.github/workflows/ci.yml` uses GitHub-hosted runners:
+`.github/workflows/ci.yml` uses GitHub-hosted runners and Node 22.22.0:
 
 1. Install locked dependencies.
 2. Audit production dependencies.
 3. Type-check and run automated tests.
-4. Build static assets and validate the Worker bundle.
-5. Run Chromium/Playwright accessibility, breakpoint, visual, and security QA.
-6. Apply Supabase migrations only when management credentials are active.
-7. Deploy the Worker and upload available runtime secrets.
+4. Run the Phase 2–5 embedded database gates.
+5. Build static assets and validate the Worker bundle.
+6. Run Chromium/Playwright accessibility, breakpoint, visual, and security QA.
+7. Sync, lint, and assemble the Android API 36 debug shell with Java 21.
+8. Apply Supabase migrations with pinned CLI 2.109.1 only when management
+   credentials are active.
+9. Optionally deploy the isolated `vinifera-staging` Worker, attaching available
+   runtime secrets atomically to that version and verifying `/api/health`.
 
-The deployment job remains a successful no-op until
-`CLOUDFLARE_WORKERS_DEPLOY_ENABLED=true` and the stored Cloudflare token has
-Workers Scripts edit permission. The existing Cloudflare Pages custom-domain
-deployment remains the rollback baseline during Phase 1. The Worker deploys to
-its staging `workers.dev` address until the complete live gate passes; do not
-move the custom domain early.
+The migration and deployment jobs are skipped unless the repository variables
+`STAGING_SUPABASE_MIGRATION_ENABLED=true` and
+`STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` are set. When explicitly enabled, the
+jobs enter the protected `staging` environment and fail if its `STAGING_*`
+credentials are incomplete or not sandbox-safe. Deployment targets only the
+`vinifera-staging` Worker at its `workers.dev` address. The existing Cloudflare
+Pages custom-domain deployment remains the rollback baseline; production
+cutover is not automated and must wait for the complete hosted gate.
 
 ## Verification surfaces
 
@@ -263,6 +350,10 @@ Verify all of the following:
 /portal
 /api/health
 /api/health/configuration
+/.well-known/apple-app-site-association
+/.well-known/assetlinks.json
 ```
 
-Required viewports are 375px, 768px, and 1440px. Run axe-core with zero WCAG 2.1 AA violations and confirm touch targets are at least 44×44px.
+Required Phase 5 browser viewports include 360, 375, 412, 430, 768, and 1440
+pixels. Run axe-core with zero WCAG 2.1 AA violations and confirm touch targets
+are at least 44×44px.

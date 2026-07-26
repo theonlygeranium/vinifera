@@ -14,7 +14,6 @@ import { type FormEvent, useCallback, useMemo, useState } from "react";
 import { ApiError, apiRequest, patchJson, postJson } from "../api/client";
 import { type Address, type PortalShipment } from "../api/phase2";
 import { useRouter } from "../routes/router";
-import { Brand } from "../shared/Brand";
 import { Dialog } from "../shared/Dialog";
 import { FormFeedback } from "../shared/FormFeedback";
 import {
@@ -31,6 +30,9 @@ import {
   MemberLoyaltyPanel,
   MemberRetentionControls,
 } from "./phase3/RetentionLoyalty";
+import { useMobileRuntime } from "../mobile/MobileRuntime";
+import { clearNativeSession } from "../mobile/native-session";
+import { MemberBrand } from "./MemberBranding";
 
 const blankAddress: Address = {
   line1: "",
@@ -44,6 +46,7 @@ const blankAddress: Address = {
 export function MemberPortal() {
   const { navigate } = useRouter();
   const { session, clear } = useMemberSession();
+  const mobile = useMobileRuntime();
   const loadShipments = useCallback(
     () => apiRequest<PortalShipment[]>("/api/member/shipments"),
     [],
@@ -74,7 +77,11 @@ export function MemberPortal() {
     setBusy("logout");
     setFeedback(null);
     try {
-      await postJson("/api/auth/member/logout");
+      if (mobile.native) {
+        await clearNativeSession();
+      } else {
+        await postJson("/api/auth/member/logout");
+      }
       clear();
       navigate("/portal/login", { replace: true });
     } catch (caught) {
@@ -159,7 +166,7 @@ export function MemberPortal() {
   return (
     <div className="member-app">
       <header className="member-topbar">
-        <Brand compact inverse homeHref="/portal" />
+        <MemberBrand compact inverse homeHref="/portal" />
         <div className="member-topbar__account">
           <span className="member-topbar__name">{name}</span>
           <button
@@ -175,6 +182,22 @@ export function MemberPortal() {
       </header>
 
       <main className="member-content">
+        {mobile.native && !mobile.online ? (
+          <aside className="mobile-connectivity-banner" role="status">
+            <strong>Offline read-only mode</strong>
+            <span>
+              Recent shipments and loyalty activity are loaded from encrypted
+              device storage. Account changes resume after reconnection.
+            </span>
+            <button
+              type="button"
+              className="button button--secondary button--compact"
+              onClick={() => void mobile.refreshBootstrap()}
+            >
+              Retry connection
+            </button>
+          </aside>
+        ) : null}
         <div aria-live="polite">
           <FormFeedback
             message={feedback?.message ?? null}
@@ -194,7 +217,8 @@ export function MemberPortal() {
 
         {shipments.state.status === "loading" ? (
           <LoadingBlock label="Loading your shipments" />
-        ) : shipments.state.status === "error" ? (
+        ) : shipments.state.status === "error" &&
+          mobile.bootstrap.status !== "cached" ? (
           isActivationError(shipments.state.error) ? (
             <ActivationBlock
               title="Your shipment portal is ready"
@@ -208,6 +232,55 @@ export function MemberPortal() {
           )
         ) : (
           <>
+            {shipments.state.status === "error" &&
+            mobile.bootstrap.status === "cached" ? (
+              <section
+                className="operation-panel mobile-offline-snapshot"
+                aria-labelledby="offline-snapshot-title"
+              >
+                <div className="panel-heading panel-heading--split">
+                  <div>
+                    <p className="eyebrow eyebrow--wine">Encrypted snapshot</p>
+                    <h2 id="offline-snapshot-title">Recent mobile activity</h2>
+                  </div>
+                  <span className="status-pill status-pill--pending">
+                    Read only
+                  </span>
+                </div>
+                <div className="mobile-offline-grid">
+                  <div>
+                    <h3>Shipments</h3>
+                    {mobile.bootstrap.data.recentShipments.length ? (
+                      <ul>
+                        {mobile.bootstrap.data.recentShipments.map((shipment) => (
+                          <li key={shipment.id}>
+                            <strong>{shipment.releaseName}</strong>
+                            <span>{sentence(shipment.status)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>No cached shipments.</p>
+                    )}
+                  </div>
+                  <div>
+                    <h3>Loyalty activity</h3>
+                    {mobile.bootstrap.data.loyaltyLedger.length ? (
+                      <ul>
+                        {mobile.bootstrap.data.loyaltyLedger.map((entry) => (
+                          <li key={entry.id}>
+                            <strong>{entry.description}</strong>
+                            <span>{entry.points > 0 ? "+" : ""}{entry.points} pts</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>No cached loyalty activity.</p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            ) : null}
             {upcoming ? (
               <section className="portal-next-shipment" aria-labelledby="next-shipment-title">
                 <div className="portal-next-shipment__main">
@@ -248,7 +321,11 @@ export function MemberPortal() {
               />
             )}
 
-            <section className="portal-actions" aria-labelledby="portal-actions-title">
+            <fieldset
+              className="portal-actions"
+              aria-labelledby="portal-actions-title"
+              disabled={mobile.native && !mobile.online}
+            >
               <div className="panel-heading">
                 <div>
                   <p className="eyebrow eyebrow--wine">Manage membership</p>
@@ -278,7 +355,7 @@ export function MemberPortal() {
                 </button>
                 <MemberRetentionControls />
               </div>
-            </section>
+            </fieldset>
 
             <MemberLoyaltyPanel shipmentId={upcoming?.id ?? null} />
 

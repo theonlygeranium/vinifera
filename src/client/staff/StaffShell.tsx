@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Boxes,
+  Building2,
   CalendarDays,
   CreditCard,
   Gift,
@@ -10,6 +11,8 @@ import {
   Mail,
   Menu,
   PackageCheck,
+  Palette,
+  PlugZap,
   RefreshCw,
   Scale,
   Sparkles,
@@ -30,6 +33,7 @@ import { Link, useRouter } from "../routes/router";
 import { Brand } from "../shared/Brand";
 import { FormFeedback } from "../shared/FormFeedback";
 import { useStaffSession } from "./StaffSessionContext";
+import { useBrandScope } from "./phase5/BrandScopeContext";
 
 const navSections = [
   {
@@ -62,6 +66,14 @@ const navSections = [
       { href: "/app/benchmarks", label: "Peer Benchmarks", icon: Trophy },
     ],
   },
+  {
+    label: "Scale",
+    links: [
+      { href: "/app/integrations", label: "Integrations", icon: PlugZap },
+      { href: "/app/brands", label: "Brands", icon: Building2 },
+      { href: "/app/white-label", label: "White-label", icon: Palette },
+    ],
+  },
 ] as const;
 
 function sentenceCase(value?: string | null) {
@@ -84,6 +96,7 @@ export function StaffShell({
 }) {
   const { navigate, location } = useRouter();
   const { session, clear } = useStaffSession();
+  const brandScope = useBrandScope();
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState<"logout" | "billing" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -241,6 +254,31 @@ export function StaffShell({
             </div>
           </div>
           <div className="staff-topbar__actions">
+            {brandScope.canViewAllBrands || brandScope.brands.length > 1 ? (
+              <div className="brand-switcher">
+                <label htmlFor="active-brand">Active brand</label>
+                <select
+                  id="active-brand"
+                  value={brandScope.activeBrandId ?? ""}
+                  onChange={(event) =>
+                    brandScope.setActiveBrandId(event.target.value)
+                  }
+                  disabled={
+                    brandScope.status !== "ready" ||
+                    brandScope.brands.length === 0
+                  }
+                >
+                  {brandScope.canViewAllBrands ? (
+                    <option value="all">All brands · organization</option>
+                  ) : null}
+                  {brandScope.brands.map((brand) => (
+                    <option key={brand.id} value={brand.id}>
+                      {brand.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             {actions}
             <button
               type="button"

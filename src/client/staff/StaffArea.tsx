@@ -25,6 +25,10 @@ import { AnalyticsPage } from "./phase4/AnalyticsPage";
 import { BenchmarksPage } from "./phase4/BenchmarksPage";
 import { ChurnIntelligencePage } from "./phase4/ChurnIntelligencePage";
 import { CompliancePage } from "./phase4/CompliancePage";
+import { BrandScopeProvider } from "./phase5/BrandScopeContext";
+import { BrandsPage } from "./phase5/BrandsPage";
+import { IntegrationsPage } from "./phase5/IntegrationsPage";
+import { WhiteLabelPage } from "./phase5/WhiteLabelPage";
 import {
   StaffSessionProvider,
   useStaffSession,
@@ -45,7 +49,7 @@ function ProtectedPage({ children }: { children: ReactNode }) {
       />
     );
   }
-  return children;
+  return <BrandScopeProvider>{children}</BrandScopeProvider>;
 }
 
 function StaffRoutes() {
@@ -175,6 +179,27 @@ function StaffRoutes() {
     return (
       <ProtectedPage>
         <CompliancePage />
+      </ProtectedPage>
+    );
+  }
+  if (route === "/app/integrations") {
+    return (
+      <ProtectedPage>
+        <IntegrationsPage />
+      </ProtectedPage>
+    );
+  }
+  if (route === "/app/brands") {
+    return (
+      <ProtectedPage>
+        <BrandsPage />
+      </ProtectedPage>
+    );
+  }
+  if (route === "/app/white-label") {
+    return (
+      <ProtectedPage>
+        <WhiteLabelPage />
       </ProtectedPage>
     );
   }

@@ -47,9 +47,19 @@ export type AnalyticsRange =
   | "all"
   | "custom";
 export type ComplianceStatus = "compliant" | "non_compliant" | "unknown";
+export type IntegrationType =
+  | "avalara"
+  | "klaviyo"
+  | "meta"
+  | "quickbooks";
 
 export interface WorkerEnv {
   ALLOWED_ORIGINS?: string;
+  APNS_BUNDLE_ID?: string;
+  APNS_ENVIRONMENT?: "production" | "sandbox";
+  APNS_KEY_ID?: string;
+  APNS_PRIVATE_KEY?: string;
+  APNS_TEAM_ID?: string;
   APP_ENV?: "development" | "test" | "staging" | "production";
   APP_ORIGIN?: string;
   ASSETS?: Fetcher;
@@ -57,10 +67,36 @@ export interface WorkerEnv {
   COMPLIANCE_PROVIDER?: "shipcompliant" | "simulated";
   COMPLIANCE_SIMULATOR_ENABLED?: "true" | "false";
   GOOGLE_OAUTH_ENABLED?: "true" | "false";
+  INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION?: string;
+  INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS?: string;
+  QUICKBOOKS_CLIENT_ID?: string;
+  QUICKBOOKS_CLIENT_SECRET?: string;
+  QUICKBOOKS_ENVIRONMENT?: "production" | "sandbox";
+  QUICKBOOKS_REDIRECT_URI?: string;
+  QUICKBOOKS_STATE_SIGNING_SECRET?: string;
+  CLOUDFLARE_CUSTOM_HOSTNAME_API_TOKEN?: string;
+  CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN?: string;
+  CLOUDFLARE_ZONE_ID?: string;
+  MOBILE_ANDROID_LATEST_VERSION?: string;
+  MOBILE_ANDROID_MINIMUM_VERSION?: string;
+  MOBILE_ANDROID_PACKAGE_NAME?: string;
+  MOBILE_ANDROID_SIGNING_CERT_SHA256?: string;
+  MOBILE_ANDROID_STORE_URL?: string;
+  MOBILE_APPLE_TEAM_ID?: string;
+  MOBILE_AUTH_EMAIL_TEMPLATE_ENABLED?: "true" | "false";
+  MOBILE_AUTH_STATE_SIGNING_SECRET?: string;
+  MOBILE_IOS_BUNDLE_ID?: string;
+  MOBILE_IOS_LATEST_VERSION?: string;
+  MOBILE_IOS_MINIMUM_VERSION?: string;
+  MOBILE_IOS_STORE_URL?: string;
   RATE_LIMIT_PEPPER?: string;
+  MEMBER_BRAND_CONTEXT_SECRET?: string;
   EASYPOST_API_KEY?: string;
   EMAIL_PROVIDER?: "resend" | "simulated";
   EMAIL_SIMULATOR_ENABLED?: "true" | "false";
+  FCM_CLIENT_EMAIL?: string;
+  FCM_PRIVATE_KEY?: string;
+  FCM_PROJECT_ID?: string;
   RESEND_API_KEY?: string;
   RESEND_DOMAIN_VERIFIED?: "true" | "false";
   RESEND_FROM?: string;
@@ -115,6 +151,9 @@ export interface StaffPrincipal {
 }
 
 export interface MemberPrincipal {
+  brand: {
+    id: string;
+  };
   organization: {
     id: string;
     name: string;
@@ -141,12 +180,17 @@ export interface FoundationService {
   exchangeAuthCode(
     surface: AuthSurface,
     code: string,
+    state?: string,
   ): Promise<{ destination: string }>;
   getGoogleOAuthUrl(): Promise<string>;
   getMemberSession(): Promise<MemberPrincipal | null>;
   getStaffSession(): Promise<StaffPrincipal | null>;
   handleStripeWebhook(payload: Buffer, signature: string): Promise<{ duplicate: boolean }>;
-  requestMemberMagicLink(input: { email: string; ipAddress: string }): Promise<void>;
+  requestMemberMagicLink(input: {
+    brandId?: string;
+    email: string;
+    ipAddress: string;
+  }): Promise<void>;
   requestStaffPasswordReset(input: { email: string }): Promise<void>;
   staffLogin(input: { email: string; password: string }): Promise<StaffPrincipal>;
   staffLogout(): Promise<void>;
@@ -524,10 +568,128 @@ export interface AnalyticsService {
   ): Promise<Record<string, unknown>>;
 }
 
+export interface IntegrationService {
+  completeMobileMagicLink(input: {
+    state: string;
+    tokenHash: string;
+    type: "email";
+  }): Promise<{ redirectUrl: string }>;
+  completeQuickBooksOAuth(input: {
+    code: string;
+    realmId: string;
+    state: string;
+  }): Promise<{ connected: boolean; redirectPath: string }>;
+  connectIntegration(
+    type: IntegrationType,
+    input: {
+      brandId?: string | null;
+      consentConfirmed: boolean;
+      credentials?: Record<string, unknown>;
+      optedIn: boolean;
+      syncConfig?: Record<string, unknown>;
+    },
+  ): Promise<Record<string, unknown>>;
+  createBrand(input: {
+    billingMode: "independent" | "shared";
+    description?: string | null;
+    name: string;
+    slug: string;
+  }): Promise<Record<string, unknown>>;
+  deleteBrandDomain(brandId: string): Promise<void>;
+  disconnectIntegration(type: IntegrationType): Promise<void>;
+  exchangeMobileSession(input: {
+    appVersion: string;
+    code: string;
+    deviceFingerprint: string;
+    platform: "android" | "ios";
+    redirectUri: string;
+  }): Promise<Record<string, unknown>>;
+  getAvalaraLiability(): Promise<Record<string, unknown>>;
+  getBrandDomain(brandId: string): Promise<Record<string, unknown>>;
+  getBrandOverview(brandId?: string | "all"): Promise<Record<string, unknown>>;
+  getMobileAppPolicy(input: {
+    platform: "android" | "ios";
+    version: string;
+  }): Promise<Record<string, unknown>>;
+  getPortalBranding(hostname: string): Promise<Record<string, unknown>>;
+  getMobileBootstrap(): Promise<Record<string, unknown>>;
+  getQuickBooksAuthorizationUrl(
+    brandId?: string | null,
+  ): Promise<{ url: string }>;
+  getQuickBooksReconciliation(): Promise<Record<string, unknown>>;
+  handleKlaviyoWebhook(
+    integrationId: string,
+    payload: Uint8Array,
+    headers: {
+      signature?: string;
+      timestamp?: string;
+      webhookId?: string;
+    },
+  ): Promise<{
+    accepted: boolean;
+    duplicates: number;
+    ignored: number;
+    processed: number;
+    queued: number;
+  }>;
+  listBrands(): Promise<{
+    canViewAllBrands: boolean;
+    items: Array<Record<string, unknown>>;
+  }>;
+  listIntegrationLogs(
+    type: IntegrationType,
+    limit: number,
+  ): Promise<{ items: Array<Record<string, unknown>> }>;
+  listIntegrations(): Promise<Record<string, unknown>>;
+  logoutMobileSession(input: {
+    refreshToken: string;
+  }): Promise<void>;
+  queueIntegrationSync(
+    type: IntegrationType,
+  ): Promise<Record<string, unknown>>;
+  registerMobileDevice(input: {
+    appVersion: string;
+    brandId?: string | null;
+    deviceFingerprint: string;
+    permission: "denied" | "granted" | "prompt";
+    platform: "android" | "ios";
+    token: string;
+  }): Promise<Record<string, unknown>>;
+  refreshMobileSession(input: {
+    refreshToken: string;
+  }): Promise<Record<string, unknown>>;
+  requestMobileMagicLink(input: {
+    clubCode?: string;
+    deviceFingerprint: string;
+    email: string;
+    ipAddress: string;
+    redirectUri: string;
+  }): Promise<void>;
+  unregisterMobileDevice(deviceFingerprint: string): Promise<void>;
+  updateBrand(
+    brandId: string,
+    input: Record<string, unknown>,
+  ): Promise<Record<string, unknown>>;
+  updateBrandDomain(
+    brandId: string,
+    hostname: string,
+  ): Promise<Record<string, unknown>>;
+  updateIntegration(
+    type: IntegrationType,
+    input: {
+      consentConfirmed?: boolean;
+      credentials?: Record<string, unknown>;
+      optedIn?: boolean;
+      syncConfig?: Record<string, unknown>;
+    },
+  ): Promise<Record<string, unknown>>;
+}
+
 export type ApplicationService = FoundationService &
   CoreClubService &
   RetentionService &
-  AnalyticsService;
+  AnalyticsService &
+  IntegrationService;
 
 export type FoundationServiceFactory = (
   request: Request,
@@ -549,9 +711,14 @@ export interface ConfigurationReport {
   billing: ConfigurationCapability;
   compliance: ConfigurationCapability;
   communications: ConfigurationCapability;
+  customDomains: ConfigurationCapability;
   database: ConfigurationCapability;
   email: ConfigurationCapability;
   googleOAuth: ConfigurationCapability;
+  integrationEncryption: ConfigurationCapability;
+  mobile: ConfigurationCapability;
+  push: ConfigurationCapability;
+  quickBooksOAuth: ConfigurationCapability;
   shipping: ConfigurationCapability;
   webhook: ConfigurationCapability;
 }

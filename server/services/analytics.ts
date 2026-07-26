@@ -1528,10 +1528,12 @@ export class ProductionAnalyticsService
   private async loadAnalyticsLayout(
     principal: StaffPrincipal,
   ): Promise<Record<string, unknown> | null> {
+    const brandId = await this.activeBrandId(principal);
     const { data, error } = await this.admin
       .from("dashboard_layout_preferences")
       .select("layout,updated_at")
       .eq("organization_id", this.organizationId(principal))
+      .eq("brand_id", brandId)
       .eq("staff_user_id", principal.user.id)
       .maybeSingle();
     if (error) throw databaseError("The analytics layout could not be loaded.");
@@ -1544,6 +1546,7 @@ export class ProductionAnalyticsService
     to?: string;
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff();
+    await this.assertLegacySingleBrandScope(principal, "Analytics dashboard");
     const range = resolveAnalyticsRange(input.range, input);
     const from =
       range.from ??
@@ -1579,6 +1582,7 @@ export class ProductionAnalyticsService
     const dashboard = await this.getAnalyticsDashboard(input);
     const range = resolveAnalyticsRange(input.range, input);
     const principal = await this.requireStaff();
+    const brandId = await this.activeBrandId(principal);
     await this.recordDomainAnalyticsEvent(principal, {
       eventData: { range: range.preset, widget },
       eventType: "analytics.widget_exported",
@@ -1604,6 +1608,7 @@ export class ProductionAnalyticsService
     }>;
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff();
+    await this.assertLegacySingleBrandScope(principal, "Analytics layouts");
     const widgetIds = input.widgets.map((widget) => widget.id);
     if (
       widgetIds.length !== new Set(widgetIds).size ||
@@ -1642,12 +1647,14 @@ export class ProductionAnalyticsService
     Array<Record<string, unknown>>
   > {
     const principal = await this.requireStaff();
+    const brandId = await this.activeBrandId(principal);
     const { data, error } = await this.admin
       .from("analytics_report_schedules")
       .select(
         "id,report_type,frequency,day_of_week,day_of_month,send_hour_utc,enabled,widget_ids,last_enqueued_at,next_report_at,created_at,updated_at",
       )
       .eq("organization_id", this.organizationId(principal))
+      .eq("brand_id", brandId)
       .eq("staff_user_id", principal.user.id)
       .eq("report_type", "analytics_summary")
       .order("created_at");
@@ -1668,6 +1675,10 @@ export class ProductionAnalyticsService
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
+    await this.assertLegacySingleBrandScope(
+      principal,
+      "Scheduled analytics reports",
+    );
     const recipientEmail = input.recipientEmail
       .trim()
       .toLocaleLowerCase("en-US");
@@ -1736,11 +1747,13 @@ export class ProductionAnalyticsService
     assertUuid(reportId, "Report schedule");
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     const { data: existing, error } = await this.admin
       .from("analytics_report_schedules")
       .select("id,frequency,enabled,widget_ids")
       .eq("id", reportId)
       .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
       .eq("staff_user_id", principal.user.id)
       .eq("report_type", "analytics_summary")
       .maybeSingle();
@@ -1771,6 +1784,7 @@ export class ProductionAnalyticsService
     memberId?: string;
   }): Promise<{ accepted: boolean }> {
     const principal = await this.requireStaff();
+    const brandId = await this.activeBrandId(principal);
     if (!ANALYTICS_EVENT_TYPES.has(input.eventType)) {
       throw new AppError(
         400,
@@ -1782,6 +1796,7 @@ export class ProductionAnalyticsService
     await this.callRpc(
       "record_analytics_event",
       {
+        p_brand_id: brandId,
         p_event_data: sanitizeAnalyticsEventData(input.eventData),
         p_event_type: input.eventType,
         p_idempotency_key: await analyticsEventIdempotencyKey({
@@ -1804,11 +1819,13 @@ export class ProductionAnalyticsService
   ): Promise<Record<string, unknown>> {
     assertUuid(alertId, "High-risk alert");
     const principal = await this.requireStaff();
+    const brandId = await this.activeBrandId(principal);
     const payload = await this.callRpc(
       "acknowledge_ml_high_risk_alert",
       {
         p_actor_user_id: principal.user.id,
         p_alert_id: alertId,
+        p_brand_id: brandId,
         p_organization_id: this.organizationId(principal),
       },
       "The high-risk alert could not be acknowledged.",
@@ -1844,10 +1861,12 @@ export class ProductionAnalyticsService
     search?: string;
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff();
+    const brandId = await this.activeBrandId(principal);
     const [payload, operationsPayload] = await Promise.all([
       this.callRpc(
         "list_churn_intelligence",
         {
+          p_brand_id: brandId,
           p_limit: input.limit,
           p_offset: input.offset,
           p_organization_id: this.organizationId(principal),
@@ -1884,9 +1903,11 @@ export class ProductionAnalyticsService
   ): Promise<Record<string, unknown>> {
     assertUuid(memberId, "Member");
     const principal = await this.requireStaff();
+    const brandId = await this.activeBrandId(principal);
     const payload = await this.callRpc(
       "get_member_churn_intelligence",
       {
+        p_brand_id: brandId,
         p_member_id: memberId,
         p_organization_id: this.organizationId(principal),
       },
@@ -1916,6 +1937,7 @@ export class ProductionAnalyticsService
       };
     }
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     const currentQuarter = new Date();
     currentQuarter.setUTCDate(1);
     currentQuarter.setUTCHours(0, 0, 0, 0);
@@ -1938,6 +1960,7 @@ export class ProductionAnalyticsService
         .from("analytics_report_schedules")
         .select("enabled,last_enqueued_at,next_report_at")
         .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
         .eq("staff_user_id", principal.user.id)
         .eq("report_type", "benchmark")
         .maybeSingle(),
@@ -1973,6 +1996,10 @@ export class ProductionAnalyticsService
     quarterlyReportEnabled: boolean;
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff(["owner", "admin"]);
+    await this.assertLegacySingleBrandScope(
+      principal,
+      "Benchmark report scheduling",
+    );
     const planTier = principal.organization?.planTier;
     if (planTier !== "estate" && planTier !== "reserve") {
       throw new AppError(
@@ -2014,9 +2041,11 @@ export class ProductionAnalyticsService
     status?: ComplianceStatus;
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff();
+    const brandId = await this.activeBrandId(principal);
     const payload = await this.callRpc(
       "get_compliance_dashboard",
       {
+        p_brand_id: brandId,
         p_limit: input.limit,
         p_offset: input.offset,
         p_organization_id: this.organizationId(principal),
@@ -2107,6 +2136,7 @@ export class ProductionAnalyticsService
   ): Promise<Record<string, unknown>> {
     assertUuid(checkId, "Compliance check");
     const principal = await this.requireStaff();
+    const brandId = await this.activeBrandId(principal);
     const { data, error } = await this.admin
       .from("compliance_checks")
       .select(
@@ -2114,6 +2144,7 @@ export class ProductionAnalyticsService
       )
       .eq("id", checkId)
       .eq("organization_id", this.organizationId(principal))
+      .eq("brand_id", brandId)
       .maybeSingle();
     if (error) throw databaseError("The compliance check could not be loaded.");
     if (!data) {
@@ -2150,10 +2181,12 @@ export class ProductionAnalyticsService
       "staff",
     ]);
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     const { data, error } = await this.admin
       .from("shipments")
       .select("id")
       .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
       .eq("release_id", releaseId)
       .eq("status", "charged")
       .order("created_at");

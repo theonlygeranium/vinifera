@@ -1,7 +1,8 @@
 # Phase 5: Scale & Integrations
 
 **Duration:** Year 2
-**Status:** Planned
+**Status:** Source architecture implemented; hosted provider, DNS, signing,
+store, and production-payment activation deferred
 **Exit Criterion:** At least three third-party integrations are live in production (Klaviyo, QuickBooks, and one of Avalara/Meta), multi-brand tenancy supports a winery operating two distinct wine clubs from one account, and the Capacitor.js mobile wrapper builds and installs on iOS and Android with all core features functional.
 
 ---
@@ -107,7 +108,11 @@ This phase delivers: Klaviyo bidirectional sync, QuickBooks revenue sync, Avalar
   - iOS: TestFlight for beta, App Store for production
   - Android: internal testing track, Play Store for production
 - Deep linking: `vinifera.ai://portal` opens the app to the member portal
-- Auto-update: app checks for web content updates on launch (Capacitor live update)
+- Signed-store update policy: the app checks minimum/latest supported versions
+  and directs the user to an App Store or Play Store release. It never downloads
+  or executes replacement web code after signing. This security and store-policy
+  decision supersedes the original Capacitor live-update proposal; see
+  [the Phase 5 ADR](../decisions/2026-07-26-phase-5-scale-integrations.md).
 
 ### 5.8 Database Schema (Phase 5 Tables)
 
@@ -143,11 +148,14 @@ brands
   - stripe_customer_id (text, nullable)  -- independent billing if separate
   - created_at, updated_at (timestamptz)
 
--- Modify existing tables to add brand_id (nullable for backward compat):
--- members: add brand_id (uuid, FK → brands, nullable)
--- club_tiers: add brand_id (uuid, FK → brands, nullable)
--- releases: add brand_id (uuid, FK → brands, nullable)
--- shipments: add brand_id (uuid, FK → brands, nullable)
+-- Modify existing tables through an additive migration:
+-- 1. add brand_id as nullable;
+-- 2. create one default brand per organization and backfill every row;
+-- 3. enforce brand_id NOT NULL once the backfill is complete.
+-- members: brand_id (uuid, FK → brands, NOT NULL after backfill)
+-- club_tiers: brand_id (uuid, FK → brands, NOT NULL after backfill)
+-- releases: brand_id (uuid, FK → brands, NOT NULL after backfill)
+-- shipments: brand_id (uuid, FK → brands, NOT NULL after backfill)
 
 meta_conversion_events
   - id (uuid, PK)
@@ -274,7 +282,8 @@ If time or scope requires prioritization, implement in this order:
 - [ ] Camera barcode scanning works at pack station
 - [ ] Offline mode caches recent shipments and loyalty ledger
 - [ ] Deep linking opens app to correct screen
-- [ ] Live update fetches latest web content on launch
+- [ ] Store-version policy recommends or requires the latest signed release
+      without downloading executable code
 
 ### Accessibility (axe-core)
 
@@ -355,18 +364,32 @@ If time or scope requires prioritization, implement in this order:
 
 ## Pre-Provisioned Credentials
 
-Phase 5 builds on Phases 1–4 credentials. The following additional credentials are NOT pre-provisioned and must be obtained before starting this phase:
+Phase 5 builds on Phases 1–4 credentials. The following additional credentials
+and account authority are not pre-provisioned and must be obtained before hosted
+activation:
 
-| Secret name | Purpose | How to obtain |
-|-------------|---------|---------------|
-| `KLAVIYO_API_KEY` | Klaviyo marketing automation | Register at https://klaviyo.com, create private API key |
+| Credential or authority | Purpose | How to obtain |
+|-------------------------|---------|---------------|
+| Klaviyo private API key (per winery connection) | Klaviyo marketing automation | Register at https://klaviyo.com, create private API key |
 | `QUICKBOOKS_CLIENT_ID` | QuickBooks OAuth client | Register app at https://developer.intuit.com |
 | `QUICKBOOKS_CLIENT_SECRET` | QuickBooks OAuth secret | Same as above |
-| `AVALARA_API_KEY` | Avalara tax compliance | Register at https://developer.avalara.com |
-| `META_APP_ID` | Meta Conversions API | Register at https://developers.facebook.com |
-| `META_APP_SECRET` | Meta app secret | Same as above |
-| `APPLE_DEVELOPER_TEAM_ID` | iOS app distribution | Apple Developer Program ($99/yr) |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT` | Android app distribution | Google Play Developer account ($25 one-time) |
+| Avalara account ID and license key (per winery connection) | Avalara tax compliance | Register at https://developer.avalara.com |
+| Meta dataset ID and access token (per winery connection) | Meta Conversions API | Register at https://developers.facebook.com |
+| `MOBILE_APPLE_TEAM_ID` | iOS association and distribution identity | Apple Developer Program ($99/yr) |
+| Google Play service-account authority | Android distribution | Google Play Developer account ($25 one-time) |
+
+The initial shared-variable proposals `KLAVIYO_API_KEY`, `AVALARA_API_KEY`,
+`META_APP_ID`, `META_APP_SECRET`, `APPLE_DEVELOPER_TEAM_ID`, and
+`GOOGLE_PLAY_SERVICE_ACCOUNT` are superseded by the implemented security
+boundary. Winery-specific Klaviyo, Avalara, and Meta credentials are submitted
+only to the server and stored as encrypted per-connection envelopes. QuickBooks
+uses the application variables above plus `QUICKBOOKS_ENVIRONMENT`,
+`QUICKBOOKS_REDIRECT_URI`, and `QUICKBOOKS_STATE_SIGNING_SECRET`; returned
+winery tokens use the encrypted envelope boundary. Apple association generation
+uses `MOBILE_APPLE_TEAM_ID`. Google Play authority remains outside the runtime,
+while Android push uses the separate `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, and
+`FCM_PRIVATE_KEY` Worker bindings. The complete non-secret contract is in
+[`.env.example`](../../.env.example).
 
 **App store credentials** require paid developer accounts. If these are not available, Codex should build and test the mobile app via local builds and emulators, and escalate to the human supervisor for store submission.
 
@@ -378,7 +401,10 @@ Phase 5 builds on Phases 1–4 credentials. The following additional credentials
 
 - **Integrations are opt-in.** Wineries must explicitly connect each integration. No data leaves Vinifera without explicit consent.
 - **PII must be hashed.** Meta CAPI and any integration receiving user data must receive SHA-256 hashed PII, never raw.
-- **Multi-brand migration is additive.** Adding `brand_id` to existing tables must not break existing single-brand data. `brand_id` is nullable; existing rows get a default brand.
+- **Multi-brand migration is additive.** Adding `brand_id` to existing tables
+  must not break existing single-brand data. The migration adds the column as
+  nullable, creates one default brand per organization, backfills every existing
+  row, validates the result, and only then enforces `NOT NULL`.
 - **White-label requires custom domain DNS.** Wineries must configure DNS (CNAME). Document the setup process clearly.
 - **Mobile app is a wrapper, not a rewrite.** The web application is the source of truth. Capacitor.js wraps it. Do not build separate native screens unless a native feature (camera, biometrics, push) requires it.
 - **This phase goes to production.** Phases 1–4 can use staging/test mode. Phase 5 integrations must work with real third-party accounts in production. Use sandbox/test accounts for third-party APIs during development, but verify against production APIs before exit.

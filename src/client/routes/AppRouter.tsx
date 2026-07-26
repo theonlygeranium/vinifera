@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { MobileRuntime } from "../mobile/MobileRuntime";
 import { LoadingScreen } from "../shared/LoadingScreen";
 import { Redirect, RouterProvider, useRouter } from "./router";
 
@@ -23,9 +24,11 @@ function ActiveArea() {
 export function AppRouter() {
   return (
     <RouterProvider>
-      <Suspense fallback={<LoadingScreen label="Loading Vinifera" />}>
-        <ActiveArea />
-      </Suspense>
+      <MobileRuntime>
+        <Suspense fallback={<LoadingScreen label="Loading Vinifera" />}>
+          <ActiveArea />
+        </Suspense>
+      </MobileRuntime>
     </RouterProvider>
   );
 }

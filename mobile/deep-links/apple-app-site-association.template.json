@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "${MOBILE_APPLE_TEAM_ID}.ai.edstratumlabs.vinifera"
+        ],
+        "components": [
+          { "/": "/portal" },
+          { "/": "/portal/auth" },
+          { "/": "/app/fulfillment" }
+        ]
+      }
+    ]
+  }
+}

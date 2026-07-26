@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { MemberBrand } from "../member/MemberBranding";
 import { Brand } from "./Brand";
 
 interface AuthLayoutProps {
@@ -20,7 +21,11 @@ export function AuthLayout({
     <main className={`auth-page auth-page--${surface}`}>
       <section className="auth-card" aria-labelledby="auth-title">
         <div className="auth-card__brand">
-          <Brand homeHref="/" />
+          {surface === "member" ? (
+            <MemberBrand homeHref="/portal" />
+          ) : (
+            <Brand homeHref="/" />
+          )}
         </div>
         <header className="auth-card__header">
           <h1 id="auth-title">{title}</h1>

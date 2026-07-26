@@ -181,6 +181,16 @@ describe("Phase 1 API", () => {
     expect(response.body.data.database.configured).toBe(false);
   });
 
+  it("returns canonical public branding while database activation is deferred", async () => {
+    const response = await request(testApp()).get("/api/portal/branding");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      brand: null,
+      mode: "canonical",
+    });
+  });
+
   it("rejects unsafe cross-origin state changes", async () => {
     const response = await request(testApp())
       .post("/api/auth/staff/login")
@@ -189,6 +199,49 @@ describe("Phase 1 API", () => {
 
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe("forbidden");
+  });
+
+  it("accepts an explicit null sender address so a white-label sender can be cleared", async () => {
+    const updateBrand = vi
+      .fn()
+      .mockResolvedValue({ id: "30000000-0000-4000-8000-000000000003" });
+    const foundation = service({
+      listIntegrations: vi.fn().mockResolvedValue([]),
+      updateBrand,
+    });
+    const brandId = "30000000-0000-4000-8000-000000000003";
+    const response = await request(testApp(foundation))
+      .patch(`/api/brands/${brandId}`)
+      .set("Origin", "https://vinifera.test")
+      .send({
+        emailSenderAddress: null,
+        emailSenderName: "Vinifera Club",
+      });
+
+    expect(response.status).toBe(200);
+    expect(updateBrand).toHaveBeenCalledWith(brandId, {
+      emailSenderAddress: null,
+      emailSenderName: "Vinifera Club",
+    });
+  });
+
+  it("allows only the exact configured Capacitor origin", async () => {
+    const foundation = service();
+    const nativeEnv = {
+      ALLOWED_ORIGINS:
+        "https://vinifera.test,capacitor://localhost,https://localhost",
+    };
+    const accepted = await request(testApp(foundation, nativeEnv))
+      .post("/api/auth/staff/login")
+      .set("Origin", "capacitor://localhost")
+      .send({ email: "owner@example.com", password: "correct horse" });
+    const spoofed = await request(testApp(foundation, nativeEnv))
+      .post("/api/auth/staff/login")
+      .set("Origin", "capacitor://localhost.attacker.example")
+      .send({ email: "owner@example.com", password: "correct horse" });
+
+    expect(accepted.status).toBe(200);
+    expect(spoofed.status).toBe(403);
   });
 
   it("validates staff signup fields before invoking providers", async () => {
@@ -284,6 +337,31 @@ describe("Phase 1 API", () => {
     expect(response.status).toBe(200);
     expect(response.body.data.message).toContain("If this membership exists");
     expect(response.text).not.toContain("unknown@example.com");
+  });
+
+  it("requires and forwards signed state on the member auth callback", async () => {
+    const exchangeAuthCode = vi
+      .fn()
+      .mockResolvedValue({ destination: "/portal" });
+    const foundation = service({ exchangeAuthCode });
+    const state = "signed-member-link-state-value".repeat(2);
+    const response = await request(testApp(foundation))
+      .get("/api/auth/member/callback")
+      .query({ code: "pkce-code", state });
+
+    expect(response.status).toBe(303);
+    expect(response.headers.location).toBe("/portal");
+    expect(exchangeAuthCode).toHaveBeenCalledWith(
+      "member",
+      "pkce-code",
+      state,
+    );
+
+    const missingState = await request(testApp(foundation))
+      .get("/api/auth/member/callback")
+      .query({ code: "pkce-code" });
+    expect(missingState.status).toBe(400);
+    expect(exchangeAuthCode).toHaveBeenCalledTimes(1);
   });
 
   it("preserves the raw Stripe body for signature verification", async () => {

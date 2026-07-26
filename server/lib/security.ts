@@ -14,7 +14,7 @@ export const CONTENT_SECURITY_POLICY = [
   "font-src 'self' data:",
   "form-action 'self' https://checkout.stripe.com",
   "frame-ancestors 'none'",
-  "img-src 'self' data:",
+  "img-src 'self' data: https:",
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline'",

@@ -6,6 +6,108 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- Aligned the Phase 5 build specification with the implemented source
+  architecture, including credential ownership, additive non-null brand
+  backfill, and signed-store mobile updates.
+- Standardized the checked-in Apple association template on the canonical
+  `MOBILE_APPLE_TEAM_ID` activation variable.
+- Replaced the Phase 5 QA placeholders with traceable local architecture,
+  database, browser, visual, security, iOS simulator, and local Android
+  lint/debug/R8 evidence while keeping hosted providers, the post-push Android
+  CI artifact, signing/FCM, store tracks, and live payments explicitly
+  deferred.
+- Recorded the final Phase 5 gates: 115/115 application tests, 167/167 Phase 5
+  database assertions plus complete Phase 2–4 database regressions, 122/122
+  browser tests with zero axe violations, and the reproducible Android debug,
+  unsigned release, and R8 mapping hashes.
+- Closed the Android lint/R8 gates by declaring camera hardware optional,
+  supplying ionbarcode's Gson 2.10.1 runtime dependency, modernizing Gradle
+  assignments, and bounding release-build memory and worker concurrency.
+
+### Security
+
+- Added durable QuickBooks/Avalara refund checkpoints and crash reconciliation,
+  including exact 4,863 + 4,862 = 9,725 cent convergence and SHA-256-derived
+  Intuit request IDs.
+- Expanded regression coverage for service-only privileges and exact-context
+  HMAC authentication of web magic-link organization, brand, redirect, and
+  member context.
+
+## [0.5.0] — 2026-07-26
+
+### Added
+
+- Multi-brand tenancy with additive default-brand backfill, brand-scoped staff
+  grants, explicit privileged all-brand aggregates, brand-bound member access,
+  shared or independent billing state, and forced PostgreSQL RLS.
+- A server-only integration framework with versioned AES-256-GCM credential
+  envelopes, explicit opt-in, leased/idempotent jobs, reconciliation, sanitized
+  attempt logs, and fail-closed activation states.
+- Klaviyo profile/list/engagement synchronization, QuickBooks Online OAuth and
+  accounting synchronization, Avalara pre-charge tax calculation and
+  reconciliation, and consent-gated Meta Conversions API delivery.
+- White-label themes and Cloudflare for SaaS custom-hostname lifecycle with
+  ownership/certificate gating and server-derived hostname-to-brand resolution.
+- Capacitor 8 iOS and Android projects with secure mobile magic-link exchange,
+  rotating server-revocable sessions, biometric/device-credential relock, APNs
+  and FCM delivery adapters, barcode scanning, network recovery, minimized
+  read-only offline data, allowlisted deep links, and store-directed updates.
+- Phase 5 database migrations and pgTAP suites, service and browser tests,
+  responsive/axe evidence, native security documentation, an architecture ADR,
+  activation runbook, and QA report.
+- A canonical mobile identity manifest, deterministic Vinifera native artwork
+  generator, and drift gate for package/native versions, IDs, deep links, APNs
+  modes, Gradle integrity, privacy declarations, and placeholder artwork.
+
+### Changed
+
+- Advanced the current source release to 0.5.0 with aligned web, Android, and
+  iOS version identifiers and a Node 22.12-or-newer engine contract.
+- Extended GitHub CI through the Phase 5 database gate and an Android API 36
+  lint/debug build using Node 22.22.0 and Java 21.
+- Pinned Supabase CLI 2.109.1 and isolated optional Worker deployment to the
+  `vinifera-staging` environment. Available secrets are attached atomically to
+  the version, and production custom-domain cutover remains human-controlled.
+- Kept winery Klaviyo, Avalara, and Meta credentials in encrypted database
+  envelopes. QuickBooks application OAuth configuration remains in Worker
+  secrets while per-connection OAuth tokens use the same encrypted envelope
+  boundary.
+- Enabled Android Release R8 minification/resource shrinking, pinned the
+  Gradle distribution checksum, replaced default native artwork, narrowed the
+  `FileProvider`, and fixed the generated instrumentation identity test.
+
+### Security
+
+- Required tenant and brand authorization in both database policies and
+  service-role application queries; a browser-supplied brand identifier never
+  grants access.
+- Rechecked marketing consent immediately before provider disclosure, hashed
+  Meta identifiers before transport construction, and kept provider payloads,
+  mobile tokens, and credentials out of browser-readable logs and storage.
+- Kept native sessions in Keychain/Keystore-backed storage, made refresh-token
+  reuse revoke its token family, disabled Android cleartext traffic and broad
+  backup, and constrained native web connectivity with a build-time CSP.
+- Bound one-time mobile exchanges to the registered redirect URI, verified
+  Klaviyo's canonical signed batch envelope, enforced tax-inclusive shipment
+  billing identities, and limited each brand to one safely replaceable or
+  disableable sender identity.
+- Bound APNs to an explicit sandbox/production host and the signed iOS bundle
+  identity; aligned native deep links to one exact scheme/host/route contract
+  and completed the iOS privacy plus native permission/data inventory.
+
+### Deferred
+
+- Hosted Supabase migration, live/sandbox provider account validation, custom
+  winery DNS and certificates, Stripe live-mode transition, signed
+  physical-device push testing, App Store/TestFlight distribution, and Play
+  internal-track distribution require external credentials or human authority.
+- The public custom domain remains the verified static Cloudflare Pages
+  rollback baseline until the hosted activation and regression gates pass.
+
 ## [0.4.0] — 2026-07-26
 
 ### Added

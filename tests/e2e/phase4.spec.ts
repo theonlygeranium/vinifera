@@ -454,6 +454,28 @@ async function installMockApi(
     if (url.pathname === "/api/auth/staff/session") {
       return json(route, staffSession);
     }
+    if (url.pathname === "/api/portal/branding") {
+      return json(route, { brand: null, mode: "canonical" });
+    }
+    if (url.pathname === "/api/brands" && method === "GET") {
+      return json(route, {
+        canViewAllBrands: false,
+        items: [
+          {
+            billingMode: "shared",
+            customDomain: null,
+            description: null,
+            domainStatus: "unconfigured",
+            fontFamily: null,
+            id: "30000000-0000-4000-8000-000000000001",
+            isDefault: true,
+            logoUrl: null,
+            name: staffSession.organization.name,
+            primaryColor: null,
+          },
+        ],
+      });
+    }
     if (url.pathname === "/api/analytics/dashboard") {
       const range = url.searchParams.get("range") ?? "30d";
       return json(route, {

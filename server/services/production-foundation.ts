@@ -9,7 +9,16 @@ import Stripe from "stripe";
 import { getConfigurationReport, isProduction } from "../config";
 import { assertStaffRole } from "../lib/authorization";
 import { AppError, requireConfigured } from "../lib/errors";
-import { ProductionAnalyticsService } from "./analytics";
+import {
+  clearMemberAuthLinkContextCookie,
+  clearMemberBrandContextCookie,
+  issueMemberAuthLinkContext,
+  readMemberAuthLinkContextCookie,
+  setMemberBrandContextCookie,
+  setMemberAuthLinkContextCookie,
+  verifyMemberAuthLinkCallback,
+} from "../lib/member-brand-context";
+import { ProductionIntegrationService } from "./integrations";
 import type {
   ApplicationService,
   AuthSurface,
@@ -43,15 +52,6 @@ interface OrganizationRow {
   suspended_at: string | null;
 }
 
-interface MemberRow {
-  email: string;
-  first_name: string;
-  id: string;
-  last_name: string;
-  organization_id: string;
-  status: string;
-}
-
 interface PlatformUserRow {
   email: string;
   id: string;
@@ -60,6 +60,14 @@ interface PlatformUserRow {
 
 function normalizeEmail(email: string): string {
   return email.trim().toLocaleLowerCase("en-US");
+}
+
+function normalizedRequestHost(request: Request): string | null {
+  const host = (request.get("host") ?? "")
+    .split(":")[0]
+    ?.trim()
+    .toLowerCase();
+  return host && /^[a-z0-9.-]+$/.test(host) ? host : null;
 }
 
 function getPublicKey(env: WorkerEnv): string {
@@ -102,6 +110,22 @@ function createSurfaceClient(
   surface: AuthSurface,
 ): SupabaseClient {
   const url = requireConfigured(env.SUPABASE_URL, "SUPABASE_URL");
+  const bearer =
+    surface === "member"
+      ? request.get("authorization")?.match(/^Bearer\s+([^\s]+)$/i)?.[1]
+      : undefined;
+  if (bearer) {
+    return createClient(url, getPublicKey(env), {
+      auth: {
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        persistSession: false,
+      },
+      global: {
+        headers: { Authorization: `Bearer ${bearer}` },
+      },
+    });
+  }
   const cookieName = surface === "staff" ? STAFF_COOKIE : MEMBER_COOKIE;
 
   return createServerClient(url, getPublicKey(env), {
@@ -177,7 +201,7 @@ function stripeObjectId(value: string | { id: string } | null): string | null {
 }
 
 export class ProductionFoundationService
-  extends ProductionAnalyticsService
+  extends ProductionIntegrationService
   implements ApplicationService
 {
   constructor(
@@ -297,36 +321,8 @@ export class ProductionFoundationService
   }
 
   async getMemberSession(): Promise<MemberPrincipal | null> {
-    const client = this.surfaceClient("member");
-    const { data, error } = await client.auth.getUser();
-    if (error || !data.user) return null;
-
-    const { data: memberData, error: memberError } = await client
-      .from("members")
-      .select("id,organization_id,email,first_name,last_name,status")
-      .eq("auth_user_id", data.user.id)
-      .maybeSingle();
-    if (memberError || !memberData) return null;
-
-    const member = memberData as MemberRow;
-    const { data: organizationData, error: organizationError } = await client
-      .from("organizations")
-      .select("id,name")
-      .eq("id", member.organization_id)
-      .single();
-    if (organizationError || !organizationData) return null;
-
-    const principal: MemberPrincipal = {
-      organization: organizationData as { id: string; name: string },
-      user: {
-        authUserId: data.user.id,
-        email: member.email,
-        firstName: member.first_name,
-        id: member.id,
-        lastName: member.last_name,
-        status: member.status,
-      },
-    };
+    const principal = await this.requireMember().catch(() => null);
+    if (!principal) return null;
     await this.recordMemberPortalLogin(principal).catch(() => {
       console.error(
         JSON.stringify({
@@ -430,6 +426,7 @@ export class ProductionFoundationService
 
   async memberLogout(): Promise<void> {
     await this.surfaceClient("member").auth.signOut({ scope: "local" });
+    clearMemberBrandContextCookie(this.response, this.env);
   }
 
   async requestStaffPasswordReset(input: { email: string }): Promise<void> {
@@ -479,7 +476,27 @@ export class ProductionFoundationService
   async exchangeAuthCode(
     surface: AuthSurface,
     code: string,
+    state?: string,
   ): Promise<{ destination: string }> {
+    let memberLinkContext:
+      | Awaited<ReturnType<typeof verifyMemberAuthLinkCallback>>
+      | null = null;
+    if (surface === "member") {
+      const cookieState = readMemberAuthLinkContextCookie(this.request);
+      clearMemberAuthLinkContextCookie(this.response, this.env);
+      memberLinkContext = await verifyMemberAuthLinkCallback(this.env, {
+        cookieState,
+        requestHost: normalizedRequestHost(this.request),
+        state,
+      });
+      if (!memberLinkContext) {
+        throw new AppError(
+          401,
+          "unauthorized",
+          "This sign-in link is invalid or expired.",
+        );
+      }
+    }
     const client = this.surfaceClient(surface);
     const { error } = await client.auth.exchangeCodeForSession(code);
     if (error) {
@@ -487,9 +504,23 @@ export class ProductionFoundationService
     }
     if (surface === "member") {
       const { data: userData, error: userError } = await client.auth.getUser();
-      if (userError || !userData.user?.email) throw authFailure();
+      if (userError || !userData.user?.email || !memberLinkContext || !state) {
+        throw authFailure();
+      }
+      const normalizedUserEmail = normalizeEmail(userData.user.email);
+      if (
+        memberLinkContext.emailHash !== await sha256(normalizedUserEmail)
+      ) {
+        await client.auth.signOut({ scope: "local" });
+        throw authFailure();
+      }
       const { error: linkError } = await this.admin.rpc("link_member_auth_user", {
-        p_email: normalizeEmail(userData.user.email),
+        p_brand_id: memberLinkContext.brandId,
+        p_context_token_hash: await sha256(state),
+        p_email: normalizedUserEmail,
+        p_member_id: memberLinkContext.memberId,
+        p_organization_id: memberLinkContext.organizationId,
+        p_request_host: memberLinkContext.requestHost,
         p_user_id: userData.user.id,
       });
       if (linkError) {
@@ -500,10 +531,13 @@ export class ProductionFoundationService
           "This sign-in identity cannot be linked to a member profile.",
         );
       }
+      await setMemberBrandContextCookie(this.response, this.env, {
+        brandId: memberLinkContext.brandId,
+        memberId: memberLinkContext.memberId,
+        organizationId: memberLinkContext.organizationId,
+      });
       const { error: refreshError } = await client.auth.refreshSession();
       if (refreshError) throw authFailure();
-      const principal = await this.getMemberSession();
-      if (!principal) throw authFailure();
     }
     return {
       destination: surface === "staff" ? "/app" : "/portal",
@@ -587,6 +621,7 @@ export class ProductionFoundationService
   }
 
   async requestMemberMagicLink(input: {
+    brandId?: string;
     email: string;
     ipAddress: string;
   }): Promise<void> {
@@ -619,17 +654,77 @@ export class ProductionFoundationService
       );
     }
 
-    const { data: member } = await this.admin
+    let resolvedBrandId = input.brandId ?? null;
+    let verifiedCustomOrigin: string | null = null;
+    const requestHost = normalizedRequestHost(this.request);
+    if (requestHost) {
+      const { data: domainData } = await this.admin.rpc(
+        "resolve_custom_domain",
+        { p_hostname: requestHost },
+      );
+      const domain = Array.isArray(domainData) ? domainData[0] : domainData;
+      const hostBrandId =
+        domain && typeof domain === "object" && "brand_id" in domain
+          ? String(domain.brand_id)
+          : null;
+      if (hostBrandId && resolvedBrandId && hostBrandId !== resolvedBrandId) {
+        return;
+      }
+      if (hostBrandId) {
+        resolvedBrandId = hostBrandId;
+        verifiedCustomOrigin = `https://${requestHost}`;
+      }
+    }
+    let memberQuery = this.admin
       .from("members")
-      .select("id,auth_user_id")
-      .eq("email", email)
-      .maybeSingle();
-    if (!member) return;
+      .select("id,organization_id,brand_id,auth_user_id")
+      .eq("email", email);
+    if (resolvedBrandId) {
+      memberQuery = memberQuery.eq("brand_id", resolvedBrandId);
+    }
+    const { data: members } = await memberQuery.limit(2);
+    if (members?.length !== 1) return;
+    const member = members[0]!;
+    const callbackOrigin =
+      verifiedCustomOrigin ??
+      requireConfigured(this.env.APP_ORIGIN, "APP_ORIGIN");
+    const callbackHost = new URL(callbackOrigin).hostname.toLowerCase();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1_000).toISOString();
+    const linkState = await issueMemberAuthLinkContext(this.env, {
+      brandId: member.brand_id,
+      emailHash: await sha256(email),
+      memberId: member.id,
+      nonce: crypto.randomUUID(),
+      organizationId: member.organization_id,
+      requestHost: callbackHost,
+    });
+    const { error: contextError } = await this.admin.rpc(
+      "register_member_auth_link_context",
+      {
+        p_brand_id: member.brand_id,
+        p_email_hash: await sha256(email),
+        p_expires_at: expiresAt,
+        p_member_id: member.id,
+        p_organization_id: member.organization_id,
+        p_request_host: callbackHost,
+        p_token_hash: await sha256(linkState),
+      },
+    );
+    if (contextError) {
+      throw new AppError(
+        503,
+        "configuration_error",
+        "Member sign-in is temporarily unavailable.",
+      );
+    }
+    setMemberAuthLinkContextCookie(this.response, this.env, linkState);
+    const callback = new URL("/api/auth/member/callback", callbackOrigin);
+    callback.searchParams.set("state", linkState);
 
     await this.surfaceClient("member").auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${this.applicationOrigin()}/api/auth/member/callback`,
+        emailRedirectTo: callback.toString(),
         shouldCreateUser: true,
       },
     });
@@ -643,21 +738,46 @@ export class ProductionFoundationService
       throw new AppError(403, "forbidden", "Platform operators do not have winery billing.");
     }
 
+    const brandId = await this.activeBrandId(principal, undefined, true);
+    const { data: brand, error: brandError } = await this.admin
+      .from("brands")
+      .select(
+        "id,name,billing_mode,stripe_customer_id,stripe_subscription_id,subscription_status",
+      )
+      .eq("organization_id", principal.organization.id)
+      .eq("id", brandId)
+      .eq("active", true)
+      .maybeSingle();
+    if (brandError || !brand) {
+      throw new AppError(403, "forbidden", "Brand billing access is unavailable.");
+    }
+    const independent = brand.billing_mode === "independent";
     const stripe = createStripe(this.env);
-    let customerId = principal.organization.stripeCustomerId;
+    let customerId = independent
+      ? (brand.stripe_customer_id as string | null)
+      : principal.organization.stripeCustomerId;
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: principal.user.email,
         metadata: {
+          brand_id: brandId,
+          billing_mode: independent ? "independent" : "shared",
           organization_id: principal.organization.id,
         },
-        name: principal.organization.name,
+        name: independent ? String(brand.name) : principal.organization.name,
       });
       customerId = customer.id;
-      const { error } = await this.admin
-        .from("organizations")
-        .update({ stripe_customer_id: customerId })
-        .eq("id", principal.organization.id);
+      const { error } = independent
+        ? await this.admin
+            .from("brands")
+            .update({ stripe_customer_id: customerId })
+            .eq("organization_id", principal.organization.id)
+            .eq("id", brandId)
+            .eq("billing_mode", "independent")
+        : await this.admin
+            .from("organizations")
+            .update({ stripe_customer_id: customerId })
+            .eq("id", principal.organization.id);
       if (error) {
         await stripe.customers.del(customerId).catch(() => undefined);
         throw new AppError(502, "upstream_error", "Billing could not be initialized.");
@@ -670,12 +790,16 @@ export class ProductionFoundationService
       customer: customerId,
       line_items: [{ price: planPrice(this.env, input.planTier), quantity: 1 }],
       metadata: {
+        brand_id: brandId,
+        billing_mode: independent ? "independent" : "shared",
         organization_id: principal.organization.id,
         plan_tier: input.planTier,
       },
       mode: "subscription",
       subscription_data: {
         metadata: {
+          brand_id: brandId,
+          billing_mode: independent ? "independent" : "shared",
           organization_id: principal.organization.id,
           plan_tier: input.planTier,
         },
@@ -695,11 +819,26 @@ export class ProductionFoundationService
     if (!principal.organization) {
       throw new AppError(403, "forbidden", "Platform operators do not have winery billing.");
     }
-    if (!principal.organization.stripeCustomerId) {
+    const brandId = await this.activeBrandId(principal, undefined, true);
+    const { data: brand, error: brandError } = await this.admin
+      .from("brands")
+      .select("billing_mode,stripe_customer_id")
+      .eq("organization_id", principal.organization.id)
+      .eq("id", brandId)
+      .eq("active", true)
+      .maybeSingle();
+    if (brandError || !brand) {
+      throw new AppError(403, "forbidden", "Brand billing access is unavailable.");
+    }
+    const customerId =
+      brand.billing_mode === "independent"
+        ? brand.stripe_customer_id
+        : principal.organization.stripeCustomerId;
+    if (!customerId) {
       throw new AppError(409, "conflict", "Billing has not been activated for this winery.");
     }
     const session = await createStripe(this.env).billingPortal.sessions.create({
-      customer: principal.organization.stripeCustomerId,
+      customer: customerId,
       return_url: `${this.applicationOrigin()}/app/settings/billing`,
     });
     return { url: session.url };
@@ -754,17 +893,38 @@ export class ProductionFoundationService
 
     let organizationId: string | null =
       "metadata" in object ? object.metadata?.organization_id ?? null : null;
-    if (!organizationId && subscriptionId) {
+    let brandId: string | null =
+      "metadata" in object ? object.metadata?.brand_id ?? null : null;
+    let billingMode: string | null =
+      "metadata" in object ? object.metadata?.billing_mode ?? null : null;
+    let resolvedSubscription: Stripe.Subscription | null =
+      object.object === "subscription" ? object : null;
+    if ((!organizationId || !brandId) && subscriptionId) {
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      resolvedSubscription = subscription;
       organizationId = subscription.metadata.organization_id ?? null;
+      brandId = subscription.metadata.brand_id ?? null;
+      billingMode = subscription.metadata.billing_mode ?? null;
     }
     if (!organizationId && customerId) {
-      const { data } = await this.admin
-        .from("organizations")
-        .select("id")
-        .eq("stripe_customer_id", customerId)
-        .maybeSingle();
-      organizationId = (data as { id?: string } | null)?.id ?? null;
+      const [{ data: brand }, { data: organization }] = await Promise.all([
+        this.admin
+          .from("brands")
+          .select("id,organization_id")
+          .eq("stripe_customer_id", customerId)
+          .maybeSingle(),
+        this.admin
+          .from("organizations")
+          .select("id")
+          .eq("stripe_customer_id", customerId)
+          .maybeSingle(),
+      ]);
+      organizationId =
+        (brand as { organization_id?: string } | null)?.organization_id ??
+        (organization as { id?: string } | null)?.id ??
+        null;
+      brandId = (brand as { id?: string } | null)?.id ?? brandId;
+      if (brand) billingMode = "independent";
     }
     if (!organizationId) {
       throw new AppError(422, "invalid_request", "Webhook tenant metadata is missing.");
@@ -783,7 +943,11 @@ export class ProductionFoundationService
       subscriptionStatus = "active";
     }
 
-    const { data, error } = await this.admin.rpc("apply_subscription_event", {
+    if (!planTier && resolvedSubscription) {
+      planTier = resolvedSubscription.metadata.plan_tier ?? null;
+    }
+    if (billingMode !== "independent") brandId = null;
+    const eventArguments = {
       p_event_created_at: new Date(event.created * 1000).toISOString(),
       p_event_type: event.type,
       p_livemode: event.livemode,
@@ -793,7 +957,14 @@ export class ProductionFoundationService
       p_stripe_event_id: event.id,
       p_stripe_subscription_id: subscriptionId,
       p_subscription_status: subscriptionStatus,
-    });
+    };
+    const { data, error } = brandId
+      ? await this.admin.rpc("apply_brand_subscription_event", {
+          ...eventArguments,
+          p_brand_id: brandId,
+          p_organization_id: organizationId,
+        })
+      : await this.admin.rpc("apply_subscription_event", eventArguments);
     if (error) {
       throw new AppError(500, "upstream_error", "The webhook could not be persisted.");
     }
@@ -816,7 +987,7 @@ export class ProductionFoundationService
       const { data: shipment, error: shipmentError } = await this.admin
         .from("shipments")
         .select(
-          "id,organization_id,charge_amount_cents,stripe_payment_intent_id,stripe_charge_id",
+          "id,organization_id,brand_id,charge_amount_cents,stripe_payment_intent_id,stripe_charge_id",
         )
         .eq("stripe_charge_id", charge.id)
         .maybeSingle();
@@ -832,6 +1003,7 @@ export class ProductionFoundationService
           p_actor_user_id: null,
           p_amount_cents: amount,
           p_attempt_kind: "refund",
+          p_brand_id: shipment.brand_id,
           p_idempotency_key: `stripe-refund:${refund?.id ?? event.id}`,
           p_metadata: { source: "stripe_webhook" },
           p_organization_id: shipment.organization_id,
@@ -847,6 +1019,7 @@ export class ProductionFoundationService
         : attemptData;
       const { error } = await this.admin.rpc("apply_shipment_payment_event", {
         p_billing_attempt_id: billingAttemptId,
+        p_brand_id: shipment.brand_id,
         p_decline_code: null,
         p_decline_reason: null,
         p_event_created_at: new Date(event.created * 1_000).toISOString(),
@@ -872,9 +1045,14 @@ export class ProductionFoundationService
     }
     const { data: shipment, error: shipmentError } = await this.admin
       .from("shipments")
-      .select("id,organization_id,charge_amount_cents,retry_count")
+      .select("id,organization_id,brand_id,charge_amount_cents,retry_count")
       .eq("id", shipmentId)
       .eq("organization_id", organizationId)
+      .eq(
+        "brand_id",
+        paymentIntent.metadata.brand_id ??
+          "00000000-0000-0000-0000-000000000000",
+      )
       .maybeSingle();
     if (shipmentError || !shipment) {
       throw new AppError(422, "invalid_request", "Shipment webhook metadata is invalid.");
@@ -893,8 +1071,9 @@ export class ProductionFoundationService
         "record_billing_attempt",
         {
           p_actor_user_id: null,
-          p_amount_cents: shipment.charge_amount_cents,
+          p_amount_cents: paymentIntent.amount,
           p_attempt_kind: shipment.retry_count > 0 ? "retry" : "charge",
+          p_brand_id: shipment.brand_id,
           p_idempotency_key: `stripe-pi:${paymentIntent.id}`,
           p_metadata: { source: "stripe_webhook" },
           p_organization_id: organizationId,
@@ -924,6 +1103,7 @@ export class ProductionFoundationService
         : paymentIntent.latest_charge?.id ?? null;
     const { error } = await this.admin.rpc("apply_shipment_payment_event", {
       p_billing_attempt_id: billingAttemptId,
+      p_brand_id: shipment.brand_id,
       p_decline_code: paymentIntent.last_payment_error?.decline_code ?? null,
       p_decline_reason: paymentIntent.last_payment_error?.message ?? null,
       p_event_created_at: new Date(event.created * 1_000).toISOString(),

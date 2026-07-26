@@ -7,6 +7,10 @@ import { runAnalyticsSchedule } from "./services/analytics";
 import { runCoreClubSchedule } from "./services/core-club";
 import { reconcileSubscriptionAccess } from "./services/production-foundation";
 import { runRetentionSchedule } from "./services/retention";
+import {
+  runIntegrationSchedule,
+  runMobilePushSchedule,
+} from "./services/integrations";
 import type { WorkerEnv } from "./types";
 
 const API_PORT = 8788;
@@ -33,6 +37,24 @@ function isApplicationRoute(pathname: string): boolean {
   );
 }
 
+async function fetchStaticAsset(
+  request: Request,
+  assets: Fetcher,
+): Promise<Response> {
+  const retryRequest: Request | null =
+    request.method === "GET" || request.method === "HEAD"
+      ? new Request(request.url, request)
+      : null;
+  const response = await assets.fetch(request);
+  if (
+    retryRequest &&
+    [500, 502, 503, 504].includes(response.status)
+  ) {
+    return assets.fetch(retryRequest);
+  }
+  return response;
+}
+
 async function serveApplicationShell(
   request: Request,
   workerEnv: WorkerEnv,
@@ -42,7 +64,7 @@ async function serveApplicationShell(
   }
   const shellUrl = new URL("/app.html", request.url);
   const shellRequest = new Request(shellUrl, request);
-  const response = await workerEnv.ASSETS.fetch(shellRequest);
+  const response = await fetchStaticAsset(shellRequest, workerEnv.ASSETS);
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", "no-store");
   headers.set("Content-Type", "text/html; charset=utf-8");
@@ -59,9 +81,12 @@ async function serveStaticAsset(
   const requestUrl = new URL(request.url);
   if (requestUrl.pathname === "/") {
     requestUrl.pathname = "/index.html";
-    return workerEnv.ASSETS.fetch(new Request(requestUrl, request));
+    return fetchStaticAsset(
+      new Request(requestUrl, request),
+      workerEnv.ASSETS,
+    );
   }
-  return workerEnv.ASSETS.fetch(request);
+  return fetchStaticAsset(request, workerEnv.ASSETS);
 }
 
 export default {
@@ -73,7 +98,11 @@ export default {
     const { pathname } = new URL(request.url);
     let response: Response;
 
-    if (pathname.startsWith("/api/")) {
+    if (
+      pathname.startsWith("/api/") ||
+      pathname === "/.well-known/apple-app-site-association" ||
+      pathname === "/.well-known/assetlinks.json"
+    ) {
       if (!expressFetch) {
         response = new Response("API handler is unavailable.", { status: 503 });
       } else {
@@ -97,6 +126,8 @@ export default {
         runAnalyticsSchedule(workerEnv),
         reconcileSubscriptionAccess(workerEnv),
         runCoreClubSchedule(workerEnv),
+        runIntegrationSchedule(workerEnv),
+        runMobilePushSchedule(workerEnv),
         runRetentionSchedule(workerEnv),
       ]).then((results) => {
         const failedJobs = results.flatMap((result, index) =>
@@ -106,6 +137,8 @@ export default {
                   "analytics",
                   "subscription reconciliation",
                   "core club",
+                  "integrations",
+                  "mobile push",
                   "retention",
                 ][index] ?? `job ${index + 1}`,
               ]

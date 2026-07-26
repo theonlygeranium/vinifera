@@ -4,64 +4,91 @@ Codex-optimized build specifications for each phase of the Vinifera production b
 
 ## Overview
 
-The Vinifera prototype is complete and deployed at `https://vinifera.edstratumlabs.ai`. These specs describe how to build the **production application** — the real, data-connected, payment-processing platform — in five sequential phases. Each phase produces a working, tested, deployable slice of the product.
+These specifications define the five sequential slices of the Vinifera
+production platform. Version 0.5.0 contains the complete Phase 1–5 source
+architecture. The public `https://vinifera.edstratumlabs.ai` domain still serves
+the verified static Cloudflare Pages prototype and rollback baseline; it does
+not yet prove that the data-connected Worker application is hosted.
 
-The phase sequencing is deliberate: each phase builds on verified output from the previous one. Skipping phases or parallelizing across phases introduces integration risk that the sequencing is designed to eliminate.
+Architecture completion and hosted activation are separate gates. Hosted
+Supabase migration, provider accounts, winery DNS, Stripe live-mode approval,
+signed physical-device testing, and app-store distribution remain deferred
+until the required credentials and human authority are available.
 
 ## Build Phases
 
 | Phase | Title | Duration | Status | Spec |
 |-------|-------|----------|--------|------|
-| 1 | The Foundation | Weeks 1–6 | Active | [phase-1-foundation.md](./phase-1-foundation.md) |
-| 2 | The Core Club Loop | Weeks 7–16 | Critical | [phase-2-core-club-loop.md](./phase-2-core-club-loop.md) |
-| 3 | Retention & Communications | Months 5–7 | Planned | [phase-3-retention-comms.md](./phase-3-retention-comms.md) |
-| 4 | Analytics & Growth Intelligence | Months 8–12 | Planned | [phase-4-analytics.md](./phase-4-analytics.md) |
-| 5 | Scale & Integrations | Year 2 | Planned | [phase-5-scale-integrations.md](./phase-5-scale-integrations.md) |
+| 1 | The Foundation | Weeks 1–6 | Source complete; hosted activation deferred | [phase-1-foundation.md](./phase-1-foundation.md) |
+| 2 | The Core Club Loop | Weeks 7–16 | Source complete; hosted provider proof deferred | [phase-2-core-club-loop.md](./phase-2-core-club-loop.md) |
+| 3 | Retention & Communications | Months 5–7 | Source complete; hosted delivery proof deferred | [phase-3-retention-comms.md](./phase-3-retention-comms.md) |
+| 4 | Analytics & Growth Intelligence | Months 8–12 | Source complete; real-data/model/provider proof deferred | [phase-4-analytics.md](./phase-4-analytics.md) |
+| 5 | Scale & Integrations | Year 2 | 0.5.0 source complete; providers/DNS/stores deferred | [phase-5-scale-integrations.md](./phase-5-scale-integrations.md) |
 
 ## Architecture Summary
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
-| Frontend | React + Tailwind CSS | SPA, responsive, mobile-first |
-| Backend | Node.js (Express or Next.js API routes) | REST or tRPC |
-| Database | Supabase (PostgreSQL) | Row-Level Security for tenant isolation |
-| Payments | Stripe | Subscriptions + per-shipment billing |
-| Email | Resend | Transactional, DKIM/SPF authenticated |
-| Hosting | Cloudflare Pages (frontend) + Supabase (backend) | Auto-deploy from Git |
-| Auth | Supabase Auth | Magic-link (members), password/OAuth (staff) |
-| Compliance | ShipCompliant | State-by-state alcohol shipping legality |
-| Monitoring | PostHog + Sentry | Product analytics + error capture |
+| Frontend | React 19 + Tailwind CSS + Vite | Responsive staff and member applications |
+| Backend | Express 5 on Cloudflare Workers | Same-origin API and static assets |
+| Database | Supabase PostgreSQL | Forced tenant and brand RLS plus durable jobs |
+| Payments | Stripe | SaaS subscriptions and per-shipment PaymentIntents |
+| Email | Resend | Durable transactional outbox and signed delivery events |
+| Shipping | EasyPost | Address, label, tracking, and recovery adapter |
+| Compliance | ShipCompliant | Alcohol-shipping authority before label purchase |
+| Scale integrations | Klaviyo, QuickBooks, Avalara, Meta | Server-only connectors with encrypted connection credentials |
+| White label | Cloudflare for SaaS | Ownership- and certificate-gated custom hostnames |
+| Mobile | Capacitor 8 | iOS/Android wrappers around the React source |
+| Hosting | Cloudflare Pages rollback + isolated Worker staging | Production cutover remains human-controlled |
+| Observability | Cloudflare Worker logs + sanitized provider attempt ledgers | No external APM is represented as implemented |
 
 ## QA Integration
 
-Every phase spec embeds QA gates from the [Web & Mobile QA Tester](https://github.com/theonlygeranium/vinifera) skill. Each phase must pass its QA gate before the next phase begins. The QA gates are non-negotiable — a phase is not complete until its QA checklist passes.
+Each phase has a checked-in QA report that distinguishes local/CI architecture
+evidence from hosted operational evidence. Run the source gates with:
+
+```bash
+npm run check
+npm run qa:db:phase2
+npm run qa:db:phase3
+npm run qa:db:phase4
+npm run qa:db:phase5
+npm run qa:mobile:identity
+CI=1 npm run qa:e2e
+npm run build:mobile:web
+npm run build:mobile:android
+```
+
+Native simulator/debug compilation is not store or physical-device proof.
+Similarly, a static Pages `200` is not proof that Worker APIs or providers are
+active.
 
 ## Credentials
 
-Credentials are stored as **encrypted GitHub repository secrets** — never committed to source files. The repository is public, so no secret values may appear in any tracked file.
+The repository is public, so no secret values may appear in a tracked file.
+Application-level Supabase, Stripe, Resend, EasyPost, ShipCompliant, QuickBooks
+OAuth, mobile signing/push, and Cloudflare control-plane values are encrypted CI
+or Worker secrets.
 
-**Pre-provisioned (Phase 1):**
+Winery-specific Klaviyo, Avalara, and Meta credentials are accepted only by the
+server and stored as versioned AES-256-GCM database envelopes. QuickBooks
+application OAuth credentials are Worker configuration; each winery's access
+and rolling refresh tokens are encrypted per connection.
 
-| Secret | Scope |
-|--------|-------|
-| `SUPABASE_URL` | Client + server |
-| `SUPABASE_ANON_KEY` | Client-safe |
-| `SUPABASE_SERVICE_ROLE_KEY` | **Server-only** — bypasses RLS |
-| `SUPABASE_PUBLISHABLE_KEY` | Client-safe |
-| `SUPABASE_SECRET_KEY` | Server-only |
-| `STRIPE_PUBLISHABLE_KEY` | Client-safe (test mode) |
-| `STRIPE_SECRET_KEY` | Server-only (test mode) |
+The envelope boundary requires:
 
-**Not pre-provisioned (obtain per phase):**
+```text
+INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION
+INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS
+```
 
-| Phase | Secret | Purpose |
-|-------|--------|---------|
-| 2 | `UPS_API_KEY` / `UPS_ACCOUNT_NUMBER` | Shipping labels |
-| 3 | `RESEND_API_KEY` | Transactional email |
-| 4 | `SHIPCOMPLIANT_API_KEY` | Compliance checks |
-| 5 | `KLAVIYO_API_KEY`, `QUICKBOOKS_*`, `AVALARA_API_KEY`, `META_*` | Third-party integrations |
+CI uses Node 22.22.0, pinned Supabase CLI 2.109.1, and an isolated
+`vinifera-staging` Worker environment. Available runtime secrets are attached
+atomically to a staging version. The workflow does not automate production
+custom-domain cutover.
 
-See `.env.example` for the full variable list.
+See `.env.example`, `docs/setup.md`, and the per-phase activation runbooks for
+the exact non-secret contract.
 
 ## Codex Execution
 
@@ -69,8 +96,13 @@ To execute the full build end-to-end, see [CODEX-PROMPT.md](./CODEX-PROMPT.md) �
 
 ## Key Principles
 
-1. **Build one complete slice at a time.** Each phase delivers a working, tested product — not a partial feature set.
-2. **Verify against real use before building the next layer.** Every phase has an exit criterion that must be met with evidence.
-3. **QA is a gate, not an afterthought.** No phase advances without passing its QA checklist.
-4. **The prototype is the spec.** The existing prototype at `https://vinifera.edstratumlabs.ai/app/` demonstrates every screen and interaction. Match it.
-5. **Document everything.** Every decision, ADR, and change must be documented in the same commit.
+1. **Preserve the dependency order.** Later phases rely on earlier database and
+   service contracts.
+2. **Separate wiring from activation.** Missing credentials must fail closed,
+   and a compile or simulator cannot stand in for a provider/store round trip.
+3. **Keep tenant isolation at the database layer.** Service-role paths repeat
+   brand authorization instead of bypassing it.
+4. **Use the prototype as the visual spec.** The original `/app/` remains the
+   Pages rollback surface until hosted cutover.
+5. **Document and verify every release.** ADRs, changelog, QA evidence, rollback,
+   accessibility, responsive behavior, and security are part of the build.

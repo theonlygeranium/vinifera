@@ -1,5 +1,10 @@
 export type FieldErrors = Record<string, string[] | string>;
 
+const BRAND_STORAGE_KEY = "vinifera.active-brand";
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+let nativeAccessTokenProvider: (() => Promise<string | null>) | null = null;
+
 interface ErrorBody {
   error?: {
     code?: string;
@@ -36,6 +41,48 @@ async function parseResponse(response: Response): Promise<unknown> {
   }
 }
 
+export function setNativeAccessTokenProvider(
+  provider: (() => Promise<string | null>) | null,
+) {
+  nativeAccessTokenProvider = provider;
+}
+
+export function readActiveBrandId() {
+  try {
+    const value = window.localStorage.getItem(BRAND_STORAGE_KEY);
+    return value && UUID_PATTERN.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeActiveBrandId(brandId: string | null) {
+  try {
+    if (brandId && UUID_PATTERN.test(brandId)) {
+      window.localStorage.setItem(BRAND_STORAGE_KEY, brandId);
+    } else {
+      window.localStorage.removeItem(BRAND_STORAGE_KEY);
+    }
+  } catch {
+    // Storage is a convenience for a non-sensitive scope preference.
+  }
+}
+
+function resolveApiUrl(path: `/api/${string}`) {
+  if (import.meta.env.VITE_CAPACITOR_BUILD !== "true") return path;
+  const configuredOrigin =
+    import.meta.env.VITE_MOBILE_API_ORIGIN?.trim() ||
+    "https://vinifera.edstratumlabs.ai";
+  const origin = new URL(configuredOrigin);
+  if (origin.protocol !== "https:") {
+    throw new ApiError("The native API origin must use HTTPS.", {
+      status: 0,
+      code: "INVALID_MOBILE_API_ORIGIN",
+    });
+  }
+  return new URL(path, origin).toString();
+}
+
 export async function apiRequest<T>(
   path: `/api/${string}`,
   options: Omit<RequestInit, "credentials"> = {},
@@ -45,10 +92,25 @@ export async function apiRequest<T>(
     headers.set("Content-Type", "application/json");
   }
   headers.set("Accept", "application/json");
+  const brandId = readActiveBrandId();
+  const brandNeutral =
+    path.startsWith("/api/auth/") ||
+    path.startsWith("/api/member/") ||
+    path.startsWith("/api/mobile/") ||
+    path.startsWith("/api/portal/") ||
+    path.startsWith("/api/brands") ||
+    path.startsWith("/api/organization/");
+  if (brandId && !brandNeutral) {
+    headers.set("X-Vinifera-Brand-Id", brandId);
+  }
+  const nativeAccessToken = await nativeAccessTokenProvider?.();
+  if (nativeAccessToken) {
+    headers.set("Authorization", `Bearer ${nativeAccessToken}`);
+  }
 
   let response: Response;
   try {
-    response = await fetch(path, {
+    response = await fetch(resolveApiUrl(path), {
       ...options,
       headers,
       credentials: "include",
@@ -110,15 +172,44 @@ export function patchJson<T>(
   });
 }
 
+export function putJson<T>(
+  path: `/api/${string}`,
+  body: Record<string, unknown>,
+) {
+  return apiRequest<T>(path, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteJson<T>(
+  path: `/api/${string}`,
+  body?: Record<string, unknown>,
+) {
+  return apiRequest<T>(path, {
+    method: "DELETE",
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
 export async function downloadApiFile(
   path: `/api/${string}`,
   fallbackName: string,
 ) {
+  const headers = new Headers({
+    Accept: "text/csv,application/pdf,application/json",
+  });
+  const brandId = readActiveBrandId();
+  if (brandId) headers.set("X-Vinifera-Brand-Id", brandId);
+  const nativeAccessToken = await nativeAccessTokenProvider?.();
+  if (nativeAccessToken) {
+    headers.set("Authorization", `Bearer ${nativeAccessToken}`);
+  }
   let response: Response;
   try {
-    response = await fetch(path, {
+    response = await fetch(resolveApiUrl(path), {
       credentials: "include",
-      headers: { Accept: "text/csv,application/pdf,application/json" },
+      headers,
     });
   } catch {
     throw new ApiError(

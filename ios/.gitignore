@@ -1,0 +1,20 @@
+App/build
+App/Pods
+App/output
+App/App/public
+DerivedData
+xcuserdata
+*.mobileprovision
+*.p12
+*.cer
+AuthKey_*.p8
+*.pem
+*.xcconfig.local
+App/App/GoogleService-Info.plist
+
+# Cordova plugins for Capacitor
+capacitor-cordova-ios-plugins
+
+# Generated Config files
+App/App/capacitor.config.json
+App/App/config.xml

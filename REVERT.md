@@ -14,9 +14,11 @@ This document records the most recent verified stable state of the project and p
 | **Verified by** | Codex production build QA |
 | **What was verified** | Successful CI plus live `200` responses for landing, original `/app/` prototype, and guide; Pages rollback packaging prevents the unactivated Worker application from replacing the public baseline |
 
-The Phase 1–4 Worker source is a release candidate, not the custom-domain
-stable baseline, until hosted Supabase plus Stripe, EasyPost, Resend, and
-ShipCompliant test/sandbox verification passes.
+Version 0.5.0 contains the complete Phase 1–5 source architecture, but it is a
+release candidate rather than the custom-domain stable baseline. Hosted
+Supabase, Stripe, EasyPost, Resend, ShipCompliant, Klaviyo, QuickBooks,
+Avalara/Meta, custom-domain, native signing, physical-device, and store-track
+verification must pass before that designation changes.
 
 ---
 
@@ -30,7 +32,17 @@ git revert <commit-sha>        # creates a revert commit
 git push origin main           # Cloudflare Pages auto-deploys
 ```
 
-Do not force-push `main`. If the Worker has not been attached to the custom domain, the Pages baseline is already the public rollback surface.
+Do not force-push `main`. The optional CI deployment targets only the isolated
+`vinifera-staging` Worker. If the production Worker has not been attached to the
+custom domain, the Pages baseline is already the public rollback surface.
+
+Before reverting an activated Phase 5 connection, first stop or disconnect its
+jobs, preserve sanitized reconciliation history, revoke provider tokens when
+supported, and rotate any exposed envelope key. Brand-column migrations are
+forward-only once populated; restore a verified database backup rather than
+dropping Phase 5 tables in place. Reverting Git does not undo winery DNS,
+Cloudflare custom hostnames, Stripe dashboard keys/webhooks, or app-store
+releases.
 
 ---
 
@@ -50,9 +62,16 @@ Then update the table above with the new tag, SHA, date, and what was verified.
 ## Known Issues at Current Baseline
 
 - The public baseline is a visual prototype, not the data-connected Worker application.
-- Phase 1–4 provider connections remain intentionally fail-closed pending
+- Phase 1–5 provider connections remain intentionally fail-closed pending
   hosted activation evidence; the ML production gate also requires sufficient
   real outcomes and a completed shadow comparison.
+- Winery Klaviyo, Avalara, and Meta credentials have no hosted validation yet.
+  QuickBooks application OAuth and encrypted per-connection tokens also await an
+  Intuit sandbox/company.
+- Custom winery DNS and Cloudflare certificate activation are not complete.
+- Stripe live-mode transition, signed physical-device APNs/FCM testing,
+  TestFlight, Play internal track, and public store review remain
+  human/credential-bound.
 - The workflow illustration for step 4 ("Ship & Track") renders as a shipping box with arrow rather than a delivery truck — minor visual discrepancy, not a functional issue
 - Playwright WebKit ≠ real Safari iOS — ~30% of iOS-specific behaviors not reproducible. For production sign-off, test on a real iOS device or BrowserStack
 

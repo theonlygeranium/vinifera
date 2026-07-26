@@ -20,6 +20,10 @@ tmp/
 .dev.vars
 .dev.vars.*
 *.local
+AuthKey_*.p8
+*.pem
+firebase-adminsdk-*.json
+service-account*.json
 
 # Local service state
 .wrangler/

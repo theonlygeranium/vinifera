@@ -5,14 +5,14 @@
 
 ## System overview
 
-Vinifera is transitioning from a static Cloudflare Pages prototype to a
-full-stack SaaS application. The Phase 1 foundation, Phase 2 core-club,
-Phase 3 retention, and Phase 4 intelligence architecture use a same-origin
-React application and Express API packaged in one
-Cloudflare Worker. Supabase provides Auth and PostgreSQL; Stripe provides SaaS
-subscriptions and club-shipment payments; EasyPost is the first shipping
-adapter; Resend is the first transactional email adapter; ShipCompliant is the
-credential-gated compliance provider.
+Vinifera 0.5.0 contains the complete Phase 1–5 source architecture for a
+full-stack SaaS application. A same-origin React application and Express API are
+packaged in one Cloudflare Worker. Supabase provides Auth and PostgreSQL; Stripe
+provides SaaS subscriptions and club-shipment payments; EasyPost handles
+shipping; Resend handles transactional email; ShipCompliant is the
+alcohol-shipping compliance authority; Klaviyo, QuickBooks, Avalara, and Meta
+run through a common connector boundary; and Capacitor packages the React source
+for iOS and Android.
 
 ```text
 Browser
@@ -26,11 +26,13 @@ Cloudflare Worker + Static Assets
                                       ├── Stripe Billing + PaymentIntents
                                       ├── EasyPost labels + tracking
                                       ├── Resend transactional delivery
-                                      └── ShipCompliant legality + tax checks
+                                      ├── ShipCompliant legality checks
+                                      ├── Klaviyo / QuickBooks / Avalara / Meta
+                                      └── Cloudflare custom hostnames + mobile push
 ```
 
 The existing Pages custom-domain deployment remains the live baseline until the
-new Worker staging deployment passes the complete Phase 1–4 activation and QA
+new Worker application passes the complete Phase 1–5 hosted activation and QA
 gates.
 
 Cloudflare Pages injects `CF_PAGES=1`. In that environment the build also copies
@@ -47,6 +49,7 @@ and route `/app/*` to the React shell.
 | Member portal | `src/client/member/` | `/portal/*` | Lazy React chunk |
 | Investor guide | `guide` | `/guide/*` | Static asset |
 | API | `server/` | `/api/*` | Express on Worker |
+| Mobile associations | `server/services/integrations.ts` | `/.well-known/*` | Express on Worker |
 | Temporary Pages rollback | `app` | `/app/` on Pages only | Original static prototype |
 
 ---
@@ -147,6 +150,55 @@ responses block fulfillment and persist an auditable hold.
 
 ---
 
+## Scale, integrations, brands, and native mobile
+
+```text
+organization
+  ├── brands ──> brand grants / member binding / shared-or-independent billing
+  ├── integration connections
+  │     ├── encrypted credential envelope + explicit consent
+  │     ├── leased idempotent job + attempt/reconciliation log
+  │     └── Klaviyo / QuickBooks / Avalara / Meta server adapter
+  ├── custom hostnames ──> ownership + certificate gate ──> brand context
+  └── mobile devices ──> revocable token family + encrypted push token
+```
+
+Existing organizations receive one default brand and additive brand backfills.
+Forced RLS constrains brand-scoped tables, while service-role application
+queries independently validate staff grants, owner/admin all-brand privileges,
+and member brand binding. A client-provided brand ID is a scope request, never
+authorization.
+
+Integration connections use explicit `activation_required`, `configured`,
+`active`, or `degraded` states. Winery-specific Klaviyo, Avalara, and Meta
+credentials are stored as versioned AES-256-GCM database envelopes whose
+wrapping key remains a Worker secret. QuickBooks application OAuth credentials
+are Worker configuration; each winery's access and rolling refresh tokens are
+encrypted per connection. Jobs are leased, idempotent, bounded, retryable, and
+reconcilable. Logs contain sanitized correlation/provider identifiers rather
+than credentials or raw customer payloads.
+
+Avalara calculates tax before Stripe confirmation and fails a connected charge
+closed. A successful charge commits the matching tax transaction;
+ShipCompliant remains the independent alcohol-shipping authority before label
+purchase. Meta identifiers are normalized and SHA-256 hashed before the
+transport object is constructed, and marketing consent is checked again
+immediately before disclosure.
+
+White-label routing trusts only a hostname whose Cloudflare ownership and
+certificate states are active. Unknown or pending hosts use the canonical,
+unbranded portal and never select tenant context. Theme colors are validated
+against WCAG normal-text contrast.
+
+Capacitor wraps the built React application rather than creating a second UI.
+The native boundary adds Keychain/Keystore-backed session and offline storage,
+biometric/device-credential relock, APNs/FCM push, barcode scanning, network
+recovery, and allowlisted deep links. Mobile refresh tokens rotate and remain
+server-revocable. The app may require a signed store update but never downloads
+or executes replacement application code.
+
+---
+
 ## Build and deployment pipeline
 
 ```text
@@ -154,9 +206,18 @@ web/app.html + src/client/* ── Vite ───────────┐
 index.html + guide + public/* ─ build.mjs ─────┼── dist/
 server/worker.ts + server/* ── Wrangler ───────┴── Worker version
 supabase/migrations/* ──────── Supabase CLI ───── hosted PostgreSQL
+dist/ + capacitor.config.json ─ Capacitor ──────── iOS / Android projects
 ```
 
-GitHub-hosted CI installs the lockfile, audits dependencies, type-checks, runs tests, builds assets, validates the Worker bundle, and runs Playwright QA. On `main`, it conditionally applies Supabase migrations when management credentials are present, then deploys the staging Worker and uploads available runtime secrets.
+GitHub-hosted CI uses Node 22.22.0 to install the lockfile, audit dependencies,
+type-check, run service/browser tests and Phase 2–5 database gates, build assets,
+and validate the Worker bundle. A separate Java 21/API 36 job synchronizes,
+lints, and assembles Android debug and R8-minified release shells. On `main`,
+CI conditionally applies migrations with pinned Supabase CLI 2.109.1. Optional
+deployment targets the
+isolated `vinifera-staging` Worker, attaches available secrets atomically to that
+version, and verifies its `workers.dev` health response. It does not move the
+production custom domain.
 
 ---
 
@@ -165,10 +226,18 @@ GitHub-hosted CI installs the lockfile, audits dependencies, type-checks, runs t
 - Staff and member Supabase sessions use different secure, `httpOnly` cookies.
 - The browser calls only the same-origin Express API; JWTs and secret keys never enter local storage.
 - All state-changing browser requests require an allowlisted `Origin`.
-- Worker secrets contain Supabase and Stripe server credentials.
-- RLS is enabled and forced on all tenant tables.
+- Worker secrets contain Supabase, Stripe, provider-application, signing, and
+  credential-wrapping configuration.
+- Winery Klaviyo, Avalara, and Meta credentials and QuickBooks connection tokens
+  use authenticated encrypted database envelopes; the browser sees redacted
+  metadata only.
+- RLS is enabled and forced on tenant- and brand-scoped tables.
+- Service-role operations repeat brand authorization in application queries
+  instead of treating an RLS bypass as staff authority.
 - Custom JWT claims are derived by a database auth hook, not editable user metadata.
 - Stripe webhooks use raw bodies, signature verification, unique event IDs, and out-of-order event protection.
+- Native refresh tokens are hashed/rotating and push tokens are encrypted;
+  Keychain/Keystore-backed storage holds native session and offline data.
 - Missing provider credentials fail closed with `activation_required`.
 
 ---
@@ -202,6 +271,12 @@ The Worker serves `/app/*` and `/portal/*` from the Vite shell with `text/html; 
 | EasyPost | Address verification, carrier rates, labels, tracking | Shipping returns `503 activation_required` |
 | Resend | Transactional templates, batch delivery, events | Delivery returns `503 activation_required`; durable work remains queued |
 | ShipCompliant | Post-charge/pre-label shipment legality, volume, and tax checks | Labels fail closed; dashboard reports `activation_required` until the contracted adapter configuration is complete |
+| Klaviyo | Profiles, list membership, and engagement sync | Jobs remain unclaimable until explicit opt-in and encrypted winery credentials validate |
+| QuickBooks Online | Sales receipts, refunds, OAuth refresh, and reconciliation | Application OAuth remains disabled without Worker config; connection tokens are encrypted per winery |
+| Avalara | Pre-charge tax calculation, commit, void, and reconciliation | An opted-in connected failure blocks the charge; inactive connections transmit nothing |
+| Meta Conversions API | Consent-gated conversions with hashed identifiers | Unconsented events are suppressed; missing encrypted dataset/token configuration transmits nothing |
+| Cloudflare for SaaS | White-label hostname validation and certificates | Pending or unverified hosts never choose brand context |
+| APNs / FCM | Platform-specific native push delivery | Missing platform credentials leave push work dormant without creating a connected state |
 | Google via Supabase | Staff OAuth | OAuth route remains disabled until configured |
 | SMTP via Supabase | Invite/reset/magic-link delivery | Delivery QA remains pending |
 
@@ -242,7 +317,19 @@ All animations are disabled under `@media (prefers-reduced-motion: reduce)`.
 - ShipCompliant requires vendor-approved OAuth credentials, versioned sandbox
   paths, account/license mapping, and verified provider responses. Missing or
   degraded configuration blocks labels.
-- The Worker custom-domain cutover occurs only after the hosted Phase 1–4
+- Phase 5 provider activation requires the integration wrapping key, explicit
+  winery opt-in, approved field/account mappings, and provider sandbox or live
+  accounts. Winery credentials stay in encrypted connection envelopes.
+- QuickBooks additionally requires Intuit application OAuth secrets in the
+  Worker; returned connection tokens remain encrypted in PostgreSQL.
+- White-label activation requires a zone-scoped Cloudflare custom-hostname
+  token, winery DNS, and active ownership plus certificate states.
+- Native activation requires Apple/Google developer accounts, platform push
+  credentials, signing material, privacy/store metadata, physical-device tests,
+  and TestFlight/Play internal-track evidence.
+- Replacing Stripe test keys with live keys and running a real charge/refund is
+  a human-controlled Phase 5 launch action.
+- The Worker custom-domain cutover occurs only after the hosted Phase 1–5
   activation and regression gates pass.
 
 See [the Phase 1 ADR](./decisions/2026-07-26-phase-1-foundation-architecture.md)
@@ -251,3 +338,5 @@ rationale and tradeoffs. Retention-specific decisions are recorded in
 [the Phase 3 ADR](./decisions/2026-07-26-phase-3-retention-communications.md).
 Analytics, ML, benchmarking, and compliance decisions are recorded in
 [the Phase 4 ADR](./decisions/2026-07-26-phase-4-analytics-intelligence.md).
+Scale, connector, brand, white-label, and mobile decisions are recorded in
+[the Phase 5 ADR](./decisions/2026-07-26-phase-5-scale-integrations.md).

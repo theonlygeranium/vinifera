@@ -6,6 +6,7 @@ import express, {
 } from "express";
 import helmet from "helmet";
 import { z, type ZodType } from "zod";
+import mobileIdentity from "../mobile/app-identity.json";
 import { getConfigurationReport } from "./config";
 import { AppError, asAppError } from "./lib/errors";
 import {
@@ -14,6 +15,10 @@ import {
   isTrustedRequestOrigin,
 } from "./lib/security";
 import { createProductionFoundationService } from "./services/production-foundation";
+import {
+  androidAssetLinks,
+  appleAppSiteAssociation,
+} from "./services/integrations";
 import { verifyUnsubscribeToken } from "./services/retention";
 import type {
   AnalyticsService,
@@ -24,6 +29,8 @@ import type {
   PostalAddress,
   ReleaseInput,
   FoundationServiceFactory,
+  IntegrationService,
+  IntegrationType,
   PlanTier,
   RetentionService,
   WorkerEnv,
@@ -38,6 +45,8 @@ const password = z
   .regex(/[A-Z]/, "Add an uppercase letter.")
   .regex(/[0-9]/, "Add a number.");
 const planTier = z.enum(["vine", "cellar", "estate", "reserve"]);
+const mobileAuthRedirectUri =
+  `${mobileIdentity.customScheme}://${mobileIdentity.mobileAuthRedirectPath.slice(1)}`;
 
 const signupSchema = z.object({
   email,
@@ -58,7 +67,7 @@ const invitationSchema = z.object({
   role: z.enum(["admin", "manager", "staff"]),
 });
 const billingSchema = z.object({ planTier });
-const memberMagicLinkSchema = z.object({ email });
+const memberMagicLinkSchema = z.object({ brandId: z.uuid().optional(), email });
 const templateVariableSchema = z.record(
   z.string().regex(/^[a-z][a-z0-9_]*$/i),
   z.string().max(2_000),
@@ -372,6 +381,20 @@ export function createApp(options: AppOptions): express.Express {
     }
     return candidate as unknown as AnalyticsService;
   };
+  const integrationService = (
+    request: Request,
+    response: Response,
+  ): IntegrationService => {
+    const candidate = createService(request, response);
+    if (!("listIntegrations" in candidate)) {
+      throw new AppError(
+        503,
+        "activation_required",
+        "The integrations service is not connected.",
+      );
+    }
+    return candidate as unknown as IntegrationService;
+  };
 
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -391,7 +414,7 @@ export function createApp(options: AppOptions): express.Express {
     cors((request, resolveOptions) => {
       resolveOptions(null, {
         credentials: true,
-        methods: ["DELETE", "GET", "PATCH", "POST", "OPTIONS"],
+        methods: ["DELETE", "GET", "PATCH", "POST", "PUT", "OPTIONS"],
         origin(
           origin: string | undefined,
           callback: (error: Error | null, allow?: boolean) => void,
@@ -411,6 +434,20 @@ export function createApp(options: AppOptions): express.Express {
     }),
   );
 
+  app.get("/.well-known/apple-app-site-association", (_request, response) => {
+    response
+      .status(200)
+      .type("application/json")
+      .send(JSON.stringify(appleAppSiteAssociation(options.getEnv())));
+  });
+
+  app.get("/.well-known/assetlinks.json", (_request, response) => {
+    response
+      .status(200)
+      .type("application/json")
+      .send(JSON.stringify(androidAssetLinks(options.getEnv())));
+  });
+
   app.post(
     "/api/billing/webhook",
     express.raw({ limit: "1mb", type: "application/json" }),
@@ -426,6 +463,60 @@ export function createApp(options: AppOptions): express.Express {
       data(response, { received: true, ...result });
     },
   );
+
+  app.post(
+    "/api/webhooks/klaviyo/:integrationId",
+    express.raw({ limit: "5mb", type: "application/json" }),
+    async (request, response) => {
+      const result = await integrationService(
+        request,
+        response,
+      ).handleKlaviyoWebhook(
+        uuid.parse(request.params.integrationId),
+        request.body as Buffer,
+        {
+          signature: request.get("Klaviyo-Signature"),
+          timestamp: request.get("Klaviyo-Timestamp"),
+          webhookId: request.get("Klaviyo-Webhook-Id"),
+        },
+      );
+      data(response, result, 202);
+    },
+  );
+
+  app.get("/api/integrations/quickbooks/callback", async (request, response) => {
+    const query = z
+      .object({
+        code: z.string().min(1).max(4_096),
+        realmId: z.string().min(1).max(255),
+        state: z.string().min(32).max(8_192),
+      })
+      .parse(request.query);
+    const result = await integrationService(
+      request,
+      response,
+    ).completeQuickBooksOAuth(query);
+    response.redirect(303, result.redirectPath);
+  });
+
+  app.get("/api/auth/member/mobile/callback", async (request, response) => {
+    const query = z
+      .object({
+        state: z.string().min(32).max(8_192),
+        token_hash: z.string().min(20).max(512),
+        type: z.literal("email"),
+      })
+      .parse(request.query);
+    const result = await integrationService(
+      request,
+      response,
+    ).completeMobileMagicLink({
+      state: query.state,
+      tokenHash: query.token_hash,
+      type: query.type,
+    });
+    response.redirect(303, result.redirectUrl);
+  });
 
   app.post(
     ["/api/webhooks/resend", "/api/email/webhook"],
@@ -485,6 +576,341 @@ export function createApp(options: AppOptions): express.Express {
 
   app.get("/api/health/configuration", (_request, response) => {
     data(response, getConfigurationReport(options.getEnv()));
+  });
+
+  app.get("/api/portal/branding", async (request, response) => {
+    if (!getConfigurationReport(options.getEnv()).database.configured) {
+      data(response, { brand: null, mode: "canonical" });
+      return;
+    }
+    const host = request.get("host") ?? "";
+    data(
+      response,
+      await integrationService(request, response).getPortalBranding(host),
+    );
+  });
+
+  const integrationType = z.enum([
+    "klaviyo",
+    "quickbooks",
+    "avalara",
+    "meta",
+  ]);
+  const safeObject = z.record(z.string(), z.unknown());
+  const integrationConnectSchema = z.object({
+    brandId: uuid.nullable().optional(),
+    consentConfirmed: z.boolean(),
+    credentials: safeObject.optional(),
+    optedIn: z.boolean(),
+    syncConfig: safeObject.optional(),
+  });
+  const integrationUpdateSchema = z
+    .object({
+      consentConfirmed: z.boolean().optional(),
+      credentials: safeObject.optional(),
+      optedIn: z.boolean().optional(),
+      syncConfig: safeObject.optional(),
+    })
+    .refine((value) => Object.keys(value).length > 0, {
+      message: "Choose at least one integration field to update.",
+    });
+  const brandSchema = z.object({
+    billingMode: z.enum(["shared", "independent"]).default("shared"),
+    description: z.string().trim().max(2_000).nullable().optional(),
+    name: z.string().trim().min(1).max(200),
+    slug: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  });
+  const brandPatchSchema = z
+    .object({
+      accentColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+      billingMode: z.enum(["shared", "independent"]).optional(),
+      description: z.string().trim().max(2_000).nullable().optional(),
+      emailSenderAddress: email.nullable().optional(),
+      emailSenderName: z.string().trim().min(1).max(200).optional(),
+      fontFamily: z.string().trim().min(1).max(100).optional(),
+      logoUrl: z.url().startsWith("https://").nullable().optional(),
+      name: z.string().trim().min(1).max(200).optional(),
+      primaryColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+      portalTitle: z.string().trim().min(1).max(200).optional(),
+      secondaryColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+    })
+    .refine((value) => Object.keys(value).length > 0, {
+      message: "Choose at least one brand field to update.",
+    });
+
+  app.get("/api/integrations", async (request, response) => {
+    data(response, await integrationService(request, response).listIntegrations());
+  });
+
+  app.post("/api/integrations/:type/connect", async (request, response) => {
+    const type = integrationType.parse(request.params.type) as IntegrationType;
+    data(
+      response,
+      await integrationService(request, response).connectIntegration(
+        type,
+        parseBody(integrationConnectSchema, request),
+      ),
+      201,
+    );
+  });
+
+  app.patch("/api/integrations/:type", async (request, response) => {
+    const type = integrationType.parse(request.params.type) as IntegrationType;
+    data(
+      response,
+      await integrationService(request, response).updateIntegration(
+        type,
+        parseBody(integrationUpdateSchema, request),
+      ),
+    );
+  });
+
+  app.delete("/api/integrations/:type", async (request, response) => {
+    await integrationService(request, response).disconnectIntegration(
+      integrationType.parse(request.params.type) as IntegrationType,
+    );
+    response.status(204).end();
+  });
+
+  app.post("/api/integrations/:type/sync", async (request, response) => {
+    data(
+      response,
+      await integrationService(request, response).queueIntegrationSync(
+        integrationType.parse(request.params.type) as IntegrationType,
+      ),
+      202,
+    );
+  });
+
+  app.get("/api/integrations/:type/logs", async (request, response) => {
+    const query = z
+      .object({ limit: z.coerce.number().int().min(1).max(100).default(25) })
+      .parse(request.query);
+    data(
+      response,
+      await integrationService(request, response).listIntegrationLogs(
+        integrationType.parse(request.params.type) as IntegrationType,
+        query.limit,
+      ),
+    );
+  });
+
+  app.get("/api/integrations/quickbooks/authorize", async (request, response) => {
+    const brandId = request.query.brandId
+      ? uuid.parse(request.query.brandId)
+      : undefined;
+    data(
+      response,
+      await integrationService(
+        request,
+        response,
+      ).getQuickBooksAuthorizationUrl(brandId),
+    );
+  });
+
+  app.get(
+    "/api/integrations/quickbooks/reconciliation",
+    async (request, response) => {
+      data(
+        response,
+        await integrationService(
+          request,
+          response,
+        ).getQuickBooksReconciliation(),
+      );
+    },
+  );
+
+  app.get("/api/integrations/avalara/liability", async (request, response) => {
+    data(
+      response,
+      await integrationService(request, response).getAvalaraLiability(),
+    );
+  });
+
+  app.get("/api/brands", async (request, response) => {
+    data(response, await integrationService(request, response).listBrands());
+  });
+
+  app.post("/api/brands", async (request, response) => {
+    data(
+      response,
+      await integrationService(request, response).createBrand(
+        parseBody(brandSchema, request),
+      ),
+      201,
+    );
+  });
+
+  app.patch("/api/brands/:id", async (request, response) => {
+    data(
+      response,
+      await integrationService(request, response).updateBrand(
+        uuid.parse(request.params.id),
+        parseBody(brandPatchSchema, request),
+      ),
+    );
+  });
+
+  app.get("/api/organization/overview", async (request, response) => {
+    const query = z
+      .object({ brandId: z.union([uuid, z.literal("all")]).optional() })
+      .parse(request.query);
+    data(
+      response,
+      await integrationService(request, response).getBrandOverview(
+        query.brandId,
+      ),
+    );
+  });
+
+  app.put("/api/brands/:id/domain", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        hostname: z.string().trim().min(4).max(253),
+      }),
+      request,
+    );
+    data(
+      response,
+      await integrationService(request, response).updateBrandDomain(
+        uuid.parse(request.params.id),
+        input.hostname,
+      ),
+      201,
+    );
+  });
+
+  app.get("/api/brands/:id/domain", async (request, response) => {
+    data(
+      response,
+      await integrationService(request, response).getBrandDomain(
+        uuid.parse(request.params.id),
+      ),
+    );
+  });
+
+  app.delete("/api/brands/:id/domain", async (request, response) => {
+    await integrationService(request, response).deleteBrandDomain(
+      uuid.parse(request.params.id),
+    );
+    response.status(204).end();
+  });
+
+  app.get("/api/mobile/app-policy", async (request, response) => {
+    const query = z
+      .object({
+        platform: z.enum(["ios", "android"]),
+        version: z.string().trim().min(3).max(50),
+      })
+      .parse(request.query);
+    data(
+      response,
+      await integrationService(request, response).getMobileAppPolicy(query),
+    );
+  });
+
+  app.post("/api/auth/member/mobile/magic-link", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        clubCode: z
+          .string()
+          .trim()
+          .toLowerCase()
+          .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+          .optional(),
+        deviceFingerprint: z.string().trim().min(16).max(255),
+        email,
+        redirectUri: z.literal(mobileAuthRedirectUri),
+      }),
+      request,
+    );
+    await integrationService(request, response).requestMobileMagicLink({
+      ...input,
+      ipAddress: getClientAddress(request),
+    });
+    data(response, {
+      message: "If this membership exists, a secure sign-in link is on its way.",
+    });
+  });
+
+  app.post("/api/auth/member/mobile/exchange", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        appVersion: z.string().trim().min(3).max(50),
+        code: z.string().min(32).max(512),
+        deviceFingerprint: z.string().trim().min(16).max(255),
+        platform: z.enum(["ios", "android"]),
+        redirectUri: z.literal(mobileAuthRedirectUri),
+      }),
+      request,
+    );
+    data(
+      response,
+      await integrationService(request, response).exchangeMobileSession(input),
+    );
+  });
+
+  app.post("/api/auth/member/mobile/refresh", async (request, response) => {
+    const input = parseBody(
+      z.object({ refreshToken: z.string().min(32).max(512) }),
+      request,
+    );
+    data(
+      response,
+      await integrationService(request, response).refreshMobileSession(input),
+    );
+  });
+
+  app.post("/api/auth/member/mobile/logout", async (request, response) => {
+    const input = parseBody(
+      z.object({ refreshToken: z.string().min(32).max(512) }),
+      request,
+    );
+    await integrationService(request, response).logoutMobileSession(input);
+    response.status(204).end();
+  });
+
+  app.get("/api/mobile/bootstrap", async (request, response) => {
+    data(
+      response,
+      await integrationService(request, response).getMobileBootstrap(),
+    );
+  });
+
+  app.post("/api/mobile/devices", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        appVersion: z.string().trim().min(3).max(50),
+        brandId: uuid.nullable().optional(),
+        deviceFingerprint: z.string().trim().min(16).max(255),
+        permission: z.enum(["denied", "granted", "prompt"]),
+        platform: z.enum(["ios", "android"]),
+        token: z.string().min(16).max(4_096),
+      }),
+      request,
+    );
+    data(
+      response,
+      await integrationService(request, response).registerMobileDevice(input),
+      201,
+    );
+  });
+
+  app.delete("/api/mobile/devices", async (request, response) => {
+    const input = parseBody(
+      z.object({ deviceFingerprint: z.string().trim().min(16).max(255) }),
+      request,
+    );
+    await integrationService(request, response).unregisterMobileDevice(
+      input.deviceFingerprint,
+    );
+    response.status(204).end();
   });
 
   app.get("/api/analytics/dashboard", async (request, response) => {
@@ -808,8 +1234,17 @@ export function createApp(options: AppOptions): express.Express {
   });
 
   app.get("/api/auth/member/callback", async (request, response) => {
-    const code = z.string().min(1).parse(request.query.code);
-    const result = await createService(request, response).exchangeAuthCode("member", code);
+    const query = z
+      .object({
+        code: z.string().min(1),
+        state: z.string().min(32).max(8_192),
+      })
+      .parse(request.query);
+    const result = await createService(request, response).exchangeAuthCode(
+      "member",
+      query.code,
+      query.state,
+    );
     response.redirect(303, result.destination);
   });
 

@@ -7,7 +7,7 @@
 A web-based platform for wine club operations — member management, shipment processing, AI churn prediction, and a passwordless member portal — designed for small to mid-size wineries.
 
 [![Live Site](https://img.shields.io/badge/🌐_Live_Site-vinifera.edstratumlabs.ai-6B1E30?style=for-the-badge)](https://vinifera.edstratumlabs.ai/)
-[![Production Build](https://img.shields.io/badge/Production_Build-Phase_4_Architecture-C9993A?style=for-the-badge)](./docs/build-specs/phase-4-analytics.md)
+[![Production Build](https://img.shields.io/badge/Production_Build-0.5.0_Phase_5-C9993A?style=for-the-badge)](./docs/build-specs/phase-5-scale-integrations.md)
 [![Investor's Guide](https://img.shields.io/badge/📖_Investor's_Guide-Full_Story-3D0E1B?style=for-the-badge)](https://vinifera.edstratumlabs.ai/guide/)
 
 [![WCAG 2.1 AA](https://img.shields.io/badge/WCAG_2.1_AA-✓_0_Violations-success?style=flat-square)](https://vinifera.edstratumlabs.ai/)
@@ -20,9 +20,21 @@ A web-based platform for wine club operations — member management, shipment pr
 
 ## Overview
 
-Vinifera is a production wine club management platform under active build. The repository contains the verified original prototype plus the real Phase 1–4 architecture: a React/Vite staff application and member portal, an Express API on Cloudflare Workers, Supabase Auth/PostgreSQL with forced tenant RLS, Stripe subscription and shipment billing, EasyPost fulfillment, Resend transactional delivery, analytics from operational facts, gated ML churn intelligence, privacy-thresholded peer benchmarks, ShipCompliant-ready fulfillment controls, cancellation interception, and a durable loyalty ledger.
+Vinifera 0.5.0 contains the complete Phase 1–5 source architecture: a
+React/Vite staff application and member portal, an Express API on Cloudflare
+Workers, Supabase Auth/PostgreSQL with forced tenant and brand RLS, Stripe
+subscription and shipment billing, EasyPost fulfillment, Resend transactional
+delivery, analytics from operational facts, gated ML churn intelligence,
+privacy-thresholded peer benchmarks, ShipCompliant fulfillment controls,
+multi-brand and white-label operation, Klaviyo/QuickBooks/Avalara/Meta
+connectors, and Capacitor iOS/Android projects.
 
-Provider integrations are connection-ready and fail closed when credentials or control-plane settings are not active. Production code does not emit mock dashboard rows or store JWTs in browser storage.
+The source architecture is connection-ready and fails closed when credentials or
+control-plane settings are absent. Hosted Supabase migration, provider account
+validation, winery DNS, Stripe live-mode approval, signed physical-device
+testing, and app-store distribution remain separate activation work. The public
+custom domain continues to serve the verified static Cloudflare Pages rollback
+baseline; it is not evidence that the Worker application is live.
 
 The name comes from *Vitis vinifera*, the Latin species name for the primary wine grape vine. It signals domain knowledge to winery operators and reads as a premium brand word — without the overused "wine" prefix that defines most platform names in this market.
 
@@ -31,7 +43,7 @@ The name comes from *Vitis vinifera*, the Latin species name for the primary win
 | Page | URL | Description |
 |------|-----|-------------|
 | **Landing** | [vinifera.edstratumlabs.ai](https://vinifera.edstratumlabs.ai/) | Marketing site with hero vineyard illustration, feature overview, pricing, and animated CTA |
-| **App Prototype** | [vinifera.edstratumlabs.ai/app/](https://vinifera.edstratumlabs.ai/app/) | Static visual baseline retained until the Phase 1 Worker passes live activation QA |
+| **App Prototype** | [vinifera.edstratumlabs.ai/app/](https://vinifera.edstratumlabs.ai/app/) | Static visual and rollback baseline retained until the complete hosted Worker activation gate passes |
 | **Investor's Guide** | [vinifera.edstratumlabs.ai/guide/](https://vinifera.edstratumlabs.ai/guide/) | 8-part plain-language guide covering the problem, technology, build plan, and business case |
 
 ## Features
@@ -50,7 +62,9 @@ The prototype demonstrates thirteen functional areas across an administration po
 | **Fulfillment** | EasyPost-ready adult-signature labels, pick lists, scan-to-confirm packing, tracking, and delivery state |
 | **Communications** | Automated email triggers (pre-shipment, decline, welcome, birthday) and campaign sends |
 | **Loyalty** | Points on shipments, events, and referrals — redeemable against upcoming shipments |
-| **Integrations** | Klaviyo, Mailchimp, QuickBooks, ShipCompliant, Avalara, Stripe, Google Analytics, Meta |
+| **Integrations** | Klaviyo profile/event sync, QuickBooks Online accounting, Avalara tax, Meta Conversions API, ShipCompliant compliance, Stripe billing, EasyPost shipping, and Resend email |
+| **Brands & White Label** | Brand-scoped staff access, shared or independent billing, custom themes, and Cloudflare for SaaS hostname lifecycle |
+| **Native Mobile** | Capacitor iOS/Android shells, secure mobile magic-link sessions, biometrics, push, barcode scanning, offline read-only snapshots, and store-directed updates |
 | **Settings & Audit** | Role-based permissions, billing config, API key management, tamper-evident audit log |
 | **Member Portal** | Self-service: preview shipments, update address, swap bottles, pause membership — magic-link login |
 
@@ -65,6 +79,8 @@ The prototype demonstrates thirteen functional areas across an administration po
 | **Runtime** | Cloudflare Workers + Static Assets | Same-origin React application and Express API |
 | **Shipping** | EasyPost adapter | Address verification, rates, adult-signature labels, and tracking; test credentials activate it later |
 | **Compliance** | ShipCompliant OAuth adapter | Every label requires an exact compliant decision; missing credentials and unknown responses fail closed |
+| **Scale integrations** | Server-side provider adapters + encrypted credential envelopes | Winery credentials never enter browser-readable configuration |
+| **Mobile** | Capacitor 8 | One React source with native secure storage, push, camera, network, and deep-link adapters |
 | **Observability** | Cloudflare Worker logs | Runtime failures are visible at the hosting layer; external APM remains a later activation decision |
 | **Auth** | Supabase Auth | JWT sessions, magic-link for members, password/OAuth for staff |
 
@@ -88,10 +104,25 @@ npm run check
 npm run qa:db:phase2
 npm run qa:db:phase3
 npm run qa:db:phase4
+npm run qa:db:phase5
+npm run qa:mobile:identity
 npm run qa:e2e
+
+# Native web bundle and project synchronization
+npm run build:mobile
+npm run build:mobile:android
+npm run build:mobile:android:release
+npm run build:mobile:ios
 ```
 
-The build emits code-split React assets, then copies `index.html`, `guide`, and `public/*` into `dist/`. Wrangler packages those assets with the Express Worker. GitHub-hosted CI audits, type-checks, tests, builds, validates the Worker bundle, runs browser QA, conditionally applies Supabase migrations, and deploys the staging Worker.
+The build emits code-split React assets, then copies `index.html`, `guide`, and
+`public/*` into `dist/`. Wrangler packages those assets with the Express Worker.
+GitHub-hosted CI uses Node 22.22.0, runs the Phase 2–5 database gates and browser
+QA, builds and lints Android debug plus minified release shells, conditionally
+applies migrations with Supabase CLI 2.109.1, and can deploy an isolated
+`vinifera-staging` Worker.
+Available runtime secrets are attached atomically to that staging version.
+Production custom-domain cutover is deliberately not automated.
 
 ### Routing
 
@@ -102,6 +133,7 @@ The build emits code-split React assets, then copies `index.html`, `guide`, and 
 | `/portal/*` | React member portal | `text/html` |
 | `/guide/*` | `guide` (extensionless, via `_redirects`) | `text/html` |
 | `/api/*` | Express BFF | `application/json` |
+| `/.well-known/*` | Worker-generated mobile association files | `application/json` |
 
 The original extensionless `app` file remains the visual specification. It is
 shipped only by the temporary Cloudflare Pages rollback build; Worker builds
@@ -116,7 +148,8 @@ serve the React application instead.
 | Phase 2 core club | 145 database assertions plus service and browser regression gates pass locally |
 | Phase 3 retention | Email, rules scoring, cancel-flow, and loyalty architecture plus database/service/browser gates pass locally |
 | Phase 4 intelligence | Local architecture release gate passes: analytics, ML lifecycle, benchmark privacy, compliance, database, service, browser, accessibility, and performance checks are green; hosted real-data, model, cohort, and provider evidence remain gated |
-| Provider activation | Pending hosted Supabase migrations, Stripe test data, EasyPost, Resend sender/webhook, ShipCompliant, Google OAuth, and SMTP |
+| Phase 5 scale | Version 0.5.0 source architecture is complete for connectors, multi-brand isolation, white label, and native shells; the Phase 5 QA report records architecture evidence and deferred hosted checks |
+| Provider activation | Pending hosted Supabase, Stripe/provider test and live accounts, custom-domain DNS/certificates, APNs/FCM, signing, physical devices, and store tracks |
 | Public deployment | Pages continues serving the verified prototype until the Worker activation runbooks pass |
 
 ## Repository Structure
@@ -129,8 +162,13 @@ vinifera/
 ├── web/                    # Vite HTML entry
 ├── src/client/             # React staff and member applications
 ├── server/                 # Express BFF and Cloudflare Worker entry
+│   └── integrations/       # Klaviyo, QuickBooks, Avalara, Meta, domains, mobile auth, and push adapters
 ├── supabase/               # PostgreSQL migrations and pgTAP tests
 ├── tests/                  # API and browser QA suites
+├── android/                # Capacitor Android source project; generated web output is ignored
+├── ios/                    # Capacitor iOS source project; generated web output is ignored
+├── mobile/                 # Canonical app identity, source artwork, native security, and deep links
+├── capacitor.config.json   # Shared native shell configuration
 ├── public/
 │   ├── _redirects          # Route rules: /app/* /guide/*
 │   └── _headers             # Security headers + Content-Type overrides
@@ -138,7 +176,11 @@ vinifera/
 │   ├── build.mjs            # Adds static public surfaces after Vite build
 │   ├── verify-phase2-db.mjs # Core-club embedded database and scale QA
 │   ├── verify-phase3-db.mjs # Retention database, RLS, RPC, and scale QA
-│   └── verify-phase4-db.mjs # Analytics, ML, benchmark, compliance, and scale QA
+│   ├── verify-phase4-db.mjs # Analytics, ML, benchmark, compliance, and scale QA
+│   ├── verify-phase5-db.mjs # Brand, connector, mobile-token, RLS, and scale QA
+│   ├── verify-mobile-identity.mjs # Cross-platform ID, version, deep-link, and privacy drift gate
+│   ├── generate-mobile-assets.mjs # Deterministic iOS/Android branded asset generator
+│   └── prepare-capacitor.mjs # Native entrypoint and restrictive CSP preparation
 ├── docs/                    # Architecture, setup, ADRs, runbooks
 ├── .github/workflows/       # CI/CD pipeline
 ├── AGENTS.md                # AI agent collaboration guide

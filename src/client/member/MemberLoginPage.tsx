@@ -4,6 +4,11 @@ import { ApiError, postJson } from "../api/client";
 import { Link, useRouter, useSearchParams } from "../routes/router";
 import { AuthLayout } from "../shared/AuthLayout";
 import { FormFeedback } from "../shared/FormFeedback";
+import {
+  getNativeDeviceFingerprint,
+  isNativeShell,
+} from "../mobile/native-session";
+import { MOBILE_AUTH_REDIRECT_URI } from "../mobile/mobile-identity";
 import { useMemberSession } from "./MemberSessionContext";
 
 export function MemberLoginPage() {
@@ -11,6 +16,7 @@ export function MemberLoginPage() {
   const { state: sessionState } = useMemberSession();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
+  const [clubCode, setClubCode] = useState("");
   const [error, setError] = useState<string | null>(
     searchParams.get("error") === "invalid_link"
       ? "That magic link is invalid or expired. Request a new link below."
@@ -30,7 +36,16 @@ export function MemberLoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await postJson("/api/auth/member/magic-link", { email });
+      if (isNativeShell()) {
+        await postJson("/api/auth/member/mobile/magic-link", {
+          email,
+          clubCode: clubCode.trim() || undefined,
+          deviceFingerprint: await getNativeDeviceFingerprint(),
+          redirectUri: MOBILE_AUTH_REDIRECT_URI,
+        });
+      } else {
+        await postJson("/api/auth/member/magic-link", { email });
+      }
       setSent(true);
     } catch (caught) {
       setError(
@@ -84,6 +99,22 @@ export function MemberLoginPage() {
               required
             />
           </div>
+          {isNativeShell() ? (
+            <div className="form-field">
+              <label htmlFor="member-club-code">
+                Wine club code <span>(if you belong to more than one club)</span>
+              </label>
+              <input
+                id="member-club-code"
+                name="clubCode"
+                type="text"
+                autoCapitalize="none"
+                autoComplete="off"
+                value={clubCode}
+                onChange={(event) => setClubCode(event.target.value)}
+              />
+            </div>
+          ) : null}
           <button className="button button--primary button--wide" disabled={submitting}>
             {submitting ? "Sending secure link…" : "Email me a magic link"}
           </button>

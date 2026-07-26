@@ -54,6 +54,19 @@ export function MemberSessionProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const handleNativeAuth = () => void refresh();
+    window.addEventListener(
+      "vinifera:member-auth-changed",
+      handleNativeAuth,
+    );
+    return () =>
+      window.removeEventListener(
+        "vinifera:member-auth-changed",
+        handleNativeAuth,
+      );
+  }, [refresh]);
+
   const value = useMemo(
     () => ({ state, session, refresh, clear }),
     [clear, refresh, session, state],

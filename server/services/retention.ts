@@ -1176,12 +1176,14 @@ export class ProductionRetentionService
   async listEmailTemplates(): Promise<Array<Record<string, unknown>>> {
     const principal = await this.requireStaff();
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     const { data, error } = await this.admin
       .from("email_templates")
       .select(
         "id,trigger_type,subject,body,enabled,days_before,created_at,updated_at",
       )
       .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
       .order("trigger_type");
     if (error) throw databaseError("Email templates could not be loaded.");
     const senderStatus = getConfigurationReport(this.env).communications.configured
@@ -1198,6 +1200,7 @@ export class ProductionRetentionService
   ): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     const subject = sanitizeTemplateSubject(input.subject);
     const body = sanitizeTemplateHtml(input.body);
     if (!subject || !body.trim()) {
@@ -1217,11 +1220,12 @@ export class ProductionRetentionService
               ? (input.daysBefore ?? 3)
               : null,
           enabled: input.enabled,
+          brand_id: brandId,
           organization_id: organizationId,
           subject,
           trigger_type: input.triggerType,
         },
-        { onConflict: "organization_id,trigger_type" },
+        { onConflict: "organization_id,brand_id,trigger_type" },
       )
       .select(
         "id,trigger_type,subject,body,enabled,days_before,created_at,updated_at",
@@ -1242,6 +1246,7 @@ export class ProductionRetentionService
     assertUuid(templateId, "Email template");
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     const changes: Record<string, unknown> = {};
     if (input.body !== undefined) {
       const body = sanitizeTemplateHtml(input.body);
@@ -1277,6 +1282,7 @@ export class ProductionRetentionService
       .update(changes)
       .eq("id", templateId)
       .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
       .select(
         "id,trigger_type,subject,body,enabled,days_before,created_at,updated_at",
       )
@@ -1297,11 +1303,13 @@ export class ProductionRetentionService
     assertUuid(templateId, "Email template");
     const principal = await this.requireStaff(["owner", "admin"]);
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     const { data, error } = await this.admin
       .from("email_templates")
       .delete()
       .eq("id", templateId)
       .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
       .select("id")
       .maybeSingle();
     if (error) throw databaseError("The email template could not be deleted.");
@@ -1317,6 +1325,7 @@ export class ProductionRetentionService
   private async getTemplate(
     templateId: string,
     organizationId: string,
+    brandId: string,
   ): Promise<Record<string, unknown>> {
     assertUuid(templateId, "Email template");
     const { data, error } = await this.admin
@@ -1324,6 +1333,7 @@ export class ProductionRetentionService
       .select("id,trigger_type,subject,body,enabled")
       .eq("id", templateId)
       .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
       .maybeSingle();
     if (error) throw databaseError("The email template could not be loaded.");
     if (!data) throw new AppError(404, "not_found", "Email template not found.");
@@ -1340,7 +1350,8 @@ export class ProductionRetentionService
   ): Promise<{ body: string; html: string; subject: string }> {
     const principal = await this.requireStaff();
     const organizationId = this.organizationId(principal);
-    const template = await this.getTemplate(templateId, organizationId);
+    const brandId = await this.activeBrandId(principal);
+    const template = await this.getTemplate(templateId, organizationId, brandId);
     const rendered = renderTransactionalEmail({
       body: input.body ?? String(template.body ?? ""),
       organizationName: principal.organization?.name ?? "Your wine club",
@@ -1366,7 +1377,8 @@ export class ProductionRetentionService
   ): Promise<{ accepted: boolean; deliveryId: string }> {
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
-    const template = await this.getTemplate(templateId, organizationId);
+    const brandId = await this.activeBrandId(principal);
+    const template = await this.getTemplate(templateId, organizationId, brandId);
     const rendered = renderTransactionalEmail({
       body: String(template.body ?? ""),
       organizationName: principal.organization?.name ?? "Your wine club",
@@ -1420,13 +1432,15 @@ export class ProductionRetentionService
   }): Promise<{ items: Array<Record<string, unknown>>; total: number }> {
     const principal = await this.requireStaff();
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     let query = this.admin
       .from("email_log")
       .select(
         "id,member_id,template_id,trigger_type,is_test,to_email,status,resend_id,error_message,created_at,sent_at,delivered_at,members(first_name,last_name,email)",
         { count: "exact" },
       )
-      .eq("organization_id", organizationId);
+      .eq("organization_id", organizationId)
+      .eq("brand_id", brandId);
     if (input.status) query = query.eq("status", input.status);
     if (input.triggerType) query = query.eq("trigger_type", input.triggerType);
     const { count, data, error } = await query
@@ -1479,7 +1493,7 @@ export class ProductionRetentionService
     }
     const { data: log, error: logError } = await this.admin
       .from("email_log")
-      .select("id,organization_id")
+      .select("id,organization_id,brand_id")
       .eq("resend_id", providerId)
       .maybeSingle();
     if (logError) throw databaseError("The email delivery event could not be matched.");
@@ -1536,10 +1550,12 @@ export class ProductionRetentionService
   }> {
     const principal = await this.requireStaff();
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     const { data: latest } = await this.admin
       .from("churn_scores")
       .select("score_date")
       .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
       .order("score_date", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -1549,7 +1565,8 @@ export class ProductionRetentionService
         "id,member_id,score,risk_level,contributing_factors,calculated_at,members(first_name,last_name,email,club_tier_id,club_tiers(name))",
         { count: "exact" },
       )
-      .eq("organization_id", organizationId);
+      .eq("organization_id", organizationId)
+      .eq("brand_id", brandId);
     if (latest?.score_date) query = query.eq("score_date", latest.score_date);
     if (input.riskLevel) query = query.eq("risk_level", input.riskLevel);
     if (input.search) {
@@ -1568,6 +1585,7 @@ export class ProductionRetentionService
             .from("churn_scores")
             .select("risk_level,calculated_at")
             .eq("organization_id", organizationId)
+            .eq("brand_id", brandId)
             .eq("score_date", latest.score_date)
         : Promise.resolve({ data: [], error: null }),
     ]);
@@ -1592,12 +1610,14 @@ export class ProductionRetentionService
     assertUuid(memberId, "Member");
     const principal = await this.requireStaff();
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     const { data, error } = await this.admin
       .from("churn_scores")
       .select(
         "id,member_id,score,risk_level,contributing_factors,calculated_at,members(first_name,last_name,email,club_tiers(name))",
       )
       .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
       .eq("member_id", memberId)
       .order("calculated_at", { ascending: false })
       .limit(1)
@@ -1610,11 +1630,13 @@ export class ProductionRetentionService
   async getCancelFlowConfiguration(): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff();
     const organizationId = this.organizationId(principal);
-    return this.loadCancelFlowConfiguration(organizationId);
+    const brandId = await this.activeBrandId(principal);
+    return this.loadCancelFlowConfiguration(organizationId, brandId);
   }
 
   private async loadCancelFlowConfiguration(
     organizationId: string,
+    brandId: string,
   ): Promise<Record<string, unknown>> {
     const { data, error } = await this.admin
       .from("cancel_flow_steps")
@@ -1622,6 +1644,7 @@ export class ProductionRetentionService
         "id,step_type,headline,body,enabled,position,configuration,updated_at",
       )
       .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
       .order("position");
     if (error) throw databaseError("Cancel-flow configuration could not be loaded.");
     return {
@@ -1641,13 +1664,19 @@ export class ProductionRetentionService
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff(["owner", "admin"]);
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
+    await this.assertLegacySingleBrandScope(
+      principal,
+      "Cancel-flow configuration",
+    );
     input.steps
       .filter((step) => step.stepId)
       .forEach((step) => assertUuid(step.stepId as string, "Cancel-flow step"));
     const { data: existingSteps, error: stepError } = await this.admin
       .from("cancel_flow_steps")
       .select("id,step_type,headline,body,configuration")
-      .eq("organization_id", organizationId);
+      .eq("organization_id", organizationId)
+      .eq("brand_id", brandId);
     if (stepError) throw databaseError("Cancel-flow configuration could not be loaded.");
     const stepsByType = new Map(
       (existingSteps ?? []).map((step) => [
@@ -1689,12 +1718,13 @@ export class ProductionRetentionService
       organizationId,
       { step_count: input.steps.length },
     );
-    return this.loadCancelFlowConfiguration(organizationId);
+    return this.loadCancelFlowConfiguration(organizationId, brandId);
   }
 
   async getCancelFlowAnalytics(): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff();
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     const [{ data, error }, { count: attemptCount, error: attemptError }] =
       await Promise.all([
         this.admin
@@ -1703,12 +1733,14 @@ export class ProductionRetentionService
             "id,attempt_id,member_id,step_position,outcome,created_at,members(first_name,last_name,email),cancel_flow_steps(step_type)",
           )
           .eq("organization_id", organizationId)
+          .eq("brand_id", brandId)
           .order("created_at", { ascending: false })
           .limit(1_000),
         this.admin
           .from("cancel_flow_attempts")
           .select("id", { count: "exact", head: true })
-          .eq("organization_id", organizationId),
+          .eq("organization_id", organizationId)
+          .eq("brand_id", brandId),
       ]);
     if (error) throw databaseError("Cancel-flow analytics could not be loaded.");
     if (attemptError) {
@@ -1815,13 +1847,14 @@ export class ProductionRetentionService
       loyaltyResult,
       attemptResult,
     ] = await Promise.all([
-      this.loadCancelFlowConfiguration(organizationId),
+      this.loadCancelFlowConfiguration(organizationId, principal.brand.id),
       this.admin
         .from("members")
         .select(
           "id,club_tier_id,club_tiers(id,name,price_cents,bottle_count)",
         )
         .eq("organization_id", organizationId)
+        .eq("brand_id", principal.brand.id)
         .eq("id", memberId)
         .single(),
       this.admin
@@ -1830,6 +1863,7 @@ export class ProductionRetentionService
           "id,release_id,status,shipment_items(id,release_wine_id,wine_name,quantity,price_cents,packed_quantity)",
         )
         .eq("organization_id", organizationId)
+        .eq("brand_id", principal.brand.id)
         .eq("member_id", memberId)
         .in("status", ["pending", "charged"])
         .order("created_at")
@@ -1844,6 +1878,7 @@ export class ProductionRetentionService
         .from("cancel_flow_attempts")
         .select("id,current_step_id")
         .eq("organization_id", organizationId)
+        .eq("brand_id", principal.brand.id)
         .eq("member_id", memberId)
         .eq("status", "in_progress")
         .maybeSingle(),
@@ -1872,6 +1907,7 @@ export class ProductionRetentionService
         .from("club_tiers")
         .select("id,name,price_cents,bottle_count")
         .eq("organization_id", organizationId)
+        .eq("brand_id", principal.brand.id)
         .lt("price_cents", Number(currentTier.price_cents ?? 0))
         .order("price_cents", { ascending: false });
       if (error) throw databaseError("Lower club tiers could not be loaded.");
@@ -1890,6 +1926,7 @@ export class ProductionRetentionService
         .from("release_wines")
         .select("id,wine_name,vintage,sku,description")
         .eq("organization_id", organizationId)
+        .eq("brand_id", principal.brand.id)
         .eq("release_id", shipment.release_id);
       if (currentWineIds.length) {
         wineQuery = wineQuery.not(
@@ -1944,6 +1981,7 @@ export class ProductionRetentionService
 
   async startMemberCancelFlow(): Promise<Record<string, unknown>> {
     const principal = await this.requireMember();
+    await this.assertLegacySingleBrandScope(principal, "Cancellation flow");
     const { data, error } = await this.admin.rpc("start_cancel_flow", {
       p_actor_user_id: principal.user.authUserId,
       p_member_id: principal.user.id,
@@ -1966,12 +2004,14 @@ export class ProductionRetentionService
     stepId: string;
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireMember();
+    await this.assertLegacySingleBrandScope(principal, "Cancellation flow");
     let stepId = input.stepId;
     if (!/^[0-9a-f-]{36}$/i.test(stepId)) {
       const { data: step, error: stepError } = await this.admin
         .from("cancel_flow_steps")
         .select("id")
         .eq("organization_id", principal.organization.id)
+        .eq("brand_id", principal.brand.id)
         .eq("step_type", stepId)
         .eq("enabled", true)
         .maybeSingle();
@@ -1988,6 +2028,7 @@ export class ProductionRetentionService
         .from("cancel_flow_attempts")
         .select("id")
         .eq("organization_id", principal.organization.id)
+        .eq("brand_id", principal.brand.id)
         .eq("member_id", principal.user.id)
         .eq("status", "in_progress")
         .maybeSingle();
@@ -2041,6 +2082,7 @@ export class ProductionRetentionService
           "id,release_id,status,shipment_items(id,release_wine_id,packed_quantity)",
         )
         .eq("organization_id", principal.organization.id)
+        .eq("brand_id", principal.brand.id)
         .eq("member_id", principal.user.id)
         .in("status", ["pending", "charged"])
         .order("created_at")
@@ -2060,6 +2102,7 @@ export class ProductionRetentionService
         .from("release_wines")
         .select("id")
         .eq("organization_id", principal.organization.id)
+        .eq("brand_id", principal.brand.id)
         .eq("release_id", shipment.release_id)
         .eq("id", targetWineId)
         .maybeSingle();
@@ -2138,6 +2181,7 @@ export class ProductionRetentionService
   }): Promise<{ items: Array<Record<string, unknown>>; total: number }> {
     const principal = await this.requireStaff();
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     let query = this.admin
       .from("members")
       .select(
@@ -2145,6 +2189,7 @@ export class ProductionRetentionService
         { count: "exact" },
       )
       .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
       .is("deleted_at", null);
     if (input.search) {
       const escaped = input.search.replaceAll("%", "\\%").replaceAll(",", "");
@@ -2168,6 +2213,7 @@ export class ProductionRetentionService
             .from("loyalty_point_lots")
             .select("member_id,remaining_points,reserved_points,expires_at")
             .eq("organization_id", organizationId)
+            .eq("brand_id", brandId)
             .in("member_id", memberIds)
             .gt("expires_at", new Date().toISOString())
         : Promise.resolve({ data: [], error: null }),
@@ -2176,6 +2222,7 @@ export class ProductionRetentionService
             .from("loyalty_tier_multipliers")
             .select("club_tier_id,multiplier")
             .eq("organization_id", organizationId)
+            .eq("brand_id", brandId)
             .in("club_tier_id", tierIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
@@ -2229,6 +2276,25 @@ export class ProductionRetentionService
     assertUuid(memberId, "Member");
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
+    const { data: member, error: memberError } = await this.admin
+      .from("members")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
+      .eq("id", memberId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (memberError) {
+      throw databaseError("The loyalty member could not be checked.");
+    }
+    if (!member) {
+      throw new AppError(
+        404,
+        "not_found",
+        "The loyalty member is not available for this brand.",
+      );
+    }
     const { data, error } = await this.admin.rpc("adjust_loyalty_points", {
       p_actor_user_id: principal.user.id,
       p_idempotency_key: `loyalty:manual:${crypto.randomUUID()}`,
@@ -2271,10 +2337,12 @@ export class ProductionRetentionService
     assertUuid(input.eventId, "Event");
     const principal = await this.requireStaff(["owner", "admin", "manager", "staff"]);
     const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
     const { data: member, error: memberError } = await this.admin
       .from("members")
       .select("id")
       .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
       .eq("id", memberId)
       .is("deleted_at", null)
       .maybeSingle();
@@ -2319,6 +2387,7 @@ export class ProductionRetentionService
     const principal = await this.requireMember();
     return this.loadMemberLoyalty(
       principal.organization.id,
+      principal.brand.id,
       principal.user.id,
     );
   }
@@ -2328,11 +2397,16 @@ export class ProductionRetentionService
   ): Promise<Record<string, unknown>> {
     assertUuid(memberId, "Member");
     const principal = await this.requireStaff();
-    return this.loadMemberLoyalty(this.organizationId(principal), memberId);
+    return this.loadMemberLoyalty(
+      this.organizationId(principal),
+      await this.activeBrandId(principal),
+      memberId,
+    );
   }
 
   private async loadMemberLoyalty(
     organizationId: string,
+    brandId: string,
     memberId: string,
   ): Promise<Record<string, unknown>> {
     const [member, lots, ledger, organization, multiplier] = await Promise.all([
@@ -2342,12 +2416,14 @@ export class ProductionRetentionService
           "id,first_name,last_name,email,club_tier_id,club_tiers(name)",
         )
         .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
         .eq("id", memberId)
         .maybeSingle(),
       this.admin
         .from("loyalty_point_lots")
         .select("remaining_points,reserved_points,expires_at")
         .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
         .eq("member_id", memberId)
         .gt("expires_at", new Date().toISOString())
         .order("expires_at"),
@@ -2357,6 +2433,7 @@ export class ProductionRetentionService
           "id,entry_type,points,reason,source_event_type,expires_at,created_at",
         )
         .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
         .eq("member_id", memberId)
         .order("created_at", { ascending: false })
         .limit(250),
@@ -2369,6 +2446,7 @@ export class ProductionRetentionService
         .from("loyalty_tier_multipliers")
         .select("multiplier")
         .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
         .eq(
           "club_tier_id",
           (
@@ -2376,6 +2454,7 @@ export class ProductionRetentionService
               .from("members")
               .select("club_tier_id")
               .eq("organization_id", organizationId)
+              .eq("brand_id", brandId)
               .eq("id", memberId)
               .maybeSingle()
           ).data?.club_tier_id ?? "00000000-0000-0000-0000-000000000000",

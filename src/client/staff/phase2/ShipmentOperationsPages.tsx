@@ -41,6 +41,10 @@ import {
   LoadingBlock,
 } from "../../shared/OperationalState";
 import { StaffShell } from "../StaffShell";
+import {
+  nativeBarcodeScannerAvailable,
+  scanFulfillmentBarcode,
+} from "../../mobile/native-capabilities";
 import { date, money, sentence } from "./format";
 import { useApiResource } from "./useApiResource";
 
@@ -633,6 +637,21 @@ export function FulfillmentPage() {
     }
   }
 
+  async function scanWithCamera() {
+    setFeedback(null);
+    try {
+      setBarcode(await scanFulfillmentBarcode());
+    } catch (error) {
+      setFeedback({
+        message:
+          error instanceof Error
+            ? error.message
+            : "The camera scan could not be completed.",
+        kind: "error",
+      });
+    }
+  }
+
   async function advance(shipment: Shipment) {
     const next: Partial<Record<ShipmentStatus, ShipmentStatus>> = {
       label_created: "packed",
@@ -808,14 +827,26 @@ export function FulfillmentPage() {
           ) : null}
           <div className="form-field">
             <label htmlFor="pack-barcode">Shipment or item barcode</label>
-            <input
-              id="pack-barcode"
-              required
-              autoFocus
-              autoComplete="off"
-              value={barcode}
-              onChange={(event) => setBarcode(event.target.value)}
-            />
+            <div className="barcode-input-row">
+              <input
+                id="pack-barcode"
+                required
+                autoFocus
+                autoComplete="off"
+                value={barcode}
+                onChange={(event) => setBarcode(event.target.value)}
+              />
+              {nativeBarcodeScannerAvailable() ? (
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  onClick={() => void scanWithCamera()}
+                >
+                  <Barcode aria-hidden="true" />
+                  Use camera
+                </button>
+              ) : null}
+            </div>
           </div>
           <button className="button button--primary button--wide" disabled={busy}>
             <Barcode aria-hidden="true" />
