@@ -24,6 +24,7 @@ AuthKey_*.p8
 *.pem
 firebase-adminsdk-*.json
 service-account*.json
+android/app/google-services.json
 
 # Local service state
 .wrangler/

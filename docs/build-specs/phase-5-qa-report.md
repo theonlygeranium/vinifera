@@ -31,7 +31,7 @@ live provider or production-store result.
 | --- | --- | --- |
 | Phase 5 embedded database | Pass — 167/167 assertions | Hosted Supabase native pgcrypto/pgTAP remains deferred |
 | Prior-phase embedded database regression | Pass — Phase 2 145/145, Phase 3 138/138, Phase 4 121/121 | Hosted Supabase remains deferred |
-| Type, unit/integration, build, Worker package | Pass — `npm run check`, 115/115 tests across 9 files | No hosted Worker claim |
+| Type, unit/integration, build, Worker package | Pass — `npm run check`, 174/174 tests across 15 files | No hosted Worker claim |
 | Dependency audit | Pass — zero vulnerabilities in production and full audits | Snapshot from this run |
 | Full responsive/axe browser suite | Pass — 122/122 in 2.5 minutes | Local browser evidence; no hosted-provider claim |
 | Phase 5 visual review | Pass — six staff screenshots manually inspected | Physical-device and store screenshots remain deferred |
@@ -39,6 +39,8 @@ live provider or production-store result.
 | iOS simulator | Pass — build, install, launch, zero build warnings | Not a physical-device or TestFlight result |
 | Android | Pass — local and GitHub CI lint, debug APK, and R8 release APK | Signing and FCM remain deferred |
 | Static Pages rollback | Pass — unchanged | Still the public production baseline |
+| Credential-gated release controls | Pass in source | Staging/production target hashes remain intentionally unresolved; no hosted mutation |
+| Signed mobile/store control | Pass in source | Immutable signed AAB/IPA and internal-track workflow wired; credentials and store execution deferred |
 | Hosted providers, custom DNS, Stripe live | Deferred | External credentials or human authority required |
 
 ## Credential and deployment audit
@@ -56,6 +58,23 @@ live provider or production-store result.
 | iOS | Identity, sync, simulator build/install/launch pass | Apple signing, APNs, and store authority unavailable | Deferred |
 | Android | Identity, sync, lint, debug APK, and R8 release APK pass locally and in GitHub CI | Signing, FCM, and store authority unavailable | Deferred |
 | Stripe live mode | Test-mode billing architecture passes | Human approval required; no automated key change | Deferred |
+
+The post-phase release hardening additionally provides:
+
+- GET-only hosted credential/readiness classification with no live-Stripe
+  request;
+- hash-authorized staging Supabase/Cloudflare targets with empty fail-closed
+  defaults;
+- linked hosted pgTAP/RLS after migration and a sanitized core Worker
+  configuration artifact;
+- a protected production Worker bootstrap/version/deploy/cutover/rollback and
+  Pages-restore controller that cannot enable live billing; and
+- a protected immutable signed mobile build plus separately confirmed Google
+  Play internal/TestFlight delivery path.
+
+See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
+[production cutover](../runbooks/production-cutover-rollback.md), and
+[mobile store](../runbooks/mobile-store-release.md) runbooks.
 
 ## Functional architecture
 
@@ -255,17 +274,22 @@ verification.
 
 | Command/check | Result |
 | --- | --- |
-| `npm run check` | Pass — TypeScript zero errors, 115/115 Vitest tests across 9 files, Vite build, Worker dry run |
+| `npm run check` | Pass — TypeScript zero errors, 174/174 Vitest tests across 15 files, Vite build, Worker dry run |
+| `npm run qa:production-release` | Pass — 14/14 fail-closed production release/control tests |
+| `npm run qa:mobile-release` | Pass — 7/7 immutable signing and internal-store release tests |
+| `npm run build:worker:production` | Pass — route-free production Worker version dry run with live billing disabled |
 | `npm audit --omit=dev --audit-level=moderate` | Pass — zero vulnerabilities |
 | `npm audit --audit-level=moderate` | Pass — zero vulnerabilities |
 | Full post-remediation browser suite | Pass — 122/122 in 2.5 minutes |
-| Full-suite multi-brand performance assertion | Pass — 482.86 ms / 2,000 ms |
+| Full-suite multi-brand performance assertion | Pass — 898.65 ms / 2,000 ms |
 | Full-suite axe scans | Pass — 0 WCAG 2.1 AA violations |
 | [GitHub Phase 5 workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30214620782) | Pass — quality 4m08s, Android 6m44s; hosted migration/deploy skipped while activation is off |
 
-The final complete browser rerun passed all 122 tests in 2.5 minutes after the
-multi-brand locator correction. This supersedes the earlier 121-pass partial
-run and its targeted-only follow-up.
+The final complete browser rerun passed all 122 tests in 2.5 minutes with
+retries disabled. Before that run, the Phase 5 loading-state test was changed
+from a timer race to a controlled request gate and passed 10/10 repetitions
+with retries disabled. This supersedes the earlier 121-pass partial run and its
+targeted-only follow-up.
 
 ## Accessibility, responsive, and visual gate
 
@@ -299,9 +323,9 @@ not physical-device accessibility proof.
 
 | Check | Budget | Local result |
 | --- | ---: | ---: |
-| Integration-page LCP | < 2.5 s | Pass — 528 ms |
+| Integration-page LCP | < 2.5 s | Pass — 404 ms |
 | Integration-page CLS | < 0.1 | Pass — 0 |
-| Multi-brand dashboard usable | < 2 s | Pass — 482.86 ms |
+| Multi-brand dashboard usable | < 2 s | Pass — 898.65 ms |
 | Klaviyo 1,000-member source/request construction | < 30 s | Pass — 1.78 ms |
 | QuickBooks 100-transaction source/request construction | < 60 s | Pass — 1.09 ms |
 | 10,000-member brand-isolation query median | < 2 s | Pass — 4.49 ms |
@@ -363,6 +387,8 @@ npm run build:mobile
 - [x] Xcode simulator scheme builds with zero warnings.
 - [x] The app installs and launches in the iOS simulator.
 - [x] The branded login shell renders without clipping in the simulator.
+- [x] Post-hardening revalidation on the iPhone 17 Pro simulator completed in
+      17.2 seconds with zero build warnings or errors.
 - [x] Cold launch tool envelope: 2.26 seconds.
 - [x] Warm resume tool envelope: 0.29 seconds.
 
@@ -389,6 +415,9 @@ is supplied.
       ./android/gradlew -p android lintDebug assembleDebug assembleRelease --stacktrace
       ```
 
+- [x] Post-hardening revalidation completed all 741 lint/debug/unsigned-release
+      tasks in 48 seconds with the official Android toolchain; an attempted
+      unsigned `bundleRelease` failed closed at the signing gate as designed.
 - [x] Debug APK SHA-256:
       `39d5f1b362eeccb89bce4137ab21d1970cb5523fcca0216073b3914bbab8b0ae`.
 - [x] Unsigned R8 release APK SHA-256:
@@ -427,6 +456,10 @@ Phase 5 tables in place.
 - [ ] Verify APNs/FCM foreground, background, and tapped-notification delivery.
 - [ ] Install from TestFlight and the Play internal track.
 - [ ] Obtain human approval for Stripe live keys, webhook, charge, and refund.
+
+The first six credential/control-plane actions are now wired and fail closed.
+Their checkboxes remain open until the protected workflows produce redacted
+hosted artifacts; source coverage is not counted as provider or store evidence.
 
 ## Final decision
 

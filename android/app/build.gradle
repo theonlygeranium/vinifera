@@ -1,5 +1,21 @@
 apply plugin: 'com.android.application'
 
+def releaseSigningNames = [
+    'ANDROID_RELEASE_KEYSTORE_PATH',
+    'ANDROID_RELEASE_KEYSTORE_PASSWORD',
+    'ANDROID_RELEASE_KEY_ALIAS',
+    'ANDROID_RELEASE_KEY_PASSWORD'
+]
+def releaseSigningValues = releaseSigningNames.collectEntries {
+    [(it): System.getenv(it)]
+}
+def releaseSigningConfigured = releaseSigningNames.every {
+    releaseSigningValues[it] != null && !releaseSigningValues[it].trim().isEmpty()
+}
+def releaseSigningPartiallyConfigured = releaseSigningNames.any {
+    releaseSigningValues[it] != null && !releaseSigningValues[it].trim().isEmpty()
+} && !releaseSigningConfigured
+
 android {
     namespace = "ai.edstratumlabs.vinifera"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,12 +32,41 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile = file(releaseSigningValues.ANDROID_RELEASE_KEYSTORE_PATH)
+                storePassword = releaseSigningValues.ANDROID_RELEASE_KEYSTORE_PASSWORD
+                keyAlias = releaseSigningValues.ANDROID_RELEASE_KEY_ALIAS
+                keyPassword = releaseSigningValues.ANDROID_RELEASE_KEY_PASSWORD
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled = true
             shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.release
+            }
         }
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def requestsReleaseBundle = taskGraph.allTasks.any {
+        it.name == 'bundleRelease'
+    }
+    if (requestsReleaseBundle && releaseSigningPartiallyConfigured) {
+        throw new GradleException(
+            'Android release bundle signing credentials are incomplete.'
+        )
+    }
+    if (requestsReleaseBundle && !releaseSigningConfigured) {
+        throw new GradleException(
+            'Android release bundles require ephemeral environment-backed signing.'
+        )
     }
 }
 

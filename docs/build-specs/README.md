@@ -49,6 +49,8 @@ evidence from hosted operational evidence. Run the source gates with:
 
 ```bash
 npm run check
+npm run qa:mobile-release
+npm run qa:production-release
 npm run qa:db:phase2
 npm run qa:db:phase3
 npm run qa:db:phase4
@@ -62,6 +64,11 @@ npm run build:mobile:android
 Native simulator/debug compilation is not store or physical-device proof.
 Similarly, a static Pages `200` is not proof that Worker APIs or providers are
 active.
+
+Credential-deferred operations are fully wired through the
+[hosted environment](../runbooks/hosted-environment-provisioning.md),
+[production cutover/rollback](../runbooks/production-cutover-rollback.md), and
+[signed mobile release](../runbooks/mobile-store-release.md) runbooks.
 
 ## Credentials
 

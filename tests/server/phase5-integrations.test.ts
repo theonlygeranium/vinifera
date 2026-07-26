@@ -308,6 +308,44 @@ describe("Phase 5 provider clients", () => {
     ).toThrow(/Apple Push Notification credentials are not configured/);
   });
 
+  it("rejects APNs production routing from hosted staging", () => {
+    expect(() =>
+      createApnsPushClient({
+        APP_ENV: "staging",
+        APNS_BUNDLE_ID: "ai.edstratumlabs.vinifera",
+        APNS_ENVIRONMENT: "production",
+        APNS_KEY_ID: "KEYID12345",
+        APNS_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nnot-used",
+        APNS_TEAM_ID: "TEAM123456",
+        MOBILE_IOS_BUNDLE_ID: "ai.edstratumlabs.vinifera",
+      }),
+    ).toThrowError(
+      expect.objectContaining({
+        code: "activation_required",
+        status: 503,
+      }),
+    );
+  });
+
+  it("rejects an unknown APNs environment before selecting an endpoint", () => {
+    expect(() =>
+      createApnsPushClient({
+        APP_ENV: "staging",
+        APNS_BUNDLE_ID: "ai.edstratumlabs.vinifera",
+        APNS_ENVIRONMENT: "preview" as never,
+        APNS_KEY_ID: "KEYID12345",
+        APNS_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nnot-used",
+        APNS_TEAM_ID: "TEAM123456",
+        MOBILE_IOS_BUNDLE_ID: "ai.edstratumlabs.vinifera",
+      }),
+    ).toThrowError(
+      expect.objectContaining({
+        code: "activation_required",
+        status: 503,
+      }),
+    );
+  });
+
   it("uses Klaviyo revisioned async bulk imports for 1,000 profiles", async () => {
     let requestBody = "";
     const fetcher = vi.fn(async (request: Request) => {

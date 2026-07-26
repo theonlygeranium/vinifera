@@ -610,7 +610,7 @@ test.describe("Phase 5 verified-host member branding", () => {
   async function installPortalApi(
     page: Page,
     branding: unknown,
-    delay = 0,
+    brandingGate?: Promise<void>,
   ) {
     await page.route("https://cdn.qa-winery.example/logo.svg", (route) =>
       route.fulfill({
@@ -621,7 +621,7 @@ test.describe("Phase 5 verified-host member branding", () => {
     await page.route("**/api/**", async (route) => {
       const pathname = new URL(route.request().url()).pathname;
       if (pathname === "/api/portal/branding") {
-        if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+        await brandingGate;
         return json(route, branding);
       }
       if (pathname === "/api/auth/member/session") {
@@ -634,6 +634,10 @@ test.describe("Phase 5 verified-host member branding", () => {
   test("active verified-host branding renders only after resolution", async ({
     page,
   }) => {
+    let releaseBranding = () => {};
+    const brandingGate = new Promise<void>((resolve) => {
+      releaseBranding = resolve;
+    });
     await installPortalApi(
       page,
       {
@@ -647,11 +651,12 @@ test.describe("Phase 5 verified-host member branding", () => {
         },
         mode: "custom",
       },
-      150,
+      brandingGate,
     );
     await page.goto("/portal/login");
     await expect(page.getByText("Loading member portal…")).toBeVisible();
     await expect(page.locator(".member-brand-surface")).toHaveCount(0);
+    releaseBranding();
     await expect(
       page.getByRole("link", { name: "QA Estate Wine Club home" }),
     ).toBeVisible();

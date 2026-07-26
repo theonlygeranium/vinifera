@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "staging": {
+    "supabaseProjectRefSha256": [],
+    "cloudflareAccountIdSha256": []
+  },
+  "deniedProduction": {
+    "supabaseProjectRefSha256": [],
+    "cloudflareAccountIdSha256": []
+  },
+  "deniedProductionCustomHostnameOrigins": [
+    "vinifera.edstratumlabs.ai"
+  ]
+}

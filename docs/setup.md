@@ -8,6 +8,10 @@
 - Docker Desktop only when running the complete local Supabase stack
 - Provider credentials only when activating live integrations
 
+Hosted targets and signed releases are intentionally credential-deferred. Start
+with [hosted environment provisioning](./runbooks/hosted-environment-provisioning.md);
+production domain control and mobile distribution have separate runbooks.
+
 ## Local development
 
 ```bash
@@ -64,6 +68,10 @@ Missing provider values are an explicit activation state. The API health report 
 curl http://localhost:8787/api/health/configuration
 ```
 
+`LIVE_BILLING_ENABLED` defaults off. A live Stripe secret without that separate
+authority cannot create or confirm charges, process release billing, retry
+payments, or start a Checkout session.
+
 ## Supabase
 
 The migration source of truth is `supabase/migrations/`. Local configuration sets Auth OTP expiry to 900 seconds and points auth emails back to the local application.
@@ -82,7 +90,12 @@ SUPABASE_PROJECT_ID
 SUPABASE_DB_PASSWORD
 ```
 
-CI skips hosted migration mutation, with an explicit notice, until all three are configured. Runtime URL and API keys are insufficient for PostgreSQL DDL.
+The staging workflow uses the `STAGING_` forms of those names. It skips hosted
+mutation until all three are configured, the exact 20-character project ref is
+hash-allowlisted, and `STAGING_SUPABASE_MIGRATION_ENABLED=true`. After
+`supabase db push`, it runs `supabase test db --linked`; migration success
+without native pgTAP/RLS success is a failed activation. Runtime URL and API
+keys are insufficient for PostgreSQL DDL.
 
 After the migration is applied to a hosted project:
 
@@ -114,6 +127,10 @@ Phases 1–4 remain in Stripe test mode. Phase 5 includes the independent-brand
 billing architecture, but replacing test keys with approved live keys,
 registering live webhooks, and running a controlled real charge/refund are
 human-authorized launch operations.
+
+The controlled production Worker workflow still accepts only `sk_test_*` and
+sets `LIVE_BILLING_ENABLED=false`. Live keys, live webhook registration, and a
+controlled real charge/refund use a future, separately approved procedure.
 
 ## Phase 2 shipment processing
 
@@ -260,12 +277,14 @@ A hostname is not active until Cloudflare reports both domain-control and
 certificate activation. Winery DNS changes remain human-controlled.
 
 The checked-in Capacitor projects use `VITE_MOBILE_API_ORIGIN` only as a
-non-secret build-time HTTPS origin. The native shell defaults to the public
-Vinifera origin, so set the repository variable to an isolated HTTPS staging
-Worker before runtime QA. Mobile auth, association files, store policy, APNs,
-and FCM use the server-only bindings listed in `.env.example`. Signing files,
-Firebase application files, provisioning profiles, and store credentials remain
-local/CI secrets and must never be committed.
+non-secret build-time HTTPS origin. They have no public-origin fallback.
+Compile-only CI must use `https://unconfigured.invalid`; staging runtime QA must
+use the isolated `vinifera-staging.*.workers.dev` origin; a signed production
+build requires the explicit production profile and authorization. Mobile auth,
+association files, store policy, APNs, and FCM use the server-only bindings
+listed in `.env.example`. Signing files, Firebase application files,
+provisioning profiles, and store credentials remain protected CI secrets and
+must never be committed.
 
 Build or synchronize the native projects with:
 
@@ -283,7 +302,8 @@ compilation and shell behavior. APNs/FCM delivery and secure-storage behavior
 on physical devices, release signing, TestFlight, Play internal track, privacy
 metadata, and store
 review remain activation evidence. See
-`docs/runbooks/phase-5-provider-mobile-activation.md`.
+`docs/runbooks/phase-5-provider-mobile-activation.md` and
+`docs/runbooks/mobile-store-release.md`.
 
 ## Build and verify
 
@@ -293,6 +313,9 @@ npm run typecheck
 npm test
 npm run build
 npm run build:worker
+npm run build:worker:production
+npm run qa:mobile-release
+npm run qa:production-release
 npm run qa:db:phase2
 npm run qa:db:phase3
 npm run qa:db:phase4
@@ -321,10 +344,12 @@ not replaced before Worker activation. Reproduce that artifact locally with
 5. Build static assets and validate the Worker bundle.
 6. Run Chromium/Playwright accessibility, breakpoint, visual, and security QA.
 7. Sync, lint, and assemble the Android API 36 debug shell with Java 21.
-8. Apply Supabase migrations with pinned CLI 2.109.1 only when management
-   credentials are active.
+8. Apply Supabase migrations with pinned CLI 2.109.1 only when staging-scoped
+   management credentials and the hashed target policy are active, then run the
+   linked native pgTAP/RLS suite.
 9. Optionally deploy the isolated `vinifera-staging` Worker, attaching available
-   runtime secrets atomically to that version and verifying `/api/health`.
+   runtime secrets atomically to that version and verifying health plus the core
+   app/database/test-billing/webhook configuration capabilities.
 
 The migration and deployment jobs are skipped unless the repository variables
 `STAGING_SUPABASE_MIGRATION_ENABLED=true` and
@@ -333,7 +358,22 @@ jobs enter the protected `staging` environment and fail if its `STAGING_*`
 credentials are incomplete or not sandbox-safe. Deployment targets only the
 `vinifera-staging` Worker at its `workers.dev` address. The existing Cloudflare
 Pages custom-domain deployment remains the rollback baseline; production
-cutover is not automated and must wait for the complete hosted gate.
+cutover must wait for the complete hosted gate.
+
+Additional manual workflows provide:
+
+- a GET-only hosted-readiness report that may classify legacy generic
+  credentials but never mutates;
+- protected production Worker bootstrap, immutable version upload/deploy,
+  14-capability custom-domain cutover, Worker rollback, and Pages restoration;
+  and
+- protected signed Android/iOS builds with a separately confirmed Play
+  internal/TestFlight upload.
+
+The production target policy ships with unresolved account, zone, and Worker
+origin hashes, so it is non-operational until those exact resources are
+independently resolved and reviewed. See
+`docs/runbooks/production-cutover-rollback.md`.
 
 ## Verification surfaces
 

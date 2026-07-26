@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   issueMemberAuthLinkContext,
+  setMemberAuthLinkContextCookie,
   verifyMemberAuthLinkCallback,
   verifyMemberAuthLinkContext,
 } from "../../server/lib/member-brand-context";
@@ -12,6 +13,20 @@ const env: WorkerEnv = {
 };
 
 describe("member web auth-link context", () => {
+  it("marks hosted staging auth-link cookies Secure", () => {
+    const append = vi.fn();
+    setMemberAuthLinkContextCookie(
+      { append } as never,
+      { ...env, APP_ENV: "staging" },
+      "signed-state",
+    );
+
+    expect(append).toHaveBeenCalledWith(
+      "Set-Cookie",
+      expect.stringContaining("Secure"),
+    );
+  });
+
   it("signs and verifies the exact organization, brand, member, email, and host", async () => {
     const state = await issueMemberAuthLinkContext(env, {
       brandId: "30000000-0000-4000-8000-000000000003",

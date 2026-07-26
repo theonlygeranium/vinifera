@@ -236,3 +236,9 @@ reproducible capture command.
    comparison, and promote only if every guardrail passes.
 6. Repeat accessibility, mobile, performance, security-header, and full
    regression checks against staging before moving the custom domain.
+
+Use [Phase 4 data, ML, and benchmark activation](../runbooks/phase-4-data-ml-benchmark-activation.md)
+for the real-data evidence sequence. The hosted workflow's linked pgTAP gate
+proves native schema/RLS behavior after migration, but it does not substitute
+for real winery history, cohort size, observed cancellations, the dated A/B
+comparison, or provider round trips.

@@ -25,6 +25,24 @@
     "crons": ["0 * * * *"]
   },
   "env": {
+    "production": {
+      "name": "vinifera-production",
+      "workers_dev": true,
+      "preview_urls": true,
+      "assets": {
+        "directory": "./dist",
+        "binding": "ASSETS",
+        "html_handling": "none",
+        "not_found_handling": "none",
+        "run_worker_first": true
+      },
+      "vars": {
+        "APP_ENV": "production",
+        "APP_ORIGIN": "https://vinifera.edstratumlabs.ai",
+        "ALLOWED_ORIGINS": "https://vinifera.edstratumlabs.ai,capacitor://localhost,https://localhost",
+        "LIVE_BILLING_ENABLED": "false"
+      }
+    },
     "staging": {
       "name": "vinifera-staging",
       "assets": {

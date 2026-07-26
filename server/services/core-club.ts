@@ -13,7 +13,12 @@ import {
   type AvalaraTaxRequest,
 } from "../integrations/avalara";
 import { decryptIntegrationCredentials } from "../integrations/security";
-import { isProduction } from "../config";
+import {
+  assertAvalaraBaseUrlEnvironment,
+  assertStripeBillingAuthority,
+  stripeCredentialMode,
+  usesSecureCookies,
+} from "../config";
 import { assertStaffRole } from "../lib/authorization";
 import {
   ANALYTICS_EVENT_TYPES,
@@ -308,7 +313,7 @@ function createSurfaceClient(
       httpOnly: true,
       path: "/",
       sameSite: "lax",
-      secure: isProduction(env),
+      secure: usesSecureCookies(env),
     },
     cookies: {
       getAll() {
@@ -326,7 +331,7 @@ function createSurfaceClient(
               httpOnly: true,
               path: "/",
               sameSite: "lax",
-              secure: isProduction(env),
+              secure: usesSecureCookies(env),
             }),
           );
         }
@@ -336,6 +341,7 @@ function createSurfaceClient(
 }
 
 function createStripe(env: WorkerEnv): Stripe {
+  stripeCredentialMode(env);
   return new Stripe(requireConfigured(env.STRIPE_SECRET_KEY, "STRIPE_SECRET_KEY"), {
     apiVersion: STRIPE_API_VERSION,
     appInfo: {
@@ -1538,6 +1544,7 @@ export async function prepareAvalaraTax(
       version: 1,
     },
   );
+  assertAvalaraBaseUrlEnvironment(env, credentials.baseUrl);
   const { data: sourceValue, error: sourceError } = await admin.rpc(
     "get_avalara_shipment_source",
     {
@@ -3193,6 +3200,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
+    assertStripeBillingAuthority(this.env);
     const stripe = createStripe(this.env);
     const { data: processingRelease, error: processingError } = await this.admin
       .from("releases")
@@ -3369,6 +3377,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
+    assertStripeBillingAuthority(this.env);
     const shipment = await this.getPaymentShipment(
       shipmentId,
       organizationId,
@@ -3392,6 +3401,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const principal = await this.requireStaff(["owner", "admin"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
+    assertStripeBillingAuthority(this.env);
     const { data: shipment, error } = await this.admin
       .from("shipments")
       .select(
@@ -4525,6 +4535,7 @@ export class ProductionCoreClubService implements CoreClubService {
     principal: StaffPrincipal,
     source: "release_processing" | "manual_retry",
   ): Promise<"charged" | "declined" | "skipped"> {
+    assertStripeBillingAuthority(this.env);
     if (!["pending", "declined"].includes(shipment.status)) return "skipped";
     const organizationId = this.organizationId(principal);
     const member = oneRelation(shipment.members);
@@ -4874,6 +4885,7 @@ async function chargeSystemShipment(
     idempotencyKey: string;
   },
 ): Promise<"charged" | "declined"> {
+  assertStripeBillingAuthority(env);
   const member = oneRelation(shipment.members);
   if (
     !member ||
@@ -5066,6 +5078,7 @@ export async function runCoreClubSchedule(
   env: WorkerEnv,
   asOf = new Date(),
 ): Promise<CoreClubScheduleReport> {
+  assertStripeBillingAuthority(env);
   const admin = createAdminClient(env);
   const stripe = createStripe(env);
   const report: CoreClubScheduleReport = {

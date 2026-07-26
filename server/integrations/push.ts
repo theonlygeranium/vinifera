@@ -1,5 +1,6 @@
 import { AppError, requireConfigured } from "../lib/errors";
 import type { WorkerEnv } from "../types";
+import { assertProviderEnvironment } from "../config";
 import {
   providerRequest,
   requestIntegrationJson,
@@ -331,12 +332,25 @@ export function createApnsPushClient(env: WorkerEnv): ApnsPushClient {
       "APNS_BUNDLE_ID must match MOBILE_IOS_BUNDLE_ID.",
     );
   }
+  const configuredEnvironment = requireConfigured(
+    env.APNS_ENVIRONMENT,
+    "APNS_ENVIRONMENT",
+  );
+  if (
+    configuredEnvironment !== "production" &&
+    configuredEnvironment !== "sandbox"
+  ) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "APNS_ENVIRONMENT must be sandbox or production.",
+    );
+  }
+  const environment = configuredEnvironment;
+  assertProviderEnvironment(env, "APNs", environment);
   return new ApnsPushClient({
     bundleId,
-    environment: requireConfigured(
-      env.APNS_ENVIRONMENT,
-      "APNS_ENVIRONMENT",
-    ) as "production" | "sandbox",
+    environment,
     keyId: requireConfigured(env.APNS_KEY_ID, "APNS_KEY_ID"),
     privateKey: requireConfigured(env.APNS_PRIVATE_KEY, "APNS_PRIVATE_KEY"),
     teamId: requireConfigured(env.APNS_TEAM_ID, "APNS_TEAM_ID"),

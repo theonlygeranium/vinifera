@@ -52,6 +52,10 @@ connection-ready source architecture:
 - GitHub-hosted CI with conditional migrations, an isolated
   `vinifera-staging` Worker deployment, Android lint/debug/minified-release,
   and Playwright/axe QA
+- Credential-independent hosted release controls: GET-only readiness, hashed
+  staging/production target authorization, linked hosted pgTAP/RLS, a retained
+  Pages rollback controller, and ephemeral signed mobile/internal-track
+  workflows
 
 The Worker is connection-ready but must not replace the Pages custom-domain
 baseline until the hosted Supabase, Stripe, provider, DNS, physical-device, and
@@ -111,7 +115,13 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   dry-run, browser QA, Java 21/Android API 36 lint plus debug/R8 release APK
   assembly, and pinned Supabase CLI 2.109.1.
 - Optional Worker deployment targets only the isolated `vinifera-staging`
-  environment and attaches available secrets atomically to that version.
+  environment, requires hash-authorized targets, runs hosted pgTAP/RLS, attaches
+  available secrets atomically, and requires the core configuration report.
+- Production Worker bootstrap/version/deploy/domain/rollback/Pages restore is
+  wired as a protected manual workflow. Account, zone, and Worker-origin hashes
+  remain empty, so no production mutation can run yet.
+- Signed Android/iOS build and Play internal/TestFlight delivery are wired as a
+  protected manual workflow. Normal CI remains explicitly compile-only.
 - The current Phase 5 evidence and any remaining local checks belong in
   `docs/build-specs/phase-5-qa-report.md`; do not copy pending checks here as
   passes.
@@ -127,11 +137,13 @@ criterion can pass.
 The code must remain fail-closed until these external connections are active:
 
 1. Add staging-environment Supabase management credentials, then set the
-   repository variable `STAGING_SUPABASE_MIGRATION_ENABLED=true` to apply
-   `supabase/migrations/`.
+   exact project hash and repository variable
+   `STAGING_SUPABASE_MIGRATION_ENABLED=true` to apply `supabase/migrations/`
+   and run `supabase test db --linked`.
 2. Give the staging Cloudflare token Workers Scripts edit permission and set
-   the repository variable `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` only for
-   the isolated `vinifera-staging` Worker.
+   the exact account hash plus repository variable
+   `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` only for the isolated
+   `vinifera-staging` Worker.
 3. Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP.
 4. Add Stripe recurring test Price IDs, register `/api/billing/webhook`, and add its signing secret.
 5. Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled.
@@ -167,6 +179,11 @@ The code must remain fail-closed until these external connections are active:
 20. Move the production custom domain only after every hosted exit criterion is
     evidenced.
 
+Credential and target setup details are in
+`docs/runbooks/hosted-environment-provisioning.md`. Domain rollback is in
+`docs/runbooks/production-cutover-rollback.md`; signed distribution is in
+`docs/runbooks/mobile-store-release.md`.
+
 See `.env.example` and `docs/setup.md` for exact variable names. Never print or commit values.
 
 ## Build and QA
@@ -178,6 +195,9 @@ npm run typecheck
 npm test
 npm run build
 npm run build:worker
+npm run build:worker:production
+npm run qa:mobile-release
+npm run qa:production-release
 npm run qa:db:phase2
 npm run qa:db:phase3
 npm run qa:db:phase4

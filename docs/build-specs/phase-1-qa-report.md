@@ -30,6 +30,8 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 | Browser credential storage | Pass | no local/session storage keys or server secrets |
 | Database migration | Pass in embedded PostgreSQL | bootstrap, invite, limiter, Stripe transitions, reconciliation, cross-tenant RLS |
 | pgTAP suites | Ready | 92 plan-balanced assertions; native Supabase run pending |
+| Hosted activation controls | Pass in source | Staging target hashes fail closed; linked pgTAP and core Worker configuration are mandatory when activated |
+| Production release/rollback control | Pass in source | First bootstrap has no route; custom-domain movement retains Pages and requires all Phase 1–5 capabilities |
 
 ## Functional gate
 
@@ -67,9 +69,13 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 
 ## Deferred activation checklist
 
-- [ ] Add `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, and `SUPABASE_DB_PASSWORD`.
-- [ ] Replace or expand the Cloudflare token with Workers Scripts edit permission, then set `CLOUDFLARE_WORKERS_DEPLOY_ENABLED=true`.
-- [ ] Apply the migration to the hosted Supabase project and run `supabase test db`.
+- [ ] Add staging-scoped `STAGING_SUPABASE_ACCESS_TOKEN`,
+      `STAGING_SUPABASE_PROJECT_ID`, and `STAGING_SUPABASE_DB_PASSWORD`.
+- [ ] Review and commit the exact staging Supabase and Cloudflare target hashes.
+- [ ] Replace or expand the staging Cloudflare token with Workers Scripts edit
+      permission, then set `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true`.
+- [ ] Apply the migration to the hosted Supabase project and run
+      `supabase test db --linked`.
 - [ ] Enable the custom access-token hook, Google OAuth, SMTP, production redirect URLs, and 900-second OTP expiry.
 - [ ] Add four Stripe recurring test Price IDs.
 - [ ] Register the Worker webhook endpoint and add `STRIPE_WEBHOOK_SECRET`.
@@ -79,6 +85,12 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 - [ ] Verify the deployed Worker at 375, 768, and 1440 and confirm HTTPS/security headers.
 - [ ] Cut over the custom domain only after every item above passes.
 
+Follow [Phase 1 hosted activation](../runbooks/phase-1-hosted-activation.md)
+and the cross-phase
+[hosted environment runbook](../runbooks/hosted-environment-provisioning.md).
+The checked-in empty target arrays make this checklist connection-ready but
+non-operational until independently resolved resources are approved.
+
 ## Commands
 
 ```bash
@@ -87,5 +99,6 @@ npm run typecheck
 npm test
 npm run build
 npm run build:worker
+npm run build:worker:production
 npm run qa:e2e
 ```

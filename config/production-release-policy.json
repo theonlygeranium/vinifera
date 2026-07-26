@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "workerEnvironment": "production",
+  "workerName": "vinifera-production",
+  "confirmations": {
+    "bootstrap": "BOOTSTRAP VINIFERA PRODUCTION WORKER",
+    "upload": "UPLOAD VINIFERA PRODUCTION VERSION",
+    "deploy": "DEPLOY VINIFERA PRODUCTION VERSION",
+    "cutover": "CUT OVER VINIFERA DOMAIN TO WORKER",
+    "rollback": "ROLL BACK VINIFERA PRODUCTION WORKER",
+    "restore-pages": "RESTORE VINIFERA DOMAIN TO PAGES"
+  },
+  "targetHashes": {
+    "cloudflareAccountIdSha256": [],
+    "cloudflareZoneIdSha256": [],
+    "pagesProjectNameSha256": [
+      "46137f70f603721b44582f51743bdf2dea974b70111c7cd539d8cf613a453303"
+    ],
+    "customHostnameSha256": [
+      "74b789f2e45dd58efa3e97ea8e4f862cdaa4f7799a0f03db2b21d31f79685d9b"
+    ],
+    "workerNameSha256": [
+      "be82de059c089a036247e5744a20e32fc5b9bd9bb3c575b3826f12a77271ad2e"
+    ],
+    "workerOriginSha256": []
+  },
+  "requiredSecrets": [
+    "MEMBER_BRAND_CONTEXT_SECRET",
+    "RATE_LIMIT_PEPPER",
+    "STRIPE_PRICE_CELLAR",
+    "STRIPE_PRICE_ESTATE",
+    "STRIPE_PRICE_RESERVE",
+    "STRIPE_PRICE_VINE",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "SUPABASE_URL"
+  ],
+  "requiredSecretGroups": [
+    {
+      "label": "Supabase public credential",
+      "anyOf": [
+        "SUPABASE_PUBLISHABLE_KEY",
+        "SUPABASE_ANON_KEY"
+      ]
+    },
+    {
+      "label": "Supabase server credential",
+      "anyOf": [
+        "SUPABASE_SECRET_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY"
+      ]
+    }
+  ],
+  "optionalSecrets": [
+    "APNS_BUNDLE_ID",
+    "APNS_ENVIRONMENT",
+    "APNS_KEY_ID",
+    "APNS_PRIVATE_KEY",
+    "APNS_TEAM_ID",
+    "AUTH_EMAIL_ENABLED",
+    "CLOUDFLARE_CUSTOM_HOSTNAME_API_TOKEN",
+    "CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN",
+    "CLOUDFLARE_ZONE_ID",
+    "COMPLIANCE_PROVIDER",
+    "COMPLIANCE_SIMULATOR_ENABLED",
+    "EASYPOST_API_KEY",
+    "EMAIL_PROVIDER",
+    "EMAIL_SIMULATOR_ENABLED",
+    "FCM_CLIENT_EMAIL",
+    "FCM_PRIVATE_KEY",
+    "FCM_PROJECT_ID",
+    "GOOGLE_OAUTH_ENABLED",
+    "INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION",
+    "INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS",
+    "MOBILE_ANDROID_LATEST_VERSION",
+    "MOBILE_ANDROID_MINIMUM_VERSION",
+    "MOBILE_ANDROID_PACKAGE_NAME",
+    "MOBILE_ANDROID_SIGNING_CERT_SHA256",
+    "MOBILE_ANDROID_STORE_URL",
+    "MOBILE_APPLE_TEAM_ID",
+    "MOBILE_AUTH_EMAIL_TEMPLATE_ENABLED",
+    "MOBILE_AUTH_STATE_SIGNING_SECRET",
+    "MOBILE_IOS_BUNDLE_ID",
+    "MOBILE_IOS_LATEST_VERSION",
+    "MOBILE_IOS_MINIMUM_VERSION",
+    "MOBILE_IOS_STORE_URL",
+    "QUICKBOOKS_CLIENT_ID",
+    "QUICKBOOKS_CLIENT_SECRET",
+    "QUICKBOOKS_ENVIRONMENT",
+    "QUICKBOOKS_REDIRECT_URI",
+    "QUICKBOOKS_STATE_SIGNING_SECRET",
+    "RESEND_API_KEY",
+    "RESEND_DOMAIN_VERIFIED",
+    "RESEND_FROM",
+    "RESEND_SENDING_DOMAIN",
+    "RESEND_WEBHOOK_SECRET",
+    "SHIPCOMPLIANT_ACCOUNT_ID",
+    "SHIPCOMPLIANT_API_KEY",
+    "SHIPCOMPLIANT_API_SECRET",
+    "SHIPCOMPLIANT_BASE_URL",
+    "SHIPCOMPLIANT_CHECK_PATH",
+    "SHIPCOMPLIANT_CONTRACT_VERSION",
+    "SHIPCOMPLIANT_LICENSE_ID",
+    "SHIPCOMPLIANT_TOKEN_PATH",
+    "SHIPPING_ALLOWED_STATES",
+    "SHIPPING_PROVIDER",
+    "SHIPPING_SIMULATOR_ENABLED",
+    "SUPABASE_ANON_KEY",
+    "SUPABASE_PUBLISHABLE_KEY",
+    "SUPABASE_SECRET_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "UNSUBSCRIBE_SIGNING_SECRET"
+  ],
+  "coreHealthCapabilities": [
+    "app",
+    "database",
+    "billing",
+    "webhook"
+  ],
+  "cutoverHealthCapabilities": [
+    "app",
+    "database",
+    "billing",
+    "compliance",
+    "communications",
+    "customDomains",
+    "webhook",
+    "googleOAuth",
+    "email",
+    "integrationEncryption",
+    "mobile",
+    "quickBooksOAuth",
+    "push",
+    "shipping"
+  ],
+  "liveBilling": {
+    "enabled": false,
+    "activationPath": "separate-human-approved-live-billing-cutover"
+  }
+}

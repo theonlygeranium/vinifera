@@ -15,9 +15,7 @@ const SESSION_KEY = "member-session";
 const BOOTSTRAP_KEY = "member-bootstrap";
 const DEVICE_FINGERPRINT_KEY = "device-fingerprint";
 const SESSION_MARKER = "vinifera.native-session-present";
-const MOBILE_API_ORIGIN =
-  import.meta.env.VITE_MOBILE_API_ORIGIN?.trim() ||
-  "https://vinifera.edstratumlabs.ai";
+const MOBILE_API_ORIGIN = import.meta.env.VITE_MOBILE_API_ORIGIN?.trim();
 
 let accessToken: string | null = null;
 let sessionExpiresAt = 0;
@@ -82,9 +80,22 @@ function requireNative() {
 }
 
 function apiUrl(path: `/api/${string}`) {
+  if (!MOBILE_API_ORIGIN) {
+    throw new Error("The native API origin is not configured.");
+  }
   const origin = new URL(MOBILE_API_ORIGIN);
-  if (origin.protocol !== "https:") {
-    throw new Error("The native API origin must use HTTPS.");
+  if (
+    origin.protocol !== "https:" ||
+    origin.username ||
+    origin.password ||
+    origin.port ||
+    origin.pathname !== "/" ||
+    origin.search ||
+    origin.hash
+  ) {
+    throw new Error(
+      "The native API origin must be a credential-free HTTPS origin.",
+    );
   }
   return new URL(path, origin).toString();
 }

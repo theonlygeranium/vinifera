@@ -8,8 +8,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Added a GET-only hosted-readiness workflow that classifies staging versus
+  generic Cloudflare, Supabase, and Stripe test credentials without retaining
+  values, provider bodies, URLs, or identifiers.
+- Added hashed staging and production target policies whose empty unresolved
+  arrays block mutation before any provider write.
+- Added linked hosted Supabase pgTAP/RLS execution and a sanitized staging
+  Worker verifier for the core app, database, Stripe test billing, and webhook
+  capabilities.
+- Added a protected manual production Worker controller for first bootstrap,
+  immutable version upload/deploy, full-capability domain cutover, Worker
+  rollback, and non-destructive Pages restoration.
+- Added a protected signed mobile-release controller for ephemeral Android/iOS
+  signing, signature verification, Google Play internal edit transactions, and
+  internal-only TestFlight upload.
+- Added the credential-gated release ADR plus Phase 1, Phase 4, environment
+  provisioning, production cutover/rollback, and signed mobile runbooks.
+
 ### Changed
 
+- Removed the implicit native production-origin fallback. Compile-only,
+  isolated staging, and explicitly authorized production builds now have
+  distinct fail-closed profiles and artifact labels.
+- Made hosted migration success contingent on the repository's native pgTAP
+  suites and made staging Worker success contingent on the JSON configuration
+  contract, not only an HTTP 200 health response.
+- Added a named route-free `vinifera-production` Wrangler environment that
+  stays on `workers.dev` until the separate domain operation is approved.
+- Made Android `bundleRelease` require complete environment-backed signing
+  while retaining unsigned `assembleRelease` for compile-only CI.
 - Aligned the Phase 5 build specification with the implemented source
   architecture, including credential ownership, additive non-null brand
   backfill, and signed-store mobile updates.
@@ -19,10 +48,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   database, browser, visual, security, iOS simulator, and local Android
   lint/debug/R8 evidence while keeping hosted providers, signing/FCM, store
   tracks, and live payments explicitly deferred.
-- Recorded the final Phase 5 gates: 115/115 application tests, 167/167 Phase 5
+- Recorded the final Phase 5 gates: 174/174 application tests, 167/167 Phase 5
   database assertions plus complete Phase 2–4 database regressions, 122/122
   browser tests with zero axe violations, and the reproducible Android debug,
   unsigned release, and R8 mapping hashes.
+- Replaced a timer-dependent Phase 5 loading assertion with a controlled
+  request gate, then passed the complete 122-test browser suite with retries
+  disabled.
 - Closed the Android lint/R8 gates by declaring camera hardware optional,
   supplying ionbarcode's Gson 2.10.1 runtime dependency, modernizing Gradle
   assignments, and bounding release-build memory and worker concurrency.
@@ -32,12 +64,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- Enforced Secure cookies in hosted staging as well as production.
+- Rejected Stripe live credentials outside production and required the
+  independent, default-off `LIVE_BILLING_ENABLED` authority for every Checkout
+  and shipment charge/refund/retry/schedule path.
+- Rejected QuickBooks production, Avalara production, and APNs production
+  endpoints outside `APP_ENV=production`; Avalara now accepts only canonical
+  sandbox or production origins.
+- Kept production release Stripe test-only, required all 14 configuration
+  capabilities before domain movement, retained an active Pages rollback
+  target, and added automatic inverse restoration on failed cutover.
+- Bound signed mobile artifacts to an immutable commit on `main`, validated the
+  Android upload certificate fingerprint, restricted store delivery to fixed
+  internal targets, and removed decoded signing material in always-run cleanup.
+- Pinned every CI, readiness, production-control, and mobile-release GitHub
+  Action to an immutable commit.
 - Added durable QuickBooks/Avalara refund checkpoints and crash reconciliation,
   including exact 4,863 + 4,862 = 9,725 cent convergence and SHA-256-derived
   Intuit request IDs.
 - Expanded regression coverage for service-only privileges and exact-context
   HMAC authentication of web magic-link organization, brand, redirect, and
   member context.
+
+### Deferred
+
+- Hosted target IDs/hashes, staging-scoped provider credentials, production
+  control-plane credentials, native signing credentials, store authority,
+  provider round trips, physical-device QA, and Stripe live approval remain
+  external activation work. The new workflows intentionally fail closed until
+  each input is supplied and reviewed.
 
 ## [0.5.0] — 2026-07-26
 

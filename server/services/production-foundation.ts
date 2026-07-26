@@ -6,7 +6,12 @@ import {
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Request, Response } from "express";
 import Stripe from "stripe";
-import { getConfigurationReport, isProduction } from "../config";
+import {
+  assertStripeBillingAuthority,
+  getConfigurationReport,
+  stripeCredentialMode,
+  usesSecureCookies,
+} from "../config";
 import { assertStaffRole } from "../lib/authorization";
 import { AppError, requireConfigured } from "../lib/errors";
 import {
@@ -98,7 +103,7 @@ function appendAuthCookie(
       httpOnly: true,
       path: "/",
       sameSite: "lax",
-      secure: isProduction(env),
+      secure: usesSecureCookies(env),
     }),
   );
 }
@@ -137,7 +142,7 @@ function createSurfaceClient(
       httpOnly: true,
       path: "/",
       sameSite: "lax",
-      secure: isProduction(env),
+      secure: usesSecureCookies(env),
     },
     cookies: {
       getAll() {
@@ -166,6 +171,7 @@ function createAdminClient(env: WorkerEnv): SupabaseClient {
 }
 
 function createStripe(env: WorkerEnv): Stripe {
+  stripeCredentialMode(env);
   return new Stripe(requireConfigured(env.STRIPE_SECRET_KEY, "STRIPE_SECRET_KEY"), {
     apiVersion: STRIPE_API_VERSION,
     appInfo: {
@@ -737,6 +743,7 @@ export class ProductionFoundationService
     if (!principal.organization) {
       throw new AppError(403, "forbidden", "Platform operators do not have winery billing.");
     }
+    assertStripeBillingAuthority(this.env);
 
     const brandId = await this.activeBrandId(principal, undefined, true);
     const { data: brand, error: brandError } = await this.admin

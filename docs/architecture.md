@@ -35,6 +35,10 @@ The existing Pages custom-domain deployment remains the live baseline until the
 new Worker application passes the complete Phase 1–5 hosted activation and QA
 gates.
 
+Credential availability is not deployment authorization. Staging and
+production mutations require protected GitHub environments plus hashed target
+allowlists; empty target arrays fail before a provider mutation.
+
 Cloudflare Pages injects `CF_PAGES=1`. In that environment the build also copies
 the original extensionless `app` prototype, so the Git-integrated Pages project
 continues serving the verified rollback surface. Worker builds omit that file
@@ -213,17 +217,32 @@ GitHub-hosted CI uses Node 22.22.0 to install the lockfile, audit dependencies,
 type-check, run service/browser tests and Phase 2–5 database gates, build assets,
 and validate the Worker bundle. A separate Java 21/API 36 job synchronizes,
 lints, and assembles Android debug and R8-minified release shells. On `main`,
-CI conditionally applies migrations with pinned Supabase CLI 2.109.1. Optional
-deployment targets the
-isolated `vinifera-staging` Worker, attaches available secrets atomically to that
-version, and verifies its `workers.dev` health response. It does not move the
-production custom domain.
+CI conditionally applies migrations with pinned Supabase CLI 2.109.1, then runs
+the linked native pgTAP/RLS suite. Optional deployment targets the isolated
+`vinifera-staging` Worker, attaches available secrets atomically to that
+version, and verifies its `workers.dev` health plus core configuration report.
+It does not move the production custom domain.
+
+Manual protected workflows add three non-overlapping control planes:
+
+```text
+read-only readiness ──> credential/permission/table classifications only
+production release ──> Worker bootstrap/version/deploy/domain/Pages restore
+mobile release ──────> immutable signed AAB/IPA ──> optional internal tracks
+```
+
+Production Worker bootstrap contains no route or custom-domain declaration.
+Public cutover requires all Phase 1–5 configuration capabilities and retains
+the active Pages project for automatic/manual restoration. The release
+controller enforces Stripe test mode and cannot enable live billing.
 
 ---
 
 ## Security boundaries
 
 - Staff and member Supabase sessions use different secure, `httpOnly` cookies.
+- Hosted staging and production cookies are always `Secure`; local
+  development/test cookies retain the explicit non-HTTPS development behavior.
 - The browser calls only the same-origin Express API; JWTs and secret keys never enter local storage.
 - All state-changing browser requests require an allowlisted `Origin`.
 - Worker secrets contain Supabase, Stripe, provider-application, signing, and
@@ -236,8 +255,16 @@ production custom domain.
   instead of treating an RLS bypass as staff authority.
 - Custom JWT claims are derived by a database auth hook, not editable user metadata.
 - Stripe webhooks use raw bodies, signature verification, unique event IDs, and out-of-order event protection.
+- Stripe secret format and environment are validated at runtime. Live
+  credentials are rejected outside production, and live charge/Checkout paths
+  require the independent `LIVE_BILLING_ENABLED=true` authority.
+- Production QuickBooks, Avalara, and APNs endpoints are rejected outside
+  `APP_ENV=production`; Avalara accepts only its canonical sandbox or production
+  origin.
 - Native refresh tokens are hashed/rotating and push tokens are encrypted;
   Keychain/Keystore-backed storage holds native session and offline data.
+- Native bundles have no implicit API-origin fallback. Compile-only, isolated
+  staging, and explicitly authorized production profiles are distinct.
 - Missing provider credentials fail closed with `activation_required`.
 
 ---

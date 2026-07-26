@@ -1,5 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import mobileIdentity from "../../mobile/app-identity.json";
+import {
+  assertAvalaraBaseUrlEnvironment,
+  assertProviderEnvironment,
+} from "../config";
 import { AppError, requireConfigured } from "../lib/errors";
 import type {
   IntegrationService,
@@ -376,6 +380,7 @@ function qboConfiguration(env: WorkerEnv): QuickBooksOAuthConfiguration {
       "The QuickBooks environment is invalid.",
     );
   }
+  assertProviderEnvironment(env, "QuickBooks", environment);
   return {
     clientId: requireConfigured(env.QUICKBOOKS_CLIENT_ID, "QUICKBOOKS_CLIENT_ID"),
     clientSecret: requireConfigured(
@@ -726,6 +731,7 @@ export class ProductionIntegrationService
           "Choose the Avalara sandbox or production environment.",
         );
       }
+      assertProviderEnvironment(this.env, "Avalara", environment);
       const normalized = {
         accountId: syncConfig.accountId,
         baseUrl:
@@ -855,6 +861,9 @@ export class ProductionIntegrationService
       );
     }
     const config = input.syncConfig ?? {};
+    if (type === "avalara" && config.environment === "production") {
+      assertProviderEnvironment(this.env, "Avalara", "production");
+    }
     if (hasSecretKey(config) || byteLength(config) > 32_768) {
       throw new AppError(
         400,
@@ -950,6 +959,12 @@ export class ProductionIntegrationService
       );
     }
     if (input.syncConfig) {
+      if (
+        type === "avalara" &&
+        input.syncConfig.environment === "production"
+      ) {
+        assertProviderEnvironment(this.env, "Avalara", "production");
+      }
       if (hasSecretKey(input.syncConfig) || byteLength(input.syncConfig) > 32_768) {
         throw new AppError(400, "invalid_request", "Integration configuration is unsafe.");
       }
@@ -2845,8 +2860,10 @@ async function providerForJob(
     };
   }
   if (job.integration_type === "avalara") {
+    const credentials = runtime.credentials as unknown as AvalaraCredentials;
+    assertAvalaraBaseUrlEnvironment(env, credentials.baseUrl);
     return {
-      client: new AvalaraClient(runtime.credentials as unknown as AvalaraCredentials),
+      client: new AvalaraClient(credentials),
       syncConfig: runtime.syncConfig,
     };
   }

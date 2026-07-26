@@ -20,10 +20,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out source
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Use Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22.22.0
           cache: npm
@@ -61,7 +61,7 @@ jobs:
 
       - name: Upload QA evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: playwright-evidence
           path: |
@@ -82,23 +82,23 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out source
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Use Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22.22.0
           cache: npm
 
       - name: Use Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: temurin
           java-version: 21
           cache: gradle
 
       - name: Configure Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
 
       - name: Install Android SDK 36
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
@@ -111,10 +111,14 @@ jobs:
 
       - name: Build native web bundle and synchronize Android
         env:
-          VITE_MOBILE_API_ORIGIN: ${{ vars.VITE_MOBILE_API_ORIGIN }}
+          MOBILE_BUILD_PROFILE: ${{ vars.VITE_MOBILE_API_ORIGIN && 'staging-runtime' || 'compile-only' }}
+          MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "false"
+          VITE_MOBILE_API_ORIGIN: ${{ vars.VITE_MOBILE_API_ORIGIN || 'https://unconfigured.invalid' }}
         run: |
-          if [[ -z "$VITE_MOBILE_API_ORIGIN" ]]; then
-            echo "::notice::VITE_MOBILE_API_ORIGIN is unset; this APK is compile-only and uses the checked-in public-origin fallback. Set the repository variable before runtime QA."
+          if [[ "$MOBILE_BUILD_PROFILE" == "compile-only" ]]; then
+            echo "::notice::Android artifacts are compile-only and use the non-routable https://unconfigured.invalid API origin. They are not runtime QA evidence."
+          else
+            echo "::notice::Android artifacts are staging-runtime QA candidates; native preparation will reject any origin except the isolated vinifera-staging workers.dev target."
           fi
           npm run build:mobile:web
           npx cap sync android
@@ -124,9 +128,9 @@ jobs:
 
       - name: Upload Android evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: android-debug-evidence
+          name: android-${{ vars.VITE_MOBILE_API_ORIGIN && 'staging-runtime-qa' || 'compile-only' }}-evidence
           path: |
             android/app/build/outputs/apk/debug/*.apk
             android/app/build/outputs/apk/release/*.apk
@@ -147,6 +151,11 @@ jobs:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.22.0
+
       - name: Detect migration activation
         id: activation
         shell: bash
@@ -163,6 +172,12 @@ jobs:
             exit 1
           fi
 
+      - name: Verify allowlisted staging Supabase target
+        if: steps.activation.outputs.ready == 'true'
+        env:
+          SUPABASE_PROJECT_ID: ${{ secrets.STAGING_SUPABASE_PROJECT_ID }}
+        run: node scripts/verify-staging-activation.mjs verify-target supabase
+
       - name: Install Supabase CLI
         if: steps.activation.outputs.ready == 'true'
         uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
@@ -178,6 +193,7 @@ jobs:
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_ID"
           supabase db push
+          supabase test db --linked
 
   deploy-staging:
     name: Deploy Worker when activated
@@ -200,7 +216,6 @@ jobs:
           APNS_ENVIRONMENT: ${{ secrets.STAGING_APNS_ENVIRONMENT }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.STAGING_CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN: ${{ secrets.STAGING_CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN }}
           QUICKBOOKS_ENVIRONMENT: ${{ secrets.STAGING_QUICKBOOKS_ENVIRONMENT }}
           STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
         run: |
@@ -214,10 +229,6 @@ jobs:
           fi
           if [[ -n "$APNS_ENVIRONMENT" && "$APNS_ENVIRONMENT" != "sandbox" ]]; then
             echo "::error::The staging Worker accepts only APNS_ENVIRONMENT=sandbox."
-            exit 1
-          fi
-          if [[ "$CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN" == "vinifera.edstratumlabs.ai" || "$CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN" == "https://vinifera.edstratumlabs.ai" ]]; then
-            echo "::error::The production custom-hostname origin cannot be used by staging."
             exit 1
           fi
           if [[ -n "$CLOUDFLARE_ACCOUNT_ID" && -n "$CLOUDFLARE_API_TOKEN" ]]; then
@@ -234,6 +245,15 @@ jobs:
         with:
           node-version: 22.22.0
           cache: npm
+
+      - name: Verify allowlisted staging Cloudflare target and hostname origin
+        if: steps.activation.outputs.ready == 'true'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.STAGING_CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN: ${{ secrets.STAGING_CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN }}
+        run: |
+          node scripts/verify-staging-activation.mjs verify-target cloudflare
+          node scripts/verify-staging-activation.mjs verify-custom-hostname-origin
 
       - name: Install and build
         if: steps.activation.outputs.ready == 'true'
@@ -414,14 +434,26 @@ jobs:
             echo "::error::Wrangler did not report an isolated workers.dev staging URL."
             exit 1
           fi
-          curl --fail --retry 5 --retry-all-errors --retry-delay 2 "$staging_url/api/health" | tee "$RUNNER_TEMP/vinifera-staging-health.json"
-          jq -e '.data.service == "vinifera-api" and .data.status == "ok"' "$RUNNER_TEMP/vinifera-staging-health.json"
+          node scripts/verify-hosted-runtime.mjs \
+            --origin "$staging_url" \
+            --output "$RUNNER_TEMP/vinifera-staging-runtime.json"
           echo "### Staging Worker" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL: $staging_url" >> "$GITHUB_STEP_SUMMARY"
           echo "- Runtime secrets uploaded with this version: ${{ steps.worker-secrets.outputs.count }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Core app, database, Stripe test billing, and webhook capabilities: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Native hosted pgTAP/RLS gate: passed in the database job" >> "$GITHUB_STEP_SUMMARY"
           echo "- Production custom-domain cutover: deferred and human-controlled" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove temporary Worker secret bundle
         if: always() && steps.worker-secrets.outputs.path != ''
         shell: bash
         run: rm -f "${{ steps.worker-secrets.outputs.path }}"
+
+      - name: Upload sanitized staging runtime evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: staging-runtime-evidence
+          path: ${{ runner.temp }}/vinifera-staging-runtime.json
+          if-no-files-found: ignore
+          retention-days: 14

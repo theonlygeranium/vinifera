@@ -3,6 +3,11 @@ import type {
   ConfigurationReport,
   WorkerEnv,
 } from "./types";
+import { AppError, requireConfigured } from "./lib/errors";
+
+export type ProviderEnvironment = "live" | "production" | "sandbox" | "test";
+export type ProtectedProvider = "APNs" | "Avalara" | "QuickBooks" | "Stripe";
+export type StripeCredentialMode = "live" | "test";
 
 function capability(env: WorkerEnv, names: Array<keyof WorkerEnv>): ConfigurationCapability {
   const missing = names.filter((name) => !env[name]).map(String);
@@ -21,6 +26,29 @@ export function getAllowedOrigins(env: WorkerEnv): string[] {
 }
 
 export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
+  const billing = capability(env, [
+    "STRIPE_SECRET_KEY",
+    "STRIPE_PRICE_VINE",
+    "STRIPE_PRICE_CELLAR",
+    "STRIPE_PRICE_ESTATE",
+    "STRIPE_PRICE_RESERVE",
+  ]);
+  if (env.STRIPE_SECRET_KEY) {
+    try {
+      if (
+        stripeCredentialMode(env) === "live" &&
+        env.LIVE_BILLING_ENABLED !== "true"
+      ) {
+        billing.configured = false;
+        billing.missing.push("LIVE_BILLING_ENABLED");
+      }
+    } catch {
+      billing.configured = false;
+      if (!billing.missing.includes("STRIPE_SECRET_KEY")) {
+        billing.missing.push("STRIPE_SECRET_KEY");
+      }
+    }
+  }
   const compliance =
     env.COMPLIANCE_PROVIDER === "shipcompliant"
       ? capability(env, [
@@ -138,13 +166,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
       env.SUPABASE_PUBLISHABLE_KEY ? "SUPABASE_PUBLISHABLE_KEY" : "SUPABASE_ANON_KEY",
       env.SUPABASE_SECRET_KEY ? "SUPABASE_SECRET_KEY" : "SUPABASE_SERVICE_ROLE_KEY",
     ]),
-    billing: capability(env, [
-      "STRIPE_SECRET_KEY",
-      "STRIPE_PRICE_VINE",
-      "STRIPE_PRICE_CELLAR",
-      "STRIPE_PRICE_ESTATE",
-      "STRIPE_PRICE_RESERVE",
-    ]),
+    billing,
     compliance,
     communications,
     customDomains: capability(env, [
@@ -200,4 +222,82 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
 
 export function isProduction(env: WorkerEnv): boolean {
   return env.APP_ENV === "production";
+}
+
+export function usesSecureCookies(env: WorkerEnv): boolean {
+  return env.APP_ENV === "staging" || isProduction(env);
+}
+
+export function assertProviderEnvironment(
+  env: WorkerEnv,
+  provider: ProtectedProvider,
+  environment: ProviderEnvironment,
+): void {
+  if (
+    (environment === "live" || environment === "production") &&
+    !isProduction(env)
+  ) {
+    throw new AppError(
+      503,
+      "activation_required",
+      `${provider} production mode requires APP_ENV=production.`,
+    );
+  }
+}
+
+export function stripeCredentialMode(env: WorkerEnv): StripeCredentialMode {
+  const secretKey = requireConfigured(env.STRIPE_SECRET_KEY, "STRIPE_SECRET_KEY");
+  const match = secretKey.match(/^(?:rk|sk)_(live|test)_/);
+  if (!match) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "STRIPE_SECRET_KEY must be a Stripe test or live secret key.",
+    );
+  }
+  const mode = match[1] as StripeCredentialMode;
+  assertProviderEnvironment(env, "Stripe", mode);
+  return mode;
+}
+
+export function assertStripeBillingAuthority(env: WorkerEnv): void {
+  if (
+    stripeCredentialMode(env) === "live" &&
+    env.LIVE_BILLING_ENABLED !== "true"
+  ) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "Live Stripe billing requires LIVE_BILLING_ENABLED=true.",
+    );
+  }
+}
+
+export function assertAvalaraBaseUrlEnvironment(
+  env: WorkerEnv,
+  baseUrl: string,
+): void {
+  let origin: string;
+  try {
+    origin = new URL(baseUrl).origin;
+  } catch {
+    throw new AppError(
+      503,
+      "activation_required",
+      "The Avalara endpoint is invalid.",
+    );
+  }
+  if (origin === "https://sandbox-rest.avatax.com") {
+    assertProviderEnvironment(env, "Avalara", "sandbox");
+    return;
+  }
+  if (origin === "https://rest.avatax.com") {
+    assertProviderEnvironment(env, "Avalara", "production");
+    return;
+  }
+  throw new AppError(
+    503,
+    "activation_required",
+    "The Avalara endpoint is not allowlisted.",
+  );
 }

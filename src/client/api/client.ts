@@ -70,12 +70,24 @@ export function writeActiveBrandId(brandId: string | null) {
 
 function resolveApiUrl(path: `/api/${string}`) {
   if (import.meta.env.VITE_CAPACITOR_BUILD !== "true") return path;
-  const configuredOrigin =
-    import.meta.env.VITE_MOBILE_API_ORIGIN?.trim() ||
-    "https://vinifera.edstratumlabs.ai";
+  const configuredOrigin = import.meta.env.VITE_MOBILE_API_ORIGIN?.trim();
+  if (!configuredOrigin) {
+    throw new ApiError("The native API origin is not configured.", {
+      status: 0,
+      code: "INVALID_MOBILE_API_ORIGIN",
+    });
+  }
   const origin = new URL(configuredOrigin);
-  if (origin.protocol !== "https:") {
-    throw new ApiError("The native API origin must use HTTPS.", {
+  if (
+    origin.protocol !== "https:" ||
+    origin.username ||
+    origin.password ||
+    origin.port ||
+    origin.pathname !== "/" ||
+    origin.search ||
+    origin.hash
+  ) {
+    throw new ApiError("The native API origin must be a credential-free HTTPS origin.", {
       status: 0,
       code: "INVALID_MOBILE_API_ORIGIN",
     });

@@ -2,7 +2,7 @@ import { parseCookieHeader, serializeCookieHeader } from "@supabase/ssr";
 import type { Request, Response } from "express";
 import type { WorkerEnv } from "../types";
 import { AppError, requireConfigured } from "./errors";
-import { isProduction } from "../config";
+import { usesSecureCookies } from "../config";
 
 export const MEMBER_BRAND_CONTEXT_COOKIE = "vinifera-member-brand";
 export const MEMBER_AUTH_LINK_CONTEXT_COOKIE = "vinifera-member-auth-link";
@@ -217,7 +217,7 @@ export async function setMemberBrandContextCookie(
         maxAge: CONTEXT_TTL_SECONDS,
         path: "/",
         sameSite: "lax",
-        secure: isProduction(env),
+        secure: usesSecureCookies(env),
       },
     ),
   );
@@ -235,7 +235,7 @@ export function setMemberAuthLinkContextCookie(
       maxAge: AUTH_LINK_TTL_SECONDS,
       path: "/api/auth/member/callback",
       sameSite: "lax",
-      secure: isProduction(env),
+      secure: usesSecureCookies(env),
     }),
   );
 }
@@ -251,7 +251,7 @@ export function clearMemberAuthLinkContextCookie(
       maxAge: 0,
       path: "/api/auth/member/callback",
       sameSite: "lax",
-      secure: isProduction(env),
+      secure: usesSecureCookies(env),
     }),
   );
 }
@@ -267,7 +267,7 @@ export function clearMemberBrandContextCookie(
       maxAge: 0,
       path: "/",
       sameSite: "lax",
-      secure: isProduction(env),
+      secure: usesSecureCookies(env),
     }),
   );
 }

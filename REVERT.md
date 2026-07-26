@@ -33,8 +33,16 @@ git push origin main           # Cloudflare Pages auto-deploys
 ```
 
 Do not force-push `main`. The optional CI deployment targets only the isolated
-`vinifera-staging` Worker. If the production Worker has not been attached to the
-custom domain, the Pages baseline is already the public rollback surface.
+`vinifera-staging` Worker. The protected production release workflow can create
+or version a separate Worker without moving the domain. If that Worker has not
+been attached to the custom domain, the Pages baseline is already the public
+rollback surface.
+
+After a controlled domain cutover, use the workflow's exact
+`RESTORE VINIFERA DOMAIN TO PAGES` operation. It removes only the allowlisted
+Worker custom-domain attachment, reattaches the retained Pages project, and
+verifies the static root plus prototype marker. It never deletes the Pages
+project. See `docs/runbooks/production-cutover-rollback.md`.
 
 Before reverting an activated Phase 5 connection, first stop or disconnect its
 jobs, preserve sanitized reconciliation history, revoke provider tokens when
@@ -72,6 +80,9 @@ Then update the table above with the new tag, SHA, date, and what was verified.
 - Stripe live-mode transition, signed physical-device APNs/FCM testing,
   TestFlight, Play internal track, and public store review remain
   human/credential-bound.
+- Production release and signed internal-store workflows are source-complete
+  but their target allowlists or credential sets are intentionally incomplete;
+  no source-only pass is live activation evidence.
 - The workflow illustration for step 4 ("Ship & Track") renders as a shipping box with arrow rather than a delivery truck — minor visual discrepancy, not a functional issue
 - Playwright WebKit ≠ real Safari iOS — ~30% of iOS-specific behaviors not reproducible. For production sign-off, test on a real iOS device or BrowserStack
 

@@ -1,0 +1,429 @@
+name: Production Worker release
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Controlled production operation
+        required: true
+        type: choice
+        options:
+          - bootstrap
+          - upload-version
+          - deploy-version
+          - cutover-domain
+          - rollback-worker
+          - restore-pages
+      git_sha:
+        description: Full immutable commit SHA already contained in main
+        required: true
+        type: string
+      worker_version_id:
+        description: Worker Version ID for deploy, cutover, or rollback
+        required: false
+        type: string
+      confirmation:
+        description: Exact operation-specific confirmation phrase from the checked-in policy
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vinifera-production-worker-control
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: ${{ inputs.operation }} production Worker
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PRODUCTION_CLOUDFLARE_API_TOKEN }}
+      LIVE_BILLING_ENABLED: "false"
+      OPERATION: ${{ inputs.operation }}
+      PRODUCTION_CLOUDFLARE_ACCOUNT_ID: ${{ secrets.PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+      PRODUCTION_CLOUDFLARE_API_TOKEN: ${{ secrets.PRODUCTION_CLOUDFLARE_API_TOKEN }}
+      PRODUCTION_CLOUDFLARE_ZONE_ID: ${{ secrets.PRODUCTION_CLOUDFLARE_ZONE_ID }}
+      PRODUCTION_CONFIRMATION: ${{ inputs.confirmation }}
+      PRODUCTION_CUSTOM_HOSTNAME: ${{ vars.PRODUCTION_CUSTOM_HOSTNAME }}
+      PRODUCTION_GIT_SHA: ${{ inputs.git_sha }}
+      PRODUCTION_PAGES_PROJECT_NAME: ${{ vars.PRODUCTION_PAGES_PROJECT_NAME }}
+      PRODUCTION_VERSION_ID: ${{ inputs.worker_version_id }}
+      PRODUCTION_WORKER_ORIGIN: ${{ vars.PRODUCTION_WORKER_ORIGIN }}
+
+      APNS_BUNDLE_ID: ${{ secrets.PRODUCTION_APNS_BUNDLE_ID }}
+      APNS_ENVIRONMENT: ${{ secrets.PRODUCTION_APNS_ENVIRONMENT }}
+      APNS_KEY_ID: ${{ secrets.PRODUCTION_APNS_KEY_ID }}
+      APNS_PRIVATE_KEY: ${{ secrets.PRODUCTION_APNS_PRIVATE_KEY }}
+      APNS_TEAM_ID: ${{ secrets.PRODUCTION_APNS_TEAM_ID }}
+      AUTH_EMAIL_ENABLED: ${{ secrets.PRODUCTION_AUTH_EMAIL_ENABLED }}
+      CLOUDFLARE_CUSTOM_HOSTNAME_API_TOKEN: ${{ secrets.PRODUCTION_CUSTOM_HOSTNAME_API_TOKEN }}
+      CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN: ${{ secrets.PRODUCTION_CUSTOM_HOSTNAME_ORIGIN }}
+      CLOUDFLARE_ZONE_ID: ${{ secrets.PRODUCTION_CLOUDFLARE_ZONE_ID }}
+      COMPLIANCE_PROVIDER: ${{ secrets.PRODUCTION_COMPLIANCE_PROVIDER }}
+      COMPLIANCE_SIMULATOR_ENABLED: ${{ secrets.PRODUCTION_COMPLIANCE_SIMULATOR_ENABLED }}
+      EASYPOST_API_KEY: ${{ secrets.PRODUCTION_EASYPOST_API_KEY }}
+      EMAIL_PROVIDER: ${{ secrets.PRODUCTION_EMAIL_PROVIDER }}
+      EMAIL_SIMULATOR_ENABLED: ${{ secrets.PRODUCTION_EMAIL_SIMULATOR_ENABLED }}
+      FCM_CLIENT_EMAIL: ${{ secrets.PRODUCTION_FCM_CLIENT_EMAIL }}
+      FCM_PRIVATE_KEY: ${{ secrets.PRODUCTION_FCM_PRIVATE_KEY }}
+      FCM_PROJECT_ID: ${{ secrets.PRODUCTION_FCM_PROJECT_ID }}
+      GOOGLE_OAUTH_ENABLED: ${{ secrets.PRODUCTION_GOOGLE_OAUTH_ENABLED }}
+      INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION: ${{ secrets.PRODUCTION_INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION }}
+      INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS: ${{ secrets.PRODUCTION_INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS }}
+      MEMBER_BRAND_CONTEXT_SECRET: ${{ secrets.PRODUCTION_MEMBER_BRAND_CONTEXT_SECRET }}
+      MOBILE_ANDROID_LATEST_VERSION: ${{ secrets.PRODUCTION_MOBILE_ANDROID_LATEST_VERSION }}
+      MOBILE_ANDROID_MINIMUM_VERSION: ${{ secrets.PRODUCTION_MOBILE_ANDROID_MINIMUM_VERSION }}
+      MOBILE_ANDROID_PACKAGE_NAME: ${{ secrets.PRODUCTION_MOBILE_ANDROID_PACKAGE_NAME }}
+      MOBILE_ANDROID_SIGNING_CERT_SHA256: ${{ secrets.PRODUCTION_MOBILE_ANDROID_SIGNING_CERT_SHA256 }}
+      MOBILE_ANDROID_STORE_URL: ${{ secrets.PRODUCTION_MOBILE_ANDROID_STORE_URL }}
+      MOBILE_APPLE_TEAM_ID: ${{ secrets.PRODUCTION_MOBILE_APPLE_TEAM_ID }}
+      MOBILE_AUTH_EMAIL_TEMPLATE_ENABLED: ${{ secrets.PRODUCTION_MOBILE_AUTH_EMAIL_TEMPLATE_ENABLED }}
+      MOBILE_AUTH_STATE_SIGNING_SECRET: ${{ secrets.PRODUCTION_MOBILE_AUTH_STATE_SIGNING_SECRET }}
+      MOBILE_IOS_BUNDLE_ID: ${{ secrets.PRODUCTION_MOBILE_IOS_BUNDLE_ID }}
+      MOBILE_IOS_LATEST_VERSION: ${{ secrets.PRODUCTION_MOBILE_IOS_LATEST_VERSION }}
+      MOBILE_IOS_MINIMUM_VERSION: ${{ secrets.PRODUCTION_MOBILE_IOS_MINIMUM_VERSION }}
+      MOBILE_IOS_STORE_URL: ${{ secrets.PRODUCTION_MOBILE_IOS_STORE_URL }}
+      QUICKBOOKS_CLIENT_ID: ${{ secrets.PRODUCTION_QUICKBOOKS_CLIENT_ID }}
+      QUICKBOOKS_CLIENT_SECRET: ${{ secrets.PRODUCTION_QUICKBOOKS_CLIENT_SECRET }}
+      QUICKBOOKS_ENVIRONMENT: ${{ secrets.PRODUCTION_QUICKBOOKS_ENVIRONMENT }}
+      QUICKBOOKS_REDIRECT_URI: ${{ secrets.PRODUCTION_QUICKBOOKS_REDIRECT_URI }}
+      QUICKBOOKS_STATE_SIGNING_SECRET: ${{ secrets.PRODUCTION_QUICKBOOKS_STATE_SIGNING_SECRET }}
+      RATE_LIMIT_PEPPER: ${{ secrets.PRODUCTION_RATE_LIMIT_PEPPER }}
+      RESEND_API_KEY: ${{ secrets.PRODUCTION_RESEND_API_KEY }}
+      RESEND_DOMAIN_VERIFIED: ${{ secrets.PRODUCTION_RESEND_DOMAIN_VERIFIED }}
+      RESEND_FROM: ${{ secrets.PRODUCTION_RESEND_FROM }}
+      RESEND_SENDING_DOMAIN: ${{ secrets.PRODUCTION_RESEND_SENDING_DOMAIN }}
+      RESEND_WEBHOOK_SECRET: ${{ secrets.PRODUCTION_RESEND_WEBHOOK_SECRET }}
+      SHIPCOMPLIANT_ACCOUNT_ID: ${{ secrets.PRODUCTION_SHIPCOMPLIANT_ACCOUNT_ID }}
+      SHIPCOMPLIANT_API_KEY: ${{ secrets.PRODUCTION_SHIPCOMPLIANT_API_KEY }}
+      SHIPCOMPLIANT_API_SECRET: ${{ secrets.PRODUCTION_SHIPCOMPLIANT_API_SECRET }}
+      SHIPCOMPLIANT_BASE_URL: ${{ secrets.PRODUCTION_SHIPCOMPLIANT_BASE_URL }}
+      SHIPCOMPLIANT_CHECK_PATH: ${{ secrets.PRODUCTION_SHIPCOMPLIANT_CHECK_PATH }}
+      SHIPCOMPLIANT_CONTRACT_VERSION: ${{ secrets.PRODUCTION_SHIPCOMPLIANT_CONTRACT_VERSION }}
+      SHIPCOMPLIANT_LICENSE_ID: ${{ secrets.PRODUCTION_SHIPCOMPLIANT_LICENSE_ID }}
+      SHIPCOMPLIANT_TOKEN_PATH: ${{ secrets.PRODUCTION_SHIPCOMPLIANT_TOKEN_PATH }}
+      SHIPPING_ALLOWED_STATES: ${{ secrets.PRODUCTION_SHIPPING_ALLOWED_STATES }}
+      SHIPPING_PROVIDER: ${{ secrets.PRODUCTION_SHIPPING_PROVIDER }}
+      SHIPPING_SIMULATOR_ENABLED: ${{ secrets.PRODUCTION_SHIPPING_SIMULATOR_ENABLED }}
+      STRIPE_PRICE_CELLAR: ${{ secrets.PRODUCTION_STRIPE_PRICE_CELLAR }}
+      STRIPE_PRICE_ESTATE: ${{ secrets.PRODUCTION_STRIPE_PRICE_ESTATE }}
+      STRIPE_PRICE_RESERVE: ${{ secrets.PRODUCTION_STRIPE_PRICE_RESERVE }}
+      STRIPE_PRICE_VINE: ${{ secrets.PRODUCTION_STRIPE_PRICE_VINE }}
+      STRIPE_SECRET_KEY: ${{ secrets.PRODUCTION_STRIPE_TEST_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.PRODUCTION_STRIPE_TEST_WEBHOOK_SECRET }}
+      SUPABASE_ANON_KEY: ${{ secrets.PRODUCTION_SUPABASE_ANON_KEY }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.PRODUCTION_SUPABASE_SECRET_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PRODUCTION_SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
+      UNSUBSCRIBE_SIGNING_SECRET: ${{ secrets.PRODUCTION_UNSUBSCRIBE_SIGNING_SECRET }}
+
+    steps:
+      - name: Check out the immutable release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.git_sha }}
+
+      - name: Initialize timestamped evidence directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          evidence_dir="$RUNNER_TEMP/vinifera-production-${timestamp}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$evidence_dir"
+          {
+            echo "EVIDENCE_DIR=$evidence_dir"
+            echo "EVIDENCE_NAME=vinifera-production-${timestamp}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify immutable main-branch release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REPOSITORY" != "theonlygeranium/vinifera" ]]; then
+            echo "This workflow is restricted to the canonical Vinifera repository." >&2
+            exit 1
+          fi
+          if [[ "$PRODUCTION_GIT_SHA" != "$(git rev-parse HEAD)" ]] ||
+             [[ ! "$PRODUCTION_GIT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "The requested release target is not the exact checked-out immutable SHA." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$PRODUCTION_GIT_SHA" origin/main; then
+            echo "The requested immutable SHA is not contained in origin/main." >&2
+            exit 1
+          fi
+          node -e '
+            const fs = require("fs");
+            fs.writeFileSync(
+              process.env.EVIDENCE_DIR + "/request.json",
+              JSON.stringify({
+                gitSha: process.env.PRODUCTION_GIT_SHA,
+                operation: process.env.OPERATION,
+                repository: process.env.GITHUB_REPOSITORY,
+                runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+                runId: process.env.GITHUB_RUN_ID
+              }, null, 2) + "\n"
+            );
+          '
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          cache: npm
+          node-version: "22.12.0"
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate operation, target allowlist, and exact confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$OPERATION" in
+            bootstrap)
+              node scripts/production-release.mjs verify-bootstrap-absent
+              ;;
+            upload-version)
+              node scripts/production-release.mjs verify-targets upload
+              node scripts/production-release.mjs verify-confirmation upload
+              ;;
+            deploy-version)
+              node scripts/production-release.mjs verify-targets worker
+              node scripts/production-release.mjs verify-confirmation deploy
+              node scripts/production-release.mjs verify-version-id
+              ;;
+            cutover-domain)
+              node scripts/production-release.mjs verify-targets domain
+              node scripts/production-release.mjs verify-confirmation cutover
+              node scripts/production-release.mjs verify-version-id
+              ;;
+            rollback-worker)
+              node scripts/production-release.mjs verify-targets worker
+              node scripts/production-release.mjs verify-confirmation rollback
+              node scripts/production-release.mjs verify-version-id
+              ;;
+            restore-pages)
+              node scripts/production-release.mjs verify-targets domain
+              node scripts/production-release.mjs verify-confirmation restore-pages
+              ;;
+            *)
+              echo "Unsupported production operation." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Build and validate production Worker configuration
+        run: |
+          set -euo pipefail
+          npm run build
+          npm run build:worker:production
+
+      - name: Capture prior Worker and Pages state
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$OPERATION" == "bootstrap" ]]; then
+            printf '{"workerExisted":false,"checkedAt":"%s"}\n' \
+              "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              > "$EVIDENCE_DIR/prior-worker-state.json"
+          else
+            npx wrangler deployments status --env production --json \
+              > "$EVIDENCE_DIR/prior-deployment.json"
+            npx wrangler versions list --env production --json \
+              > "$EVIDENCE_DIR/prior-versions.json"
+          fi
+          if [[ "$OPERATION" == "cutover-domain" ||
+                "$OPERATION" == "restore-pages" ]]; then
+            node scripts/production-release.mjs snapshot \
+              "$EVIDENCE_DIR/prior-control-plane.json"
+          fi
+
+      - name: Prepare ephemeral test-mode Worker secret bundle
+        if: inputs.operation == 'bootstrap' || inputs.operation == 'upload-version'
+        shell: bash
+        run: |
+          set -euo pipefail
+          secret_file="$RUNNER_TEMP/vinifera-production-secrets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          node scripts/production-release.mjs prepare-secrets "$secret_file"
+          echo "PRODUCTION_SECRET_FILE=$secret_file" >> "$GITHUB_ENV"
+
+      - name: Bootstrap Worker on workers.dev
+        if: inputs.operation == 'bootstrap'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --env production --strict \
+            --secrets-file "$PRODUCTION_SECRET_FILE" \
+            --tag "git-$PRODUCTION_GIT_SHA" \
+            --message "vinifera production bootstrap git_sha=$PRODUCTION_GIT_SHA" \
+            | tee "$EVIDENCE_DIR/bootstrap-output.txt"
+          npx wrangler deployments status --env production --json \
+            > "$EVIDENCE_DIR/after-deployment.json"
+          node scripts/production-release.mjs active-version \
+            "$EVIDENCE_DIR/after-deployment.json" "$EVIDENCE_DIR/version-id.txt"
+          PRODUCTION_VERSION_ID="$(tr -d '\r\n' < "$EVIDENCE_DIR/version-id.txt")"
+          export PRODUCTION_VERSION_ID
+          npx wrangler versions view "$PRODUCTION_VERSION_ID" --env production --json \
+            > "$EVIDENCE_DIR/version.json"
+          node scripts/production-release.mjs verify-version "$EVIDENCE_DIR/version.json"
+
+      - name: Upload isolated Worker version
+        if: inputs.operation == 'upload-version'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler versions upload --env production --strict \
+            --secrets-file "$PRODUCTION_SECRET_FILE" \
+            --tag "git-$PRODUCTION_GIT_SHA" \
+            --message "vinifera production candidate git_sha=$PRODUCTION_GIT_SHA" \
+            | tee "$EVIDENCE_DIR/upload-output.txt"
+          node scripts/production-release.mjs parse-upload \
+            "$EVIDENCE_DIR/upload-output.txt" "$EVIDENCE_DIR/upload.json"
+          PRODUCTION_VERSION_ID="$(node -e '
+            const fs = require("fs");
+            process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).versionId);
+          ' "$EVIDENCE_DIR/upload.json")"
+          export PRODUCTION_VERSION_ID
+          echo "PRODUCTION_VERSION_ID=$PRODUCTION_VERSION_ID" >> "$GITHUB_ENV"
+          npx wrangler versions view "$PRODUCTION_VERSION_ID" --env production --json \
+            > "$EVIDENCE_DIR/version.json"
+          node scripts/production-release.mjs verify-version "$EVIDENCE_DIR/version.json"
+
+      - name: Verify approved version metadata
+        if: inputs.operation == 'deploy-version' || inputs.operation == 'cutover-domain' || inputs.operation == 'rollback-worker'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler versions view "$PRODUCTION_VERSION_ID" --env production --json \
+            > "$EVIDENCE_DIR/version.json"
+          node scripts/production-release.mjs verify-version "$EVIDENCE_DIR/version.json"
+
+      - name: Promote approved Worker version
+        if: inputs.operation == 'deploy-version'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler versions deploy "$PRODUCTION_VERSION_ID@100%" \
+            --env production -y \
+            | tee "$EVIDENCE_DIR/deploy-output.txt"
+          npx wrangler deployments status --env production --json \
+            > "$EVIDENCE_DIR/after-deployment.json"
+          node scripts/production-release.mjs verify-deployment \
+            "$EVIDENCE_DIR/after-deployment.json"
+
+      - name: Verify cutover version is already active
+        if: inputs.operation == 'cutover-domain'
+        run: |
+          set -euo pipefail
+          node scripts/production-release.mjs verify-deployment \
+            "$EVIDENCE_DIR/prior-deployment.json"
+
+      - name: Roll back to approved Worker version
+        if: inputs.operation == 'rollback-worker'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler rollback "$PRODUCTION_VERSION_ID" --env production -y \
+            --message "vinifera production rollback git_sha=$PRODUCTION_GIT_SHA" \
+            | tee "$EVIDENCE_DIR/rollback-output.txt"
+          npx wrangler deployments status --env production --json \
+            > "$EVIDENCE_DIR/after-deployment.json"
+          node scripts/production-release.mjs verify-deployment \
+            "$EVIDENCE_DIR/after-deployment.json"
+
+      - name: Smoke-test Worker version
+        if: inputs.operation == 'bootstrap' || inputs.operation == 'upload-version' || inputs.operation == 'deploy-version' || inputs.operation == 'rollback-worker' || inputs.operation == 'cutover-domain'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$OPERATION" == "upload-version" ]]; then
+            smoke_origin="$(node -e '
+              const fs = require("fs");
+              process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).previewUrl);
+            ' "$EVIDENCE_DIR/upload.json")"
+          else
+            smoke_origin="$PRODUCTION_WORKER_ORIGIN"
+          fi
+          for endpoint in health configuration; do
+            output="$EVIDENCE_DIR/${endpoint}.json"
+            if [[ "$endpoint" == "health" ]]; then
+              path="/api/health"
+            else
+              path="/api/health/configuration"
+            fi
+            ready=false
+            for attempt in {1..8}; do
+              if curl --fail --silent --show-error --connect-timeout 10 \
+                --max-time 20 "$smoke_origin$path" \
+                > "$output"; then
+                ready=true
+                break
+              fi
+              sleep 5
+            done
+            if [[ "$ready" != "true" ]]; then
+              echo "Worker ${endpoint} smoke check did not become ready." >&2
+              exit 1
+            fi
+          done
+          node scripts/production-release.mjs verify-health \
+            "$EVIDENCE_DIR/health.json" "$EVIDENCE_DIR/configuration.json" core
+
+      - name: Cut over retained Pages hostname to Worker
+        if: inputs.operation == 'cutover-domain'
+        run: |
+          set -euo pipefail
+          node scripts/production-release.mjs cutover "$EVIDENCE_DIR/cutover.json"
+
+      - name: Restore retained Pages hostname
+        if: inputs.operation == 'restore-pages'
+        run: |
+          set -euo pipefail
+          node scripts/production-release.mjs restore-pages \
+            "$EVIDENCE_DIR/restore-pages.json"
+
+      - name: Capture final Worker and Pages control-plane state
+        if: inputs.operation == 'cutover-domain' || inputs.operation == 'restore-pages'
+        run: |
+          set -euo pipefail
+          node scripts/production-release.mjs snapshot \
+            "$EVIDENCE_DIR/final-control-plane.json"
+
+      - name: Capture final Worker state
+        if: always() && inputs.operation != 'restore-pages'
+        shell: bash
+        run: |
+          set +e
+          npx wrangler deployments status --env production --json \
+            > "$EVIDENCE_DIR/final-deployment.json"
+          npx wrangler versions list --env production --json \
+            > "$EVIDENCE_DIR/final-versions.json"
+
+      - name: Remove ephemeral secret bundle
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${PRODUCTION_SECRET_FILE:-}" &&
+                "$PRODUCTION_SECRET_FILE" == "$RUNNER_TEMP"/vinifera-production-secrets-* ]]; then
+            rm -f -- "$PRODUCTION_SECRET_FILE"
+          fi
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          if-no-files-found: error
+          name: ${{ env.EVIDENCE_NAME }}
+          path: ${{ env.EVIDENCE_DIR }}
+          retention-days: 90

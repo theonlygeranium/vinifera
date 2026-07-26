@@ -69,6 +69,7 @@ export interface WorkerEnv {
   GOOGLE_OAUTH_ENABLED?: "true" | "false";
   INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION?: string;
   INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS?: string;
+  LIVE_BILLING_ENABLED?: "true" | "false";
   QUICKBOOKS_CLIENT_ID?: string;
   QUICKBOOKS_CLIENT_SECRET?: string;
   QUICKBOOKS_ENVIRONMENT?: "production" | "sandbox";

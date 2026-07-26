@@ -101,6 +101,8 @@ npm run dev:worker
 
 # Full local verification
 npm run check
+npm run qa:mobile-release
+npm run qa:production-release
 npm run qa:db:phase2
 npm run qa:db:phase3
 npm run qa:db:phase4
@@ -119,10 +121,15 @@ The build emits code-split React assets, then copies `index.html`, `guide`, and
 `public/*` into `dist/`. Wrangler packages those assets with the Express Worker.
 GitHub-hosted CI uses Node 22.22.0, runs the Phase 2–5 database gates and browser
 QA, builds and lints Android debug plus minified release shells, conditionally
-applies migrations with Supabase CLI 2.109.1, and can deploy an isolated
-`vinifera-staging` Worker.
+applies migrations with Supabase CLI 2.109.1 plus linked pgTAP/RLS, and can
+deploy an isolated `vinifera-staging` Worker only after hashed target approval.
 Available runtime secrets are attached atomically to that staging version.
-Production custom-domain cutover is deliberately not automated.
+A protected manual controller can later bootstrap and version the production
+Worker, move the custom domain only after the full configuration gate, and
+restore the retained Pages baseline. A separate protected workflow produces
+signed Android/iOS artifacts and optionally uploads only to internal tracks.
+All three paths ship fail-closed until their scoped credentials, target hashes,
+and confirmations exist.
 
 ### Routing
 
@@ -149,6 +156,7 @@ serve the React application instead.
 | Phase 3 retention | Email, rules scoring, cancel-flow, and loyalty architecture plus database/service/browser gates pass locally |
 | Phase 4 intelligence | Local architecture release gate passes: analytics, ML lifecycle, benchmark privacy, compliance, database, service, browser, accessibility, and performance checks are green; hosted real-data, model, cohort, and provider evidence remain gated |
 | Phase 5 scale | Version 0.5.0 source architecture is complete for connectors, multi-brand isolation, white label, and native shells; the Phase 5 QA report records architecture evidence and deferred hosted checks |
+| Release controls | Read-only readiness, staging target guards, native hosted pgTAP, production Worker/Pages rollback control, and signed internal-store workflows are source-complete; credential-bound execution remains deferred |
 | Provider activation | Pending hosted Supabase, Stripe/provider test and live accounts, custom-domain DNS/certificates, APNs/FCM, signing, physical devices, and store tracks |
 | Public deployment | Pages continues serving the verified prototype until the Worker activation runbooks pass |
 
