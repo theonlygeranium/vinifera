@@ -1,2 +1,3 @@
-# github-deploy-template
-Schubert CI/CD deploy template — self-hosted LAN runner + Tailscale OAuth fallback
+# vinifera
+
+<!-- webhook test 2026-07-26T07:10:53Z -->
