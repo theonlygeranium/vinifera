@@ -410,6 +410,193 @@ select.form-control { cursor:pointer; }
 .gap-6 { gap:6px; } .gap-8 { gap:8px; } .gap-12 { gap:12px; }
 .flex-1 { flex:1; }
 .w-full { width:100%; }
+
+/* ═══════════════════════════════════════════════
+   MOBILE RESPONSIVE — app.html
+   Breakpoints: 768px (tablet), 480px (mobile)
+═══════════════════════════════════════════════ */
+
+/* Hamburger button — hidden on desktop */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 36px;
+  height: 36px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.hamburger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--text-secondary);
+  border-radius: 2px;
+  transition: all 0.25s ease;
+}
+.hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.hamburger.open span:nth-child(2) { opacity: 0; }
+.hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* Sidebar overlay backdrop */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+  backdrop-filter: blur(2px);
+}
+.sidebar-overlay.open { display: block; }
+
+@media (max-width: 768px) {
+  /* Show hamburger */
+  .hamburger { display: flex; }
+
+  /* Sidebar becomes slide-in drawer */
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    z-index: 200;
+    width: 260px !important;
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  /* Main content takes full width */
+  .main { margin-left: 0 !important; }
+
+  /* Topbar adjustments */
+  .topbar { padding: 0 14px; }
+  .topbar-right .btn:not(.btn-primary) { display: none; }
+
+  /* Content padding */
+  .content { padding: 16px 14px; }
+
+  /* KPI grid: 2 columns on tablet */
+  .kpi-grid { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+
+  /* All multi-column grids → single column */
+  .grid-2, .grid-3, .grid-4, .grid-3-1, .grid-2-1 {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+  }
+
+  /* Form rows stack */
+  .form-row { grid-template-columns: 1fr !important; }
+
+  /* Tables get horizontal scroll */
+  .card > .table-wrap, table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  /* Filter bar wraps */
+  .filter-bar { flex-wrap: wrap; gap: 6px; }
+  .filter-bar .search-input { width: 100%; }
+
+  /* Pipeline steps scroll on mobile */
+  .pipeline-steps { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Member hero stacks */
+  .member-hero { flex-direction: column; gap: 12px; }
+
+  /* Modal takes full width */
+  .modal { width: calc(100vw - 32px) !important; max-width: 100% !important; margin: 16px; }
+
+  /* State grid fewer columns */
+  .state-grid { grid-template-columns: repeat(5,1fr) !important; }
+
+  /* Tabs scroll on mobile */
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+  .tab-btn { flex-shrink: 0; }
+
+  /* Card actions responsive */
+  .card-header { flex-wrap: wrap; gap: 8px; }
+
+  /* Section header wraps */
+  .section-hdr { flex-wrap: wrap; gap: 8px; }
+
+  /* Channel cards stack content */
+  .channel-card { flex-wrap: wrap; }
+
+  /* iOS safe area */
+  .topbar { padding-top: max(0px, env(safe-area-inset-top)); }
+  .sidebar { padding-top: max(0px, env(safe-area-inset-top)); }
+}
+
+@media (max-width: 480px) {
+  /* KPI grid → single column on small phones */
+  .kpi-grid { grid-template-columns: 1fr !important; }
+
+  /* Reduce font sizes slightly */
+  .content { font-size: 13.5px; }
+  .topbar-title { font-size: 14px; }
+
+  /* Buttons in topbar: icon only */
+  .topbar-right .btn span { display: none; }
+
+  /* AI chip smaller */
+  .ai-chip { font-size: 9px; padding: 2px 6px; }
+
+  /* Reduce content padding further */
+  .content { padding: 12px 10px; }
+
+  /* Stats row wraps */
+  .stat-row { flex-wrap: wrap; gap: 4px; }
+
+  /* Bottom safe area for fixed elements */
+  body { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+
+/* ── QA FIX PASS ── */
+@media (max-width: 768px) {
+  /* Prevent any element from causing horizontal overflow */
+  html, body { overflow-x: hidden; max-width: 100vw; }
+  .app { overflow-x: hidden; }
+
+  /* Explicitly wrap all tables */
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
+  thead, tbody, tr { min-width: 0; }
+
+  /* Pipeline steps: contain horizontally */
+  .pipeline-steps { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+  .pipeline-step { min-width: 80px; }
+
+  /* Sparkbar doesn't overflow */
+  .sparkbar-row { overflow: hidden; }
+
+  /* State grid max-width */
+  .state-grid { max-width: 100%; }
+
+  /* Raise touch targets */
+  .nav-item { min-height: 44px; padding: 10px; }
+  .btn { min-height: 44px; }
+  .tab-btn { min-height: 44px; }
+  .card-action { min-height: 44px; align-items: center; }
+  input, select, textarea { min-height: 44px; font-size: 16px; } /* 16px prevents iOS zoom */
+
+  /* Chip row wraps instead of overflows */
+  .chip { margin-bottom: 4px; }
+
+  /* Form inputs full width */
+  .form-group input, .form-group select, .form-group textarea { width: 100%; box-sizing: border-box; }
+}
+
+@media (max-width: 480px) {
+  /* Hard clamp */
+  * { max-width: 100vw; }
+  img, canvas, svg { max-width: 100%; height: auto; }
+}
+
 </style>
 </head>
 <body>
@@ -459,7 +646,8 @@ select.form-control { cursor:pointer; }
 <!-- MAIN -->
 <div class="main">
 <div class="topbar">
-  <div class="topbar-left">
+  <button class="hamburger" id="hamburgerBtn" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <div class="topbar-left">
     <div class="page-title" id="page-title">Dashboard</div>
   </div>
   <div class="topbar-right">
@@ -1899,5 +2087,47 @@ window.addEventListener('load', () => {
   ]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:true, position:'bottom', labels:{ font:{ size:11 }, boxWidth:10, padding:10 } } }, scales:{ x:{ grid:{ display:false }, ticks:{ font:{ size:11 } } }, y:{ grid:{ color:'rgba(0,0,0,0.05)' }, ticks:{ font:{ size:11 } } } } }});
 });
 </script>
+
+<script>
+(function() {
+  const btn = document.getElementById('hamburgerBtn');
+  const sidebar = document.getElementById('appSidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  if (!btn || !sidebar || !overlay) return;
+
+  function openSidebar() {
+    sidebar.classList.add('open');
+    overlay.classList.add('open');
+    btn.classList.add('open');
+    btn.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+    btn.classList.remove('open');
+    btn.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
+
+  btn.addEventListener('click', function() {
+    sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+  });
+  overlay.addEventListener('click', closeSidebar);
+
+  // Close on nav item tap (mobile)
+  document.querySelectorAll('.nav-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      if (window.innerWidth <= 768) closeSidebar();
+    });
+  });
+
+  // Close on ESC
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeSidebar();
+  });
+})();
+</script>
+
 </body>
 </html>

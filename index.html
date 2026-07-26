@@ -506,6 +506,206 @@ button { cursor: pointer; font-family: inherit; border: none; }
   .hero-headline { font-size: 32px; }
   .preview-main { padding: 12px; }
 }
+
+/* ═══════════════════════════════════════════════
+   MOBILE RESPONSIVE — index.html (Landing Page)
+   Breakpoints: 900px (tablet), 600px (mobile)
+═══════════════════════════════════════════════ */
+
+/* Hamburger button */
+.mob-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  background: none;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+  margin-left: auto;
+}
+.mob-hamburger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+  transition: all 0.25s ease;
+}
+.mob-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.mob-hamburger.open span:nth-child(2) { opacity: 0; }
+.mob-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* Mobile nav drawer */
+.nav-mobile-menu {
+  display: none;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(15,5,10,0.98);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 8px 0 16px;
+}
+.nav-mobile-menu.open { display: flex; }
+.nav-mobile-menu .nav-link {
+  display: block;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.75);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.nav-mobile-menu .btn-nav {
+  display: block;
+  margin: 8px 16px 4px;
+  text-align: center;
+  padding: 11px 16px;
+}
+
+@media (max-width: 900px) {
+  /* Nav: hide links, show hamburger */
+  .nav-links { display: none !important; }
+  .nav-cta { display: none !important; }
+  .mob-hamburger { display: flex; }
+
+  /* Hero */
+  .hero { padding: 80px 20px 60px; text-align: center; }
+  .hero h1 { font-size: clamp(28px, 6vw, 52px); }
+  .hero-sub { font-size: 16px; max-width: 100%; }
+  .hero-actions { justify-content: center; flex-wrap: wrap; gap: 10px; }
+  .hero-app-frame { margin-top: 32px; }
+  .hero-app-preview { overflow-x: auto; }
+
+  /* Stats grid 2-col */
+  .stats-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Section padding */
+  section { padding-left: 20px !important; padding-right: 20px !important; }
+  .section-inner { padding: 60px 20px !important; }
+
+  /* Problem grid 1-col */
+  .problem-grid { grid-template-columns: 1fr !important; gap: 16px; }
+
+  /* Features grid 2-col → 1-col at 600 */
+  .features-grid { grid-template-columns: 1fr 1fr !important; gap: 14px; }
+
+  /* AI section stacks */
+  .ai-grid { grid-template-columns: 1fr !important; gap: 40px; }
+
+  /* Workflow grid 2-col */
+  .workflow-grid { grid-template-columns: 1fr 1fr !important; gap: 20px; }
+  .workflow-grid::before { display: none; }
+
+  /* Testimonials 1-col */
+  .testimonials-grid { grid-template-columns: 1fr !important; }
+
+  /* Pricing stacks */
+  .pricing-grid { grid-template-columns: 1fr !important; max-width: 480px; margin-left: auto; margin-right: auto; }
+
+  /* Integrations strip wraps */
+  .integrations-strip { flex-wrap: wrap; gap: 12px; justify-content: center; }
+
+  /* Footer grid stacks */
+  .footer-grid { grid-template-columns: 1fr 1fr !important; gap: 32px; }
+
+  /* CTA actions wrap */
+  .cta-actions { flex-direction: column; align-items: center; gap: 12px; }
+  .cta-actions .btn-gold, .cta-actions .btn-ghost { width: 100%; max-width: 320px; justify-content: center; }
+
+  /* iOS safe area */
+  .nav { padding-top: max(16px, env(safe-area-inset-top)); }
+}
+
+@media (max-width: 600px) {
+  /* Stats 2-col stays but shrinks text */
+  .stats-grid .stat-value { font-size: clamp(28px, 8vw, 48px); }
+
+  /* Features 1-col */
+  .features-grid { grid-template-columns: 1fr !important; }
+
+  /* Workflow 1-col */
+  .workflow-grid { grid-template-columns: 1fr !important; }
+
+  /* Footer 1-col */
+  .footer-grid { grid-template-columns: 1fr !important; }
+
+  /* Hero frame hides on tiny screens to prevent overflow */
+  .hero-app-frame { display: none; }
+
+  /* Headings clamp */
+  h2 { font-size: clamp(22px, 6vw, 36px) !important; }
+
+  /* Pricing card text */
+  .pricing-price { font-size: clamp(32px, 9vw, 52px); }
+
+  /* Nav */
+  .nav-inner { padding: 0 16px; }
+
+  /* Bottom safe area */
+  footer { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+}
+
+
+/* ── QA FIX PASS ── */
+@media (max-width: 900px) {
+  /* Prevent horizontal overflow */
+  html, body { overflow-x: hidden; max-width: 100vw; }
+
+  /* Hero section: ensure full width and proper padding */
+  .hero { padding: 80px 24px 56px !important; box-sizing: border-box; }
+  .hero h1 { font-size: clamp(26px, 7vw, 48px) !important; line-height: 1.15; }
+  .hero-sub { font-size: 15px !important; }
+
+  /* Containers don't exceed viewport */
+  .container, .section-inner { box-sizing: border-box; max-width: 100%; }
+  section { box-sizing: border-box; }
+
+  /* Nav mobile safe area */
+  .nav { box-sizing: border-box; width: 100%; }
+  .nav-inner { padding: 0 20px; height: 64px; }
+
+  /* Touch targets */
+  .btn-gold, .btn-ghost, .btn-nav { min-height: 44px; }
+  .nav-mobile-menu .nav-link { min-height: 48px; display: flex; align-items: center; }
+
+  /* Stats grid — equal width cells */
+  .stats-grid { width: 100%; box-sizing: border-box; }
+
+  /* Feature cards don't overflow */
+  .feature-card { box-sizing: border-box; }
+
+  /* Pricing cards */
+  .pricing-card { box-sizing: border-box; }
+
+  /* Footer links touch targets */
+  .footer-link { display: inline-block; padding: 6px 0; min-height: 36px; }
+}
+
+@media (max-width: 600px) {
+  /* Hero: tighter for small phones */
+  .hero { padding: 64px 16px 44px !important; }
+  .hero h1 { font-size: clamp(24px, 8vw, 36px) !important; }
+
+  /* Stats 2-col compact */
+  .stats-grid { grid-template-columns: 1fr 1fr !important; }
+  .stat-number, .stat-value { font-size: clamp(24px, 7vw, 40px) !important; }
+
+  /* Problem grid single col */
+  .problem-grid { grid-template-columns: 1fr !important; }
+
+  /* All section headings clamp */
+  h2, .section-title { font-size: clamp(20px, 6vw, 32px) !important; }
+  h3 { font-size: clamp(16px, 5vw, 22px) !important; }
+
+  /* Prevent any card overflow */
+  * { max-width: 100vw; box-sizing: border-box; }
+  img { max-width: 100%; height: auto; }
+}
+
 </style>
 </head>
 <body>
@@ -533,7 +733,19 @@ button { cursor: pointer; font-family: inherit; border: none; }
       </div>
     </div>
   </div>
+
+  <button class="mob-hamburger" id="mobHamburger" aria-label="Open menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
 </nav>
+<div class="nav-mobile-menu" id="mobileMenu">
+  <a class="nav-link" href="#features">Features</a>
+  <a class="nav-link" href="#ai">AI Intelligence</a>
+  <a class="nav-link" href="#pricing">Pricing</a>
+  <a class="nav-link" href="#integrations">Integrations</a>
+  <a href="/app/" class="btn-nav btn-nav-ghost" style="display:block;margin:8px 16px 4px;text-align:center;padding:11px 16px"><i data-lucide="layout-dashboard" style="width:14px;height:14px;display:inline;vertical-align:middle;margin-right:6px"></i> Live Demo</a>
+  <a href="#pricing" class="btn-nav btn-nav-wine" style="display:block;margin:4px 16px 8px;text-align:center;padding:11px 16px">Start Free Trial</a>
+</div>
 
 <!-- ── HERO ──────────────────────────────────────────────────────────────── -->
 <section class="hero">
@@ -1046,5 +1258,38 @@ button { cursor: pointer; font-family: inherit; border: none; }
     observer.observe(el);
   });
 </script>
+
+<script>
+(function() {
+  var btn = document.getElementById('mobHamburger');
+  var menu = document.getElementById('mobileMenu');
+  if (!btn || !menu) return;
+
+  btn.addEventListener('click', function() {
+    var open = menu.classList.toggle('open');
+    btn.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+
+  // Close on link click
+  menu.querySelectorAll('a').forEach(function(a) {
+    a.addEventListener('click', function() {
+      menu.classList.remove('open');
+      btn.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    });
+  });
+
+  // Close on ESC
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      menu.classList.remove('open');
+      btn.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+})();
+</script>
+
 </body>
 </html>
