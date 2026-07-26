@@ -57,6 +57,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Recorded Phase 1 architecture closure commit `a27f078` and GitHub Actions run
+  `30223237016`: quality passed in 5m43s, Android in 4m44s, 90-day Playwright
+  evidence uploaded, and hosted mutation jobs skipped while activation is off.
 - Enforced restricted/suspended staff workspaces as billing-recovery-only,
   while keeping Subscription and sign-out available and blocking operational
   navigation and server services.

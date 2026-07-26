@@ -171,6 +171,12 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   quality completed in 5m23s, Java 21 Android lint/debug/minified release
   assembly completed in 4m37s, and credential-gated migration/deployment jobs
   skipped. This Mac still has no local Java runtime.
+- Phase 1 architecture closure commit `a27f078` passed GitHub Actions run
+  [`30223237016`](https://github.com/theonlygeranium/vinifera/actions/runs/30223237016):
+  quality completed in 5m43s, Android lint/debug/minified release completed in
+  4m44s, the 90-day `playwright-evidence` artifact was retained through
+  2026-10-24, and hosted migration/deployment skipped while activation remains
+  off.
 - GitHub Actions artifact/log retention is configured at the allowed 90-day
   maximum, and Playwright login/signup captures at 375, 768, and 1440 are
   explicitly retained for 90 days. Android setup is pinned to v4.0.1/Node 24

@@ -23,6 +23,7 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 | TypeScript | Pass | `npm run typecheck` |
 | API/unit integration | Pass | Current full Vitest regression 256/256 |
 | Browser QA | Pass | Current full Playwright regression 132/132; Phase 1 focused suite 30/30 |
+| Phase 1 architecture closure CI | Pass — [run 30223237016](https://github.com/theonlygeranium/vinifera/actions/runs/30223237016) | Commit `a27f078`: quality 5m43s, Android 4m44s, retained 90-day Playwright evidence; hosted migration/deploy skipped while activation is off |
 | Worker packaging | Pass | Wrangler dry run |
 | Pages rollback packaging | Pass | `CF_PAGES=1` preserves the original extensionless app |
 | Initial JS | Pass | 66.78 KB gzip app entry, budget < 200 KB |
