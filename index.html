@@ -522,17 +522,16 @@ button { cursor: pointer; font-family: inherit; border: none; }
   width: 40px;
   height: 40px;
   background: none;
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   padding: 0;
-  margin-left: auto;
 }
 .mob-hamburger span {
   display: block;
   width: 18px;
   height: 2px;
-  background: #fff;
+  background: var(--text);
   border-radius: 2px;
   transition: all 0.25s ease;
 }
@@ -731,12 +730,11 @@ button { cursor: pointer; font-family: inherit; border: none; }
         <a href="/app/" class="btn-nav btn-nav-ghost"><i data-lucide="layout-dashboard" style="width:14px;height:14px"></i> Live Demo</a>
         <a href="#pricing" class="btn-nav btn-nav-wine">Start Free Trial</a>
       </div>
+      <button class="mob-hamburger" id="mobHamburger" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
     </div>
   </div>
-
-  <button class="mob-hamburger" id="mobHamburger" aria-label="Open menu" aria-expanded="false">
-    <span></span><span></span><span></span>
-  </button>
 </nav>
 <div class="nav-mobile-menu" id="mobileMenu">
   <a class="nav-link" href="#features">Features</a>
