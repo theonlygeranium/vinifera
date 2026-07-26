@@ -40,7 +40,7 @@ convert any of those hosted gates into a pass.
 | Client production build | `npm run build` | PASS |
 | Worker packaging | `npm run build:worker` | PASS — 3,051.30 KiB upload / 646.87 KiB gzip dry run |
 | Browser secret-binding scan | `rg` against `dist/assets` for server-only binding names | PASS — no matches |
-| Full browser regression | `npm run qa:e2e` | PASS — 94/94 across Phases 1–4; Phase 4 contributed 18/18 and five charts were visible 33.70ms after dashboard response end |
+| Full browser regression | `CI=1 npm run qa:e2e` | PASS — 94/94 across Phases 1–4 using the two-worker CI configuration; Phase 4 contributed 18/18 and five charts were visible 24.80ms after dashboard response end |
 | Phase 4 embedded database | `npm run qa:db:phase4` | PASS — schema 46/46, tenant RLS 25/25, functional analytics/ML/compliance 50/50; 121/121 total |
 | Hosted root | `curl` against `https://vinifera.edstratumlabs.ai/` | HTTP 200 from the existing static Pages site |
 | Hosted application | `curl` against `/app/` | HTTP 200 static prototype HTML, 189,835 bytes |
@@ -148,11 +148,12 @@ evidence.
   tables.
 - [x] A keyboard-only analytics workflow uses Tab/Shift+Tab, Enter, and Escape
   to traverse and activate the widget dialog, verify focus trapping and return,
-  select/apply a date range, and disclose a chart data table.
+  select/apply a date range with cross-platform native-select keys, and disclose
+  a chart data table.
 - [x] The deterministic browser harness passes LCP below 2.5 seconds and CLS
   below 0.1 on all four surfaces at all three breakpoints.
 - [x] An in-page MutationObserver/requestAnimationFrame probe measured all five
-  analytics charts visibly rendered 33.70ms after the dashboard resource
+  analytics charts visibly rendered 24.80ms after the dashboard resource
   response ended in the full parallel run, below the 500ms gate.
 - [x] The embedded database gate measured 10,000-member scoring at 13,668.44ms
   against the 300,000ms ceiling and the 365-day dashboard at 53.01ms against

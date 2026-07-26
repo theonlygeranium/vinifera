@@ -904,7 +904,6 @@ test.describe("Phase 4 functional workflows", () => {
     await tabTo(page, range);
     await expect(range).toBeFocused();
     await range.pressSequentially("Last 90 days", { delay: 20 });
-    await range.press("Enter");
     await expect(range).toHaveValue("90d");
     await page.keyboard.press("Tab");
     const apply = page.getByRole("button", { name: "Apply" });

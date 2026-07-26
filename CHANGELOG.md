@@ -41,6 +41,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Routed the implemented label path through the Phase 4 provider-backed
   fail-closed boundary. The Phase 2 whitelist remains historical code and is
   not legal authority; hosted ShipCompliant activation is still pending.
+- Made the keyboard-only analytics QA use portable native-select key navigation
+  so Linux Chromium cannot interpret Enter as an early form submission.
 - Extended the Worker schedule for daily analytics/features/predictions,
   monthly candidate training, scheduled summaries, and quarterly benchmarks.
 - Extended setup, architecture, CI, secret contracts, and configuration health

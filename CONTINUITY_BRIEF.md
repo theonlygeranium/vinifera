@@ -90,7 +90,8 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   Benchmarks, and Compliance at 375, 768, and 1440px
 - Phase 4 axe WCAG 2.1 AA: zero violations in the deterministic browser matrix
 - Phase 4 keyboard-only analytics workflow: pass
-- Five-chart response-to-visible timing: 33.70ms in the full parallel run
+- Five-chart response-to-visible timing: 24.80ms in the full two-worker
+  CI-equivalent run
 - Breakpoints: 375, 768, and 1440 pass; orientation change passes
 - Phase 4 production build: pass
 - Worker dry-run: pass, 3,051.30 KiB upload / 646.87 KiB gzip

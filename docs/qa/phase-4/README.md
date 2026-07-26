@@ -29,7 +29,8 @@ Compliance at 375, 768, and 1440px, plus their primary workflows. It verifies:
   activation/trapping/return, date-range application, and chart-table
   disclosure;
 - an in-page chart-local timing mark: all five charts became visibly rendered
-  33.70ms after the dashboard response ended in the full 94-test parallel run, below
+  24.80ms after the dashboard response ended in the full two-worker CI-equivalent
+  94-test run, below
   the 500ms gate;
 - accessible chart data-table alternatives and the canonical widget workflow.
 
