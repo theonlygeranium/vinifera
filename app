@@ -82,7 +82,9 @@ body { font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
 
 /* ==== KPI ==== */
 .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
-.kpi-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow); }
+.kpi-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow); position:relative; overflow:hidden; }
+.kpi-watermark { position:absolute; right:-8px; bottom:-8px; width:64px; height:64px; opacity:0.06; pointer-events:none; }
+.kpi-watermark svg { width:100%; height:100%; }
 .kpi-label { font-size:11.5px; font-weight:500; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.05em; }
 .kpi-value { font-size:26px; font-weight:700; color:var(--text-primary); margin:5px 0 3px; letter-spacing:-0.02em; }
 .kpi-delta { font-size:12px; font-weight:500; display:flex; align-items:center; gap:3px; }
@@ -663,10 +665,10 @@ select.form-control { cursor:pointer; }
 <!-- ═══════ SCREEN: DASHBOARD ═══════ -->
 <div class="screen active" id="screen-dashboard">
   <div class="kpi-grid">
-    <div class="kpi-card"><div class="kpi-icon wine"><i data-lucide="users"></i></div><div class="kpi-label">Active Members</div><div class="kpi-value">1,847</div><div class="kpi-delta up"><i data-lucide="trending-up"></i>+43 this month</div></div>
-    <div class="kpi-card"><div class="kpi-icon gold"><i data-lucide="dollar-sign"></i></div><div class="kpi-label">Club Revenue (MTD)</div><div class="kpi-value">$218K</div><div class="kpi-delta up"><i data-lucide="trending-up"></i>+8.2% vs last month</div></div>
-    <div class="kpi-card"><div class="kpi-icon red"><i data-lucide="user-x"></i></div><div class="kpi-label">At-Risk Members</div><div class="kpi-value">67</div><div class="kpi-delta down"><i data-lucide="trending-up"></i>Up 12 from last week</div></div>
-    <div class="kpi-card"><div class="kpi-icon green"><i data-lucide="percent"></i></div><div class="kpi-label">Retention Rate</div><div class="kpi-value">86.4%</div><div class="kpi-delta up"><i data-lucide="trending-up"></i>+2.1pt vs last quarter</div></div>
+    <div class="kpi-card"><div class="kpi-watermark" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="24" r="6" fill="#6B1E30"/><circle cx="26" cy="30" r="5" fill="#6B1E30"/><circle cx="38" cy="30" r="5" fill="#6B1E30"/><circle cx="24" cy="38" r="4.5" fill="#6B1E30"/><circle cx="32" cy="40" r="5" fill="#6B1E30"/><circle cx="40" cy="38" r="4.5" fill="#6B1E30"/><line x1="32" y1="48" x2="32" y2="60" stroke="#6B1E30" stroke-width="2"/></svg></div><div class="kpi-icon wine"><i data-lucide="users"></i></div><div class="kpi-label">Active Members</div><div class="kpi-value">1,847</div><div class="kpi-delta up"><i data-lucide="trending-up"></i>+43 this month</div></div>
+    <div class="kpi-card"><div class="kpi-watermark" aria-hidden="true"><svg viewBox="0 0 64 64"><rect x="20" y="36" width="24" height="20" rx="2" fill="#C9993A"/><path d="M32,10 L32,36 M24,18 Q32,14 40,18" stroke="#C9993A" stroke-width="2" fill="none"/><circle cx="32" cy="26" r="5" fill="#C9993A" opacity="0.5"/></svg></div><div class="kpi-icon gold"><i data-lucide="dollar-sign"></i></div><div class="kpi-label">Club Revenue (MTD)</div><div class="kpi-value">$218K</div><div class="kpi-delta up"><i data-lucide="trending-up"></i>+8.2% vs last month</div></div>
+    <div class="kpi-card"><div class="kpi-watermark" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M20,16 Q32,8 44,16 L44,28 Q44,38 32,44 Q20,38 20,28 Z" fill="none" stroke="#DC2626" stroke-width="2"/><circle cx="32" cy="26" r="6" fill="#DC2626" opacity="0.3"/><path d="M28,30 Q32,34 36,30" fill="none" stroke="#DC2626" stroke-width="1.5"/></svg></div><div class="kpi-icon red"><i data-lucide="user-x"></i></div><div class="kpi-label">At-Risk Members</div><div class="kpi-value">67</div><div class="kpi-delta down"><i data-lucide="trending-up"></i>Up 12 from last week</div></div>
+    <div class="kpi-card"><div class="kpi-watermark" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="22" fill="none" stroke="#16A34A" stroke-width="2"/><path d="M20,32 A12,12 0 0,1 44,32" fill="none" stroke="#16A34A" stroke-width="2"/><path d="M20,32 A12,12 0 0,0 44,32" fill="#16A34A" opacity="0.2"/><line x1="32" y1="14" x2="32" y2="20" stroke="#16A34A" stroke-width="2"/><line x1="32" y1="44" x2="32" y2="50" stroke="#16A34A" stroke-width="2"/></svg></div><div class="kpi-icon green"><i data-lucide="percent"></i></div><div class="kpi-label">Retention Rate</div><div class="kpi-value">86.4%</div><div class="kpi-delta up"><i data-lucide="trending-up"></i>+2.1pt vs last quarter</div></div>
   </div>
   <div class="grid-3-1 mb-20">
     <div class="card">
@@ -732,6 +734,21 @@ select.form-control { cursor:pointer; }
         <button class="card-action mt-12">Manage failed payments <i data-lucide="arrow-right"></i></button>
       </div>
     </div>
+  </div>
+  <div class="card" style="text-align:center;padding:36px 20px;border:1px dashed var(--border);background:var(--success-bg);">
+    <div style="width:64px;height:64px;margin:0 auto 14px;">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M22,26 L22,48 Q22,52 26,52 L38,52 Q42,52 42,48 L42,26 Z" fill="none" stroke="#16A34A" stroke-width="2" opacity="0.3"/>
+        <path d="M26,26 Q26,18 32,18 Q38,18 38,26" fill="none" stroke="#16A34A" stroke-width="2" opacity="0.3"/>
+        <circle cx="32" cy="36" r="6" fill="#16A34A" opacity="0.15"/>
+        <path d="M27,36 L30,39 L37,32" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <g opacity="0.4">
+          <path d="M48,16 L50,14 M52,20 L54,18 M46,12 L48,10" stroke="#C9993A" stroke-width="2" stroke-linecap="round"/>
+        </g>
+      </svg>
+    </div>
+    <h3 style="font-size:15px;font-weight:600;color:#166534;margin-bottom:4px;">All clear — no critical alerts</h3>
+    <p style="font-size:13px;color:#15803d;">Your club is running smoothly. Shipments, billing, and inventory all on track.</p>
   </div>
 </div><!-- /dashboard -->
 
