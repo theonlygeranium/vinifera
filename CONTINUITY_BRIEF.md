@@ -72,10 +72,11 @@ The extensionless root `app` file is the accepted visual prototype and is not co
 The code must remain fail-closed until these external connections are active:
 
 1. Add Supabase management credentials and apply `supabase/migrations/`.
-2. Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP.
-3. Add Stripe recurring test Price IDs, register `/api/billing/webhook`, and add its signing secret.
-4. Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests.
-5. Move the custom domain only after the Phase 1 exit criterion is evidenced.
+2. Give the Cloudflare token Workers Scripts edit permission and set `CLOUDFLARE_WORKERS_DEPLOY_ENABLED=true`.
+3. Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP.
+4. Add Stripe recurring test Price IDs, register `/api/billing/webhook`, and add its signing secret.
+5. Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests.
+6. Move the custom domain only after the Phase 1 exit criterion is evidenced.
 
 See `.env.example` and `docs/setup.md` for exact variable names. Never print or commit values.
 

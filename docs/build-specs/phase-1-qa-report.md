@@ -67,6 +67,7 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 ## Deferred activation checklist
 
 - [ ] Add `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, and `SUPABASE_DB_PASSWORD`.
+- [ ] Replace or expand the Cloudflare token with Workers Scripts edit permission, then set `CLOUDFLARE_WORKERS_DEPLOY_ENABLED=true`.
 - [ ] Apply the migration to the hosted Supabase project and run `supabase test db`.
 - [ ] Enable the custom access-token hook, Google OAuth, SMTP, production redirect URLs, and 900-second OTP expiry.
 - [ ] Add four Stripe recurring test Price IDs.

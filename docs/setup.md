@@ -137,7 +137,12 @@ npm run qa:e2e
 6. Apply Supabase migrations only when management credentials are active.
 7. Deploy the Worker and upload available runtime secrets.
 
-The existing Cloudflare Pages custom-domain deployment remains the rollback baseline during Phase 1. The Worker deploys to its staging `workers.dev` address until the complete live gate passes; do not move the custom domain early.
+The deployment job remains a successful no-op until
+`CLOUDFLARE_WORKERS_DEPLOY_ENABLED=true` and the stored Cloudflare token has
+Workers Scripts edit permission. The existing Cloudflare Pages custom-domain
+deployment remains the rollback baseline during Phase 1. The Worker deploys to
+its staging `workers.dev` address until the complete live gate passes; do not
+move the custom domain early.
 
 ## Verification surfaces
 

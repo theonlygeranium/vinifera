@@ -34,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Normalized database RPC and API session contracts, including Stripe event return shapes and camel-cased browser payloads.
 - Refreshed newly bootstrapped Supabase sessions so database-derived tenant claims are immediately available.
 - Made disconnected session probes fail closed without producing noisy browser errors.
+- Gated Worker deployment behind an explicit activation flag after the existing Cloudflare token proved to lack Workers Scripts permission.
 
 ---
 
