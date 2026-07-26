@@ -571,7 +571,7 @@ select.form-control { cursor:pointer; }
 
   /* Pipeline steps: contain horizontally */
   .pipeline-steps { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
-  .pipeline-step { min-width: 80px; }
+  .pipeline-step { min-width: 64px; flex-shrink: 0; }
 
   /* Sparkbar doesn't overflow */
   .sparkbar-row { overflow: hidden; }
