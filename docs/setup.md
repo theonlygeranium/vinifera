@@ -397,6 +397,7 @@ npm run build:worker:production
 npm run qa:mobile-release
 npm run qa:production-release
 npm run qa:stripe-catalog
+npm run qa:db:phase1
 npm run qa:db:phase2
 npm run qa:db:phase3
 npm run qa:db:phase4
@@ -408,8 +409,8 @@ npm run build:mobile:android
 ```
 
 The current credential-independent architecture gate passes TypeScript,
-245/245 Vitest tests, Phase 2 145/145, Phase 3 138/138, Phase 4 121/121, Phase
-5 279/279 embedded PostgreSQL/pgTAP assertions, and 123/123 Playwright tests
+256/256 Vitest tests, Phase 1 92/92, Phase 2 145/145, Phase 3 138/138, Phase 4
+121/121, Phase 5 279/279 embedded PostgreSQL/pgTAP assertions, and 132/132 Playwright tests
 with zero axe violations. Pages, Worker, and production Worker dry-run builds
 pass. The focused release controls pass 14/14, mobile-release controls 7/7,
 Stripe catalog controls 16/16, and mobile identity passes. These are local
@@ -429,9 +430,10 @@ not replaced before Worker activation. Reproduce that artifact locally with
 1. Install locked dependencies.
 2. Audit production dependencies.
 3. Type-check and run automated tests.
-4. Run the Phase 2–5 embedded database gates.
+4. Run the Phase 1–5 embedded database gates.
 5. Build static assets and validate the Worker bundle.
-6. Run Chromium/Playwright accessibility, breakpoint, visual, and security QA.
+6. Run Chromium/Playwright accessibility, breakpoint, visual, keyboard, and
+   security QA, retaining the login/signup breakpoint captures for 90 days.
 7. Sync, lint, and assemble the Android API 36 debug shell with Java 21.
 8. Apply Supabase migrations with pinned CLI 2.109.1 only when staging-scoped
    management credentials and the hashed target policy are active, then run the

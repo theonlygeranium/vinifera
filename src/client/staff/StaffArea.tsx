@@ -34,6 +34,7 @@ import {
   StaffSessionProvider,
   useStaffSession,
 } from "./StaffSessionContext";
+import { TeamPage } from "./TeamPage";
 
 function ProtectedPage({ children }: { children: ReactNode }) {
   const { state } = useStaffSession();
@@ -62,6 +63,13 @@ function StaffRoutes() {
   if (route === "/app/forgot-password") return <ForgotPasswordPage />;
   if (route === "/app/reset-password") return <ResetPasswordPage />;
   if (route === "/app/invite") return <InvitePage />;
+  if (route === "/app/team") {
+    return (
+      <ProtectedPage>
+        <TeamPage />
+      </ProtectedPage>
+    );
+  }
   if (route === "/app" || route === "/app/dashboard") {
     return (
       <ProtectedPage>

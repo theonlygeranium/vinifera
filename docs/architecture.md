@@ -307,6 +307,11 @@ automatic phase or deployment step.
   leases, and stable session keys. Only one nonterminal Checkout can exist per
   billing subject; a completed Checkout remains `awaiting_webhook` and blocks a
   replacement until the signed subscription event reconciles it.
+- Organization signup reconciles an ambiguous tenant bootstrap before any
+  cleanup, provisions the organization Customer immediately when an authorized
+  Stripe key is connected, and otherwise transmits nothing. The API
+  distinguishes `ready`, `deferred`, and `reconciliation_required`; Checkout
+  uses the same durable claim to finish deferred provisioning later.
 - Stripe catalog writes separately require a test key, exact operation
   confirmation, immutable `main` commit, account fingerprint allowlist, and
   exact Product/Price contract. A mismatched existing lookup key fails closed.

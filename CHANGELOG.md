@@ -10,6 +10,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added the Phase 1 owner/admin Team invitation surface, role-aware
+  manager/staff denial, session-backed invite/reset completion, a dedicated
+  92-assertion Phase 1 database gate, and retained login/signup visual evidence
+  at 375, 768, and 1440.
+- Added recoverable organization signup billing with immediate idempotent
+  Stripe Customer creation when connected and explicit `ready`, `deferred`,
+  and `reconciliation_required` states when services are connected later.
+- Added the signup billing recovery ADR covering ambiguous database responses,
+  uncertain provider writes, identity retention, and just-in-time
+  reconciliation.
 - Completed the credential-independent production architecture with Stripe
   billing-subject locks and webhook-wait reconciliation, consent-gated
   encrypted Meta attribution, resumable envelope rotation, separately
@@ -47,6 +57,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Enforced restricted/suspended staff workspaces as billing-recovery-only,
+  while keeping Subscription and sign-out available and blocking operational
+  navigation and server services.
+- Extended CI to run Phase 1 through Phase 5 database architecture, retain
+  Playwright evidence for 90 days, and exercise explicit Tab-order plus
+  Space/Enter activation.
+- Updated the current local gate to TypeScript green, Vitest 256/256, Phase 1
+  PostgreSQL 92/92, Phase 1 Playwright 30/30, and the full Playwright inventory
+  at 132 tests.
 - Raised the GitHub Actions artifact/log retention setting from 1 day to the
   repository's allowed 90-day maximum so QA, native-build, rollback, and
   protected activation evidence follows the workflow retention contracts.
@@ -109,6 +128,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   credentials are reachable, while staging credentials, database migrations,
   Stripe Prices/webhook, and Workers-capable Cloudflare authority remain
   intentionally unresolved.
+
+### Fixed
+
+- Fixed Supabase PKCE reset and invitation completion so the established
+  HTTP-only session is authoritative and optional invite metadata uses the API
+  contract.
+- Fixed signup rollback safety so an ambiguous committed organization is
+  reconciled by owner identity before cleanup and no post-bootstrap Stripe or
+  session failure deletes the tenant.
 
 ### Security
 

@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../../server/app";
 import { assertStaffRole } from "../../server/lib/authorization";
 import { AppError } from "../../server/lib/errors";
+import { assertStaffWorkspaceAccess } from "../../server/services/core-club";
+import { classifyOrganizationBootstrapRecovery } from "../../server/services/production-foundation";
 import type {
   ApplicationService,
   FoundationServiceFactory,
@@ -32,6 +34,32 @@ const staffPrincipal = {
   },
 };
 
+describe("organization signup bootstrap recovery", () => {
+  it("recovers a committed organization after an ambiguous RPC response", () => {
+    expect(
+      classifyOrganizationBootstrapRecovery(
+        { organization_id: "10000000-0000-4000-8000-000000000001" },
+        null,
+      ),
+    ).toEqual({
+      organizationId: "10000000-0000-4000-8000-000000000001",
+      state: "recovered",
+    });
+  });
+
+  it("permits cleanup only after a successful lookup proves no staff row exists", () => {
+    expect(classifyOrganizationBootstrapRecovery(null, null)).toEqual({
+      state: "absent",
+    });
+    expect(
+      classifyOrganizationBootstrapRecovery(null, new Error("lookup timeout")),
+    ).toEqual({ state: "ambiguous" });
+    expect(classifyOrganizationBootstrapRecovery({}, null)).toEqual({
+      state: "ambiguous",
+    });
+  });
+});
+
 function service(overrides: Partial<ApplicationService> = {}): ApplicationService {
   return {
     acceptStaffInvite: vi.fn().mockResolvedValue(staffPrincipal),
@@ -57,6 +85,7 @@ function service(overrides: Partial<ApplicationService> = {}): ApplicationServic
     staffLogout: vi.fn().mockResolvedValue(undefined),
     staffSignup: vi.fn().mockResolvedValue({
       billingActivationRequired: true,
+      billingCustomerState: "deferred",
       principal: staffPrincipal,
     }),
     batchMembers: vi.fn().mockResolvedValue({ updated: 0 }),
@@ -164,6 +193,45 @@ describe("Phase 1 API", () => {
       ),
     ).toThrowError(expect.objectContaining({ code: "forbidden", status: 403 }));
     expect(() => assertStaffRole(staffPrincipal, ["owner"])).not.toThrow();
+  });
+
+  it("restricts day-eight workspaces to subscription recovery", () => {
+    expect(() => assertStaffWorkspaceAccess("active")).not.toThrow();
+    expect(() => assertStaffWorkspaceAccess("grace")).not.toThrow();
+    expect(() => assertStaffWorkspaceAccess("restricted")).toThrowError(
+      expect.objectContaining({
+        code: "forbidden",
+        message: "This winery account is restricted to subscription recovery.",
+        status: 403,
+      }),
+    );
+    expect(() => assertStaffWorkspaceAccess("suspended")).toThrowError(
+      expect.objectContaining({ code: "forbidden", status: 403 }),
+    );
+  });
+
+  it("creates a role-scoped staff invitation through the protected API", async () => {
+    const foundation = service();
+    const response = await request(testApp(foundation))
+      .post("/api/staff/invitations")
+      .set("Origin", "https://vinifera.test")
+      .send({ email: "INVITED@EXAMPLE.COM", role: "manager" });
+
+    expect(response.status).toBe(201);
+    expect(response.body.data).toEqual({
+      expiresAt: "2026-07-27T00:00:00.000Z",
+    });
+    expect(foundation.createStaffInvitation).toHaveBeenCalledWith({
+      email: "invited@example.com",
+      role: "manager",
+    });
+
+    const invalidRole = await request(testApp(foundation))
+      .post("/api/staff/invitations")
+      .set("Origin", "https://vinifera.test")
+      .send({ email: "owner@example.com", role: "owner" });
+    expect(invalidRole.status).toBe(400);
+    expect(foundation.createStaffInvitation).toHaveBeenCalledTimes(1);
   });
 
   it("reports provider activation without exposing secret values", async () => {
@@ -298,6 +366,53 @@ describe("Phase 1 API", () => {
       email: "owner@example.com",
       password: "correct horse",
     });
+  });
+
+  it("supports session-backed password reset and invitation acceptance", async () => {
+    const foundation = service();
+    const reset = await request(testApp(foundation))
+      .post("/api/auth/staff/reset-password")
+      .set("Origin", "https://vinifera.test")
+      .send({ password: "NewPassword1234" });
+    const invite = await request(testApp(foundation))
+      .post("/api/auth/staff/accept-invite")
+      .set("Origin", "https://vinifera.test")
+      .send({
+        fullName: "Invited Manager",
+        password: "InvitePassword1234",
+      });
+
+    expect(reset.status).toBe(200);
+    expect(foundation.completeStaffPasswordReset).toHaveBeenCalledWith({
+      password: "NewPassword1234",
+    });
+    expect(invite.status).toBe(200);
+    expect(foundation.acceptStaffInvite).toHaveBeenCalledWith({
+      fullName: "Invited Manager",
+      password: "InvitePassword1234",
+    });
+  });
+
+  it("keeps logout, password email, and Google OAuth routes connected", async () => {
+    const foundation = service();
+    const logout = await request(testApp(foundation))
+      .post("/api/auth/staff/logout")
+      .set("Origin", "https://vinifera.test");
+    const forgot = await request(testApp(foundation))
+      .post("/api/auth/staff/forgot-password")
+      .set("Origin", "https://vinifera.test")
+      .send({ email: "OWNER@EXAMPLE.COM" });
+    const oauth = await request(testApp(foundation)).get("/api/auth/staff/google");
+
+    expect(logout.status).toBe(204);
+    expect(foundation.staffLogout).toHaveBeenCalledOnce();
+    expect(forgot.status).toBe(200);
+    expect(forgot.text).not.toContain("owner@example.com");
+    expect(foundation.requestStaffPasswordReset).toHaveBeenCalledWith({
+      email: "owner@example.com",
+    });
+    expect(oauth.status).toBe(303);
+    expect(oauth.headers.location).toBe("https://accounts.google.test/oauth");
   });
 
   it("keeps member and staff session endpoints separate", async () => {

@@ -8,6 +8,7 @@ import type { Request, Response } from "express";
 import Stripe from "stripe";
 import {
   assertStripeBillingAuthority,
+  canProvisionStripeCustomer,
   getConfigurationReport,
   stripeCredentialMode,
   usesSecureCookies,
@@ -28,6 +29,7 @@ import {
   executeStripeBillingAttempt,
   isNonterminalSubscriptionStatus,
   provisionStripeCustomer,
+  resolveOrganizationStripeCustomerOnSignup,
   stripeClientReferenceId,
   supabaseStripeBillingAttemptStore,
   supabaseStripeCustomerProvisioningStore,
@@ -36,6 +38,7 @@ import {
 import type {
   ApplicationService,
   AuthSurface,
+  BillingCustomerState,
   MemberPrincipal,
   PlanTier,
   StaffPrincipal,
@@ -217,6 +220,29 @@ function stripeObjectId(value: string | { id: string } | null): string | null {
   return typeof value === "string" ? value : value.id;
 }
 
+export function classifyOrganizationBootstrapRecovery(
+  recoveredStaff: unknown,
+  recoveryError: unknown,
+):
+  | { organizationId: string; state: "recovered" }
+  | { state: "absent" | "ambiguous" } {
+  if (recoveryError) return { state: "ambiguous" };
+  if (recoveredStaff === null) return { state: "absent" };
+  if (
+    recoveredStaff &&
+    typeof recoveredStaff === "object" &&
+    "organization_id" in recoveredStaff &&
+    typeof recoveredStaff.organization_id === "string" &&
+    UUID.test(recoveredStaff.organization_id)
+  ) {
+    return {
+      organizationId: recoveredStaff.organization_id,
+      state: "recovered",
+    };
+  }
+  return { state: "ambiguous" };
+}
+
 export class ProductionFoundationService
   extends ProductionIntegrationService
   implements ApplicationService
@@ -358,7 +384,11 @@ export class ProductionFoundationService
     organizationName: string;
     password: string;
     planTier: PlanTier;
-  }): Promise<{ billingActivationRequired: boolean; principal: StaffPrincipal | null }> {
+  }): Promise<{
+    billingActivationRequired: boolean;
+    billingCustomerState: BillingCustomerState;
+    principal: StaffPrincipal | null;
+  }> {
     this.requireAuthEmail();
     const email = normalizeEmail(input.email);
     const staffClient = this.surfaceClient("staff");
@@ -378,39 +408,100 @@ export class ProductionFoundationService
       throw new AppError(409, "conflict", "An account with this email may already exist.");
     }
 
-    const billingActivationRequired =
-      !getConfigurationReport(this.env).billing.configured ||
-      !getConfigurationReport(this.env).webhook.configured;
-    try {
-      const { data: bootstrapData, error: bootstrapError } = await this.admin.rpc(
-        "bootstrap_organization",
-        {
-          p_organization_name: input.organizationName,
-          p_owner_email: email,
-          p_owner_user_id: data.user.id,
-          p_plan_tier: input.planTier,
-          p_stripe_customer_id: null,
-        },
+    const configuration = getConfigurationReport(this.env);
+    let billingActivationRequired =
+      !configuration.billing.configured || !configuration.webhook.configured;
+    let billingCustomerState: BillingCustomerState = "deferred";
+    let organizationId: string | null = null;
+    const { data: bootstrapData, error: bootstrapError } = await this.admin.rpc(
+      "bootstrap_organization",
+      {
+        p_organization_name: input.organizationName,
+        p_owner_email: email,
+        p_owner_user_id: data.user.id,
+        p_plan_tier: input.planTier,
+        p_stripe_customer_id: null,
+      },
+    );
+    if (!bootstrapError && typeof bootstrapData === "string") {
+      organizationId = bootstrapData;
+    } else {
+      const { data: recoveredStaff, error: recoveryError } = await this.admin
+        .from("staff_users")
+        .select("organization_id")
+        .eq("id", data.user.id)
+        .maybeSingle();
+      const recovery = classifyOrganizationBootstrapRecovery(
+        recoveredStaff,
+        recoveryError,
       );
-      if (bootstrapError || typeof bootstrapData !== "string") {
-        throw bootstrapError;
+      if (recovery.state === "recovered") {
+        organizationId = recovery.organizationId;
+      } else if (recovery.state === "absent") {
+        const { error: deleteError } =
+          await this.admin.auth.admin.deleteUser(data.user.id);
+        throw new AppError(
+          502,
+          "upstream_error",
+          deleteError
+            ? "The organization could not be created. The account was retained for safe recovery."
+            : "The organization could not be created. No account was retained.",
+        );
+      } else {
+        throw new AppError(
+          502,
+          "upstream_error",
+          "Organization creation could not be confirmed. The account was retained for safe recovery.",
+        );
       }
-      if (data.session) {
-        const { error: refreshError } = await staffClient.auth.refreshSession();
-        if (refreshError) throw refreshError;
-      }
-    } catch (error) {
-      await this.admin.auth.admin.deleteUser(data.user.id).catch(() => undefined);
+    }
+    if (!organizationId) {
       throw new AppError(
         502,
         "upstream_error",
-        "The organization could not be created. No account was retained.",
+        "Organization creation could not be confirmed. The account was retained for safe recovery.",
       );
+    }
+
+    const { data: organizationBilling, error: organizationBillingError } =
+      await this.admin
+        .from("organizations")
+        .select("stripe_customer_id")
+        .eq("id", organizationId)
+        .maybeSingle();
+    billingCustomerState = await resolveOrganizationStripeCustomerOnSignup({
+      configured: canProvisionStripeCustomer(this.env),
+      createCustomer: (params, idempotencyKey) =>
+        createStripe(this.env).customers.create(params, { idempotencyKey }),
+      currentCustomerId: organizationBilling?.stripe_customer_id,
+      organizationId,
+      readError: organizationBillingError,
+      store: supabaseStripeCustomerProvisioningStore(this.admin),
+    });
+    if (billingCustomerState !== "ready") {
+      billingActivationRequired = true;
+    }
+    if (billingCustomerState === "reconciliation_required") {
+      console.error(
+        JSON.stringify({
+          event: "billing.organization_customer_reconciliation_required",
+          organizationId,
+        }),
+      );
+    }
+
+    let principal: StaffPrincipal | null = null;
+    if (data.session) {
+      const { error: refreshError } = await staffClient.auth.refreshSession();
+      if (!refreshError) {
+        principal = await this.getStaffSession();
+      }
     }
 
     return {
       billingActivationRequired,
-      principal: data.session ? await this.getStaffSession() : null,
+      billingCustomerState,
+      principal,
     };
   }
 
@@ -594,6 +685,7 @@ export class ProductionFoundationService
   }
 
   async acceptStaffInvite(input: {
+    fullName?: string;
     inviteToken?: string;
     password: string;
   }): Promise<StaffPrincipal> {
@@ -601,6 +693,13 @@ export class ProductionFoundationService
     const { data: userData, error: userError } = await client.auth.getUser();
     if (userError || !userData.user?.email) throw authFailure();
     const { error: passwordError } = await client.auth.updateUser({
+      ...(input.fullName
+        ? {
+            data: {
+              full_name: input.fullName,
+            },
+          }
+        : {}),
       password: input.password,
     });
     if (passwordError) {

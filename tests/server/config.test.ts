@@ -3,6 +3,7 @@ import {
   assertAvalaraBaseUrlEnvironment,
   assertProviderEnvironment,
   assertStripeBillingAuthority,
+  canProvisionStripeCustomer,
   getConfigurationReport,
   stripeCredentialMode,
   usesSecureCookies,
@@ -82,6 +83,29 @@ describe("hosted environment security boundaries", () => {
         STRIPE_SECRET_KEY: "sk_live_runtime_boundary",
       }),
     ).not.toThrow();
+  });
+
+  it("enables signup Customer provisioning only for an authorized Stripe key", () => {
+    expect(canProvisionStripeCustomer({ APP_ENV: "staging" })).toBe(false);
+    expect(
+      canProvisionStripeCustomer({
+        APP_ENV: "staging",
+        STRIPE_SECRET_KEY: "sk_test_runtime_boundary",
+      }),
+    ).toBe(true);
+    expect(
+      canProvisionStripeCustomer({
+        APP_ENV: "staging",
+        STRIPE_SECRET_KEY: "sk_live_runtime_boundary",
+      }),
+    ).toBe(false);
+    expect(
+      canProvisionStripeCustomer({
+        APP_ENV: "production",
+        LIVE_BILLING_ENABLED: "true",
+        STRIPE_SECRET_KEY: "sk_live_runtime_boundary",
+      }),
+    ).toBe(true);
   });
 
   it("reports the live billing switch as missing until explicitly enabled", () => {

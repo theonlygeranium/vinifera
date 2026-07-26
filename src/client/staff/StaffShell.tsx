@@ -19,6 +19,7 @@ import {
   Tags,
   Trophy,
   Upload,
+  UserRoundPlus,
   Users,
   X,
 } from "lucide-react";
@@ -126,6 +127,9 @@ export function StaffShell({
   const user = session?.user;
   const organization = session?.organization;
   const accessState = session?.access?.state ?? organization?.accessState;
+  const workspaceLocked =
+    accessState === "restricted" || accessState === "suspended";
+  const canManageTeam = user?.role === "owner" || user?.role === "admin";
 
   async function logout() {
     setBusy("logout");
@@ -218,25 +222,39 @@ export function StaffShell({
           </button>
         </div>
         <nav className="staff-sidebar__nav" aria-label="Primary">
-          {navSections.map((section) => (
-            <div key={section.label}>
-              <p className="staff-sidebar__label">{section.label}</p>
-              {section.links.map(({ href, label, icon: Icon }) => (
-                <Link
-                  key={href}
-                  className={`staff-nav-item${
-                    activePath === href ? " staff-nav-item--active" : ""
-                  }`}
-                  to={href}
-                  aria-current={activePath === href ? "page" : undefined}
-                >
-                  <Icon aria-hidden="true" />
-                  {label}
-                </Link>
-              ))}
-            </div>
-          ))}
+          {!workspaceLocked
+            ? navSections.map((section) => (
+                <div key={section.label}>
+                  <p className="staff-sidebar__label">{section.label}</p>
+                  {section.links.map(({ href, label, icon: Icon }) => (
+                    <Link
+                      key={href}
+                      className={`staff-nav-item${
+                        activePath === href ? " staff-nav-item--active" : ""
+                      }`}
+                      to={href}
+                      aria-current={activePath === href ? "page" : undefined}
+                    >
+                      <Icon aria-hidden="true" />
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+              ))
+            : null}
           <p className="staff-sidebar__label">Workspace</p>
+          {!workspaceLocked && canManageTeam ? (
+            <Link
+              className={`staff-nav-item${
+                activePath === "/app/team" ? " staff-nav-item--active" : ""
+              }`}
+              to="/app/team"
+              aria-current={activePath === "/app/team" ? "page" : undefined}
+            >
+              <UserRoundPlus aria-hidden="true" />
+              Team
+            </Link>
+          ) : null}
           <button className="staff-nav-item" type="button" onClick={openBilling}>
             <CreditCard aria-hidden="true" />
             Subscription
@@ -271,7 +289,8 @@ export function StaffShell({
             </div>
           </div>
           <div className="staff-topbar__actions">
-            {brandScope.canViewAllBrands || brandScope.brands.length > 1 ? (
+            {!workspaceLocked &&
+            (brandScope.canViewAllBrands || brandScope.brands.length > 1) ? (
               <div className="brand-switcher">
                 <label htmlFor="active-brand">Active brand</label>
                 <select
@@ -296,7 +315,7 @@ export function StaffShell({
                 </select>
               </div>
             ) : null}
-            {actions}
+            {!workspaceLocked ? actions : null}
             <button
               type="button"
               className="button button--secondary button--compact"
@@ -332,7 +351,7 @@ export function StaffShell({
               </button>
             </section>
           ) : null}
-          {children}
+          {!workspaceLocked ? children : null}
         </main>
       </div>
     </div>

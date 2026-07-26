@@ -64,6 +64,15 @@ Use Stripe Billing with hosted Checkout Sessions and immutable recurring Price I
 
 The API uses Stripe version `2026-02-25.clover`. Webhooks require the raw request body and a valid Stripe signature. Database functions apply events idempotently by unique Stripe event ID and reject older out-of-order state changes. Stripe's hosted Customer Portal handles self-service billing management.
 
+Organization signup first commits the tenant, then provisions the
+organization-scoped Stripe Customer when an authorized key is connected.
+Disconnected deployments make no provider call and retain the same
+idempotent, leased path for later Checkout provisioning. Ambiguous database or
+provider results preserve the owner and tenant and expose a truthful
+`ready`, `deferred`, or `reconciliation_required` state. The complete recovery
+contract is recorded in
+[the signup billing recovery ADR](./2026-07-26-signup-billing-recovery.md).
+
 ### Deferred provider activation
 
 Provider integrations are real adapters, not production mocks:

@@ -21,19 +21,20 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 |---|---:|---|
 | Dependency audit | Pass | `npm audit` reports 0 vulnerabilities |
 | TypeScript | Pass | `npm run typecheck` |
-| API/unit integration | Pass | Current full Vitest regression 245/245 |
-| Browser QA | Pass | Current full Playwright regression 123/123 |
+| API/unit integration | Pass | Current full Vitest regression 256/256 |
+| Browser QA | Pass | Current full Playwright regression 132/132; Phase 1 focused suite 30/30 |
 | Worker packaging | Pass | Wrangler dry run |
 | Pages rollback packaging | Pass | `CF_PAGES=1` preserves the original extensionless app |
-| Initial JS | Pass | 62.25 KB gzip, budget < 200 KB |
+| Initial JS | Pass | 66.78 KB gzip app entry, budget < 200 KB |
 | Accessibility | Pass | axe WCAG 2.1 AA, 0 violations |
-| Responsive layout | Pass | 375, 768, 1440; no horizontal overflow |
+| Responsive layout | Pass | 375, 768, 1440; no horizontal overflow; six login/signup captures retained by CI for 90 days |
 | Mobile touch targets | Pass | 0 effective targets below 44×44 |
 | Orientation | Pass | 375×812 to 812×375 |
 | Performance | Pass locally | LCP < 2.5 s and CLS < 0.1 assertions |
 | Security headers | Pass | CSP, HSTS, frame denial, nosniff, referrer and permissions policies |
 | Browser credential storage | Pass | no local/session storage keys or server secrets |
-| Database migration | Pass in embedded PostgreSQL | migrations 001–012; bootstrap, invite, limiter, Stripe subject locks, webhook-wait reconciliation, and cross-tenant RLS |
+| Phase 1 database gate | Pass in embedded PostgreSQL | migrations plus suites 001–003 at 92/92; bootstrap, invite, limiter, webhook state, and cross-tenant RLS |
+| Database migration | Pass in embedded PostgreSQL | migrations 001–012; Stripe subject locks, webhook-wait reconciliation, and later-phase schema remain green |
 | pgTAP suites | Pass locally | Current Phase 5 migration/pgTAP gate 279/279 across suites 013–022; native hosted Supabase run pending |
 | Hosted activation controls | Pass in source | Staging target hashes fail closed; linked pgTAP and core Worker configuration are mandatory when activated |
 | Production release/rollback control | Pass in source | First bootstrap has no route; custom-domain movement retains Pages and requires all Phase 1–5 capabilities |
@@ -45,15 +46,16 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 
 | Requirement | Status | Notes |
 |---|---|---|
-| Staff signup/login/logout/reset | Connection-ready | UI, API, cookies, callbacks, validation, and token refresh implemented; hosted email/Auth test pending |
+| Staff signup/login/logout/reset | Connection-ready | UI, API, cookies, callbacks, validation, session-backed reset completion, retry-safe tenant bootstrap, and token refresh implemented; hosted email/Auth test pending |
 | Google OAuth | Connection-ready | Supabase OAuth handoff implemented; provider configuration pending |
 | Staff roles and Owner-only billing | Pass in architecture tests | DB role claims/RLS and server checks implemented; hosted role matrix pending |
-| Staff invitation onboarding | Pass in embedded PostgreSQL | Atomic SHA-256 invite consumption; hosted email delivery pending |
+| Staff invitation onboarding | Pass locally | Owner/admin Team UI, role-aware API, session-backed acceptance, atomic SHA-256 invite consumption, mobile/keyboard/axe checks; hosted email delivery pending |
 | Member magic link | Connection-ready | privacy-safe request and isolated session implemented; hosted email delivery pending |
 | Magic-link expiry | Configured | Supabase OTP expiry is 900 seconds; hosted setting verification pending |
 | Magic-link rate limit | Pass in embedded PostgreSQL | atomic rolling 5/email/hour plus IP ceiling |
 | Staff/member session isolation | Pass | distinct HTTP-only cookie names and API/browser checks |
-| Stripe Checkout and portal | Connection-ready | hosted test Prices and portal configuration pending |
+| Stripe organization Customer | Connection-ready | Signup creates or reuses the Customer when an authorized key exists; disconnected, ready, and uncertain states are explicit; hosted test Customer pending |
+| Stripe Checkout and portal | Connection-ready | deferred organizations reuse the same Customer claim at Checkout; hosted test Prices and portal configuration pending |
 | Concurrent/retried billing | Pass in local architecture | customer provisioning locks, immutable billing subjects, stable idempotency keys, one nonterminal Checkout, and `awaiting_webhook` reconciliation prevent duplicate sessions/subscriptions |
 | Signed Stripe webhook | Pass at handler/database boundaries | real endpoint signing secret and replay pending |
 | Seven/fourteen-day access lifecycle | Pass in embedded PostgreSQL | hourly Worker reconciliation configured |
@@ -62,10 +64,17 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 ## Accessibility and visual QA
 
 - Login, signup, member login, staff dashboard, and member portal pass axe with zero WCAG 2.1 AA violations.
+- Owner/admin Team invitation and manager/staff denial states pass axe with zero
+  violations at 375 px.
 - All fields have programmatic labels; feedback uses `aria-live`; focus styles are visible.
+- Explicit keyboard coverage verifies logical email → password → reveal-button
+  Tab order and both Space and Enter activation.
 - The 230 px sidebar, 54 px topbar, wine/gold palette, cards, spacing, and member gradient follow the accepted prototype.
 - Phase 1 authenticated screens intentionally use empty states instead of the prototype's simulated metrics.
 - In-app browser smoke testing confirmed page identity, meaningful DOM, no framework overlay, no relevant console errors, responsive stability, and password-toggle interaction.
+- Playwright writes staff login and signup screenshots at 375, 768, and 1440
+  into the CI evidence artifact; the workflow retains that artifact for 90
+  days.
 
 ## Security QA
 
@@ -116,5 +125,6 @@ npm run build:worker
 npm run build:worker:production
 npm run qa:production-release
 npm run qa:stripe-catalog
+npm run qa:db:phase1
 npm run qa:e2e
 ```

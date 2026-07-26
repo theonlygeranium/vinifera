@@ -5,6 +5,8 @@ import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const allowSkip = process.env.VINIFERA_DB_VERIFY_ALLOW_SKIP === "1";
+const targetPhase =
+  process.env.VINIFERA_DB_VERIFY_PHASE === "1" ? 1 : 2;
 const require = createRequire(import.meta.url);
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 
@@ -13,7 +15,7 @@ function resolvePglite() {
     return require.resolve("@electric-sql/pglite");
   } catch {
     const message = [
-      "Phase 2 database verification requires @electric-sql/pglite.",
+      `Phase ${targetPhase} database verification requires @electric-sql/pglite.`,
       "Expose an existing workspace installation with NODE_PATH or install it",
       "outside this repository. Set VINIFERA_DB_VERIFY_ALLOW_SKIP=1 only when",
       "an explicit non-blocking skip is intended.",
@@ -33,15 +35,25 @@ if (pgliteEntry === null) {
 
 const { PGlite } = await import(pathToFileURL(pgliteEntry).href);
 
-const migrations = [
-  "supabase/migrations/202607260001_phase_1_foundation.sql",
-  "supabase/migrations/202607260002_phase_2_core_club_loop.sql",
-];
-const tests = [
-  "supabase/tests/004_phase_2_schema.test.sql",
-  "supabase/tests/005_phase_2_tenant_rls.test.sql",
-  "supabase/tests/006_phase_2_server_rpcs.test.sql",
-];
+const migrations =
+  targetPhase === 1
+    ? ["supabase/migrations/202607260001_phase_1_foundation.sql"]
+    : [
+        "supabase/migrations/202607260001_phase_1_foundation.sql",
+        "supabase/migrations/202607260002_phase_2_core_club_loop.sql",
+      ];
+const tests =
+  targetPhase === 1
+    ? [
+        "supabase/tests/001_foundation_schema.test.sql",
+        "supabase/tests/002_tenant_rls.test.sql",
+        "supabase/tests/003_server_rpcs.test.sql",
+      ]
+    : [
+        "supabase/tests/004_phase_2_schema.test.sql",
+        "supabase/tests/005_phase_2_tenant_rls.test.sql",
+        "supabase/tests/006_phase_2_server_rpcs.test.sql",
+      ];
 
 const bootstrapSql = `
   create role anon nologin;
@@ -564,10 +576,12 @@ for (const testFile of tests) {
   }
 }
 
-await runPerformanceGates();
+if (targetPhase === 2) {
+  await runPerformanceGates();
+}
 
 console.log(
-  `PASS Phase 2 embedded database verification (${totalAssertions}/${totalAssertions})`,
+  `PASS Phase ${targetPhase} embedded database verification (${totalAssertions}/${totalAssertions})`,
 );
 console.log(
   "INFO Hosted Supabase must still run native pgcrypto and pgTAP verification.",

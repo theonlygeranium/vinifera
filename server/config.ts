@@ -335,6 +335,16 @@ export function assertStripeBillingAuthority(env: WorkerEnv): void {
   }
 }
 
+export function canProvisionStripeCustomer(env: WorkerEnv): boolean {
+  if (!env.STRIPE_SECRET_KEY) return false;
+  try {
+    assertStripeBillingAuthority(env);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function assertAvalaraBaseUrlEnvironment(
   env: WorkerEnv,
   baseUrl: string,

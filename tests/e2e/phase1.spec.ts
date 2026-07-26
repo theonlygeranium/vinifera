@@ -120,8 +120,8 @@ test.describe("Phase 1 public authentication surfaces", () => {
         await assertA11y(page);
         await assertNoHorizontalOverflow(page);
         if (
-          (viewport.name === "mobile" && route.name === "staff-login") ||
-          (viewport.name === "desktop" && route.name === "staff-signup")
+          route.name === "staff-login" ||
+          route.name === "staff-signup"
         ) {
           await page.screenshot({
             fullPage: true,
@@ -142,12 +142,16 @@ test.describe("Phase 1 public authentication surfaces", () => {
 
     await email.fill("qa@example.com");
     await password.fill("LocalOnly1234");
-    await toggle.click();
+    await email.focus();
+    await expect(email).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(password).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(toggle).toBeFocused();
+    await page.keyboard.press("Space");
     await expect(password).toHaveAttribute("type", "text");
     await page.getByRole("button", { name: "Hide password" }).press("Enter");
     await expect(password).toHaveAttribute("type", "password");
-    await email.focus();
-    await expect(email).toBeFocused();
   });
 
   test("staff signup submits organization, owner, and plan to the API", async ({
@@ -166,7 +170,11 @@ test.describe("Phase 1 public authentication surfaces", () => {
         status: 201,
         contentType: "application/json",
         body: JSON.stringify({
-          data: { billingActivationRequired: true, principal: staffSession },
+          data: {
+            billingActivationRequired: true,
+            billingCustomerState: "ready",
+            principal: staffSession,
+          },
         }),
       });
     });
@@ -180,12 +188,54 @@ test.describe("Phase 1 public authentication surfaces", () => {
     await page.locator('input[name="planTier"][value="cellar"]').check();
     await page.getByRole("button", { name: "Continue to secure checkout" }).click();
     await expect(page.getByRole("heading", { name: "Welcome to QA Winery" })).toBeVisible();
+    await expect(
+      page.getByText(
+        "Your secure workspace and Stripe Customer are ready. Remaining billing connections can be activated later.",
+      ),
+    ).toBeVisible();
     expect(signupBody).toMatchObject({
       email: "owner@example.com",
       fullName: "QA Owner",
       organizationName: "QA Winery",
       planTier: "cellar",
     });
+  });
+
+  test("staff signup reports Customer reconciliation without discarding the workspace", async ({
+    page,
+  }) => {
+    await page.route("**/api/auth/staff/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: staffSession }),
+      }),
+    );
+    await page.route("**/api/auth/staff/signup", (route) =>
+      route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            billingActivationRequired: true,
+            billingCustomerState: "reconciliation_required",
+            principal: staffSession,
+          },
+        }),
+      }),
+    );
+    await page.goto("/app/signup");
+    await page.getByLabel("Winery or organization name").fill("QA Winery");
+    await page.getByLabel("Your name").fill("QA Owner");
+    await page.getByLabel("Work email").fill("owner@example.com");
+    await page.getByLabel("Password", { exact: true }).fill("Production1234");
+    await page.getByLabel("Confirm password", { exact: true }).fill("Production1234");
+    await page.getByRole("button", { name: "Continue to secure checkout" }).click();
+    await expect(page.getByRole("heading", { name: "Welcome to QA Winery" })).toBeVisible();
+    await expect(
+      page.getByText(
+        "Your secure workspace is ready. Stripe Customer setup needs a safe retry from Subscription before checkout.",
+      ),
+    ).toBeVisible();
   });
 
   test("confirmed-email signup renders a real completion state", async ({ page }) => {
@@ -202,7 +252,11 @@ test.describe("Phase 1 public authentication surfaces", () => {
         status: 201,
         contentType: "application/json",
         body: JSON.stringify({
-          data: { billingActivationRequired: true, principal: null },
+          data: {
+            billingActivationRequired: true,
+            billingCustomerState: "deferred",
+            principal: null,
+          },
         }),
       }),
     );
@@ -217,6 +271,62 @@ test.describe("Phase 1 public authentication surfaces", () => {
       page.getByRole("heading", { name: "Confirm your staff email" }),
     ).toBeVisible();
     await expect(page.getByText("owner@example.com")).toBeVisible();
+  });
+
+  test("session-backed password reset works without a query token", async ({ page }) => {
+    let resetBody: Record<string, unknown> | undefined;
+    await page.route("**/api/auth/staff/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: staffSession }),
+      }),
+    );
+    await page.route("**/api/auth/staff/reset-password", async (route) => {
+      resetBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: { updated: true } }),
+      });
+    });
+
+    await page.goto("/app/reset-password");
+    await page.getByLabel("New password", { exact: true }).fill("NewPassword1234");
+    await page
+      .getByLabel("Confirm new password", { exact: true })
+      .fill("NewPassword1234");
+    await page.getByRole("button", { name: "Update password" }).click();
+    await expect(page.getByRole("heading", { name: "Welcome to QA Winery" })).toBeVisible();
+    expect(resetBody).toEqual({ password: "NewPassword1234" });
+  });
+
+  test("session-backed staff invitation works without a query token", async ({ page }) => {
+    let inviteBody: Record<string, unknown> | undefined;
+    await page.route("**/api/auth/staff/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: staffSession }),
+      }),
+    );
+    await page.route("**/api/auth/staff/accept-invite", async (route) => {
+      inviteBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: staffSession }),
+      });
+    });
+
+    await page.goto("/app/invite");
+    await page.getByLabel("Your name").fill("Invited Manager");
+    await page.getByLabel("New password", { exact: true }).fill("InvitePassword1234");
+    await page
+      .getByLabel("Confirm new password", { exact: true })
+      .fill("InvitePassword1234");
+    await page.getByRole("button", { name: "Accept invitation" }).click();
+    await expect(page.getByRole("heading", { name: "Welcome to QA Winery" })).toBeVisible();
+    expect(inviteBody).toEqual({
+      fullName: "Invited Manager",
+      password: "InvitePassword1234",
+    });
   });
 
   test("member magic-link request keeps account existence private", async ({ page }) => {
@@ -245,6 +355,28 @@ test.describe("Phase 1 public authentication surfaces", () => {
 });
 
 test.describe("Phase 1 authenticated shells", () => {
+  test("protected staff and member routes redirect to their isolated login surfaces", async ({
+    page,
+  }) => {
+    await page.route("**/api/auth/staff/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: { authenticated: false } }),
+      }),
+    );
+    await page.goto("/app");
+    await expect(page).toHaveURL(/\/app\/login$/);
+
+    await page.route("**/api/auth/member/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: { authenticated: false } }),
+      }),
+    );
+    await page.goto("/portal");
+    await expect(page).toHaveURL(/\/portal\/login$/);
+  });
+
   test("staff empty dashboard matches the prototype shell and mobile drawer works", async ({
     page,
   }, testInfo) => {
@@ -276,6 +408,205 @@ test.describe("Phase 1 authenticated shells", () => {
     await expect(page.getByRole("heading", { name: "Welcome to QA Winery" })).toBeVisible();
     await assertNoHorizontalOverflow(page);
   });
+
+  test("restricted staff can recover billing but cannot use the workspace", async ({
+    page,
+  }) => {
+    const restrictedSession = {
+      ...staffSession,
+      access: {
+        graceEndsAt: "2026-07-25T00:00:00.000Z",
+        state: "restricted",
+        suspendedAt: null,
+      },
+      organization: {
+        ...staffSession.organization,
+        accessState: "restricted",
+        subscriptionStatus: "past_due",
+      },
+    };
+    await page.route("**/api/auth/staff/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: restrictedSession }),
+      }),
+    );
+
+    await page.goto("/app");
+    await expect(
+      page.getByRole("heading", { name: "Subscription access: Restricted" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Update billing" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Welcome to QA Winery" }),
+    ).not.toBeVisible();
+    await expect(page.getByRole("link", { name: "Members" })).not.toBeVisible();
+    await assertA11y(page);
+  });
+
+  test("owner can send a role-scoped staff invitation on mobile", async ({
+    page,
+  }, testInfo) => {
+    let invitationBody: Record<string, unknown> | undefined;
+    await page.route("**/api/auth/staff/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: staffSession }),
+      }),
+    );
+    await page.route("**/api/brands", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { canViewAllBrands: false, items: [] },
+        }),
+      }),
+    );
+    await page.route("**/api/staff/invitations", async (route) => {
+      invitationBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { expiresAt: "2026-07-27T00:00:00.000Z" },
+        }),
+      });
+    });
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/app/team");
+    await expect(
+      page.getByRole("heading", { name: "Invite your winery team" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await expect(page.getByRole("link", { name: "Team" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await page.keyboard.press("Escape");
+    await page.getByLabel("Work email").fill("INVITED@EXAMPLE.COM");
+    await page.getByLabel("Role").selectOption("manager");
+    await page.getByRole("button", { name: "Send invitation" }).click();
+
+    expect(invitationBody).toEqual({
+      email: "invited@example.com",
+      role: "manager",
+    });
+    await expect(
+      page.getByText(
+        "Invitation sent to invited@example.com. The secure link expires in 24 hours.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByLabel("Work email")).toHaveValue("");
+    const touchTargets = await page
+      .locator("#team-invite-email, #team-invite-role, button[type='submit']")
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const bounds = element.getBoundingClientRect();
+          return { height: bounds.height, width: bounds.width };
+        }),
+      );
+    expect(touchTargets).toHaveLength(3);
+    expect(
+      touchTargets.filter(({ height, width }) => height < 44 || width < 44),
+    ).toEqual([]);
+    await assertA11y(page);
+    await assertNoHorizontalOverflow(page);
+    await page.screenshot({
+      fullPage: true,
+      path: testInfo.outputPath("team-invitation-mobile.png"),
+    });
+  });
+
+  test("admin can send a role-scoped staff invitation", async ({ page }) => {
+    const adminSession = {
+      ...staffSession,
+      user: {
+        ...staffSession.user,
+        email: "admin@example.com",
+        role: "admin",
+      },
+    };
+    let invitationBody: Record<string, unknown> | undefined;
+    await page.route("**/api/auth/staff/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: adminSession }),
+      }),
+    );
+    await page.route("**/api/brands", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { canViewAllBrands: false, items: [] },
+        }),
+      }),
+    );
+    await page.route("**/api/staff/invitations", async (route) => {
+      invitationBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { expiresAt: "2026-07-27T00:00:00.000Z" },
+        }),
+      });
+    });
+
+    await page.goto("/app/team");
+    await page.getByLabel("Work email").fill("new-admin@example.com");
+    await page.getByLabel("Role").selectOption("admin");
+    const sendButton = page.getByRole("button", { name: "Send invitation" });
+    await sendButton.focus();
+    await expect(sendButton).toBeFocused();
+    await sendButton.press("Enter");
+    expect(invitationBody).toEqual({
+      email: "new-admin@example.com",
+      role: "admin",
+    });
+    await assertA11y(page);
+  });
+
+  for (const role of ["manager", "staff"] as const) {
+    test(`${role} cannot discover or use staff invitation controls`, async ({ page }) => {
+      const restrictedRoleSession = {
+        ...staffSession,
+        user: {
+          ...staffSession.user,
+          email: `${role}@example.com`,
+          role,
+        },
+      };
+      let invitationRequested = false;
+      await page.route("**/api/auth/staff/session", (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ data: restrictedRoleSession }),
+        }),
+      );
+      await page.route("**/api/brands", (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: { canViewAllBrands: false, items: [] },
+          }),
+        }),
+      );
+      await page.route("**/api/staff/invitations", (route) => {
+        invitationRequested = true;
+        return route.fulfill({ status: 403 });
+      });
+
+      await page.goto("/app/team");
+      await expect(
+        page.getByRole("heading", { name: "Team administration is restricted" }),
+      ).toBeVisible();
+      await expect(page.getByRole("link", { name: "Team" })).not.toBeVisible();
+      await expect(page.getByLabel("Work email")).not.toBeVisible();
+      expect(invitationRequested).toBe(false);
+      await assertA11y(page);
+    });
+  }
 
   test("member session renders only the real empty portal shell", async ({ page }) => {
     await page.route("**/api/auth/member/session", (route) =>

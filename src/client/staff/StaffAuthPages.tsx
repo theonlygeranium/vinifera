@@ -16,6 +16,7 @@ import { useStaffSession } from "./StaffSessionContext";
 
 interface SignupResponse {
   billingActivationRequired: boolean;
+  billingCustomerState: "deferred" | "ready" | "reconciliation_required";
 }
 
 const plans: {
@@ -188,11 +189,16 @@ export function SignupPage() {
         safeNavigate(checkout.url);
         return;
       }
+      const billingNotice =
+        result.billingCustomerState === "ready"
+          ? "Your secure workspace and Stripe Customer are ready. Remaining billing connections can be activated later."
+          : result.billingCustomerState === "reconciliation_required"
+            ? "Your secure workspace is ready. Stripe Customer setup needs a safe retry from Subscription before checkout."
+            : "Your secure workspace is ready. Billing is connection-ready and can be activated later.";
       navigate("/app", {
         replace: true,
         state: {
-          notice:
-            "Your secure workspace is ready. Billing is connection-ready and can be activated later.",
+          notice: billingNotice,
         },
       });
     } catch (caught) {
@@ -406,15 +412,12 @@ function PasswordCompletionForm({
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const [error, setError] = useState<string | null>(
-    token ? null : "This link is missing its secure token. Request a new email.",
-  );
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const isInvite = endpoint.endsWith("accept-invite");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!token) return;
     if (password !== confirmation) {
       setError("Check that both password fields match.");
       return;
@@ -423,7 +426,7 @@ function PasswordCompletionForm({
     setSubmitting(true);
     try {
       await postJson(endpoint, {
-        token,
+        ...(isInvite && token ? { inviteToken: token } : {}),
         password,
         ...(isInvite ? { fullName } : {}),
       });
@@ -474,7 +477,7 @@ function PasswordCompletionForm({
       />
       <button
         className="button button--primary button--wide"
-        disabled={submitting || !token}
+        disabled={submitting}
       >
         {submitting ? "Saving…" : submitLabel}
       </button>

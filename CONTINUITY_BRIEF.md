@@ -47,6 +47,11 @@ connection-ready source architecture:
 - Stripe billing-subject Customer locks, opaque idempotent Checkout/portal
   attempts, one nonterminal Checkout per subject, and signed-webhook
   reconciliation from `awaiting_webhook`
+- Recoverable signup bootstrap plus organization Customer creation when Stripe
+  is connected; disconnected and uncertain writes remain explicit and use the
+  same idempotent path later
+- Owner/admin Team invitations with role-aware manager/staff denial and
+  session-backed invite acceptance
 - Consent-gated encrypted Meta attribution with withdrawal redaction and
   resumable integration/attribution/push envelope rotation
 - Separately persisted QuickBooks shipping, Avalara wine/shipping mappings,
@@ -125,7 +130,7 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 - `npm run qa:mobile:identity` enforces cross-platform application IDs,
   versions, link allowlists, APNs entitlement modes, Gradle integrity, privacy
   declarations, and replacement of the default Capacitor artwork.
-- CI is configured for Node 22.22.0, Phase 2–5 embedded database gates, Worker
+- CI is configured for Node 22.22.0, Phase 1–5 embedded database gates, Worker
   dry-run, browser QA, Java 21/Android API 36 lint plus debug/R8 release APK
   assembly, and pinned Supabase CLI 2.109.1.
 - Optional Worker deployment targets only the isolated `vinifera-staging`
@@ -154,9 +159,10 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   are deferred, so no retry was attempted; reconcile the fixed lookup key only
   when activation is explicitly resumed.
 - The current credential-independent architecture gate passes: `npm audit` 0,
-  TypeScript green, Vitest 245/245, Phase 2 database 145/145, Phase 3 138/138,
-  Phase 4 121/121, Phase 5 migrations 001–012 plus pgTAP 013–022 at 279/279,
-  Playwright 123/123 with zero axe violations, LCP 476 ms, CLS 0, Pages/Worker/
+  TypeScript green, Vitest 256/256, Phase 1 database 92/92, Phase 2 145/145,
+  Phase 3 138/138, Phase 4 121/121, Phase 5 migrations 001–012 plus pgTAP
+  013–022 at 279/279, Playwright 132/132 with zero axe violations, LCP 476 ms,
+  CLS 0, Pages/Worker/
   production dry-run builds, production release 14/14, mobile release 7/7,
   Stripe catalog 16/16, mobile identity, compile-only Capacitor preparation,
   and Android synchronization.
@@ -166,8 +172,9 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   assembly completed in 4m37s, and credential-gated migration/deployment jobs
   skipped. This Mac still has no local Java runtime.
 - GitHub Actions artifact/log retention is configured at the allowed 90-day
-  maximum. Android setup is pinned to v4.0.1/Node 24 in normal CI and the
-  protected mobile-release workflow.
+  maximum, and Playwright login/signup captures at 375, 768, and 1440 are
+  explicitly retained for 90 days. Android setup is pinned to v4.0.1/Node 24
+  in normal CI and the protected mobile-release workflow.
 - GitHub environments `staging`, `production`, and `mobile-release` are
   restricted to `main` and require review by `theonlygeranium`; self-review is
   currently allowed because no second human reviewer is configured.

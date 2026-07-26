@@ -40,8 +40,9 @@ jobs:
       - name: Run unit and integration tests
         run: npm test
 
-      - name: Verify Phase 2 through Phase 5 database architecture
+      - name: Verify Phase 1 through Phase 5 database architecture
         run: |
+          npm run qa:db:phase1
           npm run qa:db:phase2
           npm run qa:db:phase3
           npm run qa:db:phase4
@@ -68,7 +69,7 @@ jobs:
             playwright-report/
             test-results/
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 90
 
       - name: Validate Pages rollback artifact
         run: |

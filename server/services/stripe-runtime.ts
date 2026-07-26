@@ -1,8 +1,10 @@
 import { AppError } from "../lib/errors";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { BillingCustomerState } from "../types";
 
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STRIPE_CUSTOMER_ID = /^cus_[A-Za-z0-9]+$/;
 const STRIPE_IDEMPOTENCY_KEY_LIMIT = 255;
 
 export type StripeBillingOperation =
@@ -442,6 +444,68 @@ export async function provisionStripeCustomer(input: {
       "upstream_error",
       "Billing initialization will reconcile safely when this request is retried.",
     );
+  }
+}
+
+export async function provisionOrganizationStripeCustomerOnSignup(input: {
+  configured: boolean;
+  createCustomer: (
+    params: CanonicalStripeCustomerCreateParams,
+    idempotencyKey: string,
+  ) => Promise<{ id: string }>;
+  organizationId: string;
+  store: StripeCustomerProvisioningStore;
+}): Promise<string | null> {
+  if (!input.configured) return null;
+  return provisionStripeCustomer({
+    brandId: null,
+    createCustomer: input.createCustomer,
+    memberId: null,
+    organizationId: input.organizationId,
+    scope: "organization",
+    store: input.store,
+    subjectId: input.organizationId,
+  });
+}
+
+export function classifyOrganizationStripeCustomerState(
+  stripeCustomerId: unknown,
+  readError: unknown,
+): BillingCustomerState {
+  if (readError) return "reconciliation_required";
+  if (stripeCustomerId === null) return "deferred";
+  return typeof stripeCustomerId === "string" &&
+    STRIPE_CUSTOMER_ID.test(stripeCustomerId)
+    ? "ready"
+    : "reconciliation_required";
+}
+
+export async function resolveOrganizationStripeCustomerOnSignup(input: {
+  configured: boolean;
+  createCustomer: (
+    params: CanonicalStripeCustomerCreateParams,
+    idempotencyKey: string,
+  ) => Promise<{ id: string }>;
+  currentCustomerId: unknown;
+  organizationId: string;
+  readError: unknown;
+  store: StripeCustomerProvisioningStore;
+}): Promise<BillingCustomerState> {
+  const currentState = classifyOrganizationStripeCustomerState(
+    input.currentCustomerId,
+    input.readError,
+  );
+  if (currentState !== "deferred") return currentState;
+  try {
+    const customerId = await provisionOrganizationStripeCustomerOnSignup({
+      configured: input.configured,
+      createCustomer: input.createCustomer,
+      organizationId: input.organizationId,
+      store: input.store,
+    });
+    return customerId ? "ready" : "deferred";
+  } catch {
+    return "reconciliation_required";
   }
 }
 

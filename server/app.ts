@@ -59,6 +59,7 @@ const loginSchema = z.object({ email, password: z.string().min(1).max(128) });
 const emailSchema = z.object({ email });
 const passwordSchema = z.object({ password });
 const inviteAcceptSchema = z.object({
+  fullName: z.string().trim().min(2).max(120).optional(),
   inviteToken: z.string().uuid().optional(),
   password,
 });

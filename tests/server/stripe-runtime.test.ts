@@ -3,9 +3,12 @@ import { AppError } from "../../server/lib/errors";
 import {
   assertOpaqueBillingAttemptId,
   canonicalStripeCustomerCreateParams,
+  classifyOrganizationStripeCustomerState,
   executeStripeBillingAttempt,
   isNonterminalSubscriptionStatus,
+  provisionOrganizationStripeCustomerOnSignup,
   provisionStripeCustomer,
+  resolveOrganizationStripeCustomerOnSignup,
   stripeBillingRequestFingerprint,
   stripeClientReferenceId,
   stripeCustomerIdempotencyKey,
@@ -158,6 +161,105 @@ function checkoutInput(
 }
 
 describe("Stripe billing runtime retry safety", () => {
+  it("defers signup Customer provisioning without invoking Stripe when disconnected", async () => {
+    const store: StripeCustomerProvisioningStore = {
+      claim: vi.fn(),
+      finalize: vi.fn(),
+    };
+    const createCustomer = vi.fn();
+
+    await expect(
+      provisionOrganizationStripeCustomerOnSignup({
+        configured: false,
+        createCustomer,
+        organizationId,
+        store,
+      }),
+    ).resolves.toBeNull();
+    expect(store.claim).not.toHaveBeenCalled();
+    expect(createCustomer).not.toHaveBeenCalled();
+  });
+
+  it("creates the organization Customer as an idempotent signup consequence when connected", async () => {
+    const store: StripeCustomerProvisioningStore = {
+      claim: vi.fn(async ({ leaseToken }) => ({
+        customerId: null,
+        leaseToken,
+        state: "claimed" as const,
+      })),
+      finalize: vi.fn(async ({ customerId }) => customerId),
+    };
+    const createCustomer = vi.fn().mockResolvedValue({ id: "cus_signup1" });
+
+    await expect(
+      provisionOrganizationStripeCustomerOnSignup({
+        configured: true,
+        createCustomer,
+        organizationId,
+        store,
+      }),
+    ).resolves.toBe("cus_signup1");
+    expect(createCustomer).toHaveBeenCalledWith(
+      {
+        metadata: {
+          customer_scope: "organization",
+          organization_id: organizationId,
+        },
+      },
+      `vinifera:customer:v1:organization:${organizationId}:${organizationId}`,
+    );
+  });
+
+  it("keeps an existing durable signup Customer ready after credentials are disconnected", async () => {
+    const store: StripeCustomerProvisioningStore = {
+      claim: vi.fn(),
+      finalize: vi.fn(),
+    };
+    const createCustomer = vi.fn();
+
+    await expect(
+      resolveOrganizationStripeCustomerOnSignup({
+        configured: false,
+        createCustomer,
+        currentCustomerId: "cus_signupExisting1",
+        organizationId,
+        readError: null,
+        store,
+      }),
+    ).resolves.toBe("ready");
+    expect(store.claim).not.toHaveBeenCalled();
+    expect(createCustomer).not.toHaveBeenCalled();
+  });
+
+  it("reports uncertain signup Customer state for safe reconciliation", async () => {
+    const store: StripeCustomerProvisioningStore = {
+      claim: vi.fn(async ({ leaseToken }) => ({
+        customerId: null,
+        leaseToken,
+        state: "claimed" as const,
+      })),
+      finalize: vi.fn(),
+    };
+    const createCustomer = vi.fn().mockRejectedValue(new Error("provider timeout"));
+
+    await expect(
+      resolveOrganizationStripeCustomerOnSignup({
+        configured: true,
+        createCustomer,
+        currentCustomerId: null,
+        organizationId,
+        readError: null,
+        store,
+      }),
+    ).resolves.toBe("reconciliation_required");
+    expect(
+      classifyOrganizationStripeCustomerState(
+        undefined,
+        new Error("database timeout"),
+      ),
+    ).toBe("reconciliation_required");
+  });
+
   it("replays the same checkout attempt from its stored open session", async () => {
     const store = inMemoryAttemptStore();
     const sessions = new Map<string, { id: string; url: string }>();

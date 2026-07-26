@@ -38,8 +38,10 @@ Connection-ready services follow these rules:
    Worker-origin, webhook, and custom-hostname targets are normalized and
    SHA-256 allowlisted in reviewed policy. Empty lists deny mutation.
 4. **Retry safety.** Stripe customer creation and billing sessions use stable
-   idempotency keys plus database leases. One nonterminal Checkout is allowed
-   per immutable billing subject, and a completed Checkout remains
+   idempotency keys plus database leases. Organization signup provisions its
+   Customer when an authorized key is connected and otherwise reports an
+   explicit deferred state without a provider call. One nonterminal Checkout
+   is allowed per immutable billing subject, and a completed Checkout remains
    `awaiting_webhook` until the signed subscription event reconciles it.
    Custom-hostname creation uses a durable write ledger and lookup-before-retry
    reconciliation when the provider result is unknown.

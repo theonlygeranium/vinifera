@@ -129,12 +129,14 @@ interface StaffUserRow {
 
 interface OrganizationRow {
   access_status: string;
+  grace_period_ends_at: string | null;
   id: string;
   name: string;
   plan_tier: PlanTier;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   subscription_status: string;
+  suspended_at: string | null;
 }
 
 interface MemberRow {
@@ -362,6 +364,19 @@ function createStripe(env: WorkerEnv): Stripe {
 
 function authFailure(): AppError {
   return new AppError(401, "unauthorized", "A valid sign-in is required.");
+}
+
+export function assertStaffWorkspaceAccess(accessState?: string | null): void {
+  if (accessState === "restricted") {
+    throw new AppError(
+      403,
+      "forbidden",
+      "This winery account is restricted to subscription recovery.",
+    );
+  }
+  if (accessState === "suspended") {
+    throw new AppError(403, "forbidden", "This winery account is suspended.");
+  }
 }
 
 function databaseError(message: string): AppError {
@@ -1826,7 +1841,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const { data: organizationData, error: organizationError } = await client
       .from("organizations")
       .select(
-        "id,name,plan_tier,stripe_customer_id,stripe_subscription_id,subscription_status,access_status",
+        "id,name,plan_tier,stripe_customer_id,stripe_subscription_id,subscription_status,access_status,grace_period_ends_at,suspended_at",
       )
       .eq("id", staff.organization_id)
       .single();
@@ -1834,9 +1849,9 @@ export class ProductionCoreClubService implements CoreClubService {
     const organization = organizationData as OrganizationRow;
     const principal: StaffPrincipal = {
       access: {
-        graceEndsAt: null,
+        graceEndsAt: organization.grace_period_ends_at,
         state: organization.access_status,
-        suspendedAt: null,
+        suspendedAt: organization.suspended_at,
       },
       organization: {
         accessState: organization.access_status,
@@ -1859,9 +1874,7 @@ export class ProductionCoreClubService implements CoreClubService {
     };
     if (roles) assertStaffRole(principal, roles);
     if (!principal.organization) throw authFailure();
-    if (principal.access?.state === "suspended") {
-      throw new AppError(403, "forbidden", "This winery account is suspended.");
-    }
+    assertStaffWorkspaceAccess(principal.access?.state);
     return principal;
   }
 

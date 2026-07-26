@@ -1,6 +1,10 @@
 import type { Request, Response } from "express";
 
 export type AuthSurface = "staff" | "member";
+export type BillingCustomerState =
+  | "deferred"
+  | "ready"
+  | "reconciliation_required";
 export type PlanTier = "vine" | "cellar" | "estate" | "reserve";
 export type ClubFrequency =
   | "monthly"
@@ -172,7 +176,11 @@ export interface MemberPrincipal {
 }
 
 export interface FoundationService {
-  acceptStaffInvite(input: { inviteToken?: string; password: string }): Promise<StaffPrincipal>;
+  acceptStaffInvite(input: {
+    fullName?: string;
+    inviteToken?: string;
+    password: string;
+  }): Promise<StaffPrincipal>;
   completeStaffPasswordReset(input: { password: string }): Promise<void>;
   createBillingCheckout(input: {
     attemptId: string;
@@ -206,7 +214,11 @@ export interface FoundationService {
     organizationName: string;
     password: string;
     planTier: PlanTier;
-  }): Promise<{ billingActivationRequired: boolean; principal: StaffPrincipal | null }>;
+  }): Promise<{
+    billingActivationRequired: boolean;
+    billingCustomerState: BillingCustomerState;
+    principal: StaffPrincipal | null;
+  }>;
   memberLogout(): Promise<void>;
 }
 
