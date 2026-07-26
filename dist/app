@@ -17,7 +17,7 @@
   --border:#E5E0DC; --border-strong:#D1C9C3;
   --success:#15803D; --success-bg:#F0FDF4;
   --warning:#B45309; --warning-bg:#FFFBEB;
-  --danger:#DC2626; --danger-bg:#FEF2F2;
+  --danger:#B91C1C; --danger-bg:#FEF2F2;
   --info:#2563EB; --info-bg:#EFF6FF;
   --purple:#7C3AED; --purple-bg:#F5F3FF;
   --radius:10px; --radius-sm:6px;
