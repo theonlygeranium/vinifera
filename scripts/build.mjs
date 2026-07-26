@@ -9,7 +9,7 @@ await rm(DIST, { recursive: true, force: true });
 await mkdir(DIST, { recursive: true });
 
 // Copy root HTML files
-const rootFiles = ['index.html', 'app'];
+const rootFiles = ['index.html', 'app.html'];
 for (const f of rootFiles) {
   await copyFile(join(ROOT, f), join(DIST, f));
   console.log(`  copied ${f}`);
