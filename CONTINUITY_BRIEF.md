@@ -135,8 +135,12 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 - Stripe test-catalog probe
   [`30218422165`](https://github.com/theonlygeranium/vinifera/actions/runs/30218422165)
   passed against the generic test credential without a provider write. Its
-  sanitized account SHA-256 fingerprint is now tracked; bootstrap remains a
-  separate protected operation and no Product/Price is yet claimed as created.
+  sanitized account SHA-256 fingerprint is now tracked. Protected bootstrap
+  [`30218801133`](https://github.com/theonlygeranium/vinifera/actions/runs/30218801133)
+  failed closed after its first idempotent provider create because the create
+  response did not expand the Product; the controller now requests that
+  expansion. Treat the first Price as created-or-unknown until a reviewed retry
+  reconciles the fixed lookup key.
 - GitHub environments `staging`, `production`, and `mobile-release` are
   restricted to `main` and require review by `theonlygeranium`; self-review is
   currently allowed because no second human reviewer is configured.

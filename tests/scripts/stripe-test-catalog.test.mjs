@@ -258,8 +258,43 @@ describe("Stripe test catalog operations", () => {
     expect(
       calls.every(
         ([parameters]) =>
+          parameters.expand?.length === 1 &&
+          parameters.expand[0] === "product" &&
           parameters.recurring.interval === "month" &&
           parameters.recurring.usage_type === "licensed",
+      ),
+    ).toBe(true);
+  });
+
+  it("requests an expanded Product on every newly created Price", async () => {
+    const catalogPolicy = policy();
+    const stripe = stripeMock(catalogPolicy);
+    stripe.prices.create = vi.fn(async (parameters) => {
+      const plan = catalogPolicy.plans.find(
+        (candidate) => candidate.lookupKey === parameters.lookup_key,
+      );
+      const created = priceFor(plan, catalogPolicy);
+      return {
+        ...created,
+        product: parameters.expand?.includes("product")
+          ? created.product
+          : created.product.id,
+      };
+    });
+
+    const report = await runStripeCatalogOperation({
+      operation: "bootstrap",
+      confirmation: "BOOTSTRAP VINIFERA STRIPE TEST CATALOG",
+      env: environment(),
+      policy: catalogPolicy,
+      stripeFactory: () => stripe,
+    });
+
+    expect(report.complete).toBe(true);
+    expect(report.prices).toHaveLength(4);
+    expect(
+      stripe.prices.create.mock.calls.every(([parameters]) =>
+        parameters.expand?.includes("product"),
       ),
     ).toBe(true);
   });

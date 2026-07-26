@@ -340,6 +340,7 @@ function createPriceParameters(plan, policy) {
   return {
     active: true,
     currency: policy.currency,
+    expand: ["product"],
     lookup_key: plan.lookupKey,
     metadata,
     nickname: `${plan.productName} monthly`,

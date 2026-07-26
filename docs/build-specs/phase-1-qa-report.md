@@ -33,7 +33,7 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 | Hosted activation controls | Pass in source | Staging target hashes fail closed; linked pgTAP and core Worker configuration are mandatory when activated |
 | Production release/rollback control | Pass in source | First bootstrap has no route; custom-domain movement retains Pages and requires all Phase 1–5 capabilities |
 | Read-only hosted readiness | Pass — [run 30217462802](https://github.com/theonlygeranium/vinifera/actions/runs/30217462802) | Supabase Auth and Stripe test API are reachable; Phase 1 tables, four Stripe Prices, webhook secret, staging-scoped credentials, and Workers-capable Cloudflare authority remain pending |
-| Stripe test catalog control | Probe pass — [run 30218422165](https://github.com/theonlygeranium/vinifera/actions/runs/30218422165); 15/15 focused tests | Sanitized evidence confirmed a test-mode generic credential and no provider write; the reviewed SHA-256 account fingerprint is now tracked, while Product/Price creation still requires the separate protected bootstrap operation |
+| Stripe test catalog control | Probe pass — [run 30218422165](https://github.com/theonlygeranium/vinifera/actions/runs/30218422165); 16/16 focused tests | Sanitized evidence confirmed a test-mode generic credential and no provider write; protected bootstrap run [30218801133](https://github.com/theonlygeranium/vinifera/actions/runs/30218801133) then failed closed after its first idempotent provider create because the response did not expand its Product. The controller now requests Product expansion; a reviewed retry remains pending |
 
 ## Functional gate
 

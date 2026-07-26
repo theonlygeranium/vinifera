@@ -35,6 +35,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Requested Product expansion on newly created Stripe Prices so the controller
+  can validate the Product contract in the same response. Protected bootstrap
+  run `30218801133` failed closed after the first provider create because the
+  initial response returned only a Product ID; the stable lookup and
+  idempotency keys make the retry safe.
 - Authorized the reviewed Stripe test account fingerprint after successful
   read-only run `30218422165`; the fingerprint is a one-way target binding and
   the canonical Product/Price catalog remains uncreated pending a separately
