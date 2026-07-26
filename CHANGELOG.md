@@ -17,9 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `MOBILE_APPLE_TEAM_ID` activation variable.
 - Replaced the Phase 5 QA placeholders with traceable local architecture,
   database, browser, visual, security, iOS simulator, and local Android
-  lint/debug/R8 evidence while keeping hosted providers, the post-push Android
-  CI artifact, signing/FCM, store tracks, and live payments explicitly
-  deferred.
+  lint/debug/R8 evidence while keeping hosted providers, signing/FCM, store
+  tracks, and live payments explicitly deferred.
 - Recorded the final Phase 5 gates: 115/115 application tests, 167/167 Phase 5
   database assertions plus complete Phase 2–4 database regressions, 122/122
   browser tests with zero axe violations, and the reproducible Android debug,
@@ -27,6 +26,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Closed the Android lint/R8 gates by declaring camera hardware optional,
   supplying ionbarcode's Gson 2.10.1 runtime dependency, modernizing Gradle
   assignments, and bounding release-build memory and worker concurrency.
+- Recorded the successful GitHub Phase 5 quality and Android jobs plus the
+  retained debug/release APK and lint artifact; credential-gated Supabase and
+  Worker jobs remained deliberately inactive.
 
 ### Security
 

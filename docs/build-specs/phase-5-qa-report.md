@@ -37,7 +37,7 @@ live provider or production-store result.
 | Phase 5 visual review | Pass — six staff screenshots manually inspected | Physical-device and store screenshots remain deferred |
 | Mobile identity and native sync | Pass | Store signing remains deferred |
 | iOS simulator | Pass — build, install, launch, zero build warnings | Not a physical-device or TestFlight result |
-| Android | Pass — local lint, debug APK, and R8 release APK in 2m29s | CI artifact awaits push; signing and FCM remain deferred |
+| Android | Pass — local and GitHub CI lint, debug APK, and R8 release APK | Signing and FCM remain deferred |
 | Static Pages rollback | Pass — unchanged | Still the public production baseline |
 | Hosted providers, custom DNS, Stripe live | Deferred | External credentials or human authority required |
 
@@ -54,7 +54,7 @@ live provider or production-store result.
 | Meta CAPI | Consent, hashing, event identity, and request construction pass | Dataset/token unavailable | `activation_required` |
 | Custom hostname | Least-privilege client, ownership/certificate state, host routing, and theme guards pass | Zone-scoped token and winery DNS unavailable | Deferred |
 | iOS | Identity, sync, simulator build/install/launch pass | Apple signing, APNs, and store authority unavailable | Deferred |
-| Android | Identity, sync, lint, debug APK, and R8 release APK pass locally | CI artifact pending push; signing, FCM, and store authority unavailable | Deferred |
+| Android | Identity, sync, lint, debug APK, and R8 release APK pass locally and in GitHub CI | Signing, FCM, and store authority unavailable | Deferred |
 | Stripe live mode | Test-mode billing architecture passes | Human approval required; no automated key change | Deferred |
 
 ## Functional architecture
@@ -183,7 +183,8 @@ live provider or production-store result.
 - [x] App policy directs users to signed store releases and never downloads
       executable code.
 - [x] iOS simulator build/install/launch evidence is recorded below.
-- [ ] Android CI lint/debug/R8 APK evidence: **Pending the Phase 5 push**.
+- [x] Android CI lint/debug/R8 APK evidence is retained with the successful
+      Phase 5 workflow run.
 - [ ] Real iOS and Android device/store-track evidence: **Deferred**.
 
 ### Backend and security remediation regression set
@@ -260,6 +261,7 @@ verification.
 | Full post-remediation browser suite | Pass — 122/122 in 2.5 minutes |
 | Full-suite multi-brand performance assertion | Pass — 482.86 ms / 2,000 ms |
 | Full-suite axe scans | Pass — 0 WCAG 2.1 AA violations |
+| [GitHub Phase 5 workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30214620782) | Pass — quality 4m08s, Android 6m44s; hosted migration/deploy skipped while activation is off |
 
 The final complete browser rerun passed all 122 tests in 2.5 minutes after the
 multi-brand locator correction. This supersedes the earlier 121-pass partial
@@ -378,8 +380,8 @@ is supplied.
 - [x] Android identity, manifest, permission, link, `FileProvider`, artwork,
       R8, and Gradle integrity source gates pass.
 - [x] Capacitor Android synchronization completes.
-- [x] GitHub CI is configured for Java 21, Android API 36, lint, debug APK, and
-      R8 release APK assembly.
+- [x] GitHub CI passes with Java 21, Android API 36, lint, debug APK, and R8
+      release APK assembly.
 - [x] The exact repository Gradle command passes locally in 2 minutes 29
       seconds with 0 lint errors and 33 non-blocking warnings:
 
@@ -393,7 +395,11 @@ is supplied.
       `24c388dad8bbd579887f0cf02a4f6a044087630e9a95249c41a1c49d467daacf`.
 - [x] R8 mapping SHA-256:
       `d8c36984ae93f778f168112d92e36f5a2226f950e00d64ec5570295a6f5a9192`.
-- [ ] GitHub CI APK artifact: **Pending the Phase 5 push**.
+- [x] GitHub artifact `android-debug-evidence` (artifact ID `8635503498`)
+      contains both APKs and the lint report. The CI release APK matches the
+      local SHA-256 above; the environment-specific CI debug APK SHA-256 is
+      `00738f931ba0a13b7ccdee7fe194adb37eec956441467c11e586459faa7dd95b`.
+- [x] The downloaded CI lint report records 0 errors and 33 warnings.
 - [ ] Emulator/physical-device, FCM, signing, and Play internal-track evidence:
       **Deferred**.
 
@@ -417,7 +423,6 @@ Phase 5 tables in place.
 - [ ] Complete Klaviyo, QuickBooks, and Avalara or Meta provider round trips.
 - [ ] Prove two hosted brands, including suspended-brand and sibling isolation.
 - [ ] Activate one winery custom hostname with ownership and certificate active.
-- [ ] Retain the Android CI APK artifact after the Phase 5 push.
 - [ ] Test signed iOS and Android builds on physical devices.
 - [ ] Verify APNs/FCM foreground, background, and tapped-notification delivery.
 - [ ] Install from TestFlight and the Play internal track.
@@ -428,8 +433,8 @@ Phase 5 tables in place.
 **Local source architecture gate:** Passed. The database, application,
 provider-boundary, responsive/axe, security, mobile identity/sync, iOS
 simulator, and local Android lint/debug/R8 evidence above support source
-completion. The Android CI artifact remains explicitly tracked as pending the
-Phase 5 push and is not represented as hosted CI evidence.
+completion. The successful GitHub workflow and downloaded Android artifact
+provide independent CI evidence for the committed source.
 
 **Hosted operational exit criterion:** Not met. It remains deferred until
 evidence proves three live providers (Klaviyo, QuickBooks, and Avalara or Meta),
