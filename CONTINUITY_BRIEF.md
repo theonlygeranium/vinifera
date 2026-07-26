@@ -160,9 +160,11 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   production dry-run builds, production release 14/14, mobile release 7/7,
   Stripe catalog 16/16, mobile identity, compile-only Capacitor preparation,
   and Android synchronization.
-- The current local Gradle rerun cannot start because this Mac has no Java
-  runtime. Prior Android CI/artifacts remain historical evidence; the Java 21
-  Android job is pending for the current commit.
+- Architecture commit `5d36471` passed GitHub Actions run
+  [`30221722696`](https://github.com/theonlygeranium/vinifera/actions/runs/30221722696):
+  quality completed in 5m23s, Java 21 Android lint/debug/minified release
+  assembly completed in 4m37s, and credential-gated migration/deployment jobs
+  skipped. This Mac still has no local Java runtime.
 - GitHub environments `staging`, `production`, and `mobile-release` are
   restricted to `main` and require review by `theonlygeranium`; self-review is
   currently allowed because no second human reviewer is configured.

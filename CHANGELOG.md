@@ -53,9 +53,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   with zero axe violations, LCP 476 ms, CLS 0, Pages/Worker/production dry-run
   builds, production release 14/14, mobile release 7/7, Stripe catalog 16/16,
   mobile identity, compile-only Capacitor preparation, and Android sync.
-- Classified the current Android Gradle rerun as pending because the local Mac
-  has no Java runtime; prior Android artifacts remain historical evidence and
-  Java 21 CI is required for the current commit.
+- Recorded architecture commit `5d36471` and GitHub Actions run `30221722696`:
+  the quality job passed in 5m23s, the Java 21 Android lint/debug/minified
+  release job passed in 4m37s, and credential-gated migration/deployment jobs
+  skipped as designed. The local Mac still has no Java runtime.
 - Requested Product expansion on newly created Stripe Prices so the controller
   can validate the Product contract in the same response. Protected bootstrap
   run `30218801133` failed closed after the first provider create because the

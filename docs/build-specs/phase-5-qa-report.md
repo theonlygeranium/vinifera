@@ -37,12 +37,13 @@ live provider or production-store result.
 | Phase 5 visual review | Pass — six staff screenshots manually inspected | Physical-device and store screenshots remain deferred |
 | Mobile identity and native sync | Pass — identity, compile-only prep, and Android sync | Store signing remains deferred |
 | iOS simulator | Prior candidate pass — build, install, launch, zero build warnings | Not rerun for this architecture candidate; not a physical-device or TestFlight result |
-| Android | Prior candidate local/CI artifacts retained; current sync passes | Current local Gradle is blocked only by missing Java; Java 21 CI remains pending for this commit |
+| Android | Pass — current Java 21 CI lint, debug APK, and minified release APK; local sync also passes | Local Gradle remains unavailable because this Mac has no Java; signing, FCM, and device/store proof remain deferred |
 | Static Pages rollback | Pass — source/artifact diff clean | Still the public production baseline |
 | Credential-gated release controls | Pass in source | Staging/production target hashes remain intentionally unresolved; no hosted mutation |
 | Signed mobile/store control | Pass in source | Immutable signed AAB/IPA and internal-track workflow wired; credentials and store execution deferred |
 | Envelope rotation control | Pass in source | Disabled policy, empty target/transition hashes, no rotation executed |
 | Stripe live-billing control | Pass in source | Independent authority and policy remain default-deny; no live connection or mutation |
+| Architecture completion CI | Pass — [run 30221722696](https://github.com/theonlygeranium/vinifera/actions/runs/30221722696) | Quality 5m23s and Android 4m37s; migration/deploy skipped while activation is off |
 | GitHub post-hardening CI | Pass — [run 30217201984](https://github.com/theonlygeranium/vinifera/actions/runs/30217201984) | Quality and Android pass; migration/deploy skip while activation is off |
 | Hosted readiness | Pass — [run 30217462802](https://github.com/theonlygeranium/vinifera/actions/runs/30217462802) | GET-only classifications; no provider or deployment mutation |
 | Hosted providers, custom DNS, Stripe live | Deferred | External credentials or human authority required |
@@ -61,7 +62,7 @@ live provider or production-store result.
 | Per-brand Resend | Staff sender/domain activation and verified-sender selection pass locally | Resend account and brand DNS unavailable | `activation_required` |
 | Custom hostname | Target hashes, least-privilege client, retry-safe write ledger, ownership/certificate state, host routing, and staff theme guards pass | Zone-scoped token and winery DNS unavailable | Deferred |
 | iOS | Identity, sync, simulator build/install/launch pass | Apple signing, APNs, and store authority unavailable | Deferred |
-| Android | Identity, compile-only prep, and sync pass for the current candidate; prior lint/debug/R8 evidence retained | Local Java unavailable and current Java 21 CI pending; signing, FCM, and store authority unavailable | Deferred |
+| Android | Identity, compile-only prep, sync, Java 21 lint, debug APK, and minified release APK pass for architecture commit `5d36471` | Local Java unavailable; signing, FCM, and store authority unavailable | Deferred |
 | Stripe test/live mode | Subject locks, idempotent attempts, webhook-wait reconciliation, test catalog, and default-deny live control pass locally | Catalog run left one Price created-or-unknown; services are deferred; live additionally requires human approval | Deferred |
 
 The post-phase release hardening additionally provides:
@@ -307,7 +308,7 @@ verification.
 | `npm run build:pages` | Pass — rollback artifact diff clean |
 | `npm run qa:mobile:identity` | Pass |
 | Compile-only Capacitor preparation + Android sync | Pass |
-| Current local Gradle | Not run — no local Java runtime; Java 21 CI pending for this commit |
+| Current local Gradle | Not run — no local Java runtime; superseded by the current Java 21 CI result below |
 | `npm audit --omit=dev --audit-level=moderate` | Pass — zero vulnerabilities |
 | `npm audit --audit-level=moderate` | Pass — zero vulnerabilities |
 | Full post-remediation browser suite | Pass — 123/123 |
@@ -315,6 +316,7 @@ verification.
 | Full-suite axe scans | Pass — 0 WCAG 2.1 AA violations |
 | [GitHub Phase 5 workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30214620782) | Pass — quality 4m08s, Android 6m44s; hosted migration/deploy skipped while activation is off |
 | [GitHub post-hardening workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30217201984) | Pass — quality 5m18s, Android 6m54s; hosted migration/deploy skipped while activation is off |
+| [GitHub architecture completion workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30221722696) | Pass — quality 5m23s, Android 4m37s; hosted migration/deploy skipped while activation is off |
 | [GET-only hosted readiness](https://github.com/theonlygeranium/vinifera/actions/runs/30217462802) | Pass — sanitized evidence artifact; no mutations |
 
 The current complete browser rerun passed all 123 tests with retries disabled,
@@ -461,9 +463,10 @@ is supplied.
 - [x] The downloaded CI lint report records 0 errors and 33 warnings.
 - [x] Current architecture candidate passes compile-only preparation and
       Capacitor Android synchronization.
-- [ ] Current architecture candidate Gradle rerun: **Pending**. The local Mac
-      has no Java runtime, so Gradle cannot start; the Java 21 Android CI job is
-      the required current-commit evidence.
+- [x] Architecture commit `5d36471` passes Java 21 Android lint, debug APK, and
+      minified release APK assembly in GitHub Actions run
+      [`30221722696`](https://github.com/theonlygeranium/vinifera/actions/runs/30221722696).
+      The local Mac still has no Java runtime.
 - [ ] Emulator/physical-device, FCM, signing, and Play internal-track evidence:
       **Deferred**.
 
