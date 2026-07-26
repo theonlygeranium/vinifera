@@ -1,6 +1,0 @@
-# wrangler.toml — Cloudflare Pages build configuration
-# Replace "vinifera" with your actual project name.
-# Use pages_build_output_dir — NOT [site] bucket (that's Workers Sites).
-name = "vinifera"
-compatibility_date = "2025-01-01"
-pages_build_output_dir = "./dist"

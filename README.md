@@ -7,12 +7,12 @@
 A web-based platform for wine club operations — member management, shipment processing, AI churn prediction, and a passwordless member portal — designed for small to mid-size wineries.
 
 [![Live Site](https://img.shields.io/badge/🌐_Live_Site-vinifera.edstratumlabs.ai-6B1E30?style=for-the-badge)](https://vinifera.edstratumlabs.ai/)
-[![Live Demo](https://img.shields.io/badge/🎮_Live_Demo-App_Prototype-C9993A?style=for-the-badge)](https://vinifera.edstratumlabs.ai/app/)
+[![Production Build](https://img.shields.io/badge/Production_Build-Phase_1-C9993A?style=for-the-badge)](./docs/build-specs/phase-1-foundation.md)
 [![Investor's Guide](https://img.shields.io/badge/📖_Investor's_Guide-Full_Story-3D0E1B?style=for-the-badge)](https://vinifera.edstratumlabs.ai/guide/)
 
 [![WCAG 2.1 AA](https://img.shields.io/badge/WCAG_2.1_AA-✓_0_Violations-success?style=flat-square)](https://vinifera.edstratumlabs.ai/)
-[![Cloudflare Pages](https://img.shields.io/badge/Hosted_on-Cloudflare_Pages-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://pages.cloudflare.com/)
-[![Node](https://img.shields.io/badge/Node-20-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Cloudflare Workers](https://img.shields.io/badge/Runtime-Cloudflare_Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
+[![Node](https://img.shields.io/badge/Node-22-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 
 </div>
 
@@ -20,16 +20,18 @@ A web-based platform for wine club operations — member management, shipment pr
 
 ## Overview
 
-Vinifera is a working prototype of a wine club management platform. It demonstrates every major workflow a wine club operator needs — from member onboarding to shipment fulfillment — in a single, mobile-optimized web application. The prototype runs in any browser, is fully WCAG 2.1 AA compliant, and deploys automatically from this repository to Cloudflare Pages on every push to `main`.
+Vinifera is a production wine club management platform under active build. The repository contains the verified original prototype and the real Phase 1 application foundation: a React/Vite staff application and member portal, an Express API on Cloudflare Workers, Supabase Auth/PostgreSQL migrations with forced tenant RLS, and Stripe subscription adapters.
+
+Provider integrations are connection-ready and fail closed when credentials or control-plane settings are not active. Production code does not emit mock dashboard rows or store JWTs in browser storage.
 
 The name comes from *Vitis vinifera*, the Latin species name for the primary wine grape vine. It signals domain knowledge to winery operators and reads as a premium brand word — without the overused "wine" prefix that defines most platform names in this market.
 
-## Live Pages
+## Current live baseline
 
 | Page | URL | Description |
 |------|-----|-------------|
 | **Landing** | [vinifera.edstratumlabs.ai](https://vinifera.edstratumlabs.ai/) | Marketing site with hero vineyard illustration, feature overview, pricing, and animated CTA |
-| **App Prototype** | [vinifera.edstratumlabs.ai/app/](https://vinifera.edstratumlabs.ai/app/) | Full interactive dashboard prototype — 13 functional areas, 27 KPI cards, sidebar navigation |
+| **App Prototype** | [vinifera.edstratumlabs.ai/app/](https://vinifera.edstratumlabs.ai/app/) | Static visual baseline retained until the Phase 1 Worker passes live activation QA |
 | **Investor's Guide** | [vinifera.edstratumlabs.ai/guide/](https://vinifera.edstratumlabs.ai/guide/) | 8-part plain-language guide covering the problem, technology, build plan, and business case |
 
 ## Features
@@ -60,7 +62,7 @@ The prototype demonstrates thirteen functional areas across an administration po
 | **Database** | Supabase (PostgreSQL) | Row-Level Security enforces tenant isolation at the database layer |
 | **Payments** | Stripe | Handles decline logic, card updates, fraud detection — Vinifera stores no card data |
 | **Email** | Resend | DKIM/SPF-authenticated transactional delivery |
-| **Hosting** | Cloudflare Pages | 330+ global data centers, 99.99% uptime, auto-deploy from Git |
+| **Runtime** | Cloudflare Workers + Static Assets | Same-origin React application and Express API |
 | **Compliance** | ShipCompliant | State-by-state alcohol shipping legality and tax calculation |
 | **Monitoring** | PostHog + Sentry | Product analytics and real-time error capture |
 | **Auth** | Supabase Auth | JWT sessions, magic-link for members, password/OAuth for staff |
@@ -68,60 +70,71 @@ The prototype demonstrates thirteen functional areas across an administration po
 ## Build & Deploy
 
 ```bash
-# Install dependencies
-npm install
+# Install locked dependencies
+npm ci
 
 # Build for production (outputs to dist/)
 npm run build
 
-# Local development server
+# Visual development server
 npm run dev
+
+# Full Worker + API development server
+npm run dev:worker
+
+# Full local verification
+npm run check
+npm run qa:e2e
 ```
 
-The build copies `index.html`, `app`, and `guide` into `dist/` along with `public/_headers` and `public/_redirects`. Cloudflare Pages auto-deploys on every push to `main` — the deployment trigger is verified via `trigger_type: "github:push"`.
+The build emits code-split React assets, then copies `index.html`, `guide`, and `public/*` into `dist/`. Wrangler packages those assets with the Express Worker. GitHub-hosted CI audits, type-checks, tests, builds, validates the Worker bundle, runs browser QA, conditionally applies Supabase migrations, and deploys the staging Worker.
 
 ### Routing
 
 | Route | Served By | Content-Type |
 |-------|----------|---------------|
 | `/` | `index.html` (static) | `text/html` |
-| `/app/*` | `app` (extensionless, via `_redirects`) | `text/html` |
+| `/app/*` | React staff application | `text/html` |
+| `/portal/*` | React member portal | `text/html` |
 | `/guide/*` | `guide` (extensionless, via `_redirects`) | `text/html` |
+| `/api/*` | Express BFF | `application/json` |
 
-Extensionless filenames are required because Cloudflare Pages' pretty-URL feature 308-redirects `*.html` files, which would intercept `_redirects` rules. The `_headers` file sets `Content-Type: text/html` for all routes.
+The original extensionless `app` file remains in source as the visual specification but is not shipped by the production build.
 
-## Quality
+## Quality status
 
 | Metric | Result |
 |--------|--------|
-| **WCAG 2.1 AA** | 0 axe-core violations across all 3 pages |
-| **Touch targets** | All interactive elements meet 44×44px (WCAG 2.5.5) |
-| **Color contrast** | All text exceeds 4.5:1 (normal) or 3:1 (large) thresholds |
-| **Performance** | FCP < 370ms, CLS 0.0000, DOM load < 0.35s |
-| **Security headers** | 6/6 present on all pages (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, X-XSS-Protection, Permissions-Policy, HSTS) |
-| **prefers-reduced-motion** | All animations disabled (CSS + SVG SMIL) |
-| **Visual QA** | All screenshots pass on desktop and mobile |
+| Static marketing/guide baseline | Previously verified for accessibility and responsive layout; rerun as a regression gate |
+| Phase 1 application | 10 API tests and 21 browser tests pass; Worker bundle and embedded PostgreSQL preflight pass |
+| Provider activation | Pending hosted Supabase migration/Auth settings, Stripe test Prices/webhook, Google OAuth, and SMTP |
+| Custom-domain cutover | Blocked until every Phase 1 live checkbox passes |
 
 ## Repository Structure
 
 ```
 vinifera/
 ├── index.html              # Landing page (hero, features, pricing, CTA)
-├── app                     # App prototype (extensionless, served at /app/*)
+├── app                     # Original visual prototype (source reference only)
 ├── guide                   # Investor's guide (extensionless, served at /guide/*)
+├── web/                    # Vite HTML entry
+├── src/client/             # React staff and member applications
+├── server/                 # Express BFF and Cloudflare Worker entry
+├── supabase/               # PostgreSQL migrations and pgTAP tests
+├── tests/                  # API and browser QA suites
 ├── public/
 │   ├── _redirects          # Route rules: /app/* /guide/*
 │   └── _headers             # Security headers + Content-Type overrides
 ├── scripts/
-│   └── build.mjs            # Build script (copies files to dist/)
+│   └── build.mjs            # Adds static public surfaces after Vite build
 ├── docs/                    # Architecture, setup, ADRs, runbooks
 ├── .github/workflows/       # CI/CD pipeline
 ├── AGENTS.md                # AI agent collaboration guide
 ├── CONTINUITY_BRIEF.md      # Drop-in context for new agent sessions
 ├── CHANGELOG.md             # Versioned change log
 ├── REVERT.md                # Stable baseline and rollback guide
-├── package.json             # Build config
-└── wrangler.toml            # Cloudflare Pages configuration
+├── package.json             # Locked build, test, and deploy commands
+└── wrangler.jsonc           # Worker, static assets, and hourly reconciliation
 ```
 
 ---

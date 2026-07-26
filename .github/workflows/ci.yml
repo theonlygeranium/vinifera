@@ -1,0 +1,172 @@
+name: Quality and staging deployment
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vinifera-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Type, test, build, and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Run unit and integration tests
+        run: npm test
+
+      - name: Build static assets
+        run: npm run build
+
+      - name: Validate Worker bundle
+        run: npm run build:worker
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser QA
+        run: npm run qa:e2e
+
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-evidence
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  database:
+    name: Apply Supabase migrations when activated
+    needs: quality
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Detect migration activation
+        id: activation
+        shell: bash
+        run: |
+          if [[ -n "$SUPABASE_ACCESS_TOKEN" && -n "$SUPABASE_DB_PASSWORD" && -n "$SUPABASE_PROJECT_ID" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Supabase migrations are connection-ready but deferred until SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, and SUPABASE_PROJECT_ID are configured."
+          fi
+
+      - name: Install Supabase CLI
+        if: steps.activation.outputs.ready == 'true'
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project and apply migrations
+        if: steps.activation.outputs.ready == 'true'
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_ID"
+          supabase db push
+
+  deploy-staging:
+    name: Deploy credential-ready Worker
+    needs: [quality, database]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AUTH_EMAIL_ENABLED: ${{ secrets.AUTH_EMAIL_ENABLED }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GOOGLE_OAUTH_ENABLED: ${{ secrets.GOOGLE_OAUTH_ENABLED }}
+      RATE_LIMIT_PEPPER: ${{ secrets.RATE_LIMIT_PEPPER }}
+      STRIPE_PRICE_CELLAR: ${{ secrets.STRIPE_PRICE_CELLAR }}
+      STRIPE_PRICE_ESTATE: ${{ secrets.STRIPE_PRICE_ESTATE }}
+      STRIPE_PRICE_RESERVE: ${{ secrets.STRIPE_PRICE_RESERVE }}
+      STRIPE_PRICE_VINE: ${{ secrets.STRIPE_PRICE_VINE }}
+      STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy staging Worker
+        run: npx wrangler deploy
+
+      - name: Apply available Worker secrets
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE' | npx wrangler secret bulk
+          const names = [
+            "AUTH_EMAIL_ENABLED",
+            "GOOGLE_OAUTH_ENABLED",
+            "RATE_LIMIT_PEPPER",
+            "STRIPE_PRICE_CELLAR",
+            "STRIPE_PRICE_ESTATE",
+            "STRIPE_PRICE_RESERVE",
+            "STRIPE_PRICE_VINE",
+            "STRIPE_PUBLISHABLE_KEY",
+            "STRIPE_SECRET_KEY",
+            "STRIPE_WEBHOOK_SECRET",
+            "SUPABASE_ANON_KEY",
+            "SUPABASE_PUBLISHABLE_KEY",
+            "SUPABASE_SECRET_KEY",
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "SUPABASE_URL"
+          ];
+          const values = Object.fromEntries(
+            names
+              .filter((name) => process.env[name])
+              .map((name) => [name, process.env[name]])
+          );
+          process.stdout.write(JSON.stringify(values));
+          NODE

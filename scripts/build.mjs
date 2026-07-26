@@ -1,13 +1,14 @@
-import { mkdir, copyFile, readdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const ROOT = '.';
 const DIST = 'dist';
 
-await rm(DIST, { recursive: true, force: true });
 await mkdir(DIST, { recursive: true });
 
-const rootFiles = ['index.html', 'app', 'guide'];
+// Vite builds the authenticated React application to dist/app.html first.
+// Keep the existing marketing site and investor guide as static public routes.
+const rootFiles = ['index.html', 'guide'];
 for (const f of rootFiles) {
   await copyFile(join(ROOT, f), join(DIST, f));
   console.log(`  copied ${f}`);
@@ -24,4 +25,4 @@ try {
   console.log('  no public/ directory');
 }
 
-console.log('Build complete: dist/ ready for Cloudflare Pages');
+console.log('Build complete: dist/ ready for Cloudflare Workers Static Assets');

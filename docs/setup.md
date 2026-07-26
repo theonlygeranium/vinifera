@@ -1,126 +1,159 @@
-# Setup & Deployment Guide — Vinifera
-
----
+# Setup and deployment guide — Vinifera
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 22 (see `.nvmrc`; CI uses Node 22)
 - npm
 - Git
+- Docker Desktop only when running the complete local Supabase stack
+- Provider credentials only when activating live integrations
 
----
-
-## Local Development
+## Local development
 
 ```bash
-# Clone the repo
 git clone https://github.com/theonlygeranium/vinifera.git
 cd vinifera
-
-# Install dependencies
-npm install
-
-# Start dev server
+nvm use
+npm ci
 npm run dev
 ```
 
-The dev server (`npx serve .`) serves the project root at `http://localhost:3000`.
+Vite serves the React staff application at `http://localhost:5173/app` and the member portal at `/portal`. Use the Worker server to exercise the marketing site, guide, API, and the complete production routing model.
 
----
-
-## Building for Production
+The Vite-only server is appropriate for focused application visual work. Use the Worker development server when testing API routes or static-surface regressions:
 
 ```bash
+npm run dev:worker
+```
+
+Do not put secrets in Vite-prefixed variables. The frontend intentionally has no direct provider credentials.
+
+## Local environment
+
+Copy the template only when activating provider-backed behavior:
+
+```bash
+cp .env.example .dev.vars
+chmod 600 .dev.vars
+```
+
+`.dev.vars`, `.env`, and `.env.*` are ignored. Never commit them or paste their values into logs.
+
+Required Phase 1 runtime values:
+
+```text
+APP_ORIGIN
+ALLOWED_ORIGINS
+AUTH_EMAIL_ENABLED
+GOOGLE_OAUTH_ENABLED
+RATE_LIMIT_PEPPER
+SUPABASE_URL
+SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY)
+SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY)
+STRIPE_SECRET_KEY
+STRIPE_WEBHOOK_SECRET
+STRIPE_PRICE_VINE
+STRIPE_PRICE_CELLAR
+STRIPE_PRICE_ESTATE
+STRIPE_PRICE_RESERVE
+```
+
+Missing provider values are an explicit activation state. The API health report shows missing variable names without revealing values:
+
+```bash
+curl http://localhost:8787/api/health/configuration
+```
+
+## Supabase
+
+The migration source of truth is `supabase/migrations/`. Local configuration sets Auth OTP expiry to 900 seconds and points auth emails back to the local application.
+
+```bash
+npx supabase start
+npx supabase db reset
+npx supabase test db
+```
+
+Hosted migration deployment additionally requires encrypted CI secrets:
+
+```text
+SUPABASE_ACCESS_TOKEN
+SUPABASE_PROJECT_ID
+SUPABASE_DB_PASSWORD
+```
+
+CI skips hosted migration mutation, with an explicit notice, until all three are configured. Runtime URL and API keys are insufficient for PostgreSQL DDL.
+
+After the migration is applied to a hosted project:
+
+1. Enable the `public.custom_access_token_hook` Auth hook.
+2. Enable staff email/password and Google OAuth.
+3. Set site and redirect URLs for `/api/auth/staff/callback` and `/api/auth/member/callback`.
+4. Configure authenticated SMTP for invitations, password resets, and member magic links.
+5. Verify OTP expiry is 900 seconds.
+
+## Stripe test mode
+
+Create four monthly recurring test Prices and store their IDs in the matching `STRIPE_PRICE_*` secrets. Register:
+
+```text
+POST https://<staging-worker>/api/billing/webhook
+```
+
+Subscribe the endpoint to:
+
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_succeeded`
+- `invoice.payment_failed`
+
+Store the resulting signing secret as `STRIPE_WEBHOOK_SECRET`. Configure the Stripe Customer Portal before testing `/api/billing/portal`.
+
+Phases 1–4 must remain in Stripe test mode.
+
+## Build and verify
+
+```bash
+npm audit --audit-level=moderate
+npm run typecheck
+npm test
 npm run build
+npm run build:worker
+npm run qa:e2e
 ```
 
-This runs `scripts/build.mjs`, which:
-1. Removes the `dist/` directory
-2. Copies `index.html`, `app`, and `guide` to `dist/`
-3. Copies `public/_headers` and `public/_redirects` to `dist/`
+`npm run build` runs Vite, then copies the marketing site, investor guide, and static metadata into `dist/`. The original `app` prototype is retained in source as a visual reference and is not included in the authenticated production bundle.
 
-Output is in `dist/` — ready for Cloudflare Pages.
+## CI/CD
 
----
+`.github/workflows/ci.yml` uses GitHub-hosted runners:
 
-## Deploying to Cloudflare Pages
+1. Install locked dependencies.
+2. Audit production dependencies.
+3. Type-check and run automated tests.
+4. Build static assets and validate the Worker bundle.
+5. Run Chromium/Playwright accessibility, breakpoint, visual, and security QA.
+6. Apply Supabase migrations only when management credentials are active.
+7. Deploy the Worker and upload available runtime secrets.
 
-### Automatic (recommended)
-Push to `main` — the Cloudflare Pages GitHub App detects the push and auto-builds + deploys.
+The existing Cloudflare Pages custom-domain deployment remains the rollback baseline during Phase 1. The Worker deploys to its staging `workers.dev` address until the complete live gate passes; do not move the custom domain early.
 
-Build configuration (non-negotiable):
-- **Build command:** `npm run build`
-- **Output directory:** `dist/`
-- **Node version:** 20
+## Verification surfaces
 
-### Manual (via Cloudflare API)
-Use the `CLOUDFLARE_API` connector to trigger a deployment:
-```
-POST /accounts/{accountId}/pages/projects/vinifera/deployments
-```
+Verify all of the following:
 
-### Verifying Deployment
-
-```bash
-# Check deployment status via Cloudflare API
-# Look for latest_stage.status == "success" or "active"
-
-# Verify pages are live
-curl -sS -o /dev/null -w "HTTP %{http_code}" https://vinifera.edstratumlabs.ai/
-curl -sS -o /dev/null -w "HTTP %{http_code}" https://vinifera.edstratumlabs.ai/app/
-curl -sS -o /dev/null -w "HTTP %{http_code}" https://vinifera.edstratumlabs.ai/guide/
-```
-
-All three should return HTTP 200 with `Content-Type: text/html`.
-
----
-
-## Cloudflare Pages Conventions
-
-### Extensionless Filenames
-`app` and `guide` must NOT have `.html` extensions. Cloudflare Pages' pretty-URL feature 308-redirects `*.html` files, which intercepts `_redirects` rules.
-
-### `_headers` File
-Must include wildcard rules for extensionless routes:
-```
+```text
+/
+/guide/
+/app/login
+/app/signup
+/app/reset-password
 /app
-Content-Type: text/html; charset=utf-8
-
-/app/*
-Content-Type: text/html; charset=utf-8
-
-/guide
-Content-Type: text/html; charset=utf-8
-
-/guide/*
-Content-Type: text/html; charset=utf-8
+/portal/login
+/portal
+/api/health
+/api/health/configuration
 ```
 
-### `_redirects` File
-```
-/app/*    /app    200
-/guide/*  /guide  200
-```
-
-These are rewrites (status 200), not redirects.
-
----
-
-## Quality Assurance
-
-Before pushing visual changes, run the QA test suite:
-
-```bash
-# Full 8-phase QA across all 3 pages
-python /workspace/.tmp/qa_three_pages.py
-
-# Expected result: 100/100, 0 bugs, 0 warnings
-```
-
-### Key QA Requirements
-- **axe-core:** 0 WCAG 2.1 AA violations
-- **Touch targets:** All interactive elements ≥44×44px
-- **Color contrast:** ≥4.5:1 (normal text), ≥3:1 (large text)
-- **Performance:** FCP < 1800ms, CLS < 0.1
-- **Security:** 6/6 security headers present
-- **prefers-reduced-motion:** All animations disabled
+Required viewports are 375px, 768px, and 1440px. Run axe-core with zero WCAG 2.1 AA violations and confirm touch targets are at least 44×44px.

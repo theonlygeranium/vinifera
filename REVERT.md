@@ -8,11 +8,13 @@ This document records the most recent verified stable state of the project and p
 
 | Field | Value |
 |-------|-------|
-| **Tag** | Not yet tagged — current HEAD is the stable state |
+| **Tag** | Not yet tagged — static Pages baseline |
 | **Commit SHA** | `7e4bbba` |
 | **Date** | 2026-07-26 |
 | **Verified by** | Writer Agent (thread 85816652) |
-| **What was verified** | All 3 pages pass QA at 100/100 — 0 axe-core violations, 0 bugs, FCP < 370ms, CLS 0.0000, 6/6 security headers |
+| **What was verified** | Static landing, app prototype, and guide: 0 axe-core violations, responsive QA, FCP < 370ms, CLS 0.0000, and security headers |
+
+The Phase 1 Worker is a release candidate, not the custom-domain stable baseline, until hosted Supabase and Stripe test-mode verification passes.
 
 ---
 
@@ -20,19 +22,13 @@ This document records the most recent verified stable state of the project and p
 
 ### Option 1 — Git rollback (revert to a previous commit)
 ```bash
-cd /workspace/.tmp/vinifera_repo
+cd /Users/jeffgeronimo/Documents/vinifera
 git log --oneline -20          # find the commit to roll back to
 git revert <commit-sha>        # creates a revert commit
 git push origin main           # Cloudflare Pages auto-deploys
 ```
 
-### Option 2 — Force push to a known-good commit (requires human authorization)
-```bash
-git checkout 7e4bbba
-git push origin HEAD:main --force   # requires human authorization
-```
-
-> Cloudflare Pages will auto-deploy whatever is on `main`. No manual deployment step is required.
+Do not force-push `main`. If the Worker has not been attached to the custom domain, the Pages baseline is already the public rollback surface.
 
 ---
 
@@ -51,7 +47,7 @@ Then update the table above with the new tag, SHA, date, and what was verified.
 
 ## Known Issues at Current Baseline
 
-- None — all three pages (landing, app, guide) pass full 8-phase QA at 100/100
+- The baseline is a visual prototype, not the data-connected Phase 1 application.
 - The workflow illustration for step 4 ("Ship & Track") renders as a shipping box with arrow rather than a delivery truck — minor visual discrepancy, not a functional issue
 - Playwright WebKit ≠ real Safari iOS — ~30% of iOS-specific behaviors not reproducible. For production sign-off, test on a real iOS device or BrowserStack
 

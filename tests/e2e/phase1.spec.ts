@@ -1,0 +1,406 @@
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test, type Page } from "@playwright/test";
+
+const staffSession = {
+  access: {
+    graceEndsAt: null,
+    state: "active",
+    suspendedAt: null,
+  },
+  authenticated: true,
+  organization: {
+    accessState: "active",
+    id: "10000000-0000-4000-8000-000000000001",
+    name: "QA Winery",
+    planTier: "vine",
+    stripeCustomerId: null,
+    stripeSubscriptionId: null,
+    subscriptionStatus: "not_started",
+  },
+  user: {
+    email: "owner@example.com",
+    fullName: "QA Owner",
+    id: "20000000-0000-4000-8000-000000000001",
+    role: "owner",
+  },
+};
+
+const memberSession = {
+  authenticated: true,
+  organization: {
+    id: staffSession.organization.id,
+    name: staffSession.organization.name,
+  },
+  user: {
+    email: "member@example.com",
+    firstName: "Avery",
+    id: "30000000-0000-4000-8000-000000000001",
+    lastName: "Vine",
+    status: "active",
+  },
+};
+
+async function assertNoHorizontalOverflow(page: Page) {
+  const metrics = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+}
+
+async function assertA11y(page: Page) {
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(results.violations).toEqual([]);
+}
+
+async function assertConsoleHealth(page: Page, action: () => Promise<void>) {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" || message.type() === "warning") {
+      errors.push(message.text());
+    }
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  await action();
+  expect(errors).toEqual([]);
+}
+
+test.describe("Phase 1 public authentication surfaces", () => {
+  for (const surface of [
+    {
+      headingFragment: "Your wine club deserves software that works as hard as",
+      name: "marketing",
+      path: "/",
+    },
+    {
+      headingFragment: "Vinifera: The Full Picture",
+      name: "investor-guide",
+      path: "/guide/",
+    },
+  ]) {
+    test(`${surface.name} static baseline remains accessible on mobile`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto(surface.path);
+      await expect(page.locator("h1")).toContainText(surface.headingFragment);
+      await assertA11y(page);
+      await assertNoHorizontalOverflow(page);
+    });
+  }
+
+  for (const viewport of [
+    { name: "mobile", width: 375, height: 812 },
+    { name: "tablet", width: 768, height: 1024 },
+    { name: "desktop", width: 1440, height: 1000 },
+  ]) {
+    for (const route of [
+      { name: "staff-login", path: "/app/login", heading: "Welcome back" },
+      {
+        name: "staff-signup",
+        path: "/app/signup",
+        heading: "Create your winery workspace",
+      },
+      {
+        name: "member-login",
+        path: "/portal/login",
+        heading: "Your wine club, one click away",
+      },
+    ]) {
+      test(`${route.name} passes axe and layout at ${viewport.name}`, async ({
+        page,
+      }, testInfo) => {
+        await page.setViewportSize(viewport);
+        await assertConsoleHealth(page, async () => {
+          await page.goto(route.path);
+          await expect(page.getByRole("heading", { name: route.heading })).toBeVisible();
+        });
+        await assertA11y(page);
+        await assertNoHorizontalOverflow(page);
+        if (
+          (viewport.name === "mobile" && route.name === "staff-login") ||
+          (viewport.name === "desktop" && route.name === "staff-signup")
+        ) {
+          await page.screenshot({
+            fullPage: true,
+            path: testInfo.outputPath(`${route.name}-${viewport.name}.png`),
+          });
+        }
+      });
+    }
+  }
+
+  test("staff login controls are labeled, keyboard reachable, and interactive", async ({
+    page,
+  }) => {
+    await page.goto("/app/login");
+    const email = page.getByLabel("Email address", { exact: true });
+    const password = page.getByLabel("Password", { exact: true });
+    const toggle = page.getByRole("button", { name: "Show password" });
+
+    await email.fill("qa@example.com");
+    await password.fill("LocalOnly1234");
+    await toggle.click();
+    await expect(password).toHaveAttribute("type", "text");
+    await page.getByRole("button", { name: "Hide password" }).press("Enter");
+    await expect(password).toHaveAttribute("type", "password");
+    await email.focus();
+    await expect(email).toBeFocused();
+  });
+
+  test("staff signup submits organization, owner, and plan to the API", async ({
+    page,
+  }) => {
+    let signupBody: Record<string, unknown> | undefined;
+    await page.route("**/api/auth/staff/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: staffSession }),
+      }),
+    );
+    await page.route("**/api/auth/staff/signup", async (route) => {
+      signupBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { billingActivationRequired: true, principal: staffSession },
+        }),
+      });
+    });
+
+    await page.goto("/app/signup");
+    await page.getByLabel("Winery or organization name").fill("QA Winery");
+    await page.getByLabel("Your name").fill("QA Owner");
+    await page.getByLabel("Work email").fill("owner@example.com");
+    await page.getByLabel("Password", { exact: true }).fill("Production1234");
+    await page.getByLabel("Confirm password", { exact: true }).fill("Production1234");
+    await page.locator('input[name="planTier"][value="cellar"]').check();
+    await page.getByRole("button", { name: "Continue to secure checkout" }).click();
+    await expect(page.getByRole("heading", { name: "Welcome to QA Winery" })).toBeVisible();
+    expect(signupBody).toMatchObject({
+      email: "owner@example.com",
+      fullName: "QA Owner",
+      organizationName: "QA Winery",
+      planTier: "cellar",
+    });
+  });
+
+  test("confirmed-email signup renders a real completion state", async ({ page }) => {
+    await page.route("**/api/auth/staff/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { activated: true, authenticated: false },
+        }),
+      }),
+    );
+    await page.route("**/api/auth/staff/signup", (route) =>
+      route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { billingActivationRequired: true, principal: null },
+        }),
+      }),
+    );
+    await page.goto("/app/signup");
+    await page.getByLabel("Winery or organization name").fill("QA Winery");
+    await page.getByLabel("Your name").fill("QA Owner");
+    await page.getByLabel("Work email").fill("owner@example.com");
+    await page.getByLabel("Password", { exact: true }).fill("Production1234");
+    await page.getByLabel("Confirm password", { exact: true }).fill("Production1234");
+    await page.getByRole("button", { name: "Continue to secure checkout" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Confirm your staff email" }),
+    ).toBeVisible();
+    await expect(page.getByText("owner@example.com")).toBeVisible();
+  });
+
+  test("member magic-link request keeps account existence private", async ({ page }) => {
+    await page.route("**/api/auth/member/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: { authenticated: false } }),
+      }),
+    );
+    await page.route("**/api/auth/member/magic-link", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            message: "If this membership exists, a secure sign-in link is on its way.",
+          },
+        }),
+      }),
+    );
+    await page.goto("/portal/login");
+    await page.getByLabel("Member email").fill("member@example.com");
+    await page.getByRole("button", { name: "Email me a magic link" }).click();
+    await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+    await expect(page.getByText("The link expires in 15 minutes.")).toBeVisible();
+  });
+});
+
+test.describe("Phase 1 authenticated shells", () => {
+  test("staff empty dashboard matches the prototype shell and mobile drawer works", async ({
+    page,
+  }, testInfo) => {
+    await page.route("**/api/auth/staff/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: staffSession }),
+      }),
+    );
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/app");
+    await expect(page.getByRole("heading", { name: "Welcome to QA Winery" })).toBeVisible();
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("button", { name: "Open menu" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await assertA11y(page);
+    await assertNoHorizontalOverflow(page);
+    await page.screenshot({
+      fullPage: true,
+      path: testInfo.outputPath("staff-dashboard-mobile.png"),
+    });
+
+    await page.setViewportSize({ width: 812, height: 375 });
+    await expect(page.getByRole("heading", { name: "Welcome to QA Winery" })).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+  });
+
+  test("member session renders only the real empty portal shell", async ({ page }) => {
+    await page.route("**/api/auth/member/session", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: memberSession }),
+      }),
+    );
+    await page.goto("/portal");
+    await expect(page.getByRole("heading", { name: "Welcome, Avery" })).toBeVisible();
+    await expect(page.getByText("No release or shipment information is available yet.")).toBeVisible();
+    await assertA11y(page);
+  });
+});
+
+test.describe("Phase 1 security and performance gates", () => {
+  test("Worker responses carry restrictive security headers", async ({ request }) => {
+    const response = await request.get("/app/login");
+    expect(response.ok()).toBeTruthy();
+    expect(response.headers()["content-security-policy"]).toContain(
+      "frame-ancestors 'none'",
+    );
+    expect(response.headers()["x-frame-options"]).toBe("DENY");
+    expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers()["referrer-policy"]).toBe(
+      "strict-origin-when-cross-origin",
+    );
+    expect(response.headers()["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  test("client stores no credentials or API keys in browser storage", async ({ page }) => {
+    await page.goto("/app/login");
+    const storage = await page.evaluate(() => ({
+      local: Object.keys(localStorage),
+      session: Object.keys(sessionStorage),
+      source: document.documentElement.innerHTML,
+    }));
+    expect(storage.local).toEqual([]);
+    expect(storage.session).toEqual([]);
+    expect(storage.source).not.toMatch(/(?:sk|rk)_(?:test|live)_/);
+    expect(storage.source).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
+  });
+
+  test("login stays within LCP, CLS, and initial JavaScript budgets", async ({ page }) => {
+    await page.addInitScript(() => {
+      const metrics = { cls: 0, lcp: 0 };
+      Object.defineProperty(window, "__viniferaMetrics", { value: metrics });
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          metrics.lcp = Math.max(metrics.lcp, entry.startTime);
+        }
+      }).observe({ buffered: true, type: "largest-contentful-paint" });
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const shift = entry as PerformanceEntry & {
+            hadRecentInput: boolean;
+            value: number;
+          };
+          if (!shift.hadRecentInput) metrics.cls += shift.value;
+        }
+      }).observe({ buffered: true, type: "layout-shift" });
+    });
+    await page.goto("/app/login");
+    await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+    await page.waitForTimeout(100);
+    const result = await page.evaluate(() => {
+      const metrics = (
+        window as typeof window & {
+          __viniferaMetrics: { cls: number; lcp: number };
+        }
+      ).__viniferaMetrics;
+      const scripts = performance
+        .getEntriesByType("resource")
+        .filter((entry) => entry.name.endsWith(".js")) as PerformanceResourceTiming[];
+      return {
+        ...metrics,
+        javascriptTransferBytes: scripts.reduce(
+          (total, entry) => total + entry.transferSize,
+          0,
+        ),
+        synchronousScripts: Array.from(document.scripts).filter(
+          (script) => !script.async && !script.defer && script.type !== "module",
+        ).length,
+      };
+    });
+    expect(result.lcp).toBeGreaterThan(0);
+    expect(result.lcp).toBeLessThan(2_500);
+    expect(result.cls).toBeLessThan(0.1);
+    expect(result.javascriptTransferBytes).toBeLessThan(200 * 1024);
+    expect(result.synchronousScripts).toBe(0);
+  });
+
+  test("all effective mobile touch targets meet 44 by 44 pixels", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/app/signup");
+    const undersized = await page.evaluate(() => {
+      const candidates = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          "a,button,input,select,textarea,[role='button']",
+        ),
+      );
+      return candidates
+        .filter((element) => {
+          const style = getComputedStyle(element);
+          return style.visibility !== "hidden" && style.display !== "none";
+        })
+        .map((element) => {
+          const target =
+            element instanceof HTMLInputElement &&
+            ["checkbox", "radio"].includes(element.type) &&
+            element.closest("label")
+              ? (element.closest("label") as HTMLElement)
+              : element;
+          const rect = target.getBoundingClientRect();
+          return {
+            height: rect.height,
+            label:
+              target.getAttribute("aria-label") ||
+              target.textContent?.trim().slice(0, 80) ||
+              target.tagName,
+            width: rect.width,
+          };
+        })
+        .filter((target) => target.height > 0 && (target.height < 44 || target.width < 44));
+    });
+    expect(undersized).toEqual([]);
+  });
+});

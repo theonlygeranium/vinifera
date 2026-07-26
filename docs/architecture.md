@@ -3,91 +3,90 @@
 **Last updated:** 2026-07-26
 **Maintainer:** Any agent (must reflect actual deployment state)
 
----
+## System overview
 
-## System Overview
+Vinifera is transitioning from a static Cloudflare Pages prototype to a full-stack SaaS application. The Phase 1 architecture is implemented as a same-origin React application and Express API packaged in one Cloudflare Worker. Supabase provides Auth and PostgreSQL; Stripe provides subscription billing.
 
-Vinifera is a static multi-page web application deployed to Cloudflare Pages. There is no backend, database, or server-side runtime — all three pages are self-contained HTML files with inline CSS and JavaScript.
-
+```text
+Browser
+  │
+  ▼
+Cloudflare Worker + Static Assets
+  ├── / and /guide/* ───────────── static marketing and guide
+  ├── /app/* and /portal/* ────── React/Vite application shell
+  └── /api/* ──────────────────── Express 5 BFF
+                                      ├── Supabase Auth/PostgreSQL
+                                      └── Stripe Billing
 ```
-[Browser] → [Cloudflare Pages CDN (330+ edge locations)] → [Static HTML files in dist/]
-```
+
+The existing Pages custom-domain deployment remains the live baseline until the new Worker staging deployment passes the complete Phase 1 activation and QA gate.
 
 ### Pages
 
-| Page | Source File | Route | Description |
-|------|------------|-------|-------------|
-| Landing | `index.html` | `/` | Marketing site: hero vineyard illustration with 4 CSS/SVG animations, feature grid, workflow illustrations, pricing, CTA sunset gradient |
-| App Prototype | `app` (extensionless) | `/app/*` | Interactive dashboard: 13 functional areas, 27 KPI cards, sidebar nav, KPI watermarks, empty-state illustration |
-| Investor's Guide | `guide` (extensionless) | `/guide/*` | 8-part document: sticky TOC sidebar, reading progress bar, scroll-spy, feature grid, tech stack, timeline, pricing, stats |
+| Surface | Source | Route | Runtime |
+|---|---|---|---|
+| Marketing | `index.html` | `/` | Static asset |
+| Staff application | `src/client/staff/` | `/app/*` | Lazy React chunk |
+| Member portal | `src/client/member/` | `/portal/*` | Lazy React chunk |
+| Investor guide | `guide` | `/guide/*` | Static asset |
+| API | `server/` | `/api/*` | Express on Worker |
+| Visual reference only | `app` | not deployed | Original static prototype |
 
 ---
 
-## Build Pipeline
+## Build and deployment pipeline
 
+```text
+web/app.html + src/client/* ── Vite ───────────┐
+index.html + guide + public/* ─ build.mjs ─────┼── dist/
+server/worker.ts + server/* ── Wrangler ───────┴── Worker version
+supabase/migrations/* ──────── Supabase CLI ───── hosted PostgreSQL
 ```
-index.html ─┐
-app ────────┤→ scripts/build.mjs → dist/
-guide ──────┤
-public/* ───┘
-```
 
-The build script (`scripts/build.mjs`) copies the three root files and the `public/` directory contents into `dist/`. No transpilation, bundling, or minification occurs — the files are served as-is.
-
-### Cloudflare Pages Configuration
-
-| Setting | Value |
-|---------|-------|
-| Build command | `npm run build` |
-| Output directory | `dist/` |
-| Node version | 20 |
-| Deploy trigger | GitHub App webhook (push to `main`) |
-| `pages_build_output_dir` | `./dist` (in `wrangler.toml`) |
+GitHub-hosted CI installs the lockfile, audits dependencies, type-checks, runs tests, builds assets, validates the Worker bundle, and runs Playwright QA. On `main`, it conditionally applies Supabase migrations when management credentials are present, then deploys the staging Worker and uploads available runtime secrets.
 
 ---
 
-## Routing
+## Security boundaries
 
-Routing is handled by Cloudflare Pages' `_redirects` file:
-
-```
-/app/*    /app    200
-/guide/*  /guide  200
-```
-
-These are rewrites (status 200), not redirects. The root path `/` serves `index.html` as a static file.
-
-### Why Extensionless Filenames
-
-Cloudflare Pages' pretty-URL feature 308-redirects `*.html` files, which intercepts `_redirects` rules. Using extensionless filenames (`app`, `guide`) avoids this. The `_headers` file sets `Content-Type: text/html` for these routes.
+- Staff and member Supabase sessions use different secure, `httpOnly` cookies.
+- The browser calls only the same-origin Express API; JWTs and secret keys never enter local storage.
+- All state-changing browser requests require an allowlisted `Origin`.
+- Worker secrets contain Supabase and Stripe server credentials.
+- RLS is enabled and forced on all tenant tables.
+- Custom JWT claims are derived by a database auth hook, not editable user metadata.
+- Stripe webhooks use raw bodies, signature verification, unique event IDs, and out-of-order event protection.
+- Missing provider credentials fail closed with `activation_required`.
 
 ---
 
-## Security Headers
+## Security headers
 
-The `public/_headers` file applies security headers to all routes:
+The Worker applies security headers to every response. `public/_headers` remains only for the static Pages rollback baseline.
 
 | Header | Value |
 |--------|-------|
 | X-Frame-Options | DENY |
 | X-Content-Type-Options | nosniff |
-| X-XSS-Protection | 1; mode=block |
+| X-XSS-Protection | 0 (legacy browser filter disabled by Helmet) |
 | Referrer-Policy | strict-origin-when-cross-origin |
 | Permissions-Policy | camera=(), microphone=(), geolocation=(), payment=() |
-| Strict-Transport-Security | (set by Cloudflare edge) |
+| Content-Security-Policy | Restrictive allowlist; framing denied |
+| Strict-Transport-Security | One year, including subdomains |
+| Cross-Origin-Opener-Policy | Same origin |
 
-Content-Type overrides are applied for `/app` and `/guide` routes (both direct and wildcard) to ensure `text/html; charset=utf-8`.
+The Worker serves `/app/*` and `/portal/*` from the Vite shell with `text/html; charset=utf-8`; the guide retains its extensionless static content-type rule.
 
 ---
 
-## External Dependencies
+## Provider adapters
 
-| Service | Purpose | Notes |
-|---------|---------|-------|
-| Lucide Icons (CDN) | Icon library | Loaded via `<script>` from `unpkg.com` |
-| Cloudflare Pages | Hosting + CDN | 330+ edge locations, 99.99% uptime |
-
-No other external dependencies. All CSS and JS are inline — no external stylesheets or scripts beyond Lucide.
+| Provider | Purpose | Missing-wiring behavior |
+|---|---|---|
+| Supabase | Auth, PostgreSQL, RLS | Auth/data operations return `503 activation_required` |
+| Stripe | SaaS subscriptions and portal | Billing operations return `503 activation_required` |
+| Google via Supabase | Staff OAuth | OAuth route remains disabled until configured |
+| SMTP via Supabase | Invite/reset/magic-link delivery | Delivery QA remains pending |
 
 ---
 
@@ -106,8 +105,11 @@ All animations are disabled under `@media (prefers-reduced-motion: reduce)`.
 
 ---
 
-## Known Constraints
+## Current activation gates
 
-- **CSS transform vs SVG transform:** CSS `transform` overrides SVG `transform` presentation attributes — they do not compose. Use SVG-native `<animateTransform additive="sum">` for animations that combine with existing `transform="translate()"` positioning.
-- **Edge cache lag:** Custom domain cache lags deployment-specific URL by 15–30s. Verify fixes on `*.pages.dev` URL first.
-- **GitHub webhook API:** The `/repos/{owner}/{repo}/hooks` endpoint returns 0 hooks even when the Cloudflare Pages GitHub App webhook is active. Verify via deployment `trigger_type`.
+- Supabase migration management requires `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, and `SUPABASE_DB_PASSWORD`.
+- Supabase Google OAuth and outbound Auth email require dashboard/provider configuration.
+- Stripe requires four recurring test Price IDs and a webhook signing secret.
+- The Worker custom-domain cutover occurs only after live Phase 1 exit verification.
+
+See [the Phase 1 ADR](./decisions/2026-07-26-phase-1-foundation-architecture.md) for rationale and tradeoffs.

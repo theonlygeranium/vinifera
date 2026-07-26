@@ -8,9 +8,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- React 19 + Tailwind/Vite staff and member applications with code-split `/app/*` and `/portal/*` routes.
+- Express 5 backend-for-frontend packaged with static assets in one Cloudflare Worker.
+- Secure staff password, reset, Google OAuth, invitation, and protected-route flows.
+- Passwordless member magic-link flow with isolated staff/member HTTP-only cookie sessions.
+- Supabase foundation migration with forced RLS, server-derived JWT claims, super-admin access, tenant indexes, atomic invitation consumption, and pgTAP suites.
+- Stripe test-mode Checkout, Customer Portal, signed webhook processing, idempotency, out-of-order protection, and seven/fourteen-day access reconciliation.
+- Configuration health and typed activation gates so real provider connections can be enabled later without production mocks.
+- GitHub-hosted CI for dependency audit, type-checking, unit/integration tests, Worker packaging, Playwright/axe QA, conditional Supabase migration, and Worker deployment.
+- Phase 1 architecture ADR and QA report.
+
+### Changed
+
+- Replaced the static `/app` deployment artifact with a production React shell while retaining the original `app` file as the visual reference.
+- Moved runtime configuration from Pages `wrangler.toml` to Worker `wrangler.jsonc`.
+- Stopped tracking generated `dist/` output; CI and deployments now build it from source.
+- Updated setup, architecture, continuity, rollback, and repository documentation for the Phase 1 production foundation.
+
 ### Fixed
 
 - Replaced the accidentally Base64-encoded `.gitignore` with active ignore rules that prevent local environment files, Worker secrets, dependencies, build output, and QA artifacts from being committed.
+- Removed a timer-based Express rate-limit middleware that is incompatible with Cloudflare Worker global scope; member magic-link limits are enforced atomically in PostgreSQL.
+- Normalized database RPC and API session contracts, including Stripe event return shapes and camel-cased browser payloads.
+- Refreshed newly bootstrapped Supabase sessions so database-derived tenant claims are immediately available.
+- Made disconnected session probes fail closed without producing noisy browser errors.
 
 ---
 

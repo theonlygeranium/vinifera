@@ -1,114 +1,94 @@
 # Vinifera — Agent Continuity Brief
-**Last updated:** 2026-07-26 by Writer Agent (thread 85816652)
-**Purpose:** Drop-in context document for any new WRITER Agent or Codex session working on this project. Read this before touching anything.
 
----
+**Last updated:** 2026-07-26
+**Purpose:** Current handoff for any engineer or agent continuing the production build.
 
-## Project Identity
-- **Project name:** Vinifera
-- **Owner:** EdStratum Labs (`founder@edstratumlabs.ai`)
-- **Live URL:** `https://vinifera.edstratumlabs.ai`
-- **Repo:** `https://github.com/theonlygeranium/vinifera` (public)
-- **Default branch:** `main` → auto-deploys to Cloudflare Pages on push
+## Project identity
 
----
+- Owner: EdStratum Labs
+- Repository: `https://github.com/theonlygeranium/vinifera`
+- Default branch: `main`
+- Public domain: `https://vinifera.edstratumlabs.ai`
+- Build specifications: `docs/build-specs/`
 
-## Stack
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Vanilla HTML/CSS/JS (single-file pages, no framework) |
-| Icons | Lucide Icons (CDN) |
-| CI/CD | GitHub Actions + Cloudflare Pages GitHub App webhook |
-| Deploy target | Cloudflare Pages (`vinifera` project) |
-| Build | `npm run build` → copies files to `dist/` |
+Read `AGENTS.md`, the phase specification, and this brief before editing.
 
----
+## Current production state
 
-## Repository Key Files
+The public custom domain still serves the verified static Cloudflare Pages prototype. The repository now contains the Phase 1 production candidate:
+
+- React 19 + Tailwind/Vite staff and member applications
+- Express 5 API in a Cloudflare Worker with Static Assets
+- Supabase Auth/PostgreSQL migration with forced tenant RLS
+- Stripe test-mode subscription and webhook adapters
+- GitHub-hosted CI, conditional migrations, Worker staging deployment, and Playwright/axe QA
+
+The Worker is connection-ready but must not replace the Pages custom-domain baseline until the hosted Supabase and Stripe activation checks in `docs/build-specs/phase-1-qa-report.md` pass.
+
+## Runtime architecture
+
+| Route | Implementation |
+|---|---|
+| `/`, `/guide/*` | Existing static marketing and guide assets |
+| `/app/*` | React staff application |
+| `/portal/*` | React member portal |
+| `/api/*` | Express backend-for-frontend |
+| hourly cron | Stripe access-state reconciliation |
+
+Staff and member JWTs live only in distinct secure HTTP-only cookies. Provider secrets exist only in the Worker. Production dashboards contain no mock rows.
+
+## Source map
+
+```text
+web/                    Vite entry
+src/client/             React application
+server/                 Express API, provider adapters, Worker entry
+supabase/migrations/    PostgreSQL source of truth
+supabase/tests/         pgTAP schema, RLS, and RPC suites
+tests/server/           API integration tests
+tests/e2e/              Playwright/axe browser QA
+docs/decisions/         Architecture decisions
+docs/build-specs/       Sequential phase specifications and QA reports
+wrangler.jsonc          Worker/static assets/cron configuration
 ```
-vinifera/
-├── index.html               # Landing page — hero, features, pricing
-├── app                      # App prototype (extensionless) — served at /app/*
-├── guide                    # Investor's guide (extensionless) — served at /guide/*
-├── public/
-│   ├── _redirects           # /app/* /app 200, /guide/* /guide 200
-│   └── _headers              # Security headers + Content-Type overrides
-├── scripts/
-│   └── build.mjs            # Copies index.html, app, guide, public/* to dist/
-├── AGENTS.md                # Agent rules — read first
-├── CONTINUITY_BRIEF.md      # This file — update after every session
-├── README.md                # Human-readable overview
-├── CHANGELOG.md             # All changes — updated every commit
-├── REVERT.md                # Stable baseline + rollback instructions
-├── package.json             # Build config (name: vinifera, version: 0.0.1)
-├── wrangler.toml            # Cloudflare Pages config (pages_build_output_dir: ./dist)
-└── docs/                    # Architecture, setup, ADRs, runbooks
+
+The extensionless root `app` file is the accepted visual prototype and is not copied into the production build.
+
+## Verified Phase 1 evidence
+
+- `npm audit`: zero known dependency vulnerabilities
+- TypeScript: pass
+- Vitest: 10/10 pass
+- Playwright: 21/21 pass
+- axe WCAG 2.1 AA: zero violations on login, signup, dashboard, and portal surfaces
+- Breakpoints: 375, 768, and 1440 pass; orientation change passes
+- Initial application JavaScript: 62.25 KB gzip
+- Worker dry-run bundle: pass
+- Embedded PostgreSQL functional preflight: pass
+- pgTAP: 92 plan-balanced assertions ready for hosted/local Supabase
+
+## Activation gates
+
+The code must remain fail-closed until these external connections are active:
+
+1. Add Supabase management credentials and apply `supabase/migrations/`.
+2. Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP.
+3. Add Stripe recurring test Price IDs, register `/api/billing/webhook`, and add its signing secret.
+4. Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests.
+5. Move the custom domain only after the Phase 1 exit criterion is evidenced.
+
+See `.env.example` and `docs/setup.md` for exact variable names. Never print or commit values.
+
+## Build and QA
+
+```bash
+npm ci
+npm audit --audit-level=moderate
+npm run typecheck
+npm test
+npm run build
+npm run build:worker
+npm run qa:e2e
 ```
 
----
-
-## CI/CD Pipeline
-- Push to `main` → Cloudflare Pages GitHub App webhook triggers build → `npm run build` → deploy
-- Build command: `npm run build` (non-negotiable)
-- Output dir: `dist/`
-- Node version: 20
-- Webhook verification: Check deployment `trigger_type: "github:push"` (GitHub `/hooks` endpoint returns 0 even when active)
-
----
-
-## Current State
-- **Last stable tag:** Not yet tagged
-- **Active branch:** `main`
-- **Latest commit:** `7e4bbba` — Fix remaining guide color-contrast
-- **Latest deployment:** `eec75703` (active)
-- **Open work:** None — all three pages pass QA at 100/100
-
-### Deployments This Session
-| Commit | Deployment ID | Change |
-|--------|--------------|--------|
-| `b0380a4` | `2a7c2c33` | Add investor's guide page + nav links |
-| `df34001` | `2d5c1e61` | Fix WCAG violations on guide page |
-| `7e4bbba` | `eec75703` | Fix remaining guide color-contrast |
-
----
-
-## Environment Variables
-No application-level environment variables required. This is a static site.
-
-### GitHub Secrets (for CI/CD)
-| Secret | Purpose |
-|--------|---------|
-| `TS_OAUTH_CLIENT_ID` | Tailscale OAuth (Schubert fallback deploy) |
-| `TS_OAUTH_SECRET` | Tailscale OAuth (Schubert fallback deploy) |
-| `SCHUBERT_SSH_KEY` | SSH key for Schubert Nexus |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API access |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account identifier |
-
----
-
-## Cloudflare Pages Configuration
-- **Project:** `vinifera`
-- **Build command:** `npm run build`
-- **Destination dir:** `dist`
-- **NODE_VERSION:** `20`
-- **Custom domain:** `vinifera.edstratumlabs.ai` (CNAME proxied, SSL active)
-- **Connector account ID:** `f69a6a0cad6e417b182bac1559292bf6`
-- **Zone for `edstratumlabs.ai`:** `7c25efc22d8f8fc7c10a0f9da67c0c5f`
-
----
-
-## Quality Status
-- **axe-core:** 0 WCAG 2.1 AA violations on all 3 pages (landing, app, guide)
-- **Touch targets:** All interactive elements meet 44×44px
-- **Performance:** FCP < 370ms, CLS 0.0000, DOM load < 0.35s
-- **Security:** 6/6 security headers on all pages
-- **prefers-reduced-motion:** All animations disabled (CSS + SVG SMIL)
-
----
-
-## Rules Every Agent Must Follow
-1. Update this file at the end of every session with current state.
-2. Never commit secrets to source.
-3. Update `CHANGELOG.md` on every commit.
-4. Run the QA test suite before pushing visual changes.
-5. See `AGENTS.md` for full rules.
+Do not begin Phase 2 until Phase 1's hosted exit criterion passes or the human supervisor explicitly authorizes a gate waiver.
