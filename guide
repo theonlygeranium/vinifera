@@ -776,11 +776,11 @@ p:last-child { margin-bottom: 0; }
           <div class="stat-label">40 customers &middot; $182.9K ARR</div>
         </div>
         <div class="stat-cell">
-          <div class="stat-value" style="color:var(--gold)">M24</div>
+          <div class="stat-value" style="color:#9A7510">M24</div>
           <div class="stat-label">100 customers &middot; $483.5K ARR</div>
         </div>
         <div class="stat-cell">
-          <div class="stat-value" style="color:var(--gold)">M36</div>
+          <div class="stat-value" style="color:#9A7510">M36</div>
           <div class="stat-label">250 customers &middot; $1.29M ARR</div>
         </div>
       </div>
