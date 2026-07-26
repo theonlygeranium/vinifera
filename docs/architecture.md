@@ -1,26 +1,82 @@
-# Architecture — [PROJECT NAME]
+# Architecture — Vinifera
 
-**Last updated:** YYYY-MM-DD
-**Maintainer:** Any agent (must reflect actual Schubert state)
+**Last updated:** 2026-07-26
+**Maintainer:** Any agent (must reflect actual deployment state)
 
 ---
 
 ## System Overview
 
-<!-- TODO: Replace with a description of the actual system architecture -->
+Vinifera is a static multi-page web application deployed to Cloudflare Pages. There is no backend, database, or server-side runtime — all three pages are self-contained HTML files with inline CSS and JavaScript.
 
 ```
-[Client] → [Reverse Proxy: Caddy] → [Application] → [Database]
+[Browser] → [Cloudflare Pages CDN (330+ edge locations)] → [Static HTML files in dist/]
 ```
+
+### Pages
+
+| Page | Source File | Route | Description |
+|------|------------|-------|-------------|
+| Landing | `index.html` | `/` | Marketing site: hero vineyard illustration with 4 CSS/SVG animations, feature grid, workflow illustrations, pricing, CTA sunset gradient |
+| App Prototype | `app` (extensionless) | `/app/*` | Interactive dashboard: 13 functional areas, 27 KPI cards, sidebar nav, KPI watermarks, empty-state illustration |
+| Investor's Guide | `guide` (extensionless) | `/guide/*` | 8-part document: sticky TOC sidebar, reading progress bar, scroll-spy, feature grid, tech stack, timeline, pricing, stats |
 
 ---
 
-## Components
+## Build Pipeline
 
-| Component | Technology | Schubert Path | Port |
-|-----------|-----------|---------------|------|
-| <!-- e.g. Frontend --> | <!-- e.g. Next.js 15 --> | `/opt/[REPO-NAME]/frontend` | `3000` |
-| <!-- e.g. Backend --> | <!-- e.g. FastAPI --> | `/opt/[REPO-NAME]/backend` | `8000` |
+```
+index.html ─┐
+app ────────┤→ scripts/build.mjs → dist/
+guide ──────┤
+public/* ───┘
+```
+
+The build script (`scripts/build.mjs`) copies the three root files and the `public/` directory contents into `dist/`. No transpilation, bundling, or minification occurs — the files are served as-is.
+
+### Cloudflare Pages Configuration
+
+| Setting | Value |
+|---------|-------|
+| Build command | `npm run build` |
+| Output directory | `dist/` |
+| Node version | 20 |
+| Deploy trigger | GitHub App webhook (push to `main`) |
+| `pages_build_output_dir` | `./dist` (in `wrangler.toml`) |
+
+---
+
+## Routing
+
+Routing is handled by Cloudflare Pages' `_redirects` file:
+
+```
+/app/*    /app    200
+/guide/*  /guide  200
+```
+
+These are rewrites (status 200), not redirects. The root path `/` serves `index.html` as a static file.
+
+### Why Extensionless Filenames
+
+Cloudflare Pages' pretty-URL feature 308-redirects `*.html` files, which intercepts `_redirects` rules. Using extensionless filenames (`app`, `guide`) avoids this. The `_headers` file sets `Content-Type: text/html` for these routes.
+
+---
+
+## Security Headers
+
+The `public/_headers` file applies security headers to all routes:
+
+| Header | Value |
+|--------|-------|
+| X-Frame-Options | DENY |
+| X-Content-Type-Options | nosniff |
+| X-XSS-Protection | 1; mode=block |
+| Referrer-Policy | strict-origin-when-cross-origin |
+| Permissions-Policy | camera=(), microphone=(), geolocation=(), payment=() |
+| Strict-Transport-Security | (set by Cloudflare edge) |
+
+Content-Type overrides are applied for `/app` and `/guide` routes (both direct and wildcard) to ensure `text/html; charset=utf-8`.
 
 ---
 
@@ -28,24 +84,30 @@
 
 | Service | Purpose | Notes |
 |---------|---------|-------|
-| LiteLLM (local) | LLM routing | `http://localhost:4000` — shared across all Schubert projects |
-| Ollama (local) | Model serving | `http://localhost:11434` — never call directly, use LiteLLM |
-| Caddy | Reverse proxy | Managed globally — do not modify without authorization |
+| Lucide Icons (CDN) | Icon library | Loaded via `<script>` from `unpkg.com` |
+| Cloudflare Pages | Hosting + CDN | 330+ edge locations, 99.99% uptime |
+
+No other external dependencies. All CSS and JS are inline — no external stylesheets or scripts beyond Lucide.
 
 ---
 
-## Data Flow
+## Animations
 
-<!-- TODO: Describe the primary data flow through the system -->
+The landing page hero includes four animations:
+
+| Animation | Type | Duration | Reduced-Motion |
+|-----------|------|----------|----------------|
+| Vine line drawing | CSS `stroke-dashoffset` | 2.5s one-time | `animation: none` |
+| Gold glow pulse | CSS `opacity` on `::before` | 6s alternate | `animation: none` |
+| Grape cluster sway | SVG `<animateTransform additive="sum">` | 7/8/9s | `display: none !important` |
+| CTA shimmer sweep | CSS `::after` `translateX` | 4s | `display: none` |
+
+All animations are disabled under `@media (prefers-reduced-motion: reduce)`.
 
 ---
 
-## Environment Variables
+## Known Constraints
 
-See `.env.example` for the full list of required variables.
-
----
-
-## Known Constraints and Limitations
-
-<!-- Document any architectural constraints, technical debt, or limitations -->
+- **CSS transform vs SVG transform:** CSS `transform` overrides SVG `transform` presentation attributes — they do not compose. Use SVG-native `<animateTransform additive="sum">` for animations that combine with existing `transform="translate()"` positioning.
+- **Edge cache lag:** Custom domain cache lags deployment-specific URL by 15–30s. Verify fixes on `*.pages.dev` URL first.
+- **GitHub webhook API:** The `/repos/{owner}/{repo}/hooks` endpoint returns 0 hooks even when the Cloudflare Pages GitHub App webhook is active. Verify via deployment `trigger_type`.

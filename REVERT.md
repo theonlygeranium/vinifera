@@ -8,40 +8,37 @@ This document records the most recent verified stable state of the project and p
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v0.1-stable` *(update when first stable release is tagged)* |
-| **Commit SHA** | `[SHA]` |
-| **Date** | YYYY-MM-DD |
-| **Verified by** | [agent name or human] |
-| **What was verified** | Initial project structure — no application services yet |
+| **Tag** | Not yet tagged — current HEAD is the stable state |
+| **Commit SHA** | `7e4bbba` |
+| **Date** | 2026-07-26 |
+| **Verified by** | Writer Agent (thread 85816652) |
+| **What was verified** | All 3 pages pass QA at 100/100 — 0 axe-core violations, 0 bugs, FCP < 370ms, CLS 0.0000, 6/6 security headers |
 
 ---
 
 ## How to Roll Back
 
-### Option 1 — Roll back on Schubert directly
+### Option 1 — Git rollback (revert to a previous commit)
 ```bash
-cd /opt/[REPO-NAME]
-sudo -u z121532 git fetch origin
-sudo -u z121532 git checkout v0.1-stable
-sudo bash scripts/deploy.sh
+cd /workspace/.tmp/vinifera_repo
+git log --oneline -20          # find the commit to roll back to
+git revert <commit-sha>        # creates a revert commit
+git push origin main           # Cloudflare Pages auto-deploys
 ```
 
-### Option 2 — Roll back via GitHub Actions
-1. Go to **Actions → Deploy to Schubert → Run workflow**
-2. Set `force_remote: true` if the self-hosted runner is offline
-3. Trigger the run — it will deploy whatever is on `main`
+### Option 2 — Force push to a known-good commit (requires human authorization)
+```bash
+git checkout 7e4bbba
+git push origin HEAD:main --force   # requires human authorization
+```
 
-> If rolling back to a tag, push the tag's commit to `main` first:
-> ```bash
-> git checkout v0.1-stable
-> git push origin HEAD:main --force   # requires human authorization
-> ```
+> Cloudflare Pages will auto-deploy whatever is on `main`. No manual deployment step is required.
 
 ---
 
 ## Tagging a New Stable Release
 
-When a release is verified stable on Schubert:
+When a release is verified stable:
 
 ```bash
 git tag -a vX.Y-stable -m "Brief description of this stable state"
@@ -54,7 +51,9 @@ Then update the table above with the new tag, SHA, date, and what was verified.
 
 ## Known Issues at Current Baseline
 
-- None (initial template state)
+- None — all three pages (landing, app, guide) pass full 8-phase QA at 100/100
+- The workflow illustration for step 4 ("Ship & Track") renders as a shipping box with arrow rather than a delivery truck — minor visual discrepancy, not a functional issue
+- Playwright WebKit ≠ real Safari iOS — ~30% of iOS-specific behaviors not reproducible. For production sign-off, test on a real iOS device or BrowserStack
 
 ---
 
@@ -62,4 +61,4 @@ Then update the table above with the new tag, SHA, date, and what was verified.
 
 | Tag | SHA | Date | Notes |
 |-----|-----|------|-------|
-| `v0.1-stable` | `[SHA]` | YYYY-MM-DD | Initial project structure |
+| *(not yet tagged)* | `7e4bbba` | 2026-07-26 | Investor's guide added, all WCAG fixes applied, 3 pages pass QA 100/100 |

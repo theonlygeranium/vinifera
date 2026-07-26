@@ -1,12 +1,12 @@
-# Setup & Deployment Guide — [PROJECT NAME]
+# Setup & Deployment Guide — Vinifera
 
 ---
 
 ## Prerequisites
 
-- Access to Schubert Nexus (SSH as `z121532` or via self-hosted GitHub Actions runner)
-- Repo cloned to `/opt/[REPO-NAME]/` on Schubert
-- `.env` file in place at `/opt/[REPO-NAME]/.env` (see `.env.example`)
+- Node.js 20+
+- npm
+- Git
 
 ---
 
@@ -14,68 +14,113 @@
 
 ```bash
 # Clone the repo
-git clone https://github.com/theonlygeranium/[REPO-NAME].git
-cd [REPO-NAME]
-
-# Copy env template
-cp .env.example .env
-# Fill in values in .env
+git clone https://github.com/theonlygeranium/vinifera.git
+cd vinifera
 
 # Install dependencies
-# TODO: add install command (e.g. npm install / pip install -r requirements.txt)
+npm install
 
 # Start dev server
-# TODO: add dev start command
+npm run dev
 ```
+
+The dev server (`npx serve .`) serves the project root at `http://localhost:3000`.
 
 ---
 
-## Deploying to Schubert
+## Building for Production
+
+```bash
+npm run build
+```
+
+This runs `scripts/build.mjs`, which:
+1. Removes the `dist/` directory
+2. Copies `index.html`, `app`, and `guide` to `dist/`
+3. Copies `public/_headers` and `public/_redirects` to `dist/`
+
+Output is in `dist/` — ready for Cloudflare Pages.
+
+---
+
+## Deploying to Cloudflare Pages
 
 ### Automatic (recommended)
-Push to `main` — the self-hosted GitHub Actions runner (`schubert-local`) picks up the job and runs `scripts/deploy.sh` directly on Schubert.
+Push to `main` — the Cloudflare Pages GitHub App detects the push and auto-builds + deploys.
 
-### Manual (on Schubert directly)
-```bash
-cd /opt/[REPO-NAME]
-sudo -u z121532 git pull origin main
-sudo bash scripts/deploy.sh
+Build configuration (non-negotiable):
+- **Build command:** `npm run build`
+- **Output directory:** `dist/`
+- **Node version:** 20
+
+### Manual (via Cloudflare API)
+Use the `CLOUDFLARE_API` connector to trigger a deployment:
+```
+POST /accounts/{accountId}/pages/projects/vinifera/deployments
 ```
 
-### Remote fallback (self-hosted runner offline)
-Trigger via **GitHub Actions → Deploy to Schubert → Run workflow → `force_remote: true`**.
-This uses Tailscale OAuth to SSH into Schubert from a cloud runner.
+### Verifying Deployment
+
+```bash
+# Check deployment status via Cloudflare API
+# Look for latest_stage.status == "success" or "active"
+
+# Verify pages are live
+curl -sS -o /dev/null -w "HTTP %{http_code}" https://vinifera.edstratumlabs.ai/
+curl -sS -o /dev/null -w "HTTP %{http_code}" https://vinifera.edstratumlabs.ai/app/
+curl -sS -o /dev/null -w "HTTP %{http_code}" https://vinifera.edstratumlabs.ai/guide/
+```
+
+All three should return HTTP 200 with `Content-Type: text/html`.
 
 ---
 
-## First-Time Schubert Setup
+## Cloudflare Pages Conventions
 
-```bash
-# 1. Clone repo
-sudo mkdir -p /opt/[REPO-NAME]
-sudo chown z121532:z121532 /opt/[REPO-NAME]
-sudo -u z121532 git clone https://github.com/theonlygeranium/[REPO-NAME].git /opt/[REPO-NAME]
+### Extensionless Filenames
+`app` and `guide` must NOT have `.html` extensions. Cloudflare Pages' pretty-URL feature 308-redirects `*.html` files, which intercepts `_redirects` rules.
 
-# 2. Create .env
-sudo -u z121532 cp /opt/[REPO-NAME]/.env.example /opt/[REPO-NAME]/.env
-sudo vim /opt/[REPO-NAME]/.env   # fill in real values
-sudo chmod 600 /opt/[REPO-NAME]/.env
-
-# 3. Run deploy script
-sudo bash /opt/[REPO-NAME]/scripts/deploy.sh
+### `_headers` File
+Must include wildcard rules for extensionless routes:
 ```
+/app
+Content-Type: text/html; charset=utf-8
+
+/app/*
+Content-Type: text/html; charset=utf-8
+
+/guide
+Content-Type: text/html; charset=utf-8
+
+/guide/*
+Content-Type: text/html; charset=utf-8
+```
+
+### `_redirects` File
+```
+/app/*    /app    200
+/guide/*  /guide  200
+```
+
+These are rewrites (status 200), not redirects.
 
 ---
 
-## Verifying the Deployment
+## Quality Assurance
+
+Before pushing visual changes, run the QA test suite:
 
 ```bash
-# Check service status
-systemctl is-active [SERVICE-NAME]
+# Full 8-phase QA across all 3 pages
+python /workspace/.tmp/qa_three_pages.py
 
-# Check logs
-sudo journalctl -u [SERVICE-NAME] -n 50 --no-pager
-
-# Health check
-curl -s https://[your-domain]/health
+# Expected result: 100/100, 0 bugs, 0 warnings
 ```
+
+### Key QA Requirements
+- **axe-core:** 0 WCAG 2.1 AA violations
+- **Touch targets:** All interactive elements ≥44×44px
+- **Color contrast:** ≥4.5:1 (normal text), ≥3:1 (large text)
+- **Performance:** FCP < 1800ms, CLS < 0.1
+- **Security:** 6/6 security headers present
+- **prefers-reduced-motion:** All animations disabled
