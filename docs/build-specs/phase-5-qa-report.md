@@ -41,14 +41,16 @@ live provider or production-store result.
 | Static Pages rollback | Pass — unchanged | Still the public production baseline |
 | Credential-gated release controls | Pass in source | Staging/production target hashes remain intentionally unresolved; no hosted mutation |
 | Signed mobile/store control | Pass in source | Immutable signed AAB/IPA and internal-track workflow wired; credentials and store execution deferred |
+| GitHub post-hardening CI | Pass — [run 30217201984](https://github.com/theonlygeranium/vinifera/actions/runs/30217201984) | Quality and Android pass; migration/deploy skip while activation is off |
+| Hosted readiness | Pass — [run 30217462802](https://github.com/theonlygeranium/vinifera/actions/runs/30217462802) | GET-only classifications; no provider or deployment mutation |
 | Hosted providers, custom DNS, Stripe live | Deferred | External credentials or human authority required |
 
 ## Credential and deployment audit
 
 | Capability | Verified local architecture | Credential/authority state | Hosted result |
 | --- | --- | --- | --- |
-| Supabase Phase 5 migration | Embedded migration and 167 assertions pass; Phase 2–4 regression gates also pass | Management credentials unavailable | Deferred |
-| Cloudflare Worker | Build and production/staging dry-run package pass; isolated staging workflow configured | Workers-capable token activation not exercised | Deferred |
+| Supabase Phase 5 migration | Embedded migration and 167 assertions pass; Phase 2–4 regression gates also pass | Generic hosted Auth is reachable, but Phase 1/5 tables are absent and staging management credentials are unavailable | Deferred |
+| Cloudflare Worker | Build and production/staging dry-run package pass; isolated staging workflow configured | Generic token is valid but lacks Workers read capability; no staging-scoped token | Deferred |
 | Integration credential keyring | AES-256-GCM round trip, version, and authenticated context pass | Wrapping key not provisioned | `activation_required` |
 | Klaviyo | Adapter, jobs, signatures, polling fallback, and request construction pass | Private key/account unavailable | `activation_required` |
 | QuickBooks Online | OAuth state/refresh, SHA-256 request IDs, ambiguity handling, pagination, durable refund checkpoints, and reconciliation pass | Intuit application/company unavailable | `activation_required` |
@@ -57,7 +59,7 @@ live provider or production-store result.
 | Custom hostname | Least-privilege client, ownership/certificate state, host routing, and theme guards pass | Zone-scoped token and winery DNS unavailable | Deferred |
 | iOS | Identity, sync, simulator build/install/launch pass | Apple signing, APNs, and store authority unavailable | Deferred |
 | Android | Identity, sync, lint, debug APK, and R8 release APK pass locally and in GitHub CI | Signing, FCM, and store authority unavailable | Deferred |
-| Stripe live mode | Test-mode billing architecture passes | Human approval required; no automated key change | Deferred |
+| Stripe test/live mode | Generic test key reaches Stripe; test-mode billing architecture passes | Four test Price IDs and webhook secret are absent; live mode additionally requires human approval | Deferred |
 
 The post-phase release hardening additionally provides:
 
@@ -71,6 +73,13 @@ The post-phase release hardening additionally provides:
   Pages-restore controller that cannot enable live billing; and
 - a protected immutable signed mobile build plus separately confirmed Google
   Play internal/TestFlight delivery path.
+
+The `staging`, `production`, and `mobile-release` GitHub environments now have
+`main`-only branch policies. Production and signed-mobile jobs require review
+by the repository owner. Self-review remains allowed because a second human
+reviewer has not been configured; exact confirmations, immutable commit
+binding, target hashes, and the default-off live-billing gate remain
+independent controls.
 
 See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 [production cutover](../runbooks/production-cutover-rollback.md), and
@@ -284,6 +293,8 @@ verification.
 | Full-suite multi-brand performance assertion | Pass — 898.65 ms / 2,000 ms |
 | Full-suite axe scans | Pass — 0 WCAG 2.1 AA violations |
 | [GitHub Phase 5 workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30214620782) | Pass — quality 4m08s, Android 6m44s; hosted migration/deploy skipped while activation is off |
+| [GitHub post-hardening workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30217201984) | Pass — quality 5m18s, Android 6m54s; hosted migration/deploy skipped while activation is off |
+| [GET-only hosted readiness](https://github.com/theonlygeranium/vinifera/actions/runs/30217462802) | Pass — sanitized evidence artifact; no mutations |
 
 The final complete browser rerun passed all 122 tests in 2.5 minutes with
 retries disabled. Before that run, the Phase 5 loading-state test was changed

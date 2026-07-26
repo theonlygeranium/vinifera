@@ -61,6 +61,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Recorded the successful GitHub Phase 5 quality and Android jobs plus the
   retained debug/release APK and lint artifact; credential-gated Supabase and
   Worker jobs remained deliberately inactive.
+- Recorded the successful post-hardening GitHub quality/Android run and
+  GET-only hosted-readiness audit. Existing Supabase and Stripe test
+  credentials are reachable, while staging credentials, database migrations,
+  Stripe Prices/webhook, and Workers-capable Cloudflare authority remain
+  intentionally unresolved.
 
 ### Security
 
@@ -79,6 +84,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   internal targets, and removed decoded signing material in always-run cleanup.
 - Pinned every CI, readiness, production-control, and mobile-release GitHub
   Action to an immutable commit.
+- Provisioned `staging`, `production`, and `mobile-release` GitHub environments
+  with `main`-only deployment policies; production and mobile release require
+  repository-owner review.
 - Added durable QuickBooks/Avalara refund checkpoints and crash reconciliation,
   including exact 4,863 + 4,862 = 9,725 cent convergence and SHA-256-derived
   Intuit request IDs.

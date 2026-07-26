@@ -122,6 +122,17 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   remain empty, so no production mutation can run yet.
 - Signed Android/iOS build and Play internal/TestFlight delivery are wired as a
   protected manual workflow. Normal CI remains explicitly compile-only.
+- Commit `5cc1bda` passed the complete GitHub quality and Android run
+  `30217201984`. The mutation jobs skipped because staging activation remains
+  off.
+- Read-only hosted run `30217462802` confirmed the generic Supabase and Stripe
+  test credentials are reachable. The Supabase Phase 1/5 tables do not yet
+  exist, Stripe still needs all four test Prices and its webhook secret, and
+  the current Cloudflare token is valid but lacks Workers read capability.
+- GitHub environments `staging`, `production`, and `mobile-release` are
+  restricted to `main`. Production and signed-mobile jobs require review by
+  `theonlygeranium`; self-review is currently allowed because no second human
+  reviewer is configured.
 - The current Phase 5 evidence and any remaining local checks belong in
   `docs/build-specs/phase-5-qa-report.md`; do not copy pending checks here as
   passes.
