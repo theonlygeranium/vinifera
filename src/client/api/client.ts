@@ -99,3 +99,61 @@ export function postJson<T>(
     body: body ? JSON.stringify(body) : undefined,
   });
 }
+
+export function patchJson<T>(
+  path: `/api/${string}`,
+  body: Record<string, unknown>,
+) {
+  return apiRequest<T>(path, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function downloadApiFile(
+  path: `/api/${string}`,
+  fallbackName: string,
+) {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      credentials: "include",
+      headers: { Accept: "text/csv,application/pdf,application/json" },
+    });
+  } catch {
+    throw new ApiError(
+      "Vinifera could not reach the server. Check your connection and try again.",
+      { status: 0, code: "NETWORK_ERROR" },
+    );
+  }
+
+  if (!response.ok) {
+    const payload = await parseResponse(response);
+    const errorBody =
+      typeof payload === "object" && payload !== null
+        ? (payload as ErrorBody)
+        : undefined;
+    throw new ApiError(
+      errorBody?.error?.message ?? "The requested export is not available.",
+      {
+        status: response.status,
+        code: errorBody?.error?.code,
+        fieldErrors: errorBody?.error?.fieldErrors,
+      },
+    );
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plainName = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  const fileName = encodedName
+    ? decodeURIComponent(encodedName)
+    : (plainName ?? fallbackName);
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}

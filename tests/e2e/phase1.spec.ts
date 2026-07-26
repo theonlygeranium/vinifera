@@ -284,9 +284,16 @@ test.describe("Phase 1 authenticated shells", () => {
         body: JSON.stringify({ data: memberSession }),
       }),
     );
+    await page.route("**/api/member/shipments", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: [] }),
+      }),
+    );
     await page.goto("/portal");
     await expect(page.getByRole("heading", { name: "Welcome, Avery" })).toBeVisible();
-    await expect(page.getByText("No release or shipment information is available yet.")).toBeVisible();
+    await expect(page.getByText("No upcoming shipment")).toBeVisible();
+    await expect(page.getByText("No shipment history")).toBeVisible();
     await assertA11y(page);
   });
 });

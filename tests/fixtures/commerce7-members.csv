@@ -1,0 +1,11 @@
+Status,Signup Date,Customer First Name,Customer Last Name,Customer Email,Customer Phone,Club,Ship To Address,Ship To Address 2,Ship To City,Ship To State Code,Ship To Zip Code,Ship To Country Code
+Active,1/05/26 10:00,Avery,Vine,avery@example.test,(707) 555-0101,Founders Circle,101 Vineyard Lane,,Napa,CA,94558,US
+Active,1/06/26 10:00,Bailey,Oak,bailey@example.test,(707) 555-0102,Founders Circle,102 Vineyard Lane,,Napa,CA,94558,US
+Active,1/07/26 10:00,Casey,Barrel,casey@example.test,(707) 555-0103,Founders Circle,103 Vineyard Lane,Unit 3,Napa,CA,94558,US
+Active,1/08/26 10:00,Drew,Cellar,drew@example.test,(707) 555-0104,Founders Circle,104 Vineyard Lane,,Napa,CA,94558,US
+Active,1/09/26 10:00,Emery,Harvest,emery@example.test,(707) 555-0105,Founders Circle,105 Vineyard Lane,,Napa,CA,94558,US
+Active,1/10/26 10:00,Finley,Cork,finley@example.test,(707) 555-0106,Founders Circle,106 Vineyard Lane,,Napa,CA,94558,US
+Active,1/11/26 10:00,Gray,Grape,gray@example.test,(707) 555-0107,Founders Circle,107 Vineyard Lane,,Napa,CA,94558,US
+Active,1/12/26 10:00,Harper,Reserve,harper@example.test,(707) 555-0108,Founders Circle,108 Vineyard Lane,,Napa,CA,94558,US
+Active,1/13/26 10:00,Indigo,Press,indigo@example.test,(707) 555-0109,Founders Circle,109 Vineyard Lane,,Napa,CA,94558,US
+Active,1/14/26 10:00,Jordan,Crush,jordan@example.test,(707) 555-0110,Founders Circle,110 Vineyard Lane,,Napa,CA,94558,US

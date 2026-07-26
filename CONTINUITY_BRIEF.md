@@ -15,15 +15,18 @@ Read `AGENTS.md`, the phase specification, and this brief before editing.
 
 ## Current production state
 
-The public custom domain still serves the verified static Cloudflare Pages prototype. The repository now contains the Phase 1 production candidate:
+The public custom domain still serves the verified static Cloudflare Pages prototype. The repository now contains the Phase 1 foundation and Phase 2 core-club production architecture:
 
 - React 19 + Tailwind/Vite staff and member applications
 - Express 5 API in a Cloudflare Worker with Static Assets
 - Supabase Auth/PostgreSQL migration with forced tenant RLS
 - Stripe test-mode subscription and webhook adapters
+- Tenant-owned tiers, member CRM, release snapshots, shipments, recovery, fulfillment, and durable CSV import
+- Stripe test-mode shipment PaymentIntents, retries, refunds, and an hourly resumable release runner
+- EasyPost address/label adapter with fail-closed activation and a test-only deterministic simulator
 - GitHub-hosted CI, conditional migrations, Worker staging deployment, and Playwright/axe QA
 
-The Worker is connection-ready but must not replace the Pages custom-domain baseline until the hosted Supabase and Stripe activation checks in `docs/build-specs/phase-1-qa-report.md` pass.
+The Worker is connection-ready but must not replace the Pages custom-domain baseline until the hosted Supabase, Stripe, and EasyPost activation checks in the Phase 1 and Phase 2 QA reports pass.
 
 ## Runtime architecture
 
@@ -33,7 +36,7 @@ The Worker is connection-ready but must not replace the Pages custom-domain base
 | `/app/*` | React staff application |
 | `/portal/*` | React member portal |
 | `/api/*` | Express backend-for-frontend |
-| hourly cron | Stripe access-state reconciliation |
+| hourly cron | Stripe access-state reconciliation, due releases, and decline retries |
 
 Staff and member JWTs live only in distinct secure HTTP-only cookies. Provider secrets exist only in the Worker. Production dashboards contain no mock rows.
 
@@ -56,18 +59,19 @@ The extensionless root `app` file is the accepted visual prototype. It is
 copied only when Cloudflare Pages injects `CF_PAGES=1`, preserving the public
 rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
-## Verified Phase 1 evidence
+## Verified local evidence
 
 - `npm audit`: zero known dependency vulnerabilities
 - TypeScript: pass
-- Vitest: 10/10 pass
-- Playwright: 21/21 pass
-- axe WCAG 2.1 AA: zero violations on login, signup, dashboard, and portal surfaces
+- Vitest: 25/25 pass
+- Phase 1 Playwright: 21/21 pass
+- Phase 2 Playwright: 34 route, workflow, responsive, and performance checks
+- axe WCAG 2.1 AA: zero violations across every Phase 1 and Phase 2 application surface
 - Breakpoints: 375, 768, and 1440 pass; orientation change passes
 - Initial application JavaScript: 62.25 KB gzip
 - Worker dry-run bundle: pass
 - Embedded PostgreSQL functional preflight: pass
-- pgTAP: 92 plan-balanced assertions ready for hosted/local Supabase
+- Phase 2 embedded PostgreSQL: 145/145 plan-balanced schema, RLS, and RPC assertions
 
 ## Activation gates
 
@@ -77,8 +81,10 @@ The code must remain fail-closed until these external connections are active:
 2. Give the Cloudflare token Workers Scripts edit permission and set `CLOUDFLARE_WORKERS_DEPLOY_ENABLED=true`.
 3. Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP.
 4. Add Stripe recurring test Price IDs, register `/api/billing/webhook`, and add its signing secret.
-5. Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests.
-6. Move the custom domain only after the Phase 1 exit criterion is evidenced.
+5. Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled.
+6. Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof.
+7. Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests.
+8. Move the custom domain only after the hosted exit criteria are evidenced.
 
 See `.env.example` and `docs/setup.md` for exact variable names. Never print or commit values.
 
@@ -91,7 +97,8 @@ npm run typecheck
 npm test
 npm run build
 npm run build:worker
+npm run qa:db:phase2
 npm run qa:e2e
 ```
 
-Do not begin Phase 2 until Phase 1's hosted exit criterion passes or the human supervisor explicitly authorizes a gate waiver.
+The human supervisor explicitly authorized credential-gated integrations to remain connection-ready while architecture work continues. Keep every deferred provider fail-closed and do not describe a hosted exit criterion as passed without redacted runtime evidence.

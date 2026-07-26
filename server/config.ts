@@ -21,6 +21,25 @@ export function getAllowedOrigins(env: WorkerEnv): string[] {
 }
 
 export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
+  const shipping =
+    env.SHIPPING_PROVIDER === "easypost"
+      ? capability(env, ["SHIPPING_PROVIDER", "EASYPOST_API_KEY"])
+      : env.SHIPPING_PROVIDER === "simulated" &&
+          env.APP_ENV !== "production" &&
+          env.SHIPPING_SIMULATOR_ENABLED === "true"
+        ? { configured: true, missing: [] }
+        : {
+            configured: false,
+            missing:
+              env.SHIPPING_PROVIDER === "simulated"
+                ? [
+                    ...(env.APP_ENV === "production" ? ["APP_ENV"] : []),
+                    ...(env.SHIPPING_SIMULATOR_ENABLED === "true"
+                      ? []
+                      : ["SHIPPING_SIMULATOR_ENABLED"]),
+                  ]
+                : ["SHIPPING_PROVIDER"],
+          };
   return {
     app: capability(env, ["APP_ORIGIN", "ALLOWED_ORIGINS"]),
     database: capability(env, [
@@ -44,6 +63,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
       configured: env.AUTH_EMAIL_ENABLED === "true",
       missing: env.AUTH_EMAIL_ENABLED === "true" ? [] : ["AUTH_EMAIL_ENABLED"],
     },
+    shipping,
   };
 }
 

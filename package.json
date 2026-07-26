@@ -1,7 +1,7 @@
 {
   "name": "vinifera",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "engines": {
     "node": ">=20.19"
@@ -15,6 +15,7 @@
     "dev": "vite",
     "dev:worker": "npm run build && wrangler dev",
     "lint": "tsc --noEmit",
+    "qa:db:phase2": "node scripts/verify-phase2-db.mjs",
     "qa:e2e": "playwright test",
     "test": "vitest run",
     "test:watch": "vitest",

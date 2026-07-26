@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { httpServerHandler } from "cloudflare:node";
 import { createApp } from "./app";
 import { withSecurityHeaders } from "./lib/security";
+import { runCoreClubSchedule } from "./services/core-club";
 import { reconcileSubscriptionAccess } from "./services/production-foundation";
 import type { WorkerEnv } from "./types";
 
@@ -89,6 +90,11 @@ export default {
     workerEnv: WorkerEnv,
     context: ExecutionContext,
   ): Promise<void> {
-    context.waitUntil(reconcileSubscriptionAccess(workerEnv));
+    context.waitUntil(
+      Promise.all([
+        reconcileSubscriptionAccess(workerEnv),
+        runCoreClubSchedule(workerEnv),
+      ]).then(() => undefined),
+    );
   },
 };

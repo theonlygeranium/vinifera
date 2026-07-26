@@ -112,6 +112,34 @@ Store the resulting signing secret as `STRIPE_WEBHOOK_SECRET`. Configure the Str
 
 Phases 1–4 must remain in Stripe test mode.
 
+## Phase 2 shipment processing
+
+Shipment charges reuse `STRIPE_SECRET_KEY` in test mode and require each member
+to have a Stripe customer and saved default payment-method identifier. Vinifera
+stores those identifiers only; card numbers and security codes never enter the
+application.
+
+EasyPost is the first shipping adapter. Store its test credential as an
+encrypted server-only secret:
+
+```text
+SHIPPING_PROVIDER=easypost
+EASYPOST_API_KEY
+SHIPPING_SIMULATOR_ENABLED=false
+```
+
+The shipping simulator is accepted only in a non-production runtime with
+`SHIPPING_SIMULATOR_ENABLED=true`. Production requests without an EasyPost key
+fail with `activation_required`.
+
+Before generating labels, configure the winery's return address and verify the
+versioned state whitelist used by the temporary Phase 2 compliance gate.
+ShipCompliant replaces that whitelist in Phase 4.
+
+Phase 2 CSV imports accept generic mappings plus Commerce7 and WineDirect
+headers. Preview and validation occur before commit; do not upload files that
+contain full payment-card data.
+
 ## Build and verify
 
 ```bash

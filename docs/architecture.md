@@ -5,7 +5,12 @@
 
 ## System overview
 
-Vinifera is transitioning from a static Cloudflare Pages prototype to a full-stack SaaS application. The Phase 1 architecture is implemented as a same-origin React application and Express API packaged in one Cloudflare Worker. Supabase provides Auth and PostgreSQL; Stripe provides subscription billing.
+Vinifera is transitioning from a static Cloudflare Pages prototype to a
+full-stack SaaS application. The Phase 1 foundation and Phase 2 core-club
+architecture use a same-origin React application and Express API packaged in one
+Cloudflare Worker. Supabase provides Auth and PostgreSQL; Stripe provides SaaS
+subscriptions and club-shipment payments; EasyPost is the first shipping
+adapter.
 
 ```text
 Browser
@@ -16,7 +21,8 @@ Cloudflare Worker + Static Assets
   ├── /app/* and /portal/* ────── React/Vite application shell
   └── /api/* ──────────────────── Express 5 BFF
                                       ├── Supabase Auth/PostgreSQL
-                                      └── Stripe Billing
+                                      ├── Stripe Billing + PaymentIntents
+                                      └── EasyPost labels + tracking
 ```
 
 The existing Pages custom-domain deployment remains the live baseline until the new Worker staging deployment passes the complete Phase 1 activation and QA gate.
@@ -35,7 +41,37 @@ and route `/app/*` to the React shell.
 | Member portal | `src/client/member/` | `/portal/*` | Lazy React chunk |
 | Investor guide | `guide` | `/guide/*` | Static asset |
 | API | `server/` | `/api/*` | Express on Worker |
-| Visual reference only | `app` | not deployed | Original static prototype |
+| Temporary Pages rollback | `app` | `/app/` on Pages only | Original static prototype |
+
+---
+
+## Core club loop
+
+```text
+Club tier
+  → member assignment
+  → immutable release tier/wine snapshot
+  → one shipment per eligible member
+  → idempotent Stripe PaymentIntent attempt
+      ├── charged → address verification → label → pack → ship → deliver
+      └── declined → day 1/3/7 retry queue → charged
+```
+
+PostgreSQL owns every durable state transition. External provider calls are
+orchestrated by the Worker, use stable idempotency keys, and converge through
+signed webhooks and reconciliation rather than treating one HTTP request as a
+distributed transaction.
+
+Release-tier prices, bottle counts, and wines are snapshots. Later edits to a
+club tier affect only future releases. Shipments also snapshot the member's
+shipping address before money moves.
+
+CSV migration uses a durable two-request workflow: upload/preview stages
+tenant-owned rows under a short-lived, hashed token; commit consumes the token
+exactly once. The Worker never relies on in-memory state between requests.
+
+Audit entries are append-only and hash-chained per organization so deleted or
+rewritten history is detectable.
 
 ---
 
@@ -90,6 +126,8 @@ The Worker serves `/app/*` and `/portal/*` from the Vite shell with `text/html; 
 |---|---|---|
 | Supabase | Auth, PostgreSQL, RLS | Auth/data operations return `503 activation_required` |
 | Stripe | SaaS subscriptions and portal | Billing operations return `503 activation_required` |
+| Stripe PaymentIntents | Release charges, retries, refunds | Shipment billing returns `503 activation_required` |
+| EasyPost | Address verification, carrier rates, labels, tracking | Shipping returns `503 activation_required` |
 | Google via Supabase | Staff OAuth | OAuth route remains disabled until configured |
 | SMTP via Supabase | Invite/reset/magic-link delivery | Delivery QA remains pending |
 
@@ -115,6 +153,13 @@ All animations are disabled under `@media (prefers-reduced-motion: reduce)`.
 - Supabase migration management requires `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, and `SUPABASE_DB_PASSWORD`.
 - Supabase Google OAuth and outbound Auth email require dashboard/provider configuration.
 - Stripe requires four recurring test Price IDs and a webhook signing secret.
+- Phase 2 shipment billing requires Stripe test customers/payment methods for
+  members and Phase 2 webhook event subscriptions.
+- EasyPost requires a server-only test key and a complete per-winery origin
+  address. The shipping simulator is accepted only in an explicitly enabled
+  non-production test runtime.
 - The Worker custom-domain cutover occurs only after live Phase 1 exit verification.
 
-See [the Phase 1 ADR](./decisions/2026-07-26-phase-1-foundation-architecture.md) for rationale and tradeoffs.
+See [the Phase 1 ADR](./decisions/2026-07-26-phase-1-foundation-architecture.md)
+and [the Phase 2 ADR](./decisions/2026-07-26-phase-2-core-club-loop.md) for
+rationale and tradeoffs.

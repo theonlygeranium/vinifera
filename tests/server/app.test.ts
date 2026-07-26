@@ -4,7 +4,7 @@ import { createApp } from "../../server/app";
 import { assertStaffRole } from "../../server/lib/authorization";
 import { AppError } from "../../server/lib/errors";
 import type {
-  FoundationService,
+  ApplicationService,
   FoundationServiceFactory,
   WorkerEnv,
 } from "../../server/types";
@@ -32,7 +32,7 @@ const staffPrincipal = {
   },
 };
 
-function service(overrides: Partial<FoundationService> = {}): FoundationService {
+function service(overrides: Partial<ApplicationService> = {}): ApplicationService {
   return {
     acceptStaffInvite: vi.fn().mockResolvedValue(staffPrincipal),
     completeStaffPasswordReset: vi.fn().mockResolvedValue(undefined),
@@ -58,6 +58,79 @@ function service(overrides: Partial<FoundationService> = {}): FoundationService 
     staffSignup: vi.fn().mockResolvedValue({
       billingActivationRequired: true,
       principal: staffPrincipal,
+    }),
+    batchMembers: vi.fn().mockResolvedValue({ updated: 0 }),
+    confirmShipmentPack: vi.fn().mockResolvedValue({
+      complete: true,
+      packedItems: 1,
+      status: "packed",
+    }),
+    createClubTier: vi.fn().mockResolvedValue({ id: "tier-id" }),
+    createMember: vi.fn().mockResolvedValue({ id: "member-id" }),
+    createMemberPaymentMethodPortal: vi
+      .fn()
+      .mockResolvedValue({ url: "https://billing.stripe.test/member" }),
+    createRelease: vi.fn().mockResolvedValue({ id: "release-id", status: "draft" }),
+    deleteClubTier: vi.fn().mockResolvedValue(undefined),
+    deleteMember: vi.fn().mockResolvedValue(undefined),
+    exportMembers: vi.fn().mockResolvedValue({
+      contents: "First Name,Last Name\r\nAvery,Vine\r\n",
+      filename: "members.csv",
+    }),
+    generateShipmentLabels: vi.fn().mockResolvedValue({
+      failed: 0,
+      generated: 1,
+      results: [],
+    }),
+    getMember: vi.fn().mockResolvedValue({ id: "member-id" }),
+    getMemberPortalHistory: vi.fn().mockResolvedValue([]),
+    getPickList: vi.fn().mockResolvedValue({ shipments: [] }),
+    getRelease: vi.fn().mockResolvedValue({ id: "release-id" }),
+    importMembers: vi.fn().mockResolvedValue({
+      errors: [],
+      importedCount: 1,
+      skippedCount: 0,
+    }),
+    listClubTiers: vi.fn().mockResolvedValue([]),
+    listMembers: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    listRecoveryQueue: vi.fn().mockResolvedValue([]),
+    listReleases: vi.fn().mockResolvedValue([]),
+    listShipments: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+    previewMemberImport: vi.fn().mockResolvedValue({
+      columns: ["Customer Email"],
+      rows: [{ "Customer Email": "member@example.com" }],
+      source: "commerce7",
+      suggestedMapping: { "Customer Email": "email" },
+      uploadToken: "00000000-0000-4000-8000-000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      validation: { errors: [], invalidCount: 0, validCount: 1 },
+    }),
+    processRelease: vi.fn().mockResolvedValue({
+      charged: 1,
+      declined: 0,
+      releaseId: "release-id",
+      skipped: 0,
+    }),
+    refundShipment: vi.fn().mockResolvedValue({ status: "refunded" }),
+    retryShipment: vi.fn().mockResolvedValue({ status: "charged" }),
+    scheduleRelease: vi
+      .fn()
+      .mockResolvedValue({ id: "release-id", status: "scheduled" }),
+    transitionMember: vi.fn().mockResolvedValue({ status: "paused" }),
+    transitionShipment: vi.fn().mockResolvedValue({ status: "shipped" }),
+    updateClubTier: vi.fn().mockResolvedValue({ id: "tier-id" }),
+    updateMember: vi.fn().mockResolvedValue({ id: "member-id" }),
+    updateMemberPortalAddress: vi.fn().mockResolvedValue({ id: "member-id" }),
+    updateRelease: vi.fn().mockResolvedValue({ id: "release-id" }),
+    validateShippingAddress: vi.fn().mockResolvedValue({
+      address: {
+        city: "Napa",
+        country: "US",
+        line1: "1 Wine Way",
+        postalCode: "94558",
+        state: "CA",
+      },
+      messages: [],
+      valid: true,
     }),
     ...overrides,
   };
@@ -246,5 +319,199 @@ describe("Phase 1 API", () => {
     expect(response.status).toBe(503);
     expect(response.body.error.code).toBe("activation_required");
     expect(response.body.error.requestId).toBeTruthy();
+  });
+});
+
+describe("Phase 2 core club API", () => {
+  it("normalizes the member UI contract before invoking the tenant service", async () => {
+    const createMember = vi.fn().mockResolvedValue({ id: "member-id" });
+    const foundation = service({ createMember });
+    const response = await request(testApp(foundation))
+      .post("/api/members")
+      .set("Origin", "https://vinifera.test")
+      .send({
+        address: {
+          city: "Napa",
+          country: "US",
+          line1: "1 Wine Way",
+          postalCode: "94558",
+          state: "CA",
+        },
+        email: "MEMBER@EXAMPLE.COM",
+        firstName: "Avery",
+        lastName: "Vine",
+        status: "active",
+        tierId: "30000000-0000-4000-8000-000000000001",
+      });
+
+    expect(response.status).toBe(201);
+    expect(createMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clubTierId: "30000000-0000-4000-8000-000000000001",
+        email: "member@example.com",
+        shippingAddress: expect.objectContaining({ postalCode: "94558" }),
+      }),
+    );
+  });
+
+  it("creates and schedules a release from the fixed frontend payload", async () => {
+    const createRelease = vi
+      .fn()
+      .mockResolvedValue({ id: "40000000-0000-4000-8000-000000000001" });
+    const scheduleRelease = vi.fn().mockResolvedValue({
+      id: "40000000-0000-4000-8000-000000000001",
+      status: "scheduled",
+    });
+    const foundation = service({ createRelease, scheduleRelease });
+    const response = await request(testApp(foundation))
+      .post("/api/releases")
+      .set("Origin", "https://vinifera.test")
+      .send({
+        description: "Fall allocation",
+        embargoDate: "2026-09-01",
+        name: "Fall 2026",
+        processingDate: "2026-09-15",
+        status: "scheduled",
+        tiers: [
+          {
+            priceCents: 12500,
+            tierId: "30000000-0000-4000-8000-000000000001",
+          },
+        ],
+        wines: [{ name: "Estate Cabernet", quantity: 2 }],
+      });
+
+    expect(response.status).toBe(201);
+    expect(createRelease).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tierIds: ["30000000-0000-4000-8000-000000000001"],
+        tierPrices: [
+          {
+            priceCents: 12500,
+            tierId: "30000000-0000-4000-8000-000000000001",
+          },
+        ],
+        wines: [
+          { priceCents: 0, quantity: 2, wineName: "Estate Cabernet" },
+        ],
+      }),
+    );
+    expect(scheduleRelease).toHaveBeenCalledWith(
+      "40000000-0000-4000-8000-000000000001",
+    );
+  });
+
+  it("requires an explicit confirmation before a release billing run", async () => {
+    const processRelease = vi.fn();
+    const foundation = service({ processRelease });
+    const response = await request(testApp(foundation))
+      .post(
+        "/api/releases/40000000-0000-4000-8000-000000000001/process",
+      )
+      .set("Origin", "https://vinifera.test")
+      .send({ confirmed: false });
+
+    expect(response.status).toBe(400);
+    expect(processRelease).not.toHaveBeenCalled();
+  });
+
+  it("accepts canonical Commerce7 multipart CSV previews", async () => {
+    const previewMemberImport = vi
+      .fn()
+      .mockResolvedValue({
+        columns: ["Customer First Name", "Customer Email"],
+        rows: [],
+        source: "commerce7",
+        suggestedMapping: {},
+        uploadToken:
+          "00000000-0000-4000-8000-000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        validation: { errors: [], invalidCount: 0, validCount: 1 },
+      });
+    const foundation = service({ previewMemberImport });
+    const response = await request(testApp(foundation))
+      .post("/api/members/import/preview")
+      .set("Origin", "https://vinifera.test")
+      .field("source", "commerce7")
+      .attach(
+        "file",
+        Buffer.from(
+          "Customer First Name,Customer Last Name,Customer Email\nAvery,Vine,avery@example.com\n",
+        ),
+        { contentType: "text/csv", filename: "commerce7.csv" },
+      );
+
+    expect(response.status).toBe(201);
+    expect(previewMemberImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contents: expect.stringContaining("Customer First Name"),
+        filename: "commerce7.csv",
+        format: "commerce7",
+      }),
+    );
+  });
+
+  it("reports shipping activation names without exposing credential values", async () => {
+    const response = await request(
+      testApp(service(), {
+        APP_ENV: "production",
+        EASYPOST_API_KEY: "EZAK_secret-do-not-return",
+        SHIPPING_PROVIDER: "simulated",
+        SHIPPING_SIMULATOR_ENABLED: "true",
+      }),
+    ).get("/api/health/configuration");
+
+    expect(response.status).toBe(200);
+    expect(response.text).not.toContain("EZAK_secret-do-not-return");
+    expect(response.body.data.shipping.configured).toBe(false);
+    expect(response.body.data.shipping.missing).toContain("APP_ENV");
+  });
+
+  it("returns member exports as a downloadable CSV instead of a JSON envelope", async () => {
+    const response = await request(testApp())
+      .get("/api/members/export")
+      .set("Accept", "text/csv");
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/csv");
+    expect(response.headers["content-disposition"]).toContain("members.csv");
+    expect(response.text).toContain("Avery,Vine");
+  });
+
+  it("requires an explicit all-roster scope when batch ids are omitted", async () => {
+    const batchMembers = vi.fn().mockResolvedValue({ updated: 10 });
+    const foundation = service({ batchMembers });
+    const rejected = await request(testApp(foundation))
+      .post("/api/members/batch")
+      .set("Origin", "https://vinifera.test")
+      .send({ action: "pause" });
+    const accepted = await request(testApp(foundation))
+      .post("/api/members/batch")
+      .set("Origin", "https://vinifera.test")
+      .send({ action: "pause", scope: "all" });
+
+    expect(rejected.status).toBe(400);
+    expect(accepted.status).toBe(200);
+    expect(batchMembers).toHaveBeenCalledWith({
+      ids: undefined,
+      operation: "pause",
+      tierId: undefined,
+    });
+  });
+
+  it("maps shipment roster search to the service search contract", async () => {
+    const listShipments = vi
+      .fn()
+      .mockResolvedValue({ items: [], total: 0 });
+    const response = await request(testApp(service({ listShipments }))).get(
+      "/api/shipments?query=avery&status=declined",
+    );
+
+    expect(response.status).toBe(200);
+    expect(listShipments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        search: "avery",
+        status: "declined",
+      }),
+    );
   });
 });

@@ -9,9 +9,10 @@ import Stripe from "stripe";
 import { getConfigurationReport, isProduction } from "../config";
 import { assertStaffRole } from "../lib/authorization";
 import { AppError, requireConfigured } from "../lib/errors";
+import { ProductionCoreClubService } from "./core-club";
 import type {
+  ApplicationService,
   AuthSurface,
-  FoundationService,
   MemberPrincipal,
   PlanTier,
   StaffPrincipal,
@@ -175,15 +176,16 @@ function stripeObjectId(value: string | { id: string } | null): string | null {
   return typeof value === "string" ? value : value.id;
 }
 
-export class ProductionFoundationService implements FoundationService {
-  private readonly admin: SupabaseClient;
-
+export class ProductionFoundationService
+  extends ProductionCoreClubService
+  implements ApplicationService
+{
   constructor(
-    private readonly env: WorkerEnv,
-    private readonly request: Request,
-    private readonly response: Response,
+    env: WorkerEnv,
+    request: Request,
+    response: Response,
   ) {
-    this.admin = createAdminClient(env);
+    super(env, request, response);
   }
 
   private surfaceClient(surface: AuthSurface): SupabaseClient {
@@ -467,9 +469,28 @@ export class ProductionFoundationService implements FoundationService {
     surface: AuthSurface,
     code: string,
   ): Promise<{ destination: string }> {
-    const { error } = await this.surfaceClient(surface).auth.exchangeCodeForSession(code);
+    const client = this.surfaceClient(surface);
+    const { error } = await client.auth.exchangeCodeForSession(code);
     if (error) {
       throw new AppError(401, "unauthorized", "This sign-in link is invalid or expired.");
+    }
+    if (surface === "member") {
+      const { data: userData, error: userError } = await client.auth.getUser();
+      if (userError || !userData.user?.email) throw authFailure();
+      const { error: linkError } = await this.admin.rpc("link_member_auth_user", {
+        p_email: normalizeEmail(userData.user.email),
+        p_user_id: userData.user.id,
+      });
+      if (linkError) {
+        await client.auth.signOut({ scope: "local" });
+        throw new AppError(
+          403,
+          "forbidden",
+          "This sign-in identity cannot be linked to a member profile.",
+        );
+      }
+      const { error: refreshError } = await client.auth.refreshSession();
+      if (refreshError) throw authFailure();
     }
     return {
       destination: surface === "staff" ? "/app" : "/portal",
@@ -587,7 +608,7 @@ export class ProductionFoundationService implements FoundationService {
 
     const { data: member } = await this.admin
       .from("members")
-      .select("id")
+      .select("id,auth_user_id")
       .eq("email", email)
       .maybeSingle();
     if (!member) return;
@@ -596,7 +617,7 @@ export class ProductionFoundationService implements FoundationService {
       email,
       options: {
         emailRedirectTo: `${this.applicationOrigin()}/api/auth/member/callback`,
-        shouldCreateUser: false,
+        shouldCreateUser: true,
       },
     });
   }
@@ -688,14 +709,27 @@ export class ProductionFoundationService implements FoundationService {
     }
 
     const supported = new Set([
+      "charge.refunded",
       "customer.subscription.created",
       "customer.subscription.updated",
       "customer.subscription.deleted",
       "invoice.payment_succeeded",
       "invoice.payment_failed",
+      "payment_intent.canceled",
+      "payment_intent.payment_failed",
+      "payment_intent.succeeded",
     ]);
     if (!supported.has(event.type)) {
       return { duplicate: false };
+    }
+
+    if (
+      event.type === "payment_intent.succeeded" ||
+      event.type === "payment_intent.payment_failed" ||
+      event.type === "payment_intent.canceled" ||
+      event.type === "charge.refunded"
+    ) {
+      return this.handleShipmentPaymentWebhook(event);
     }
 
     const object = event.data.object as Stripe.Subscription | Stripe.Invoice;
@@ -753,13 +787,153 @@ export class ProductionFoundationService implements FoundationService {
     const result = Array.isArray(data) ? data[0] : data;
     return { duplicate: Boolean(result?.duplicate) };
   }
+
+  private async handleShipmentPaymentWebhook(
+    event: Stripe.Event,
+  ): Promise<{ duplicate: boolean }> {
+    const { data: existingEvent } = await this.admin
+      .from("billing_attempts")
+      .select("id")
+      .eq("stripe_event_id", event.id)
+      .maybeSingle();
+    if (existingEvent) return { duplicate: true };
+
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object as Stripe.Charge;
+      const { data: shipment, error: shipmentError } = await this.admin
+        .from("shipments")
+        .select(
+          "id,organization_id,charge_amount_cents,stripe_payment_intent_id,stripe_charge_id",
+        )
+        .eq("stripe_charge_id", charge.id)
+        .maybeSingle();
+      if (shipmentError) {
+        throw new AppError(500, "upstream_error", "The refund event could not be resolved.");
+      }
+      if (!shipment) return { duplicate: false };
+      const refund = charge.refunds?.data.at(-1);
+      const amount = Math.max(1, refund?.amount ?? charge.amount_refunded);
+      const { data: attemptData, error: attemptError } = await this.admin.rpc(
+        "record_billing_attempt",
+        {
+          p_actor_user_id: null,
+          p_amount_cents: amount,
+          p_attempt_kind: "refund",
+          p_idempotency_key: `stripe-refund:${refund?.id ?? event.id}`,
+          p_metadata: { source: "stripe_webhook" },
+          p_organization_id: shipment.organization_id,
+          p_shipment_id: shipment.id,
+          p_stripe_payment_intent_id: shipment.stripe_payment_intent_id,
+        },
+      );
+      if (attemptError) {
+        throw new AppError(500, "upstream_error", "The refund attempt could not be recorded.");
+      }
+      const billingAttemptId = Array.isArray(attemptData)
+        ? attemptData[0]
+        : attemptData;
+      const { error } = await this.admin.rpc("apply_shipment_payment_event", {
+        p_billing_attempt_id: billingAttemptId,
+        p_decline_code: null,
+        p_decline_reason: null,
+        p_event_created_at: new Date(event.created * 1_000).toISOString(),
+        p_metadata: { source: "stripe_webhook" },
+        p_organization_id: shipment.organization_id,
+        p_shipment_id: shipment.id,
+        p_status: "refunded",
+        p_stripe_charge_id: charge.id,
+        p_stripe_event_id: event.id,
+        p_stripe_refund_id: refund?.id ?? null,
+      });
+      if (error) {
+        throw new AppError(500, "upstream_error", "The refund event could not be applied.");
+      }
+      return { duplicate: false };
+    }
+
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+    const shipmentId = paymentIntent.metadata.shipment_id;
+    const organizationId = paymentIntent.metadata.organization_id;
+    if (!shipmentId || !organizationId) {
+      return { duplicate: false };
+    }
+    const { data: shipment, error: shipmentError } = await this.admin
+      .from("shipments")
+      .select("id,organization_id,charge_amount_cents,retry_count")
+      .eq("id", shipmentId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (shipmentError || !shipment) {
+      throw new AppError(422, "invalid_request", "Shipment webhook metadata is invalid.");
+    }
+    const { data: existingAttempt } = await this.admin
+      .from("billing_attempts")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("shipment_id", shipmentId)
+      .eq("stripe_payment_intent_id", paymentIntent.id)
+      .maybeSingle();
+    let billingAttemptId =
+      typeof existingAttempt?.id === "string" ? existingAttempt.id : null;
+    if (!billingAttemptId) {
+      const { data: attemptData, error: attemptError } = await this.admin.rpc(
+        "record_billing_attempt",
+        {
+          p_actor_user_id: null,
+          p_amount_cents: shipment.charge_amount_cents,
+          p_attempt_kind: shipment.retry_count > 0 ? "retry" : "charge",
+          p_idempotency_key: `stripe-pi:${paymentIntent.id}`,
+          p_metadata: { source: "stripe_webhook" },
+          p_organization_id: organizationId,
+          p_shipment_id: shipmentId,
+          p_stripe_payment_intent_id: paymentIntent.id,
+        },
+      );
+      if (attemptError) {
+        throw new AppError(500, "upstream_error", "The billing attempt could not be recorded.");
+      }
+      billingAttemptId = Array.isArray(attemptData)
+        ? attemptData[0]
+        : attemptData;
+    }
+    if (typeof billingAttemptId !== "string") {
+      throw new AppError(500, "upstream_error", "The billing attempt is unavailable.");
+    }
+    const status =
+      event.type === "payment_intent.succeeded"
+        ? "succeeded"
+        : event.type === "payment_intent.payment_failed"
+          ? "declined"
+          : "failed";
+    const chargeId =
+      typeof paymentIntent.latest_charge === "string"
+        ? paymentIntent.latest_charge
+        : paymentIntent.latest_charge?.id ?? null;
+    const { error } = await this.admin.rpc("apply_shipment_payment_event", {
+      p_billing_attempt_id: billingAttemptId,
+      p_decline_code: paymentIntent.last_payment_error?.decline_code ?? null,
+      p_decline_reason: paymentIntent.last_payment_error?.message ?? null,
+      p_event_created_at: new Date(event.created * 1_000).toISOString(),
+      p_metadata: { source: "stripe_webhook" },
+      p_organization_id: organizationId,
+      p_shipment_id: shipmentId,
+      p_status: status,
+      p_stripe_charge_id: chargeId,
+      p_stripe_event_id: event.id,
+      p_stripe_refund_id: null,
+    });
+    if (error) {
+      throw new AppError(500, "upstream_error", "The payment event could not be applied.");
+    }
+    return { duplicate: false };
+  }
 }
 
 export function createProductionFoundationService(
   env: WorkerEnv,
   request: Request,
   response: Response,
-): FoundationService {
+): ApplicationService {
   return new ProductionFoundationService(env, request, response);
 }
 

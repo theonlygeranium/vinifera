@@ -7,7 +7,7 @@
 A web-based platform for wine club operations — member management, shipment processing, AI churn prediction, and a passwordless member portal — designed for small to mid-size wineries.
 
 [![Live Site](https://img.shields.io/badge/🌐_Live_Site-vinifera.edstratumlabs.ai-6B1E30?style=for-the-badge)](https://vinifera.edstratumlabs.ai/)
-[![Production Build](https://img.shields.io/badge/Production_Build-Phase_1-C9993A?style=for-the-badge)](./docs/build-specs/phase-1-foundation.md)
+[![Production Build](https://img.shields.io/badge/Production_Build-Phase_2_Architecture-C9993A?style=for-the-badge)](./docs/build-specs/phase-2-core-club-loop.md)
 [![Investor's Guide](https://img.shields.io/badge/📖_Investor's_Guide-Full_Story-3D0E1B?style=for-the-badge)](https://vinifera.edstratumlabs.ai/guide/)
 
 [![WCAG 2.1 AA](https://img.shields.io/badge/WCAG_2.1_AA-✓_0_Violations-success?style=flat-square)](https://vinifera.edstratumlabs.ai/)
@@ -20,7 +20,7 @@ A web-based platform for wine club operations — member management, shipment pr
 
 ## Overview
 
-Vinifera is a production wine club management platform under active build. The repository contains the verified original prototype and the real Phase 1 application foundation: a React/Vite staff application and member portal, an Express API on Cloudflare Workers, Supabase Auth/PostgreSQL migrations with forced tenant RLS, and Stripe subscription adapters.
+Vinifera is a production wine club management platform under active build. The repository contains the verified original prototype plus the real Phase 1 foundation and Phase 2 core club architecture: a React/Vite staff application and member portal, an Express API on Cloudflare Workers, Supabase Auth/PostgreSQL with forced tenant RLS, Stripe subscription and shipment billing, and an EasyPost fulfillment adapter.
 
 Provider integrations are connection-ready and fail closed when credentials or control-plane settings are not active. Production code does not emit mock dashboard rows or store JWTs in browser storage.
 
@@ -41,13 +41,13 @@ The prototype demonstrates thirteen functional areas across an administration po
 | Area | What It Does |
 |------|-------------|
 | **Dashboard** | KPI tiles, AI Churn Watch panel with per-member risk scores, revenue chart, payment recovery queue |
-| **Members / CRM** | Searchable member records with order history, lifetime value, churn risk, communication log |
-| **Shipments** | Live release processing: payment status, decline recovery, address validation, retry logic |
+| **Members / CRM** | Tenant-scoped member records, tier assignment, status transitions, batch actions, export, and durable CSV import |
+| **Shipments** | Scheduled release processing, Stripe payment status, decline recovery, refunds, address validation, and retry logic |
 | **Analytics** | Revenue trends, cohort retention, tier performance, geographic distribution |
-| **Club Tiers** | Multi-tier configuration with per-tier pricing, bottles, frequency, and upgrade paths |
+| **Club Tiers** | Multi-tier configuration with pricing, billing interval, bottles, frequency, upgrade paths, and immutable release snapshots |
 | **Allocations** | Invite-only allocation lists, per-member bottle limits, release embargoes, waitlists |
 | **Release Schedule** | Calendar view of all club releases with processing dates and notification timing |
-| **Fulfillment** | Pick-list generation, scan-to-confirm pack station, carrier label creation, tracking log |
+| **Fulfillment** | EasyPost-ready adult-signature labels, pick lists, scan-to-confirm packing, tracking, and delivery state |
 | **Communications** | Automated email triggers (pre-shipment, decline, welcome, birthday) and campaign sends |
 | **Loyalty** | Points on shipments, events, and referrals — redeemable against upcoming shipments |
 | **Integrations** | Klaviyo, Mailchimp, QuickBooks, ShipCompliant, Avalara, Stripe, Google Analytics, Meta |
@@ -63,7 +63,8 @@ The prototype demonstrates thirteen functional areas across an administration po
 | **Payments** | Stripe | Handles decline logic, card updates, fraud detection — Vinifera stores no card data |
 | **Email** | Resend | DKIM/SPF-authenticated transactional delivery |
 | **Runtime** | Cloudflare Workers + Static Assets | Same-origin React application and Express API |
-| **Compliance** | ShipCompliant | State-by-state alcohol shipping legality and tax calculation |
+| **Shipping** | EasyPost adapter | Address verification, rates, adult-signature labels, and tracking; test credentials activate it later |
+| **Compliance** | Versioned state whitelist | Phase 2 fail-closed boundary; ShipCompliant replaces it in Phase 4 |
 | **Monitoring** | PostHog + Sentry | Product analytics and real-time error capture |
 | **Auth** | Supabase Auth | JWT sessions, magic-link for members, password/OAuth for staff |
 
@@ -84,6 +85,7 @@ npm run dev:worker
 
 # Full local verification
 npm run check
+npm run qa:db:phase2
 npm run qa:e2e
 ```
 
@@ -108,9 +110,10 @@ serve the React application instead.
 | Metric | Result |
 |--------|--------|
 | Static marketing/guide baseline | Previously verified for accessibility and responsive layout; rerun as a regression gate |
-| Phase 1 application | 10 API tests and 21 browser tests pass; Worker bundle and embedded PostgreSQL preflight pass |
-| Provider activation | Pending hosted Supabase migration/Auth settings, Stripe test Prices/webhook, Google OAuth, and SMTP |
-| Custom-domain cutover | Blocked until every Phase 1 live checkbox passes |
+| Phase 1 foundation | Architecture, API, browser, Worker, and embedded PostgreSQL gates pass |
+| Phase 2 core club | 25 service tests, 145 database assertions, and 34 route/functional/browser checks pass locally |
+| Provider activation | Pending hosted Supabase migrations, Stripe test webhook/payment data, EasyPost test key, Google OAuth, and SMTP |
+| Public deployment | Pages continues serving the verified prototype until the Worker activation runbooks pass |
 
 ## Repository Structure
 
@@ -128,7 +131,8 @@ vinifera/
 │   ├── _redirects          # Route rules: /app/* /guide/*
 │   └── _headers             # Security headers + Content-Type overrides
 ├── scripts/
-│   └── build.mjs            # Adds static public surfaces after Vite build
+│   ├── build.mjs            # Adds static public surfaces after Vite build
+│   └── verify-phase2-db.mjs # Embedded migration, pgTAP-compatible, and scale QA
 ├── docs/                    # Architecture, setup, ADRs, runbooks
 ├── .github/workflows/       # CI/CD pipeline
 ├── AGENTS.md                # AI agent collaboration guide

@@ -1,0 +1,5 @@
+Status,Signup Date,Customer First Name,Customer Last Name,Customer Email,Customer Phone,Club,Ship To Address,Ship To City,Ship To State Code,Ship To Zip Code,Ship To Country Code
+Active,1/15/26 10:00,Invalid,Email,not-an-email,(707) 555-0121,Founders Circle,121 Vineyard Lane,Napa,CA,94558,US
+Active,1/16/26 10:00,Missing,Email,,(707) 555-0122,Founders Circle,122 Vineyard Lane,Napa,CA,94558,US
+Active,1/17/26 10:00,Duplicate,Member,duplicate@example.test,(707) 555-0123,Founders Circle,123 Vineyard Lane,Napa,CA,94558,US
+Active,1/18/26 10:00,Duplicate,Member,duplicate@example.test,(707) 555-0124,Founders Circle,124 Vineyard Lane,Napa,CA,94558,US

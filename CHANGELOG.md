@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [Unreleased]
+## [0.2.0] — 2026-07-26
 
 ### Added
 
@@ -19,13 +19,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Configuration health and typed activation gates so real provider connections can be enabled later without production mocks.
 - GitHub-hosted CI for dependency audit, type-checking, unit/integration tests, Worker packaging, Playwright/axe QA, conditional Supabase migration, and Worker deployment.
 - Phase 1 architecture ADR and QA report.
+- Reproducible Phase 2 embedded database verification with plan-balanced
+  schema, tenant-RLS, server-RPC assertions, and measured 50-shipment and
+  1,000-row import performance gates.
+- Phase 2 tenant-owned club tiers, release snapshots, shipments, billing attempts, durable CSV imports, and tamper-evident audit chain.
+- Member CRM, tier management, release calendar, decline recovery, fulfillment station, import workflow, and data-connected member shipment portal.
+- Stripe off-session shipment PaymentIntents, partial-success release batches, manual and automatic retries, refunds, and signed webhook convergence.
+- EasyPost address verification and adult-signature label adapter behind a fail-closed shipping provider boundary.
+- Hourly due-release processing, retry claiming, in-flight attempt recovery, and idempotent resume behavior.
+- Phase 2 ADR, provider activation runbook, QA report, embedded performance gates, and breakpoint visual evidence.
 
 ### Changed
 
+- Required a nonblank winery name/company and phone in shipping-origin addresses used for adult-signature labels.
 - Replaced the static `/app` deployment artifact with a production React shell while retaining the original `app` file as the visual reference.
 - Moved runtime configuration from Pages `wrangler.toml` to Worker `wrangler.jsonc`.
 - Stopped tracking generated `dist/` output; CI and deployments now build it from source.
 - Updated setup, architecture, continuity, rollback, and repository documentation for the Phase 1 production foundation.
+- Extended the Worker API, cron, CI secret contract, and operational documentation for the Phase 2 core club loop.
 
 ### Fixed
 

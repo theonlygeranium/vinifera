@@ -117,8 +117,11 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_WORKERS_DEPLOY_ENABLED: ${{ secrets.CLOUDFLARE_WORKERS_DEPLOY_ENABLED }}
+      EASYPOST_API_KEY: ${{ secrets.EASYPOST_API_KEY }}
       GOOGLE_OAUTH_ENABLED: ${{ secrets.GOOGLE_OAUTH_ENABLED }}
       RATE_LIMIT_PEPPER: ${{ secrets.RATE_LIMIT_PEPPER }}
+      SHIPPING_PROVIDER: ${{ secrets.SHIPPING_PROVIDER }}
+      SHIPPING_SIMULATOR_ENABLED: ${{ secrets.SHIPPING_SIMULATOR_ENABLED }}
       STRIPE_PRICE_CELLAR: ${{ secrets.STRIPE_PRICE_CELLAR }}
       STRIPE_PRICE_ESTATE: ${{ secrets.STRIPE_PRICE_ESTATE }}
       STRIPE_PRICE_RESERVE: ${{ secrets.STRIPE_PRICE_RESERVE }}
@@ -170,8 +173,11 @@ jobs:
           node --input-type=module <<'NODE' | npx wrangler secret bulk
           const names = [
             "AUTH_EMAIL_ENABLED",
+            "EASYPOST_API_KEY",
             "GOOGLE_OAUTH_ENABLED",
             "RATE_LIMIT_PEPPER",
+            "SHIPPING_PROVIDER",
+            "SHIPPING_SIMULATOR_ENABLED",
             "STRIPE_PRICE_CELLAR",
             "STRIPE_PRICE_ESTATE",
             "STRIPE_PRICE_RESERVE",
