@@ -224,6 +224,18 @@ function parseBody<T>(schema: ZodType<T>, request: Request): T {
   );
 }
 
+function commandId(request: Request): string {
+  const result = uuid.safeParse(request.get("idempotency-key"));
+  if (!result.success) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "A UUID Idempotency-Key header is required for this operation.",
+    );
+  }
+  return result.data;
+}
+
 function data<T>(response: Response, payload: T, status = 200): void {
   response.status(status).json({ data: payload });
 }
@@ -1747,7 +1759,10 @@ export function createApp(options: AppOptions): express.Express {
     const input = parseBody(clubTierSchema, request) as ClubTierInput;
     data(
       response,
-      await coreService(request, response).createClubTier(input),
+      await coreService(request, response).createClubTier(
+        input,
+        commandId(request),
+      ),
       201,
     );
   });
@@ -1757,13 +1772,20 @@ export function createApp(options: AppOptions): express.Express {
     const input = parseBody(clubTierPatchSchema, request);
     data(
       response,
-      await coreService(request, response).updateClubTier(tierId, input),
+      await coreService(request, response).updateClubTier(
+        tierId,
+        input,
+        commandId(request),
+      ),
     );
   });
 
   app.delete("/api/club-tiers/:id", async (request, response) => {
     const tierId = uuid.parse(request.params.id);
-    await coreService(request, response).deleteClubTier(tierId);
+    await coreService(request, response).deleteClubTier(
+      tierId,
+      commandId(request),
+    );
     response.status(204).end();
   });
 
@@ -1779,7 +1801,7 @@ export function createApp(options: AppOptions): express.Express {
         ids: input.memberIds,
         operation: "assign_tier",
         tierId,
-      }),
+      }, commandId(request)),
     );
   });
 
@@ -1800,7 +1822,10 @@ export function createApp(options: AppOptions): express.Express {
     const input = asMemberInput(parseBody(memberSchema, request));
     data(
       response,
-      await coreService(request, response).createMember(input),
+      await coreService(request, response).createMember(
+        input,
+        commandId(request),
+      ),
       201,
     );
   });
@@ -1902,7 +1927,7 @@ export function createApp(options: AppOptions): express.Express {
         ids: input.memberIds,
         operation: input.action,
         tierId: input.tierId,
-      }),
+      }, commandId(request)),
     );
   });
 
@@ -1918,6 +1943,27 @@ export function createApp(options: AppOptions): express.Express {
   app.patch("/api/members/:id", async (request, response) => {
     const memberId = uuid.parse(request.params.id);
     const raw = parseBody(memberPatchSchema, request);
+    if (raw.status !== undefined) {
+      const includesProfileChanges = Object.entries(raw).some(
+        ([field, value]) => field !== "status" && value !== undefined,
+      );
+      if (includesProfileChanges) {
+        throw new AppError(
+          400,
+          "invalid_request",
+          "Update member status separately from profile details.",
+        );
+      }
+      data(
+        response,
+        await coreService(request, response).transitionMember(
+          memberId,
+          raw.status,
+          commandId(request),
+        ),
+      );
+      return;
+    }
     const input: Partial<MemberInput> = {
       birthday: raw.birthday,
       ...(raw.address !== undefined || raw.shippingAddress !== undefined
@@ -1936,17 +1982,21 @@ export function createApp(options: AppOptions): express.Express {
       lastName: raw.lastName,
       phone: raw.phone,
       referredByMemberId: raw.referredByMemberId,
-      status: raw.status,
     };
     data(
       response,
-      await coreService(request, response).updateMember(memberId, input),
+      await coreService(request, response).updateMember(
+        memberId,
+        input,
+        commandId(request),
+      ),
     );
   });
 
   app.delete("/api/members/:id", async (request, response) => {
     await coreService(request, response).deleteMember(
       uuid.parse(request.params.id),
+      commandId(request),
     );
     response.status(204).end();
   });
@@ -1965,11 +2015,11 @@ export function createApp(options: AppOptions): express.Express {
   app.post("/api/releases", async (request, response) => {
     const raw = parseBody(releaseSchema, request);
     const service = coreService(request, response);
-    const created = await service.createRelease(asReleaseInput(raw));
-    const release =
-      raw.status === "scheduled" && typeof created.id === "string"
-        ? await service.scheduleRelease(created.id)
-        : created;
+    const release = await service.createRelease(
+      asReleaseInput(raw),
+      commandId(request),
+      raw.status ?? "draft",
+    );
     data(response, release, 201);
   });
 
@@ -2010,7 +2060,22 @@ export function createApp(options: AppOptions): express.Express {
     };
     data(
       response,
-      await coreService(request, response).updateRelease(releaseId, input),
+      await coreService(request, response).updateRelease(
+        releaseId,
+        input,
+        commandId(request),
+      ),
+    );
+  });
+
+  app.post("/api/releases/:id/schedule", async (request, response) => {
+    parseBody(z.object({ confirmed: z.literal(true) }), request);
+    data(
+      response,
+      await coreService(request, response).scheduleRelease(
+        uuid.parse(request.params.id),
+        commandId(request),
+      ),
     );
   });
 
@@ -2109,6 +2174,7 @@ export function createApp(options: AppOptions): express.Express {
       await coreService(request, response).refundShipment(
         uuid.parse(request.params.id),
         input,
+        commandId(request),
       ),
     );
   });
@@ -2142,7 +2208,10 @@ export function createApp(options: AppOptions): express.Express {
     const address = parseBody(addressSchema, request) as PostalAddress;
     data(
       response,
-      await coreService(request, response).updateMemberPortalAddress(address),
+      await coreService(request, response).updateMemberPortalAddress(
+        address,
+        commandId(request),
+      ),
     );
   });
 

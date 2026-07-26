@@ -7,7 +7,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Performance gates are subsecond and must measure the application rather
+  // than CPU contention from other browser workers. CI already uses one worker;
+  // keep the canonical local gate identical and allow an explicit exploratory
+  // override when timing assertions are not the objective.
+  workers: Number(process.env.PLAYWRIGHT_WORKERS ?? "1"),
   reporter: [
     ["line"],
     ["html", { open: "never", outputFolder: "playwright-report" }],

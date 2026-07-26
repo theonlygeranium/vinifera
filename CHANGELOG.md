@@ -10,6 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added the Phase 2 transactional command ledger and leased provider outbox:
+  UUID/SHA-256 replay protection, atomic business/audit/result persistence,
+  privacy-preserving browser resumption, supersession, and bounded recovery.
+- Added same-brand composite foreign keys, complete release-aggregate
+  validation, immutable Stripe event convergence, stale-refund recovery leases,
+  and a final provider-identity deletion reference check.
+- Added the Phase 2 data-integrity hardening ADR and expanded QA evidence.
 - Added the Phase 1 owner/admin Team invitation surface, role-aware
   manager/staff denial, session-backed invite/reset completion, a dedicated
   92-assertion Phase 1 database gate, and retained login/signup visual evidence
@@ -57,6 +64,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Recorded the current credential-independent gate: audit 0, TypeScript green,
+  Vitest 290/290 (focused Phase 2 72/72), database gates
+  92/231/138/121/340, Playwright 136/136 (Phase 2 38/38) with zero axe
+  violations, 941.7 ms single-worker roster, 712 ms LCP, CLS 0,
+  release/mobile/catalog
+  controls 14/7/16, Pages/Worker dry runs, and compile-only Android/iOS sync.
+- Split Phase 2 database evidence into 170 point-in-time and 61 current-stack
+  transactional assertions, with 10.76 ms release and 338.85 ms import proof.
 - Recorded Phase 1 architecture closure commit `a27f078` and GitHub Actions run
   `30223237016`: quality passed in 5m43s, Android in 4m44s, 90-day Playwright
   evidence uploaded, and hosted mutation jobs skipped while activation is off.
@@ -134,6 +149,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Prevented cross-brand Phase 2 references, incomplete scheduled releases,
+  conflicting command replays, duplicate active charges/refunds, mutable Stripe
+  event replays, abandoned stale refunds, and member-auth deletion races.
+- Made completed staff refunds replay their recorded terminal result before the
+  refunded-shipment guard, without another Stripe or ledger call, and retained
+  client command UUIDs across retryable HTTP 408/425/429 responses.
+- Kept marketing text fully opaque during scroll motion so axe never evaluates
+  transient low-contrast blends, and aligned the canonical local Playwright
+  gate with CI's single-worker performance environment.
 - Fixed Supabase PKCE reset and invitation completion so the established
   HTTP-only session is authoritative and optional invite metadata uses the API
   contract.
@@ -143,6 +167,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- Restricted Phase 2 security-definer command/recovery functions to the service
+  role, bound results to same-brand audit evidence, and kept member PII out of
+  resumable browser command storage.
 - Required stable Stripe Customer/session idempotency, one nonterminal Checkout
   per immutable billing subject, and an `awaiting_webhook` state that prevents
   replacement Checkout creation before signed subscription reconciliation.

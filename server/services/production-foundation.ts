@@ -1212,11 +1212,18 @@ export class ProductionFoundationService
   private async handleShipmentPaymentWebhook(
     event: Stripe.Event,
   ): Promise<{ duplicate: boolean }> {
-    const { data: existingEvent } = await this.admin
+    const { data: existingEvent, error: existingEventError } = await this.admin
       .from("billing_attempts")
       .select("id")
       .eq("stripe_event_id", event.id)
       .maybeSingle();
+    if (existingEventError) {
+      throw new AppError(
+        500,
+        "upstream_error",
+        "The payment event ledger could not be checked.",
+      );
+    }
     if (existingEvent) return { duplicate: true };
 
     if (event.type === "charge.refunded") {
@@ -1224,7 +1231,7 @@ export class ProductionFoundationService
       const { data: shipment, error: shipmentError } = await this.admin
         .from("shipments")
         .select(
-          "id,organization_id,brand_id,charge_amount_cents,stripe_payment_intent_id,stripe_charge_id",
+          "id,organization_id,brand_id,charge_amount_cents,refund_amount_cents,stripe_payment_intent_id,stripe_charge_id",
         )
         .eq("stripe_charge_id", charge.id)
         .maybeSingle();
@@ -1232,28 +1239,125 @@ export class ProductionFoundationService
         throw new AppError(500, "upstream_error", "The refund event could not be resolved.");
       }
       if (!shipment) return { duplicate: false };
-      const refund = charge.refunds?.data.at(-1);
-      const amount = Math.max(1, refund?.amount ?? charge.amount_refunded);
-      const { data: attemptData, error: attemptError } = await this.admin.rpc(
-        "record_billing_attempt",
-        {
-          p_actor_user_id: null,
-          p_amount_cents: amount,
-          p_attempt_kind: "refund",
-          p_brand_id: shipment.brand_id,
-          p_idempotency_key: `stripe-refund:${refund?.id ?? event.id}`,
-          p_metadata: { source: "stripe_webhook" },
-          p_organization_id: shipment.organization_id,
-          p_shipment_id: shipment.id,
-          p_stripe_payment_intent_id: shipment.stripe_payment_intent_id,
-        },
+      const refunds = [...(charge.refunds?.data ?? [])].sort(
+        (left, right) => right.created - left.created,
       );
-      if (attemptError) {
-        throw new AppError(500, "upstream_error", "The refund attempt could not be recorded.");
+      const refundIds = refunds.map((refund) => refund.id);
+      const { data: mappedAttempts, error: mappingError } = refundIds.length
+        ? await this.admin
+            .from("billing_attempts")
+            .select(
+              "id,amount_cents,stripe_event_id,stripe_refund_id,status",
+            )
+            .eq("organization_id", shipment.organization_id)
+            .eq("brand_id", shipment.brand_id)
+            .eq("shipment_id", shipment.id)
+            .eq("attempt_kind", "refund")
+            .in("stripe_refund_id", refundIds)
+        : { data: [], error: null };
+      if (mappingError) {
+        throw new AppError(
+          500,
+          "upstream_error",
+          "The refund attempt could not be resolved.",
+        );
       }
-      const billingAttemptId = Array.isArray(attemptData)
-        ? attemptData[0]
-        : attemptData;
+      const attemptsByRefundId = new Map(
+        (mappedAttempts ?? []).map((attempt) => [
+          String(attempt.stripe_refund_id),
+          attempt,
+        ]),
+      );
+      let refund = refunds.find((candidate) => {
+        const attempt = attemptsByRefundId.get(candidate.id);
+        return !attempt || !attempt.stripe_event_id;
+      });
+      let billingAttempt = refund
+        ? attemptsByRefundId.get(refund.id) ?? null
+        : null;
+      if (!refund && refundIds.length) {
+        return { duplicate: true };
+      }
+      const metadataAttemptId = refund?.metadata?.billing_attempt_id;
+      if (
+        !billingAttempt &&
+        typeof metadataAttemptId === "string" &&
+        UUID.test(metadataAttemptId)
+      ) {
+        const { data: racedAttempt, error: racedAttemptError } =
+          await this.admin
+            .from("billing_attempts")
+            .select(
+              "id,amount_cents,stripe_event_id,stripe_refund_id,status",
+            )
+            .eq("id", metadataAttemptId)
+            .eq("organization_id", shipment.organization_id)
+            .eq("brand_id", shipment.brand_id)
+            .eq("shipment_id", shipment.id)
+            .eq("attempt_kind", "refund")
+            .maybeSingle();
+        if (racedAttemptError) {
+          throw new AppError(
+            500,
+            "upstream_error",
+            "The refund attempt could not be resolved.",
+          );
+        }
+        billingAttempt = racedAttempt;
+      }
+      const amount = Math.max(
+        1,
+        refund?.amount ??
+          charge.amount_refunded -
+            Number(shipment.refund_amount_cents ?? 0),
+      );
+      if (
+        billingAttempt &&
+        Number(billingAttempt.amount_cents) !== amount
+      ) {
+        throw new AppError(
+          422,
+          "invalid_request",
+          "The Stripe refund does not match its billing attempt.",
+        );
+      }
+      let billingAttemptId =
+        typeof billingAttempt?.id === "string"
+          ? billingAttempt.id
+          : null;
+      if (!billingAttemptId) {
+        const { data: attemptData, error: attemptError } =
+          await this.admin.rpc("record_billing_attempt", {
+            p_actor_user_id: null,
+            p_amount_cents: amount,
+            p_attempt_kind: "refund",
+            p_brand_id: shipment.brand_id,
+            p_idempotency_key:
+              `stripe-refund:${refund?.id ?? event.id}`,
+            p_metadata: { source: "stripe_webhook" },
+            p_organization_id: shipment.organization_id,
+            p_shipment_id: shipment.id,
+            p_stripe_payment_intent_id:
+              shipment.stripe_payment_intent_id,
+          });
+        if (attemptError) {
+          throw new AppError(
+            500,
+            "upstream_error",
+            "The refund attempt could not be recorded.",
+          );
+        }
+        billingAttemptId = Array.isArray(attemptData)
+          ? attemptData[0]
+          : attemptData;
+      }
+      if (typeof billingAttemptId !== "string") {
+        throw new AppError(
+          500,
+          "upstream_error",
+          "The refund attempt is unavailable.",
+        );
+      }
       const { error } = await this.admin.rpc("apply_shipment_payment_event", {
         p_billing_attempt_id: billingAttemptId,
         p_brand_id: shipment.brand_id,

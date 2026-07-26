@@ -1961,11 +1961,27 @@ describe("Phase 5 job, theme, and native delivery controls", () => {
     expect(metaPurchaseValue(shipment)).toBe(107.25);
   });
 
-  it("fails closed for suspended brand access and charge paths", () => {
+  it("allows charges only for active or grace brand billing access", () => {
     expect(
       brandAllowsOperationalAccess({
         active: true,
         access_status: "suspended",
+        billing_mode: "independent",
+        organization_access_status: "active",
+      }),
+    ).toBe(false);
+    expect(
+      brandAllowsOperationalAccess({
+        active: true,
+        access_status: "restricted",
+        billing_mode: "independent",
+        organization_access_status: "active",
+      }),
+    ).toBe(false);
+    expect(
+      brandAllowsOperationalAccess({
+        active: true,
+        access_status: "onboarding",
         billing_mode: "independent",
         organization_access_status: "active",
       }),
@@ -1982,8 +1998,32 @@ describe("Phase 5 job, theme, and native delivery controls", () => {
       brandAllowsOperationalAccess({
         active: true,
         access_status: "active",
+        billing_mode: "shared",
+        organization_access_status: "restricted",
+      }),
+    ).toBe(false);
+    expect(
+      brandAllowsOperationalAccess({
+        active: true,
+        access_status: "active",
         billing_mode: "independent",
         organization_access_status: "suspended",
+      }),
+    ).toBe(true);
+    expect(
+      brandAllowsOperationalAccess({
+        active: true,
+        access_status: "grace",
+        billing_mode: "independent",
+        organization_access_status: "suspended",
+      }),
+    ).toBe(true);
+    expect(
+      brandAllowsOperationalAccess({
+        active: true,
+        access_status: "suspended",
+        billing_mode: "shared",
+        organization_access_status: "grace",
       }),
     ).toBe(true);
     expect(

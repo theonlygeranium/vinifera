@@ -23,14 +23,15 @@ const targetFields = [
   { value: "lastName", label: "Last name" },
   { value: "email", label: "Email" },
   { value: "phone", label: "Phone" },
-  { value: "tierName", label: "Club tier" },
+  { value: "clubTier", label: "Club tier" },
   { value: "status", label: "Status" },
-  { value: "joinedAt", label: "Join date" },
-  { value: "address.line1", label: "Address line 1" },
-  { value: "address.line2", label: "Address line 2" },
-  { value: "address.city", label: "City" },
-  { value: "address.state", label: "State" },
-  { value: "address.postalCode", label: "ZIP code" },
+  { value: "joinDate", label: "Join date" },
+  { value: "line1", label: "Address line 1" },
+  { value: "line2", label: "Address line 2" },
+  { value: "city", label: "City" },
+  { value: "state", label: "State" },
+  { value: "postalCode", label: "ZIP code" },
+  { value: "country", label: "Country code" },
 ] as const;
 
 export function ImportMembersPage() {

@@ -648,17 +648,77 @@ create table public.billing_attempts (
   constraint billing_attempts_shipment_same_organization_fkey
     foreign key (organization_id, shipment_id)
     references public.shipments (organization_id, id)
-    on delete cascade
+  on delete cascade
 );
+
+create or replace function private.enforce_billable_shipment_attempt()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_shipment_status public.shipment_status;
+begin
+  if new.attempt_kind not in ('charge', 'retry') then
+    return new;
+  end if;
+
+  select shipment.status
+  into v_shipment_status
+  from public.shipments as shipment
+  where shipment.organization_id = new.organization_id
+    and shipment.id = new.shipment_id
+  for update;
+
+  if not found then
+    raise exception using errcode = '23503', message = 'Shipment not found.';
+  end if;
+  if (
+    new.attempt_kind = 'charge'
+    and v_shipment_status <> 'pending'
+  ) or (
+    new.attempt_kind = 'retry'
+    and v_shipment_status <> 'declined'
+  ) then
+    raise exception using
+      errcode = '23514',
+      message = 'Paid or terminal shipments cannot receive a new billing attempt.';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger billing_attempts_enforce_billable_shipment
+before insert on public.billing_attempts
+for each row execute function private.enforce_billable_shipment_attempt();
 
 create unique index billing_attempts_stripe_event_id_uidx
   on public.billing_attempts (stripe_event_id)
   where stripe_event_id is not null;
 
+create unique index billing_attempts_stripe_refund_id_uidx
+  on public.billing_attempts (stripe_refund_id)
+  where stripe_refund_id is not null;
+
 create unique index billing_attempts_shipment_payment_intent_uidx
-  on public.billing_attempts (shipment_id, stripe_payment_intent_id)
+  on public.billing_attempts (stripe_payment_intent_id)
   where stripe_payment_intent_id is not null
     and attempt_kind <> 'refund';
+
+create unique index billing_attempts_one_active_payment_uidx
+  on public.billing_attempts (shipment_id)
+  where attempt_kind in ('charge', 'retry')
+    and status in ('queued', 'processing');
+
+create unique index billing_attempts_one_active_refund_uidx
+  on public.billing_attempts (shipment_id)
+  where attempt_kind = 'refund'
+    and status in ('queued', 'processing');
+
+create unique index shipments_stripe_charge_id_uidx
+  on public.shipments (stripe_charge_id)
+  where stripe_charge_id is not null;
 
 create index billing_attempts_organization_id_idx
   on public.billing_attempts (organization_id);
@@ -1716,6 +1776,13 @@ begin
     if v_existing_attempt.organization_id <> p_organization_id
       or v_existing_attempt.attempt_kind <> p_attempt_kind
       or v_existing_attempt.amount_cents <> p_amount_cents
+      or (
+        v_existing_attempt.idempotency_key = v_idempotency_key
+        and v_existing_attempt.stripe_payment_intent_id is not null
+        and nullif(btrim(p_stripe_payment_intent_id), '') is not null
+        and v_existing_attempt.stripe_payment_intent_id
+          <> nullif(btrim(p_stripe_payment_intent_id), '')
+      )
     then
       raise exception using
         errcode = '23505',
@@ -1791,14 +1858,29 @@ as $$
 declare
   v_shipment public.shipments%rowtype;
   v_attempt public.billing_attempts%rowtype;
+  v_initial_decline_at timestamptz;
   v_retry_count integer;
   v_next_retry_at timestamptz;
   v_existing_status public.shipment_status;
+  v_existing_event_attempt_id uuid;
+  v_existing_event_organization_id uuid;
+  v_existing_event_shipment_id uuid;
+  v_existing_event_status public.billing_attempt_status;
+  v_existing_event_received_status text;
+  v_existing_event_created_at timestamptz;
+  v_existing_event_charge_id text;
+  v_existing_event_refund_id text;
 begin
   if p_status not in ('succeeded', 'declined', 'failed', 'refunded') then
     raise exception using
       errcode = '22023',
       message = 'Payment events must have a terminal billing status.';
+  end if;
+
+  if p_event_created_at is null then
+    raise exception using
+      errcode = '22004',
+      message = 'Payment event timestamp is required.';
   end if;
 
   if p_stripe_event_id is not null
@@ -1812,8 +1894,26 @@ begin
   end if;
 
   if p_stripe_event_id is not null then
-    select s.status
-    into v_existing_status
+    select
+      a.id,
+      a.organization_id,
+      a.shipment_id,
+      a.status,
+      a.metadata ->> 'received_status',
+      a.stripe_event_created_at,
+      a.stripe_charge_id,
+      a.stripe_refund_id,
+      s.status
+    into
+      v_existing_event_attempt_id,
+      v_existing_event_organization_id,
+      v_existing_event_shipment_id,
+      v_existing_event_status,
+      v_existing_event_received_status,
+      v_existing_event_created_at,
+      v_existing_event_charge_id,
+      v_existing_event_refund_id,
+      v_existing_status
     from public.billing_attempts as a
     join public.shipments as s
       on s.id = a.shipment_id
@@ -1821,6 +1921,35 @@ begin
     where a.stripe_event_id = p_stripe_event_id;
 
     if found then
+      if v_existing_event_attempt_id <> p_billing_attempt_id
+        or v_existing_event_organization_id <> p_organization_id
+        or v_existing_event_shipment_id <> p_shipment_id
+        or (
+          v_existing_event_status <> p_status
+          and not (
+            v_existing_event_status = 'ignored'
+            and v_existing_event_received_status = p_status::text
+          )
+        )
+        or v_existing_event_created_at is distinct from p_event_created_at
+        or (
+          v_existing_event_charge_id is not null
+          and nullif(btrim(p_stripe_charge_id), '') is not null
+          and v_existing_event_charge_id
+            <> nullif(btrim(p_stripe_charge_id), '')
+        )
+        or (
+          v_existing_event_refund_id is not null
+          and nullif(btrim(p_stripe_refund_id), '') is not null
+          and v_existing_event_refund_id
+            <> nullif(btrim(p_stripe_refund_id), '')
+        )
+      then
+        raise exception using
+          errcode = '23505',
+          message = 'Stripe event identifier was reused with different parameters.';
+      end if;
+
       return v_existing_status;
     end if;
   end if;
@@ -1861,22 +1990,62 @@ begin
   end if;
 
   if v_attempt.status in ('succeeded', 'declined', 'failed', 'refunded', 'ignored') then
+    if (
+      v_attempt.status <> p_status
+      and not (
+        v_attempt.status = 'ignored'
+        and v_attempt.metadata ->> 'received_status' = p_status::text
+      )
+    ) or (
+      v_attempt.stripe_event_id is not null
+      and nullif(btrim(p_stripe_event_id), '') is distinct from v_attempt.stripe_event_id
+    ) or (
+      v_attempt.stripe_charge_id is not null
+      and nullif(btrim(p_stripe_charge_id), '') is not null
+      and v_attempt.stripe_charge_id
+        <> nullif(btrim(p_stripe_charge_id), '')
+    ) or (
+      v_attempt.stripe_refund_id is not null
+      and nullif(btrim(p_stripe_refund_id), '') is not null
+      and v_attempt.stripe_refund_id
+        <> nullif(btrim(p_stripe_refund_id), '')
+    ) then
+      raise exception using
+        errcode = '23505',
+        message = 'Terminal billing attempt was replayed with different parameters.';
+    end if;
+
     update public.billing_attempts
     set
       stripe_event_id = coalesce(
-        nullif(btrim(p_stripe_event_id), ''),
-        stripe_event_id
+        stripe_event_id,
+        nullif(btrim(p_stripe_event_id), '')
       ),
-      stripe_event_created_at = coalesce(
-        stripe_event_created_at,
-        p_event_created_at
+      stripe_event_created_at = case
+        when stripe_event_id is null
+          and nullif(btrim(p_stripe_event_id), '') is not null
+          then p_event_created_at
+        else coalesce(stripe_event_created_at, p_event_created_at)
+      end,
+      stripe_charge_id = coalesce(
+        stripe_charge_id,
+        nullif(btrim(p_stripe_charge_id), '')
+      ),
+      stripe_refund_id = coalesce(
+        stripe_refund_id,
+        nullif(btrim(p_stripe_refund_id), '')
       ),
       metadata = metadata
         || (
           p_metadata
           - array['card_number', 'cvc', 'client_secret', 'api_key', 'secret']
         )
-        || jsonb_build_object('webhook_reconciled', p_stripe_event_id is not null)
+        || jsonb_build_object(
+          'webhook_reconciled',
+          p_stripe_event_id is not null,
+          'received_status',
+          p_status::text
+        )
     where id = p_billing_attempt_id;
 
     return v_shipment.status;
@@ -1891,17 +2060,30 @@ begin
       stripe_event_id = p_stripe_event_id,
       stripe_event_created_at = p_event_created_at,
       completed_at = now(),
-      metadata = metadata || jsonb_build_object('ignored_reason', 'older_than_current_payment_state')
+      metadata = metadata || jsonb_build_object(
+        'ignored_reason',
+        'older_than_current_payment_state',
+        'received_status',
+        p_status::text
+      )
     where id = p_billing_attempt_id;
 
     return v_shipment.status;
   end if;
 
   v_retry_count := greatest(v_shipment.retry_count, v_attempt.attempt_number - 1);
+  select min(attempt.stripe_event_created_at)
+  into v_initial_decline_at
+  from public.billing_attempts as attempt
+  where attempt.organization_id = p_organization_id
+    and attempt.shipment_id = p_shipment_id
+    and attempt.status in ('declined', 'failed')
+    and attempt.stripe_event_created_at is not null;
+  v_initial_decline_at := coalesce(v_initial_decline_at, p_event_created_at);
   v_next_retry_at := case
-    when v_retry_count = 0 then p_event_created_at + interval '1 day'
-    when v_retry_count = 1 then p_event_created_at + interval '3 days'
-    when v_retry_count = 2 then p_event_created_at + interval '7 days'
+    when v_retry_count = 0 then v_initial_decline_at + interval '1 day'
+    when v_retry_count = 1 then v_initial_decline_at + interval '3 days'
+    when v_retry_count = 2 then v_initial_decline_at + interval '7 days'
     else null
   end;
 
@@ -1926,6 +2108,7 @@ begin
         p_metadata
         - array['card_number', 'cvc', 'client_secret', 'api_key', 'secret']
       )
+      || jsonb_build_object('received_status', p_status::text)
   where id = p_billing_attempt_id;
 
   if v_attempt.attempt_kind = 'refund'
@@ -2284,11 +2467,6 @@ declare
   v_failed integer := 0;
   v_invalid integer := 0;
   v_error_message text;
-  v_errors jsonb;
-  v_normalized jsonb;
-  v_email text;
-  v_first_name text;
-  v_last_name text;
   v_upload_token_hash text;
 begin
   perform private.resolve_audit_actor(p_organization_id, p_actor_user_id);
@@ -2299,10 +2477,12 @@ begin
 
   if jsonb_typeof(p_column_mapping) is distinct from 'object'
     or nullif(btrim(p_column_mapping ->> 'email'), '') is null
+    or nullif(btrim(p_column_mapping ->> 'first_name'), '') is null
+    or nullif(btrim(p_column_mapping ->> 'last_name'), '') is null
   then
     raise exception using
       errcode = '22023',
-      message = 'Column mapping must be an object with an email column.';
+      message = 'Column mapping must include email, first name, and last name.';
   end if;
 
   v_upload_token_hash := encode(
@@ -2319,6 +2499,12 @@ begin
 
   if not found then
     raise exception using errcode = 'P0002', message = 'Member import not found.';
+  end if;
+
+  if v_import.column_mapping <> p_column_mapping then
+    raise exception using
+      errcode = '22023',
+      message = 'Column mapping changed after preview. Preview the file again.';
   end if;
 
   if v_import.status in ('completed', 'completed_with_errors') then
@@ -2338,216 +2524,21 @@ begin
       message = 'Only previewed imports can be completed.';
   end if;
 
-  update public.member_imports
-  set
-    status = 'processing',
-    column_mapping = p_column_mapping
-  where id = v_import.id;
-
-  for v_row in
-    select r.*
+  if exists (
+    select 1
     from public.member_import_rows as r
     where r.import_id = v_import.id
       and r.organization_id = p_organization_id
-    order by r.row_number
-    for update
-  loop
-    v_email := lower(
-      btrim(
-        coalesce(
-          v_row.raw_data ->> (p_column_mapping ->> 'email'),
-          ''
-        )
-      )
-    );
-    v_first_name := btrim(
-      coalesce(
-        v_row.raw_data ->> coalesce(
-          nullif(p_column_mapping ->> 'first_name', ''),
-          'first_name'
-        ),
-        ''
-      )
-    );
-    v_last_name := btrim(
-      coalesce(
-        v_row.raw_data ->> coalesce(
-          nullif(p_column_mapping ->> 'last_name', ''),
-          'last_name'
-        ),
-        ''
-      )
-    );
+      and r.status not in ('valid', 'invalid')
+  ) then
+    raise exception using
+      errcode = '23514',
+      message = 'Every import row must be validated before commit.';
+  end if;
 
-    v_normalized := jsonb_strip_nulls(
-      jsonb_build_object(
-        'email', v_email,
-        'first_name', v_first_name,
-        'last_name', v_last_name,
-        'phone',
-          nullif(
-            btrim(
-              coalesce(
-                v_row.raw_data ->> coalesce(
-                  nullif(p_column_mapping ->> 'phone', ''),
-                  'phone'
-                ),
-                ''
-              )
-            ),
-            ''
-          ),
-        'shipping_address_line1',
-          nullif(
-            btrim(
-              coalesce(
-                v_row.raw_data ->> coalesce(
-                  nullif(p_column_mapping ->> 'shipping_address_line1', ''),
-                  'shipping_address_line1'
-                ),
-                ''
-              )
-            ),
-            ''
-          ),
-        'shipping_address_line2',
-          nullif(
-            btrim(
-              coalesce(
-                v_row.raw_data ->> coalesce(
-                  nullif(p_column_mapping ->> 'shipping_address_line2', ''),
-                  'shipping_address_line2'
-                ),
-                ''
-              )
-            ),
-            ''
-          ),
-        'shipping_city',
-          nullif(
-            btrim(
-              coalesce(
-                v_row.raw_data ->> coalesce(
-                  nullif(p_column_mapping ->> 'shipping_city', ''),
-                  'shipping_city'
-                ),
-                ''
-              )
-            ),
-            ''
-          ),
-        'shipping_region',
-          nullif(
-            btrim(
-              coalesce(
-                v_row.raw_data ->> coalesce(
-                  nullif(p_column_mapping ->> 'shipping_region', ''),
-                  'shipping_region'
-                ),
-                ''
-              )
-            ),
-            ''
-          ),
-        'shipping_postal_code',
-          nullif(
-            btrim(
-              coalesce(
-                v_row.raw_data ->> coalesce(
-                  nullif(p_column_mapping ->> 'shipping_postal_code', ''),
-                  'shipping_postal_code'
-                ),
-                ''
-              )
-            ),
-            ''
-          ),
-        'shipping_country_code',
-          coalesce(
-            nullif(
-              upper(
-                btrim(
-                  coalesce(
-                    v_row.raw_data ->> coalesce(
-                      nullif(p_column_mapping ->> 'shipping_country_code', ''),
-                      'shipping_country_code'
-                    ),
-                    ''
-                  )
-                )
-              ),
-              ''
-            ),
-            'US'
-          ),
-        'club_tier_id',
-          nullif(
-            btrim(
-              coalesce(
-                v_row.raw_data ->> coalesce(
-                  nullif(p_column_mapping ->> 'club_tier_id', ''),
-                  'club_tier_id'
-                ),
-                ''
-              )
-            ),
-            ''
-          ),
-        'joined_on',
-          nullif(
-            btrim(
-              coalesce(
-                v_row.raw_data ->> coalesce(
-                  nullif(p_column_mapping ->> 'joined_on', ''),
-                  'joined_on'
-                ),
-                ''
-              )
-            ),
-            ''
-          ),
-        'status',
-          nullif(
-            lower(
-              btrim(
-                coalesce(
-                  v_row.raw_data ->> coalesce(
-                    nullif(p_column_mapping ->> 'status', ''),
-                    'status'
-                  ),
-                  ''
-                )
-              )
-            ),
-            ''
-          )
-      )
-    );
-
-    v_errors := '[]'::jsonb;
-
-    if v_email = ''
-      or v_email !~* '^[A-Z0-9.!#$%&''*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+$'
-    then
-      v_errors := v_errors || jsonb_build_array('Invalid or missing email.');
-    end if;
-
-    if v_first_name = '' and v_last_name = '' then
-      v_errors := v_errors || jsonb_build_array('Member name is required.');
-    end if;
-
-    update public.member_import_rows
-    set
-      normalized_data = v_normalized,
-      status = case
-        when jsonb_array_length(v_errors) = 0
-          then 'valid'::public.member_import_row_status
-        else 'invalid'::public.member_import_row_status
-      end,
-      validation_errors = v_errors,
-      member_id = null
-    where id = v_row.id;
-  end loop;
+  update public.member_imports
+  set status = 'processing'
+  where id = v_import.id;
 
   with duplicate_rows as (
     select r.id
@@ -2569,6 +2560,19 @@ begin
           where m.organization_id = p_organization_id
             and m.email = r.normalized_data ->> 'email'
             and m.deleted_at is null
+            and (
+              nullif(
+                current_setting('vinifera.brand_id', true),
+                ''
+              ) is null
+              or nullif(
+                to_jsonb(m) ->> 'brand_id',
+                ''
+              )::uuid = nullif(
+                current_setting('vinifera.brand_id', true),
+                ''
+              )::uuid
+            )
         )
       )
   )

@@ -299,19 +299,29 @@ export interface CoreClubService {
     ids?: string[];
     operation: "pause" | "resume" | "cancel" | "assign_tier";
     tierId?: string;
-  }): Promise<{ updated: number }>;
+  }, commandId: string): Promise<{ updated: number }>;
   confirmShipmentPack(
     shipmentId: string,
     input: { barcode: string },
   ): Promise<{ complete: boolean; packedItems: number; status: ShipmentStatus }>;
-  createClubTier(input: ClubTierInput): Promise<Record<string, unknown>>;
-  createMember(input: MemberInput): Promise<Record<string, unknown>>;
-  deleteMember(memberId: string): Promise<void>;
+  createClubTier(
+    input: ClubTierInput,
+    commandId: string,
+  ): Promise<Record<string, unknown>>;
+  createMember(
+    input: MemberInput,
+    commandId: string,
+  ): Promise<Record<string, unknown>>;
+  deleteMember(memberId: string, commandId: string): Promise<void>;
   createMemberPaymentMethodPortal(input: {
     attemptId: string;
   }): Promise<{ url: string }>;
-  createRelease(input: ReleaseInput): Promise<Record<string, unknown>>;
-  deleteClubTier(tierId: string): Promise<void>;
+  createRelease(
+    input: ReleaseInput,
+    commandId: string,
+    initialStatus?: "draft" | "scheduled",
+  ): Promise<Record<string, unknown>>;
+  deleteClubTier(tierId: string, commandId: string): Promise<void>;
   exportMembers(input: {
     search?: string;
     status?: MemberStatus;
@@ -376,12 +386,17 @@ export interface CoreClubService {
   refundShipment(
     shipmentId: string,
     input: { amountCents?: number; reason?: string },
+    commandId: string,
   ): Promise<Record<string, unknown>>;
   retryShipment(shipmentId: string): Promise<Record<string, unknown>>;
-  scheduleRelease(releaseId: string): Promise<Record<string, unknown>>;
+  scheduleRelease(
+    releaseId: string,
+    commandId: string,
+  ): Promise<Record<string, unknown>>;
   transitionMember(
     memberId: string,
     status: MemberStatus,
+    commandId: string,
   ): Promise<Record<string, unknown>>;
   transitionShipment(
     shipmentId: string,
@@ -394,15 +409,21 @@ export interface CoreClubService {
   updateClubTier(
     tierId: string,
     input: Partial<ClubTierInput>,
+    commandId: string,
   ): Promise<Record<string, unknown>>;
   updateMember(
     memberId: string,
     input: Partial<MemberInput>,
+    commandId: string,
   ): Promise<Record<string, unknown>>;
-  updateMemberPortalAddress(address: PostalAddress): Promise<Record<string, unknown>>;
+  updateMemberPortalAddress(
+    address: PostalAddress,
+    commandId: string,
+  ): Promise<Record<string, unknown>>;
   updateRelease(
     releaseId: string,
     input: Partial<ReleaseInput>,
+    commandId: string,
   ): Promise<Record<string, unknown>>;
   validateShippingAddress(
     address: PostalAddress,

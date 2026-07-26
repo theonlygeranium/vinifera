@@ -1,6 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+// Phase 2 contains a strict subsecond roster gate. Video encoding distorts that
+// timing; explicit visual screenshots remain part of this suite's evidence.
+test.use({ video: "off" });
+
 const organizationId = "10000000-0000-4000-8000-000000000001";
 const memberId = "30000000-0000-4000-8000-000000000001";
 const tierId = "40000000-0000-4000-8000-000000000001";
@@ -61,7 +65,16 @@ const member = {
     state: "CA",
   },
   churnRisk: "not_scored",
-  communicationCount: 0,
+  communicationCount: 1,
+  communications: [
+    {
+      detail: "Email",
+      id: "71000000-0000-4000-8000-000000000001",
+      kind: "communication",
+      occurredAt: "2026-07-03T12:00:00.000Z",
+      title: "Welcome to the club",
+    },
+  ],
   email: "avery@example.com",
   firstName: "Avery",
   id: memberId,
@@ -74,10 +87,38 @@ const member = {
   tier: { id: tierId, name: "Founders Circle" },
   activity: [
     {
+      detail: "$151.00",
       id: "70000000-0000-4000-8000-000000000001",
-      kind: "shipment",
-      occurredAt: "2026-07-01T12:00:00.000Z",
-      title: "Summer release delivered",
+      kind: "payment",
+      occurredAt: "2026-07-04T12:00:00.000Z",
+      title: "Payment succeeded",
+    },
+    {
+      id: "70000000-0000-4000-8000-000000000002",
+      kind: "status",
+      occurredAt: "2026-07-02T12:00:00.000Z",
+      title: "Membership paused",
+    },
+  ],
+  historyMeta: {
+    activityLimit: 20,
+    activityTruncated: false,
+    communicationLimit: 10,
+    communicationsTruncated: false,
+    orderLimit: 20,
+    ordersTruncated: false,
+  },
+  orders: [
+    {
+      createdAt: "2026-07-01T12:00:00.000Z",
+      discountAmountCents: 1000,
+      id: "72000000-0000-4000-8000-000000000001",
+      items: [{ name: "Estate Cabernet", quantity: 3 }],
+      releaseName: "Summer 2026",
+      status: "delivered",
+      subtotalAmountCents: 13900,
+      taxAmountCents: 1200,
+      totalAmountCents: 15100,
     },
   ],
 };
@@ -146,7 +187,10 @@ function json(route: Route, data: unknown, status = 200) {
 async function installMockApi(
   page: Page,
   capture: Capture = [],
-  options: { members?: Array<typeof member> } = {},
+  options: {
+    memberDetail?: typeof member;
+    members?: Array<typeof member>;
+  } = {},
 ) {
   await page.route("**/api/**", async (route) => {
     const request = route.request();
@@ -178,7 +222,9 @@ async function installMockApi(
     }
     if (path === "/api/members" && method === "POST") return json(route, member, 201);
     if (path === `/api/members/${memberId}`) {
-      return method === "DELETE" ? json(route, { deleted: true }) : json(route, member);
+      return method === "DELETE"
+        ? json(route, { deleted: true })
+        : json(route, options.memberDetail ?? member);
     }
     if (path === "/api/members/batch") return json(route, { updatedCount: 1 });
     if (path === "/api/releases" && method === "GET") return json(route, [release]);
@@ -218,19 +264,53 @@ async function installMockApi(
     if (path === "/api/member/profile/address") return json(route, { updated: true });
     if (path === "/api/members/import/preview") {
       return json(route, {
-        columns: ["Customer First Name", "Customer Last Name", "Customer Email"],
+        columns: [
+          "Customer First Name",
+          "Customer Last Name",
+          "Customer Email",
+          "Customer Phone",
+          "Club",
+          "Signup Date",
+          "Ship To Address",
+          "Ship To Address 2",
+          "Ship To City",
+          "Ship To State Code",
+          "Ship To Zip Code",
+          "Ship To Country Code",
+          "Status",
+        ],
         rows: [
           {
+            Club: "Founders Circle",
             "Customer Email": "avery@example.com",
             "Customer First Name": "Avery",
             "Customer Last Name": "Vine",
+            "Customer Phone": "707-555-0101",
+            "Ship To Address": "101 Vineyard Lane",
+            "Ship To Address 2": "",
+            "Ship To City": "Napa",
+            "Ship To Country Code": "US",
+            "Ship To State Code": "CA",
+            "Ship To Zip Code": "94558",
+            "Signup Date": "2026-01-05",
+            Status: "Active",
           },
         ],
         source: "commerce7",
         suggestedMapping: {
+          Club: "clubTier",
           "Customer Email": "email",
           "Customer First Name": "firstName",
           "Customer Last Name": "lastName",
+          "Customer Phone": "phone",
+          "Ship To Address": "line1",
+          "Ship To Address 2": "line2",
+          "Ship To City": "city",
+          "Ship To Country Code": "country",
+          "Ship To State Code": "state",
+          "Ship To Zip Code": "postalCode",
+          "Signup Date": "joinDate",
+          Status: "status",
         },
         uploadToken: "one-time-test-token",
         validation: { errors: [], invalidCount: 0, validCount: 1 },
@@ -257,15 +337,15 @@ async function assertNoHorizontalOverflow(page: Page) {
       bodyScrollWidth: document.body.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
       diagnostics: [
-      "html",
-      "body",
-      "#root",
-      ".staff-app",
-      ".staff-main",
-      ".staff-content",
-      ".operation-panel",
-      ".data-table-wrap",
-      ".data-table",
+        "html",
+        "body",
+        "#root",
+        ".staff-app",
+        ".staff-main",
+        ".staff-content",
+        ".operation-panel",
+        ".data-table-wrap",
+        ".data-table",
       ].map((selector) => {
         const element = document.querySelector(selector) as HTMLElement | null;
         const rect = element?.getBoundingClientRect();
@@ -433,6 +513,9 @@ test.describe("Phase 2 local performance budgets", () => {
       (start) => performance.now() - start,
       startedAt,
     );
+    console.log(
+      `[phase2-performance] member-roster-100=${elapsedMs.toFixed(2)}ms`,
+    );
     expect(elapsedMs).toBeLessThan(1_000);
   });
 });
@@ -440,6 +523,74 @@ test.describe("Phase 2 local performance budgets", () => {
 test.describe("Phase 2 core club loop", () => {
   test.beforeEach(async ({ page }) => {
     await installMockApi(page);
+  });
+
+  test("staff can submit ten tier-assigned members through the UI", async ({
+    page,
+  }) => {
+    const requests: Capture = [];
+    await page.unrouteAll({ behavior: "wait" });
+    await installMockApi(page, requests);
+    await page.goto("/app/members");
+
+    for (let index = 1; index <= 10; index += 1) {
+      await page.getByRole("button", { name: "Add Member" }).click();
+      const dialog = page.getByRole("dialog", { name: "Add member" });
+      await dialog.getByLabel("First name").fill(`Member ${index}`);
+      await dialog.getByLabel("Last name").fill("Architecture");
+      await dialog
+        .getByLabel("Email", { exact: true })
+        .fill(`member-${index}@example.com`);
+      await dialog.getByLabel("Club tier").selectOption(tierId);
+      await dialog.getByLabel("Address line 1").fill(`${index} Winery Lane`);
+      await dialog.getByLabel("City").fill("Napa");
+      await dialog.getByLabel("State").fill("CA");
+      await dialog.getByLabel("ZIP code").fill("94558");
+      await dialog
+        .getByRole("button", { name: "Add member", exact: true })
+        .click();
+      await expect(page.getByText("Member added to the live club roster.")).toBeVisible();
+    }
+
+    const memberCreates = requests.filter(
+      (request) => request.method === "POST" && request.path === "/api/members",
+    );
+    expect(memberCreates).toHaveLength(10);
+    expect(
+      memberCreates.map((request) => {
+        const body = request.body as { email?: string; tierId?: string };
+        return { email: body.email, tierId: body.tierId };
+      }),
+    ).toEqual(
+      Array.from({ length: 10 }, (_, index) => ({
+        email: `member-${index + 1}@example.com`,
+        tierId,
+      })),
+    );
+  });
+
+  test("dialogs trap focus, close on Escape, and restore the trigger", async ({
+    page,
+  }) => {
+    await page.goto("/app/tiers");
+    const trigger = page.getByRole("button", { name: "Create Tier" });
+    await trigger.focus();
+    await trigger.click();
+
+    const dialog = page.getByRole("dialog", { name: "Create club tier" });
+    const close = dialog.getByRole("button", { name: "Close Create club tier" });
+    const submit = dialog.getByRole("button", {
+      name: "Create tier",
+      exact: true,
+    });
+    await expect(close).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(submit).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(close).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
   });
 
   test("staff can create a tier, member, and scheduled release", async ({ page }) => {
@@ -486,6 +637,40 @@ test.describe("Phase 2 core club loop", () => {
       .getByRole("button", { name: "Create scheduled release", exact: true })
       .click();
     await expect(page.getByText("Release added to the live schedule.")).toBeVisible();
+  });
+
+  test("member detail exposes bounded order, payment, status, and communication history", async ({
+    page,
+  }) => {
+    await page.goto(`/app/members/${memberId}`);
+
+    await expect(page.getByRole("heading", { name: "Orders" })).toBeVisible();
+    await expect(page.getByRole("row", { name: /Summer 2026/ })).toContainText(
+      "$151.00",
+    );
+    await expect(page.getByText("Payment succeeded")).toBeVisible();
+    await expect(page.getByText("Membership paused")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Communications (1)" }),
+    ).toBeVisible();
+    await expect(page.getByText("Welcome to the club")).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+
+    await page.unrouteAll({ behavior: "wait" });
+    await installMockApi(page, [], {
+      memberDetail: {
+        ...member,
+        activity: [],
+        communicationCount: 0,
+        communications: [],
+        orders: [],
+      },
+    });
+    await page.goto(`/app/members/${memberId}`);
+
+    await expect(page.getByText("No orders recorded")).toBeVisible();
+    await expect(page.getByText("No activity recorded")).toBeVisible();
+    await expect(page.getByText("No communications recorded")).toBeVisible();
   });
 
   test("release billing, recovery, refund, labels, and pack scan are connected", async ({
@@ -545,5 +730,50 @@ test.describe("Phase 2 core club loop", () => {
     await expect(page.getByRole("heading", { name: "Map columns" })).toBeVisible();
     await page.getByRole("button", { name: /Import 1 valid member/ }).click();
     await expect(page.getByText("1 members imported into the live roster.")).toBeVisible();
+  });
+
+  test("Commerce7 optional fields submit the canonical CSV mapping contract", async ({
+    page,
+  }) => {
+    const requests: Capture = [];
+    await page.unrouteAll({ behavior: "wait" });
+    await installMockApi(page, requests);
+    await page.goto("/app/import");
+    await page.getByLabel("Source format").selectOption("commerce7");
+    await page
+      .getByLabel("Choose a member CSV")
+      .setInputFiles("tests/fixtures/commerce7-members.csv");
+    await page.getByRole("button", { name: "Upload and preview" }).click();
+
+    await expect(page.getByLabel("Club")).toHaveValue("clubTier");
+    await expect(page.getByLabel("Signup Date")).toHaveValue("joinDate");
+    await expect(page.getByLabel("Ship To Address", { exact: true })).toHaveValue(
+      "line1",
+    );
+    await expect(page.getByLabel("Ship To Country Code")).toHaveValue("country");
+
+    await page.getByRole("button", { name: /Import 1 valid member/ }).click();
+    const importRequest = requests.find(
+      (request) =>
+        request.method === "POST" && request.path === "/api/members/import",
+    );
+    expect(importRequest?.body).toEqual({
+      mapping: {
+        Club: "clubTier",
+        "Customer Email": "email",
+        "Customer First Name": "firstName",
+        "Customer Last Name": "lastName",
+        "Customer Phone": "phone",
+        "Ship To Address": "line1",
+        "Ship To Address 2": "line2",
+        "Ship To City": "city",
+        "Ship To Country Code": "country",
+        "Ship To State Code": "state",
+        "Ship To Zip Code": "postalCode",
+        "Signup Date": "joinDate",
+        Status: "status",
+      },
+      uploadToken: "one-time-test-token",
+    });
   });
 });

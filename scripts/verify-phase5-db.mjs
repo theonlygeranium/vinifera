@@ -44,6 +44,7 @@ const migrations = [
   "supabase/migrations/202607260010_phase_5_tax_accounting_facts.sql",
   "supabase/migrations/202607260011_provider_activation_runtime.sql",
   "supabase/migrations/202607260012_custom_hostname_write_safety.sql",
+  "supabase/migrations/202607260013_phase_2_transactional_commands.sql",
 ];
 const tests = [
   "supabase/tests/013_phase_5_schema.test.sql",
@@ -56,6 +57,7 @@ const tests = [
   "supabase/tests/020_phase_5_tax_accounting_facts.test.sql",
   "supabase/tests/021_provider_activation_runtime.test.sql",
   "supabase/tests/022_custom_hostname_write_safety.test.sql",
+  "supabase/tests/023_phase_2_transactional_commands.test.sql",
 ];
 
 async function readRepositoryFile(relativeFile) {

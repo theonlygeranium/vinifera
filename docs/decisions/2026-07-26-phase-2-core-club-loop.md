@@ -31,6 +31,15 @@ configuration while a billing run is active.
 PostgreSQL functions enforce the allowed state transitions and create one
 shipment per eligible member and release. Unique constraints and caller-supplied
 idempotency keys make release processing safe to resume after partial failures.
+Scheduling is permitted only when every snapshotted tier has release items
+whose quantities sum to its snapshotted bottle count. The same invariant
+applies to separately scheduled drafts and releases created directly in the
+scheduled state.
+
+Staff commands carry UUID idempotency keys and canonical SHA-256 request
+fingerprints. PostgreSQL records the command, business mutation, audit row,
+result, and any provider side-effect request in one transaction. Provider calls
+are delivered later from a leased outbox.
 
 ### Payment orchestration
 
@@ -42,11 +51,15 @@ subscription:
 - Off-session PaymentIntents use the release shipment ID as their idempotency
   key.
 - Every attempt is appended to the billing-attempt ledger.
+- Stripe event IDs are write-once, and replays must match the original tenant,
+  shipment, attempt, status, and provider timestamp.
+- PaymentIntent, charge, and refund identifiers become immutable once attached.
 - A batch can contain both successful and declined shipments.
 - Declines schedule retries for day 1, day 3, and day 7. Manual retries use the
   same state machine.
 - Refunds are initiated through Stripe and reconciled into the append-only audit
-  history.
+  history. One active refund is allowed per shipment; stale attempts are
+  reclaimed through bounded `SKIP LOCKED` leases and stable idempotency keys.
 
 Webhook signatures are verified before any payment state is applied.
 
@@ -78,6 +91,10 @@ field, email, duplicate, and tenant rules. Common Commerce7 and WineDirect
 headers are normalized into the same member command. Row failures are returned
 as structured errors and successful inserts are audited.
 
+The preview stores an immutable canonical mapping, including optional
+Commerce7 fields, so commit cannot silently reinterpret uploaded columns.
+Duplicate handling is explicit and deterministic.
+
 ### Tenant and audit boundaries
 
 Every Phase 2 table is tenant-owned directly or is reachable only through a
@@ -85,9 +102,18 @@ tenant-owned parent. RLS is enabled and forced. Server operations validate the
 cookie-backed principal and pass the organization ID explicitly to
 service-role-only database functions.
 
+Composite organization/brand foreign keys enforce same-brand references for
+member tiers and referrals, tier upgrade paths, release tiers and wines, import
+rows, shipment items, and command audit results while preserving the intended
+`SET NULL` and `RESTRICT` behavior.
+
 The audit log is append-only for every database role used by the application.
 Each entry includes the previous entry hash and its own digest so missing or
 rewritten history is detectable.
+
+Member-auth deletion rechecks current member, staff, and platform references
+immediately before deleting the provider identity. A concurrent reassignment
+therefore supersedes deletion instead of orphaning a live principal.
 
 ### Deferred activation
 
@@ -96,11 +122,20 @@ configuration reports. Local API tests inject deterministic doubles. Hosted
 exit-criterion evidence remains pending until the corresponding test-mode
 credentials and control-plane settings are activated.
 
+The browser persists only pending command UUIDs and hashes in
+`sessionStorage`; raw member, address, and payment data is never stored there.
+See `2026-07-26-phase-2-data-integrity-hardening.md` for transaction and
+recovery details.
+
 ## Consequences
 
 ### Positive
 
 - A partially failed release can resume without duplicate charges or shipments.
+- Retried staff commands return the original result or reject a conflicting
+  fingerprint instead of repeating a mutation.
+- Provider side effects remain recoverable after process termination without
+  being coupled to an open database transaction.
 - Tier edits cannot retroactively change money already scheduled or collected.
 - Carrier choice can change without rewriting release or packing workflows.
 - Credential activation is operational work rather than an architectural
@@ -112,6 +147,8 @@ credentials and control-plane settings are activated.
 - EasyPost becomes an additional vendor in the shipping path.
 - Release processing is an orchestrated batch, not one database transaction,
   because payment and label APIs are external.
+- Command and outbox ledgers add retained operational state and require bounded
+  lease cleanup.
 - A fully live Phase 2 exit criterion cannot be claimed until Stripe test-mode,
   Supabase, and EasyPost test credentials are connected.
 

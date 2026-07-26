@@ -3,7 +3,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
-select plan(47);
+select plan(72);
+
+select ok(
+  to_regclass('public.billing_attempts_stripe_refund_id_uidx') is not null,
+  'Stripe refund identifiers map to one durable billing attempt'
+);
 
 insert into auth.users (id, email)
 values
@@ -244,6 +249,28 @@ select is(
 select is((select count(*) from public.shipments), 2::bigint, 'no duplicate shipments are inserted');
 select is((select count(*) from public.shipment_items), 2::bigint, 'release items are copied into shipment snapshots');
 
+select throws_ok(
+  $$
+    select public.record_billing_attempt(
+      '32000000-0000-4000-8000-000000000001',
+      (
+        select id
+        from public.shipments
+        where member_id = '34000000-0000-4000-8000-000000000001'
+      ),
+      'retry',
+      12000,
+      'release:35000000:pending-retry',
+      'pi_P2PendingWrongRetry',
+      null,
+      '{}'::jsonb
+    )
+  $$,
+  '23514',
+  'Paid or terminal shipments cannot receive a new billing attempt.',
+  'a pending shipment rejects a retry-kind attempt'
+);
+
 select is(
   public.record_billing_attempt(
     '32000000-0000-4000-8000-000000000001',
@@ -354,6 +381,71 @@ select is(
   'webhook reconciliation does not double-count LTV'
 );
 
+select is(
+  public.record_billing_attempt(
+    '32000000-0000-4000-8000-000000000001',
+    (
+      select shipment_id
+      from public.billing_attempts
+      where stripe_payment_intent_id = 'pi_P2ChargeOne'
+    ),
+    'charge',
+    12000,
+    'release:35000000:member:charge',
+    'pi_P2ChargeOne',
+    '31000000-0000-4000-8000-000000000001',
+    '{}'::jsonb
+  ),
+  (
+    select id
+    from public.billing_attempts
+    where stripe_payment_intent_id = 'pi_P2ChargeOne'
+  ),
+  'same paid attempt remains available for webhook reconciliation'
+);
+select throws_ok(
+  $$
+    select public.record_billing_attempt(
+      '32000000-0000-4000-8000-000000000001',
+      (
+        select shipment_id
+        from public.billing_attempts
+        where stripe_payment_intent_id = 'pi_P2ChargeOne'
+      ),
+      'charge',
+      12000,
+      'release:35000000:member:new-charge',
+      'pi_P2PaidNewCharge',
+      null,
+      '{}'::jsonb
+    )
+  $$,
+  '23514',
+  'Paid or terminal shipments cannot receive a new billing attempt.',
+  'an already-paid shipment rejects a new charge attempt'
+);
+select throws_ok(
+  $$
+    select public.record_billing_attempt(
+      '32000000-0000-4000-8000-000000000001',
+      (
+        select shipment_id
+        from public.billing_attempts
+        where stripe_payment_intent_id = 'pi_P2ChargeOne'
+      ),
+      'retry',
+      12000,
+      'release:35000000:member:new-retry',
+      'pi_P2PaidNewRetry',
+      null,
+      '{}'::jsonb
+    )
+  $$,
+  '23514',
+  'Paid or terminal shipments cannot receive a new billing attempt.',
+  'an already-paid shipment rejects a new retry attempt'
+);
+
 select ok(
   public.record_billing_attempt(
     '32000000-0000-4000-8000-000000000001',
@@ -458,6 +550,168 @@ select is(
   'successful retry increments LTV once'
 );
 
+insert into public.shipments (
+  id,
+  organization_id,
+  member_id,
+  release_id,
+  release_tier_id,
+  tier_id,
+  shipping_address,
+  charge_amount_cents
+)
+values (
+  '39000000-0000-4000-8000-000000000001',
+  '32000000-0000-4000-8000-000000000001',
+  '34000000-0000-4000-8000-000000000003',
+  '35000000-0000-4000-8000-000000000001',
+  '36000000-0000-4000-8000-000000000001',
+  '33000000-0000-4000-8000-000000000001',
+  '{"line1":"30 Main Street","city":"Napa","region":"CA","postal_code":"94558"}'::jsonb,
+  12000
+);
+
+select lives_ok(
+  $$
+    select public.record_billing_attempt(
+      '32000000-0000-4000-8000-000000000001',
+      '39000000-0000-4000-8000-000000000001',
+      'charge',
+      12000,
+      'fixed-decline-initial',
+      'pi_P2FixedDeclineOne',
+      null,
+      '{}'::jsonb
+    )
+  $$,
+  'fixed-time decline attempt is recorded'
+);
+select is(
+  public.apply_shipment_payment_event(
+    '32000000-0000-4000-8000-000000000001',
+    '39000000-0000-4000-8000-000000000001',
+    (
+      select id
+      from public.billing_attempts
+      where idempotency_key = 'fixed-decline-initial'
+    ),
+    'evt_P2FixedDeclineOne',
+    '2026-01-01 10:00:00+00'::timestamptz,
+    'declined',
+    null,
+    'card_declined',
+    'Initial fixed decline.',
+    null,
+    '{}'::jsonb
+  ),
+  'declined'::public.shipment_status,
+  'first fixed-time payment failure enters decline recovery'
+);
+select is(
+  (
+    select next_retry_at
+    from public.shipments
+    where id = '39000000-0000-4000-8000-000000000001'
+  ),
+  '2026-01-02 10:00:00+00'::timestamptz,
+  'first failure schedules exactly day 1 from the initial decline'
+);
+
+select lives_ok(
+  $$
+    select public.record_billing_attempt(
+      '32000000-0000-4000-8000-000000000001',
+      '39000000-0000-4000-8000-000000000001',
+      'retry',
+      12000,
+      'fixed-decline-retry-one',
+      'pi_P2FixedDeclineTwo',
+      null,
+      '{}'::jsonb
+    )
+  $$,
+  'first fixed-time retry attempt is recorded'
+);
+select is(
+  public.apply_shipment_payment_event(
+    '32000000-0000-4000-8000-000000000001',
+    '39000000-0000-4000-8000-000000000001',
+    (
+      select id
+      from public.billing_attempts
+      where idempotency_key = 'fixed-decline-retry-one'
+    ),
+    'evt_P2FixedDeclineTwo',
+    '2026-01-02 10:00:00+00'::timestamptz,
+    'declined',
+    null,
+    'card_declined',
+    'Second fixed decline.',
+    null,
+    '{}'::jsonb
+  ),
+  'declined'::public.shipment_status,
+  'second fixed-time payment failure remains in decline recovery'
+);
+select is(
+  (
+    select next_retry_at
+    from public.shipments
+    where id = '39000000-0000-4000-8000-000000000001'
+  ),
+  '2026-01-04 10:00:00+00'::timestamptz,
+  'second failure schedules exactly day 3 from the initial decline'
+);
+
+select lives_ok(
+  $$
+    select public.record_billing_attempt(
+      '32000000-0000-4000-8000-000000000001',
+      '39000000-0000-4000-8000-000000000001',
+      'retry',
+      12000,
+      'fixed-decline-retry-two',
+      'pi_P2FixedDeclineThree',
+      null,
+      '{}'::jsonb
+    )
+  $$,
+  'second fixed-time retry attempt is recorded'
+);
+select is(
+  public.apply_shipment_payment_event(
+    '32000000-0000-4000-8000-000000000001',
+    '39000000-0000-4000-8000-000000000001',
+    (
+      select id
+      from public.billing_attempts
+      where idempotency_key = 'fixed-decline-retry-two'
+    ),
+    'evt_P2FixedDeclineThree',
+    '2026-01-04 10:00:00+00'::timestamptz,
+    'declined',
+    null,
+    'card_declined',
+    'Third fixed decline.',
+    null,
+    '{}'::jsonb
+  ),
+  'declined'::public.shipment_status,
+  'third fixed-time payment failure remains in decline recovery'
+);
+select is(
+  (
+    select next_retry_at
+    from public.shipments
+    where id = '39000000-0000-4000-8000-000000000001'
+  ),
+  '2026-01-08 10:00:00+00'::timestamptz,
+  'third failure schedules exactly day 7 from the initial decline'
+);
+
+delete from public.shipments
+where id = '39000000-0000-4000-8000-000000000001';
+
 select ok(
   public.record_billing_attempt(
     '32000000-0000-4000-8000-000000000001',
@@ -552,6 +806,72 @@ select is(
   8000::bigint,
   'refund webhook replay does not double-subtract LTV'
 );
+select is(
+  (
+    select count(*)
+    from public.billing_attempts
+    where shipment_id = (
+      select id
+      from public.shipments
+      where member_id = '34000000-0000-4000-8000-000000000001'
+    )
+      and stripe_refund_id = 're_P2PartialOne'
+  ),
+  1::bigint,
+  'staff refund and webhook share one refund attempt'
+);
+select is(
+  (
+    select stripe_event_id
+    from public.billing_attempts
+    where stripe_refund_id = 're_P2PartialOne'
+  ),
+  'evt_P2PartialRefund',
+  'the Stripe refund event is durably attached to the staff attempt'
+);
+select is(
+  public.apply_shipment_payment_event(
+    '32000000-0000-4000-8000-000000000001',
+    (
+      select shipment_id
+      from public.billing_attempts
+      where stripe_refund_id = 're_P2PartialOne'
+    ),
+    (
+      select id
+      from public.billing_attempts
+      where stripe_refund_id = 're_P2PartialOne'
+    ),
+    'evt_P2PartialRefund',
+    now() + interval '3 days',
+    'refunded',
+    'ch_P2ChargeOne',
+    null,
+    null,
+    're_P2PartialOne',
+    '{}'::jsonb
+  ),
+  'charged'::public.shipment_status,
+  'Stripe refund event replay is idempotent'
+);
+select is(
+  (
+    select refund_amount_cents
+    from public.shipments
+    where member_id = '34000000-0000-4000-8000-000000000001'
+  ),
+  4000,
+  'refund event replay leaves the partial refund total unchanged'
+);
+select is(
+  (
+    select lifetime_value_cents
+    from public.members
+    where id = '34000000-0000-4000-8000-000000000001'
+  ),
+  8000::bigint,
+  'refund event replay leaves LTV unchanged'
+);
 
 select ok(
   public.record_billing_attempt(
@@ -603,6 +923,27 @@ select is(
   ),
   0::bigint,
   'full cumulative refund reduces LTV without going negative'
+);
+select throws_ok(
+  $$
+    select public.record_billing_attempt(
+      '32000000-0000-4000-8000-000000000001',
+      (
+        select id
+        from public.shipments
+        where member_id = '34000000-0000-4000-8000-000000000001'
+      ),
+      'retry',
+      12000,
+      'refund-terminal-new-retry',
+      'pi_P2RefundedNewRetry',
+      null,
+      '{}'::jsonb
+    )
+  $$,
+  '23514',
+  'Paid or terminal shipments cannot receive a new billing attempt.',
+  'a fully refunded terminal shipment rejects a new retry'
 );
 
 select is(
@@ -719,6 +1060,7 @@ insert into public.member_imports (
   content_type,
   file_size_bytes,
   headers,
+  column_mapping,
   status,
   imported_by
 )
@@ -737,7 +1079,34 @@ values (
   'commerce7-members.csv',
   'text/csv',
   1024,
-  '["Email","First","Last"]'::jsonb,
+  '[
+    "Email",
+    "First",
+    "Last",
+    "Phone",
+    "Club",
+    "Joined",
+    "Address",
+    "Address2",
+    "City",
+    "State",
+    "Zip",
+    "Country"
+  ]'::jsonb,
+  '{
+    "email":"Email",
+    "first_name":"First",
+    "last_name":"Last",
+    "phone":"Phone",
+    "club_tier_id":"Club",
+    "joined_on":"Joined",
+    "shipping_address_line1":"Address",
+    "shipping_address_line2":"Address2",
+    "shipping_city":"City",
+    "shipping_region":"State",
+    "shipping_postal_code":"Zip",
+    "shipping_country_code":"Country"
+  }'::jsonb,
   'previewed',
   '31000000-0000-4000-8000-000000000001'
 );
@@ -746,33 +1115,90 @@ insert into public.member_import_rows (
   organization_id,
   import_id,
   row_number,
-  raw_data
+  raw_data,
+  normalized_data,
+  status,
+  validation_errors
 )
 values
   (
     '32000000-0000-4000-8000-000000000001',
     '38000000-0000-4000-8000-000000000001',
     1,
-    '{"Email":"new-import@example.test","First":"New","Last":"Member"}'::jsonb
+    '{
+      "Email":"new-import@example.test",
+      "First":"New",
+      "Last":"Member",
+      "Phone":"+17075550199",
+      "Club":"RPC Reserve",
+      "Joined":"2026-01-05",
+      "Address":"99 Import Lane",
+      "Address2":"Suite 2",
+      "City":"Napa",
+      "State":"CA",
+      "Zip":"94558",
+      "Country":"US"
+    }'::jsonb,
+    '{
+      "email":"new-import@example.test",
+      "first_name":"New",
+      "last_name":"Member",
+      "phone":"+17075550199",
+      "club_tier_id":"33000000-0000-4000-8000-000000000001",
+      "joined_on":"2026-01-05",
+      "shipping_address_line1":"99 Import Lane",
+      "shipping_address_line2":"Suite 2",
+      "shipping_city":"Napa",
+      "shipping_region":"CA",
+      "shipping_postal_code":"94558",
+      "shipping_country_code":"US",
+      "status":"active"
+    }'::jsonb,
+    'valid',
+    '[]'::jsonb
   ),
   (
     '32000000-0000-4000-8000-000000000001',
     '38000000-0000-4000-8000-000000000001',
     2,
-    '{"Email":"not-an-email","First":"Bad","Last":"Email"}'::jsonb
+    '{"Email":"preview-invalid@example.test","First":"Missing","Last":""}'::jsonb,
+    '{"email":"preview-invalid@example.test","first_name":"Missing","last_name":"","status":"active"}'::jsonb,
+    'invalid',
+    '["Last name is required."]'::jsonb
   ),
   (
     '32000000-0000-4000-8000-000000000001',
     '38000000-0000-4000-8000-000000000001',
     3,
-    '{"Email":"phase2-charge@example.test","First":"Existing","Last":"Member"}'::jsonb
+    '{"Email":"phase2-charge@example.test","First":"Existing","Last":"Member"}'::jsonb,
+    '{"email":"phase2-charge@example.test","first_name":"Existing","last_name":"Member","status":"active"}'::jsonb,
+    'invalid',
+    '["Duplicate member email."]'::jsonb
   ),
   (
     '32000000-0000-4000-8000-000000000001',
     '38000000-0000-4000-8000-000000000001',
     4,
-    '{"Email":"new-import@example.test","First":"Batch","Last":"Duplicate"}'::jsonb
+    '{"Email":"new-import@example.test","First":"Batch","Last":"Duplicate"}'::jsonb,
+    '{"email":"new-import@example.test","first_name":"Batch","last_name":"Duplicate","status":"active"}'::jsonb,
+    'invalid',
+    '["Duplicate email in this file."]'::jsonb
   );
+
+select throws_ok(
+  $$
+    select *
+    from public.complete_member_import(
+      '32000000-0000-4000-8000-000000000001',
+      'phase2-import-token-abcdefghijklmnopqrstuvwxyz',
+      '{"email":"Email","first_name":"First","last_name":"Wrong"}'::jsonb,
+      '31000000-0000-4000-8000-000000000001'
+    )
+  $$,
+  '22023',
+  'Column mapping changed after preview. Preview the file again.',
+  'commit rejects a mapping that was not approved by preview'
+);
 
 select is(
   (
@@ -780,7 +1206,20 @@ select is(
     from public.complete_member_import(
       '32000000-0000-4000-8000-000000000001',
       'phase2-import-token-abcdefghijklmnopqrstuvwxyz',
-      '{"email":"Email","first_name":"First","last_name":"Last"}'::jsonb,
+      '{
+        "email":"Email",
+        "first_name":"First",
+        "last_name":"Last",
+        "phone":"Phone",
+        "club_tier_id":"Club",
+        "joined_on":"Joined",
+        "shipping_address_line1":"Address",
+        "shipping_address_line2":"Address2",
+        "shipping_city":"City",
+        "shipping_region":"State",
+        "shipping_postal_code":"Zip",
+        "shipping_country_code":"Country"
+      }'::jsonb,
       '31000000-0000-4000-8000-000000000001'
     )
   ),
@@ -794,7 +1233,7 @@ select is(
     where id = '38000000-0000-4000-8000-000000000001'
   ),
   3,
-  'import identifies invalid, existing, and within-batch duplicate emails'
+  'import preserves preview-invalid, existing, and within-file duplicate rows'
 );
 select is(
   (
@@ -811,7 +1250,20 @@ select is(
     from public.complete_member_import(
       '32000000-0000-4000-8000-000000000001',
       'phase2-import-token-abcdefghijklmnopqrstuvwxyz',
-      '{"email":"Email","first_name":"First","last_name":"Last"}'::jsonb,
+      '{
+        "email":"Email",
+        "first_name":"First",
+        "last_name":"Last",
+        "phone":"Phone",
+        "club_tier_id":"Club",
+        "joined_on":"Joined",
+        "shipping_address_line1":"Address",
+        "shipping_address_line2":"Address2",
+        "shipping_city":"City",
+        "shipping_region":"State",
+        "shipping_postal_code":"Zip",
+        "shipping_country_code":"Country"
+      }'::jsonb,
       '31000000-0000-4000-8000-000000000001'
     )
   ),
@@ -824,7 +1276,20 @@ select is(
     from public.complete_member_import(
       '32000000-0000-4000-8000-000000000001',
       'phase2-import-token-abcdefghijklmnopqrstuvwxyz',
-      '{"email":"Email","first_name":"First","last_name":"Last"}'::jsonb,
+      '{
+        "email":"Email",
+        "first_name":"First",
+        "last_name":"Last",
+        "phone":"Phone",
+        "club_tier_id":"Club",
+        "joined_on":"Joined",
+        "shipping_address_line1":"Address",
+        "shipping_address_line2":"Address2",
+        "shipping_city":"City",
+        "shipping_region":"State",
+        "shipping_postal_code":"Zip",
+        "shipping_country_code":"Country"
+      }'::jsonb,
       '31000000-0000-4000-8000-000000000001'
     )
   ),
@@ -839,6 +1304,63 @@ select is(
   ),
   1::bigint,
   'idempotent import produces one member row'
+);
+select is(
+  (
+    select club_tier_id
+    from public.members
+    where email = 'new-import@example.test'
+  ),
+  '33000000-0000-4000-8000-000000000001'::uuid,
+  'validated tier name is committed as the canonical tier ID'
+);
+select is(
+  (
+    select joined_on
+    from public.members
+    where email = 'new-import@example.test'
+  ),
+  '2026-01-05'::date,
+  'preview-normalized join date is preserved'
+);
+select is(
+  (
+    select jsonb_build_object(
+      'line1', shipping_address_line1,
+      'line2', shipping_address_line2,
+      'city', shipping_city,
+      'region', shipping_region,
+      'postal_code', shipping_postal_code,
+      'country_code', shipping_country_code
+    )
+    from public.members
+    where email = 'new-import@example.test'
+  ),
+  '{
+    "line1":"99 Import Lane",
+    "line2":"Suite 2",
+    "city":"Napa",
+    "region":"CA",
+    "postal_code":"94558",
+    "country_code":"US"
+  }'::jsonb,
+  'preview-normalized address fields are preserved'
+);
+select is(
+  (
+    select jsonb_build_object(
+      'status', status,
+      'errors', validation_errors
+    )
+    from public.member_import_rows
+    where import_id = '38000000-0000-4000-8000-000000000001'
+      and row_number = 2
+  ),
+  '{
+    "status":"invalid",
+    "errors":["Last name is required."]
+  }'::jsonb,
+  'a preview-invalid row is not reclassified during commit'
 );
 
 select ok(

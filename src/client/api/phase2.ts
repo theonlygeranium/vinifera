@@ -66,12 +66,48 @@ export interface MemberActivity {
   occurredAt: string;
 }
 
+export interface MemberOrder {
+  id: string;
+  releaseName: string;
+  status: ShipmentStatus;
+  totalAmountCents: number;
+  subtotalAmountCents: number;
+  discountAmountCents: number;
+  taxAmountCents: number;
+  createdAt: string;
+  items: Array<{ name: string; quantity: number }>;
+}
+
+export interface MemberHistoryMeta {
+  activityLimit: number;
+  activityTruncated: boolean;
+  communicationLimit: number;
+  communicationsTruncated: boolean;
+  orderLimit: number;
+  ordersTruncated: boolean;
+}
+
+export interface MemberExternalSync {
+  deadLetterCount: number;
+  pendingCount: number;
+  state:
+    | "not_required"
+    | "pending"
+    | "reconciliation_required"
+    | "synchronized";
+  updatedAt: string | null;
+}
+
 export interface MemberDetail extends MemberSummary {
   address?: Address | null;
   orderCount?: number;
-  communicationCount?: number;
+  communicationCount: number;
   churnRisk?: "not_scored" | "low" | "medium" | "high";
   activity?: MemberActivity[];
+  communications?: MemberActivity[];
+  externalSync?: MemberExternalSync;
+  historyMeta?: MemberHistoryMeta;
+  orders?: MemberOrder[];
 }
 
 export interface PageResult<T> {
@@ -122,6 +158,8 @@ export interface Shipment {
   trackingNumber?: string | null;
   carrier?: string | null;
   chargeAmountCents: number;
+  subtotalAmountCents?: number;
+  taxAmountCents?: number;
   declineReason?: string | null;
   retryCount?: number;
   nextRetryDate?: string | null;

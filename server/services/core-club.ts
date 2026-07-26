@@ -174,6 +174,7 @@ export interface ShipmentPaymentRow {
   retry_count: number;
   shipping_charge_cents?: number;
   status: ShipmentStatus;
+  stripe_charge_id?: string | null;
   stripe_payment_intent_id?: string | null;
   tax_amount_cents?: number;
   members?: MemberRow | MemberRow[] | null;
@@ -202,7 +203,8 @@ interface CsvRow {
 }
 
 interface NormalizedCsvMember {
-  clubTierName: string | null;
+  clubTierId: string | null;
+  clubTierValue: string | null;
   email: string;
   firstName: string;
   joinDate: string | null;
@@ -218,6 +220,13 @@ interface CsvValidationError {
   reason: string;
   rowNumber: number;
 }
+
+const MEMBER_ACTIVITY_HISTORY_LIMIT = 20;
+const MEMBER_COMMUNICATION_HISTORY_LIMIT = 10;
+const MEMBER_ORDER_HISTORY_LIMIT = 20;
+const MEMBER_PORTAL_HISTORY_LIMIT = 100;
+const RELEASE_LIST_LIMIT = 100;
+const RELEASE_SHIPMENT_DETAIL_LIMIT = 500;
 
 export interface AddressValidationResult {
   address: PostalAddress;
@@ -383,6 +392,38 @@ function databaseError(message: string): AppError {
   return new AppError(500, "upstream_error", message);
 }
 
+function commandError(
+  error: { code?: string; message?: string } | null,
+  fallback: string,
+): AppError {
+  const code = error?.code;
+  const message = error?.message || fallback;
+  if (code === "22023") {
+    return new AppError(400, "invalid_request", message);
+  }
+  if (code === "P0002") {
+    return new AppError(404, "not_found", message);
+  }
+  if (code === "23505") {
+    return new AppError(409, "conflict", message);
+  }
+  if (code === "23514" || code === "55000") {
+    return new AppError(409, "conflict", message);
+  }
+  if (code === "42501") {
+    return new AppError(403, "forbidden", message);
+  }
+  return databaseError(fallback);
+}
+
+function commandResult(value: unknown): Record<string, unknown> {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (!candidate || typeof candidate !== "object") {
+    throw databaseError("The transactional command returned an invalid result.");
+  }
+  return candidate as Record<string, unknown>;
+}
+
 function camelKey(value: string): string {
   return value.replace(/_([a-z])/g, (_match, character: string) =>
     character.toUpperCase(),
@@ -456,6 +497,163 @@ function toPublicMember(value: unknown): Record<string, unknown> {
     tier: tier ? { id: tier.id, name: tier.name } : null,
     updatedAt: row.updated_at,
   };
+}
+
+function memberHistoryTimestamp(row: Record<string, unknown>): string {
+  return String(
+    row.completed_at ??
+      row.refunded_at ??
+      row.paid_at ??
+      row.updated_at ??
+      row.created_at ??
+      "",
+  );
+}
+
+function memberOrderFromShipment(row: Record<string, unknown>): Record<string, unknown> {
+  const release = oneRelation(
+    row.releases as
+      | Record<string, unknown>
+      | Array<Record<string, unknown>>
+      | null
+      | undefined,
+  );
+  const items =
+    (row.shipment_items as Array<Record<string, unknown>> | undefined) ?? [];
+  const discountAmountCents = Math.max(
+    0,
+    Number(row.loyalty_discount_cents ?? 0),
+  );
+  const subtotalAmountCents = Math.max(
+    0,
+    Number(row.charge_amount_cents ?? 0) - discountAmountCents,
+  );
+  const taxAmountCents = Math.max(0, Number(row.tax_amount_cents ?? 0));
+  return {
+    createdAt: row.created_at,
+    discountAmountCents,
+    id: row.id,
+    items: items.map((item) => ({
+      name: item.wine_name,
+      quantity: Number(item.quantity ?? 0),
+    })),
+    releaseName: release?.name ?? "Club release",
+    status: row.status,
+    subtotalAmountCents,
+    taxAmountCents,
+    totalAmountCents: subtotalAmountCents + taxAmountCents,
+  };
+}
+
+function memberOrderActivity(row: Record<string, unknown>): Record<string, unknown> {
+  const order = memberOrderFromShipment(row);
+  const tracking =
+    typeof row.tracking_number === "string" && row.tracking_number
+      ? `Tracking ${row.tracking_number}`
+      : null;
+  return {
+    detail: tracking,
+    id: `order:${String(row.id)}`,
+    kind: "order",
+    occurredAt: memberHistoryTimestamp(row),
+    title: `${String(order.releaseName)} order ${String(row.status).replaceAll("_", " ")}`,
+  };
+}
+
+function memberPaymentActivity(row: Record<string, unknown>): Record<string, unknown> {
+  const attemptKind =
+    row.attempt_kind === "refund" ? "Refund" : "Payment";
+  const amount = Number(row.amount_cents ?? 0);
+  const amountLabel = new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    style: "currency",
+  }).format(amount / 100);
+  const declineReason =
+    typeof row.decline_reason === "string" && row.decline_reason
+      ? row.decline_reason
+      : null;
+  return {
+    detail: [amountLabel, declineReason].filter(Boolean).join(" · "),
+    id: `payment:${String(row.id)}`,
+    kind: "payment",
+    occurredAt: memberHistoryTimestamp(row),
+    title: `${attemptKind} ${String(row.status).replaceAll("_", " ")}`,
+  };
+}
+
+function auditMetadata(row: Record<string, unknown>): Record<string, unknown> {
+  return row.metadata && typeof row.metadata === "object"
+    ? (row.metadata as Record<string, unknown>)
+    : {};
+}
+
+function auditActionTitle(action: string): string {
+  const titles: Record<string, string> = {
+    "member.cancelled": "Membership cancelled",
+    "member.created": "Member created",
+    "member.paused": "Membership paused",
+    "member.reactivated": "Membership reactivated",
+    "member.updated": "Member profile updated",
+  };
+  return (
+    titles[action] ??
+    action
+      .split(".")
+      .slice(1)
+      .join(" ")
+      .replaceAll("_", " ")
+      .replace(/\b\w/g, (character) => character.toUpperCase())
+  );
+}
+
+function memberAuditActivity(row: Record<string, unknown>): Record<string, unknown> {
+  const metadata = auditMetadata(row);
+  const changedFields = Array.isArray(metadata.changed_fields)
+    ? metadata.changed_fields.map(String)
+    : [];
+  return {
+    detail: changedFields.length
+      ? `Updated ${changedFields.join(", ")}`
+      : null,
+    id: `audit:${String(row.id)}`,
+    kind: "status",
+    occurredAt: memberHistoryTimestamp(row),
+    title: auditActionTitle(String(row.action ?? "member.updated")),
+  };
+}
+
+function memberCommunicationActivity(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  const metadata = auditMetadata(row);
+  const subject =
+    typeof metadata.subject === "string" && metadata.subject.trim()
+      ? metadata.subject.trim()
+      : auditActionTitle(String(row.action ?? "member.communication"));
+  const channel =
+    typeof metadata.channel === "string" && metadata.channel.trim()
+      ? metadata.channel.trim()
+      : "Communication";
+  return {
+    detail:
+      typeof metadata.detail === "string" && metadata.detail.trim()
+        ? metadata.detail.trim()
+        : channel.replace(/\b\w/g, (character) => character.toUpperCase()),
+    id: `communication:${String(row.id)}`,
+    kind: "communication",
+    occurredAt: memberHistoryTimestamp(row),
+    title: subject,
+  };
+}
+
+function newestMemberActivity(
+  values: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return values.toSorted(
+    (left, right) =>
+      Date.parse(String(right.occurredAt ?? "")) -
+      Date.parse(String(left.occurredAt ?? "")),
+  );
 }
 
 function toPublicTier(value: unknown): Record<string, unknown> {
@@ -563,10 +761,17 @@ function toPublicShipment(value: unknown): Record<string, unknown> {
   );
   const items =
     (row.shipment_items as Array<Record<string, unknown>> | undefined) ?? [];
+  const subtotalAmountCents = Math.max(
+    0,
+    Number(row.charge_amount_cents ?? 0) -
+      Number(row.loyalty_discount_cents ?? 0),
+  );
+  const taxAmountCents = Math.max(0, Number(row.tax_amount_cents ?? 0));
+  const payableAmountCents = subtotalAmountCents + taxAmountCents;
   return {
     address: getAddress(row.shipping_address),
     carrier: row.carrier,
-    chargeAmountCents: row.charge_amount_cents,
+    chargeAmountCents: payableAmountCents,
     createdAt: row.created_at,
     declineReason: row.decline_reason,
     id: row.id,
@@ -583,15 +788,13 @@ function toPublicShipment(value: unknown): Record<string, unknown> {
       : "",
     nextRetryDate: row.next_retry_at,
     loyaltyDiscountCents: Number(row.loyalty_discount_cents ?? 0),
-    payableAmountCents: Math.max(
-      0,
-      Number(row.charge_amount_cents ?? 0) -
-        Number(row.loyalty_discount_cents ?? 0),
-    ),
+    payableAmountCents,
     releaseId: row.release_id,
     releaseName: release?.name ?? "",
     retryCount: row.retry_count,
     status: row.status,
+    subtotalAmountCents,
+    taxAmountCents,
     tierName: releaseTier?.tier_name,
     trackingNumber: row.tracking_number,
     updatedAt: row.updated_at,
@@ -1210,7 +1413,8 @@ function normalizeCsvMember(row: CsvRow, mapping: CsvMapping): NormalizedCsvMemb
   const postalCode = valueFor(row, mapping.postalCode);
   const hasAddress = Boolean(line1 || city || state || postalCode);
   return {
-    clubTierName: valueFor(row, mapping.clubTier) || null,
+    clubTierId: null,
+    clubTierValue: valueFor(row, mapping.clubTier) || null,
     email: normalizeEmail(valueFor(row, mapping.email)),
     firstName: valueFor(row, mapping.firstName),
     joinDate: valueFor(row, mapping.joinDate) || null,
@@ -1233,39 +1437,94 @@ function normalizeCsvMember(row: CsvRow, mapping: CsvMapping): NormalizedCsvMemb
 
 const IMPORT_TARGET_KEYS: Record<string, string> = {
   city: "shipping_city",
-  clubTier: "club_tier",
-  club_tier: "club_tier",
+  clubTier: "club_tier_id",
   country: "shipping_country_code",
   email: "email",
   firstName: "first_name",
-  first_name: "first_name",
   joinDate: "joined_on",
-  joined_on: "joined_on",
   lastName: "last_name",
-  last_name: "last_name",
   line1: "shipping_address_line1",
   line2: "shipping_address_line2",
   phone: "phone",
   postalCode: "shipping_postal_code",
-  shipping_address_line1: "shipping_address_line1",
-  shipping_address_line2: "shipping_address_line2",
-  shipping_city: "shipping_city",
-  shipping_country_code: "shipping_country_code",
-  shipping_postal_code: "shipping_postal_code",
-  shipping_region: "shipping_region",
   state: "shipping_region",
   status: "status",
 };
 
-function importTargetDatabaseKey(target: string): string {
-  return IMPORT_TARGET_KEYS[target] ?? target;
+const REQUIRED_IMPORT_TARGETS = ["email", "first_name", "last_name"] as const;
+
+export function canonicalizeCsvImportMapping(
+  sourceToTarget: Record<string, string>,
+): Record<string, string> {
+  const canonical: Record<string, string> = {};
+  for (const [sourceValue, targetValue] of Object.entries(sourceToTarget)) {
+    const source = sourceValue.trim();
+    const target = targetValue.trim();
+    if (!target) continue;
+    const databaseTarget = IMPORT_TARGET_KEYS[target];
+    if (!databaseTarget) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        `The CSV target "${target}" is not supported.`,
+      );
+    }
+    if (!source) {
+      throw new AppError(400, "invalid_request", "CSV source columns cannot be empty.");
+    }
+    if (canonical[databaseTarget]) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        `Only one CSV column can map to ${target}.`,
+      );
+    }
+    canonical[databaseTarget] = source;
+  }
+  if (REQUIRED_IMPORT_TARGETS.some((target) => !canonical[target])) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "Map the email, first name, and last name columns before importing.",
+    );
+  }
+  return canonical;
+}
+
+function csvMappingToDatabase(mapping: CsvMapping): Record<string, string> {
+  return canonicalizeCsvImportMapping(
+    Object.fromEntries(
+      Object.entries(mapping)
+        .filter((entry): entry is [string, string] => Boolean(entry[1]))
+        .map(([target, source]) => [source, target]),
+    ),
+  );
+}
+
+export function buildCsvTierLookup(
+  tiers: Array<{ id: string; name: string }>,
+): Map<string, string> {
+  const lookup = new Map<string, string>();
+  for (const tier of tiers) {
+    lookup.set(tier.id.trim().toLowerCase(), tier.id);
+    lookup.set(tier.name.trim().toLowerCase(), tier.id);
+  }
+  return lookup;
+}
+
+export function resolveCsvTierId(
+  value: string | null,
+  lookup: ReadonlyMap<string, string>,
+): string | null {
+  if (!value?.trim()) return null;
+  return lookup.get(value.trim().toLowerCase()) ?? null;
 }
 
 function normalizedMemberToDatabase(
   member: NormalizedCsvMember,
 ): Record<string, unknown> {
   return {
-    club_tier: member.clubTierName,
+    club_tier_id: member.clubTierId,
     email: member.email,
     first_name: member.firstName,
     joined_on: member.joinDate,
@@ -1447,9 +1706,11 @@ export function brandAllowsOperationalAccess(input: {
   organization_access_status: string;
 }): boolean {
   if (!input.active) return false;
+  const permitsCharges = (status: string) =>
+    status === "active" || status === "grace";
   return input.billing_mode === "independent"
-    ? input.access_status !== "suspended"
-    : input.organization_access_status !== "suspended";
+    ? permitsCharges(input.access_status)
+    : permitsCharges(input.organization_access_status);
 }
 
 async function assertBrandOperationalAccess(
@@ -2557,103 +2818,90 @@ export class ProductionCoreClubService implements CoreClubService {
     return (data ?? []).map(toPublicTier);
   }
 
-  async createClubTier(input: ClubTierInput): Promise<Record<string, unknown>> {
+  async createClubTier(
+    input: ClubTierInput,
+    commandId: string,
+  ): Promise<Record<string, unknown>> {
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    if (input.upgradePathId) {
-      await this.assertTenantEntity(
-        "club_tiers",
-        input.upgradePathId,
-        organizationId,
-        brandId,
-        "Upgrade tier",
-      );
-    }
     const { data, error } = await this.admin
-      .from("club_tiers")
-      .insert({
-        ...tierToDatabase(input),
-        brand_id: brandId,
-        organization_id: organizationId,
-      })
-      .select("*")
-      .single();
-    if (error || !data) {
-      throw new AppError(409, "conflict", "The club tier could not be created.");
+      .rpc("apply_club_tier_command", {
+        p_actor_user_id: principal.user.id,
+        p_brand_id: brandId,
+        p_command_id: commandId,
+        p_operation: "create",
+        p_organization_id: organizationId,
+        p_payload: tierToDatabase(input),
+        p_tier_id: null,
+      });
+    if (error) {
+      throw commandError(error, "The club tier could not be created.");
     }
-    await this.audit(principal, "club_tier.created", "club_tier", data.id, {
-      frequency: input.frequency,
-      price_cents: input.priceCents,
-    });
-    return toPublicTier(data);
+    const result = commandResult(data);
+    const tierId = String(result.entityId ?? "");
+    assertUuid(tierId, "Club tier");
+    const { data: tier, error: tierError } = await this.admin
+      .from("club_tiers")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
+      .eq("id", tierId)
+      .single();
+    if (tierError || !tier) throw databaseError("The club tier could not be loaded.");
+    return { ...toPublicTier(tier), command: result };
   }
 
   async updateClubTier(
     tierId: string,
     input: Partial<ClubTierInput>,
+    commandId: string,
   ): Promise<Record<string, unknown>> {
     assertUuid(tierId, "Club tier");
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    if (input.upgradePathId === tierId) {
-      throw new AppError(400, "invalid_request", "A tier cannot upgrade to itself.");
-    }
-    if (input.upgradePathId) {
-      await this.assertTenantEntity(
-        "club_tiers",
-        input.upgradePathId,
-        organizationId,
-        brandId,
-        "Upgrade tier",
-      );
-    }
     const { data, error } = await this.admin
+      .rpc("apply_club_tier_command", {
+        p_actor_user_id: principal.user.id,
+        p_brand_id: brandId,
+        p_command_id: commandId,
+        p_operation: "update",
+        p_organization_id: organizationId,
+        p_payload: tierToDatabase(input),
+        p_tier_id: tierId,
+      });
+    if (error) throw commandError(error, "The club tier could not be updated.");
+    const result = commandResult(data);
+    const { data: tier, error: tierError } = await this.admin
       .from("club_tiers")
-      .update(tierToDatabase(input))
+      .select("*")
       .eq("id", tierId)
       .eq("organization_id", organizationId)
       .eq("brand_id", brandId)
-      .select("*")
-      .maybeSingle();
-    if (error) throw databaseError("The club tier could not be updated.");
-    if (!data) throw new AppError(404, "not_found", "Club tier not found.");
-    await this.audit(principal, "club_tier.updated", "club_tier", tierId, {
-      changed_fields: Object.keys(input),
-    });
-    return toPublicTier(data);
+      .single();
+    if (tierError || !tier) throw databaseError("The club tier could not be loaded.");
+    return { ...toPublicTier(tier), command: result };
   }
 
-  async deleteClubTier(tierId: string): Promise<void> {
+  async deleteClubTier(tierId: string, commandId: string): Promise<void> {
     assertUuid(tierId, "Club tier");
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    const { count } = await this.admin
-      .from("members")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .eq("club_tier_id", tierId);
-    if ((count ?? 0) > 0) {
-      throw new AppError(
-        409,
-        "conflict",
-        "Move members to another tier before deleting this tier.",
-      );
-    }
-    const { data, error } = await this.admin
-      .from("club_tiers")
-      .delete()
-      .eq("id", tierId)
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .select("id")
-      .maybeSingle();
-    if (error) throw new AppError(409, "conflict", "The club tier is in use.");
-    if (!data) throw new AppError(404, "not_found", "Club tier not found.");
-    await this.audit(principal, "club_tier.deleted", "club_tier", tierId);
+    const { error } = await this.admin.rpc("apply_club_tier_command", {
+      p_actor_user_id: principal.user.id,
+      p_brand_id: brandId,
+      p_command_id: commandId,
+      p_operation: "delete",
+      p_organization_id: organizationId,
+      p_payload: {},
+      p_tier_id: tierId,
+    });
+    if (error) throw commandError(error, "The club tier could not be deleted.");
   }
 
   async listMembers(input: {
@@ -2668,10 +2916,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const brandId = await this.activeBrandId(principal);
     let query = this.admin
       .from("members")
-      .select(
-        "*,club_tiers(id,name),shipments(charge_amount_cents,status,created_at)",
-        { count: "exact" },
-      )
+      .select("*,club_tiers(id,name)", { count: "exact" })
       .eq("organization_id", organizationId)
       .eq("brand_id", brandId);
     if (input.status) query = query.eq("status", input.status);
@@ -2695,303 +2940,343 @@ export class ProductionCoreClubService implements CoreClubService {
     const principal = await this.requireStaff();
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    const { data, error } = await this.admin
-      .from("members")
-      .select(
-        "*,club_tiers(id,name),shipments(id,status,charge_amount_cents,tracking_number,carrier,created_at,shipment_items(id,wine_name,quantity,price_cents),releases(name,processing_date))",
-      )
-      .eq("id", memberId)
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .maybeSingle();
-    if (error) throw databaseError("The member could not be loaded.");
-    if (!data) throw new AppError(404, "not_found", "Member not found.");
-    return toPublicMember(data);
+    const [
+      memberResult,
+      shipmentResult,
+      paymentResult,
+      auditResult,
+      communicationResult,
+      sideEffectResult,
+    ] = await Promise.all([
+      this.admin
+        .from("members")
+        .select("*,club_tiers(id,name)")
+        .eq("id", memberId)
+        .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
+        .maybeSingle(),
+      this.admin
+        .from("shipments")
+        .select(
+          "id,status,charge_amount_cents,loyalty_discount_cents,tax_amount_cents,tracking_number,carrier,created_at,updated_at,paid_at,refunded_at,releases(name,processing_date),shipment_items(id,wine_name,quantity)",
+          { count: "exact" },
+        )
+        .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
+        .eq("member_id", memberId)
+        .order("created_at", { ascending: false })
+        .limit(MEMBER_ORDER_HISTORY_LIMIT),
+      this.admin
+        .from("billing_attempts")
+        .select(
+          "id,shipment_id,attempt_kind,status,amount_cents,decline_reason,completed_at,created_at,shipments!inner(member_id)",
+        )
+        .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
+        .eq("shipments.member_id", memberId)
+        .order("created_at", { ascending: false })
+        .limit(MEMBER_ACTIVITY_HISTORY_LIMIT + 1),
+      this.admin
+        .from("audit_log")
+        .select("id,action,metadata,created_at")
+        .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
+        .eq("entity_type", "member")
+        .eq("entity_id", memberId)
+        .not("action", "like", "member.communication.%")
+        .order("created_at", { ascending: false })
+        .limit(MEMBER_ACTIVITY_HISTORY_LIMIT + 1),
+      this.admin
+        .from("audit_log")
+        .select("id,action,metadata,created_at", { count: "exact" })
+        .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
+        .eq("entity_type", "member")
+        .eq("entity_id", memberId)
+        .like("action", "member.communication.%")
+        .order("created_at", { ascending: false })
+        .limit(MEMBER_COMMUNICATION_HISTORY_LIMIT + 1),
+      this.admin.rpc("get_member_side_effect_status", {
+        p_brand_id: brandId,
+        p_member_id: memberId,
+        p_organization_id: organizationId,
+      }),
+    ]);
+    if (memberResult.error) throw databaseError("The member could not be loaded.");
+    if (!memberResult.data) {
+      throw new AppError(404, "not_found", "Member not found.");
+    }
+    if (
+      shipmentResult.error ||
+      paymentResult.error ||
+      auditResult.error ||
+      communicationResult.error ||
+      sideEffectResult.error
+    ) {
+      throw databaseError("The member history could not be loaded.");
+    }
+    const shipmentRows = (shipmentResult.data ?? []) as Array<
+      Record<string, unknown>
+    >;
+    const paymentRows = (paymentResult.data ?? []) as Array<
+      Record<string, unknown>
+    >;
+    const auditRows = (auditResult.data ?? []) as Array<Record<string, unknown>>;
+    const communicationRows = (communicationResult.data ?? []) as Array<
+      Record<string, unknown>
+    >;
+    const activity = newestMemberActivity([
+      ...shipmentRows.map(memberOrderActivity),
+      ...paymentRows
+        .slice(0, MEMBER_ACTIVITY_HISTORY_LIMIT)
+        .map(memberPaymentActivity),
+      ...auditRows
+        .filter(
+          (row) =>
+            !String(row.action ?? "").startsWith("member.communication."),
+        )
+        .slice(0, MEMBER_ACTIVITY_HISTORY_LIMIT)
+        .map(memberAuditActivity),
+    ]);
+    const communicationCount =
+      communicationResult.count ?? communicationRows.length;
+    const orderCount = shipmentResult.count ?? shipmentRows.length;
+    return {
+      ...toPublicMember(memberResult.data),
+      activity: activity.slice(0, MEMBER_ACTIVITY_HISTORY_LIMIT),
+      churnRisk: "not_scored",
+      communicationCount,
+      communications: communicationRows
+        .slice(0, MEMBER_COMMUNICATION_HISTORY_LIMIT)
+        .map(memberCommunicationActivity),
+      externalSync:
+        sideEffectResult.data && typeof sideEffectResult.data === "object"
+          ? sideEffectResult.data
+          : {
+              deadLetterCount: 0,
+              pendingCount: 0,
+              state: "not_required",
+              updatedAt: null,
+            },
+      historyMeta: {
+        activityLimit: MEMBER_ACTIVITY_HISTORY_LIMIT,
+        activityTruncated:
+          paymentRows.length > MEMBER_ACTIVITY_HISTORY_LIMIT ||
+          auditRows.length > MEMBER_ACTIVITY_HISTORY_LIMIT ||
+          orderCount > MEMBER_ORDER_HISTORY_LIMIT ||
+          activity.length > MEMBER_ACTIVITY_HISTORY_LIMIT,
+        communicationLimit: MEMBER_COMMUNICATION_HISTORY_LIMIT,
+        communicationsTruncated:
+          communicationCount > MEMBER_COMMUNICATION_HISTORY_LIMIT,
+        orderLimit: MEMBER_ORDER_HISTORY_LIMIT,
+        ordersTruncated: orderCount > MEMBER_ORDER_HISTORY_LIMIT,
+      },
+      orderCount,
+      orders: shipmentRows.map(memberOrderFromShipment),
+    };
   }
 
-  async createMember(input: MemberInput): Promise<Record<string, unknown>> {
+  async createMember(
+    input: MemberInput,
+    commandId: string,
+  ): Promise<Record<string, unknown>> {
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin", "manager", "staff"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    if (input.clubTierId) {
-      await this.assertTenantEntity(
-        "club_tiers",
-        input.clubTierId,
-        organizationId,
-        brandId,
-        "Club tier",
-      );
-    }
-    if (input.referredByMemberId) {
-      await this.assertTenantEntity(
-        "members",
-        input.referredByMemberId,
-        organizationId,
-        brandId,
-        "Referring member",
-      );
-    }
     const { data, error } = await this.admin
-      .from("members")
-      .insert({
-        ...memberToDatabase(input),
-        brand_id: brandId,
-        organization_id: organizationId,
-      })
-      .select("*")
-      .single();
-    if (error || !data) {
-      throw new AppError(409, "conflict", "A member with this email already exists.");
+      .rpc("apply_member_command", {
+        p_actor_user_id: principal.user.id,
+        p_brand_id: brandId,
+        p_command_id: commandId,
+        p_member_id: null,
+        p_member_ids: null,
+        p_operation: "create",
+        p_organization_id: organizationId,
+        p_payload: memberToDatabase(input),
+        p_scope_all: false,
+      });
+    if (error) {
+      throw commandError(error, "The member could not be created.");
     }
-    await this.audit(principal, "member.created", "member", data.id, {
-      club_tier_id: input.clubTierId ?? null,
-      stripe_customer_created: false,
-      stripe_customer_provisioning: "deferred_until_payment_method_setup",
-    });
+    const result = commandResult(data);
+    const memberId = String(result.entityId ?? "");
+    assertUuid(memberId, "Member");
+    const { data: member, error: memberError } = await this.admin
+      .from("members")
+      .select("*")
+      .eq("id", memberId)
+      .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
+      .single();
+    if (memberError || !member) {
+      throw databaseError("The created member could not be loaded.");
+    }
     await this.recordDomainAnalyticsEvent(principal, {
       eventData: {
         hasClubTier: Boolean(input.clubTierId),
         stripeCustomerCreated: false,
       },
       eventType: "member.created",
-      memberId: data.id,
-      requestKey: `member:${data.id}:created`,
+      memberId,
+      requestKey: `member:${memberId}:created:${commandId}`,
     });
-    return toPublicMember(data);
+    return { ...toPublicMember(member), command: result };
   }
 
   async updateMember(
     memberId: string,
     input: Partial<MemberInput>,
+    commandId: string,
   ): Promise<Record<string, unknown>> {
     assertUuid(memberId, "Member");
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin", "manager", "staff"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    if (input.clubTierId) {
-      await this.assertTenantEntity(
-        "club_tiers",
-        input.clubTierId,
-        organizationId,
-        brandId,
-        "Club tier",
-      );
-    }
-    if (input.referredByMemberId === memberId) {
-      throw new AppError(
-        400,
-        "invalid_request",
-        "A member cannot refer themselves.",
-      );
-    }
-    if (input.referredByMemberId) {
-      await this.assertTenantEntity(
-        "members",
-        input.referredByMemberId,
-        organizationId,
-        brandId,
-        "Referring member",
-      );
-    }
     const { data, error } = await this.admin
+      .rpc("apply_member_command", {
+        p_actor_user_id: principal.user.id,
+        p_brand_id: brandId,
+        p_command_id: commandId,
+        p_member_id: memberId,
+        p_member_ids: null,
+        p_operation: "update",
+        p_organization_id: organizationId,
+        p_payload: memberToDatabase(input),
+        p_scope_all: false,
+      });
+    if (error) throw commandError(error, "The member could not be updated.");
+    const result = commandResult(data);
+    const { data: member, error: memberError } = await this.admin
       .from("members")
-      .update(memberToDatabase(input))
+      .select("*")
       .eq("id", memberId)
       .eq("organization_id", organizationId)
       .eq("brand_id", brandId)
-      .select("*")
-      .maybeSingle();
-    if (error) throw new AppError(409, "conflict", "The member could not be updated.");
-    if (!data) throw new AppError(404, "not_found", "Member not found.");
-    if (data.stripe_customer_id && this.env.STRIPE_SECRET_KEY) {
-      await createStripe(this.env).customers.update(data.stripe_customer_id, {
-        address: input.shippingAddress
-          ? {
-              city: input.shippingAddress.city,
-              country: input.shippingAddress.country,
-              line1: input.shippingAddress.line1,
-              line2: input.shippingAddress.line2 ?? undefined,
-              postal_code: input.shippingAddress.postalCode,
-              state: input.shippingAddress.state,
-            }
-          : undefined,
-        email: input.email ? normalizeEmail(input.email) : undefined,
-        name:
-          input.firstName || input.lastName
-            ? `${data.first_name} ${data.last_name}`
-            : undefined,
-        phone: input.phone === null ? "" : input.phone,
-      });
+      .single();
+    if (memberError || !member) {
+      throw databaseError("The updated member could not be loaded.");
     }
-    await this.audit(principal, "member.updated", "member", memberId, {
-      changed_fields: Object.keys(input),
-    });
     await this.recordDomainAnalyticsEvent(principal, {
       eventData: { changedFieldCount: Object.keys(input).length },
       eventType: "member.updated",
       memberId,
-      requestKey: `member:${memberId}:updated:${data.updated_at ?? "current"}`,
+      requestKey: `member:${memberId}:updated:${commandId}`,
     });
-    return toPublicMember(data);
+    return { ...toPublicMember(member), command: result };
   }
 
-  async deleteMember(memberId: string): Promise<void> {
+  async deleteMember(memberId: string, commandId: string): Promise<void> {
     assertUuid(memberId, "Member");
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    const { data: member, error: memberError } = await this.admin
-      .from("members")
-      .select("id,auth_user_id")
-      .eq("id", memberId)
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .maybeSingle();
-    if (memberError) throw databaseError("The member could not be loaded.");
-    if (!member) throw new AppError(404, "not_found", "Member not found.");
-    const { count, error: shipmentError } = await this.admin
-      .from("shipments")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .eq("member_id", memberId);
-    if (shipmentError) throw databaseError("Member shipments could not be checked.");
-    if ((count ?? 0) > 0) {
-      throw new AppError(
-        409,
-        "conflict",
-        "Members with shipment history must be cancelled instead of deleted.",
-      );
-    }
-    await this.audit(principal, "member.deleted", "member", memberId);
-    const { error } = await this.admin
-      .from("members")
-      .delete()
-      .eq("id", memberId)
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId);
-    if (error) throw databaseError("The member could not be deleted.");
-    if (member.auth_user_id) {
-      await this.admin.auth.admin
-        .deleteUser(member.auth_user_id)
-        .catch(() => undefined);
-    }
+    const { error } = await this.admin.rpc("apply_member_command", {
+      p_actor_user_id: principal.user.id,
+      p_brand_id: brandId,
+      p_command_id: commandId,
+      p_member_id: memberId,
+      p_member_ids: null,
+      p_operation: "delete",
+      p_organization_id: organizationId,
+      p_payload: {},
+      p_scope_all: false,
+    });
+    if (error) throw commandError(error, "The member could not be deleted.");
   }
 
   async transitionMember(
     memberId: string,
     status: MemberStatus,
+    commandId: string,
   ): Promise<Record<string, unknown>> {
     assertUuid(memberId, "Member");
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin", "manager", "staff"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    const { data: existing, error: existingError } = await this.admin
-      .from("members")
-      .select("id,status")
-      .eq("id", memberId)
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .maybeSingle();
-    if (existingError) throw databaseError("The member could not be loaded.");
-    if (!existing) throw new AppError(404, "not_found", "Member not found.");
-    const allowed: Record<MemberStatus, MemberStatus[]> = {
-      active: ["paused", "cancelled"],
-      cancelled: ["active"],
-      paused: ["active", "cancelled"],
-    };
-    if (existing.status !== status && !allowed[existing.status as MemberStatus].includes(status)) {
-      throw new AppError(
-        409,
-        "conflict",
-        `A ${existing.status} member cannot transition to ${status}.`,
-      );
-    }
     const { data, error } = await this.admin
+      .rpc("apply_member_command", {
+        p_actor_user_id: principal.user.id,
+        p_brand_id: brandId,
+        p_command_id: commandId,
+        p_member_id: memberId,
+        p_member_ids: null,
+        p_operation: "transition",
+        p_organization_id: organizationId,
+        p_payload: { target_status: status },
+        p_scope_all: false,
+      });
+    if (error) throw commandError(error, "The member status could not be updated.");
+    const result = commandResult(data);
+    const { data: member, error: memberError } = await this.admin
       .from("members")
-      .update({ status })
+      .select("*")
       .eq("id", memberId)
       .eq("organization_id", organizationId)
       .eq("brand_id", brandId)
-      .select("*")
       .single();
-    if (error || !data) throw databaseError("The member status could not be updated.");
-    await this.audit(principal, `member.${status}`, "member", memberId, {
-      previous_status: existing.status,
-    });
+    if (memberError || !member) {
+      throw databaseError("The transitioned member could not be loaded.");
+    }
     if (status === "cancelled") {
       await this.recordDomainAnalyticsEvent(principal, {
-        eventData: { previousStatus: String(existing.status) },
+        eventData: { source: "single" },
         eventType: "member.cancelled",
         memberId,
-        requestKey: `member:${memberId}:cancelled:${String(data.updated_at)}`,
+        requestKey: `member:${memberId}:cancelled:${commandId}`,
       });
     }
-    return toPublicMember(data);
+    return { ...toPublicMember(member), command: result };
   }
 
-  async batchMembers(input: {
-    ids?: string[];
-    operation: "pause" | "resume" | "cancel" | "assign_tier";
-    tierId?: string;
-  }): Promise<{ updated: number }> {
+  async batchMembers(
+    input: {
+      ids?: string[];
+      operation: "pause" | "resume" | "cancel" | "assign_tier";
+      tierId?: string;
+    },
+    commandId: string,
+  ): Promise<{ updated: number }> {
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
     if (input.ids?.length && input.ids.length > 1_000) {
       throw new AppError(400, "invalid_request", "Batch operations are limited to 1,000 members.");
     }
-    if (input.operation === "assign_tier") {
-      if (!input.tierId) {
-        throw new AppError(400, "invalid_request", "Choose a club tier.");
-      }
-      await this.assertTenantEntity(
-        "club_tiers",
-        input.tierId,
-        organizationId,
-        brandId,
-        "Club tier",
-      );
-    }
-    const updates =
-      input.operation === "assign_tier"
-        ? { club_tier_id: input.tierId }
-        : {
-            status:
-              input.operation === "pause"
-                ? "paused"
-                : input.operation === "cancel"
-                  ? "cancelled"
-                  : "active",
-          };
-    let query = this.admin
-      .from("members")
-      .update(updates)
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId);
-    if (input.ids?.length) query = query.in("id", input.ids);
-    const { data, error } = await query.select("id,updated_at");
-    if (error) throw databaseError("The member batch operation failed.");
-    await this.audit(
-      principal,
-      `member.batch.${input.operation}`,
-      "organization",
-      organizationId,
-      { count: data?.length ?? 0, tier_id: input.tierId ?? null },
-    );
+    const { data, error } = await this.admin.rpc("apply_member_command", {
+      p_actor_user_id: principal.user.id,
+      p_brand_id: brandId,
+      p_command_id: commandId,
+      p_member_id: null,
+      p_member_ids: input.ids ?? null,
+      p_operation: `batch_${input.operation}`,
+      p_organization_id: organizationId,
+      p_payload:
+        input.operation === "assign_tier"
+          ? { club_tier_id: input.tierId ?? null }
+          : {},
+      p_scope_all: !input.ids?.length,
+    });
+    if (error) throw commandError(error, "The member batch operation failed.");
+    const result = commandResult(data);
+    const affected = Array.isArray(result.affected)
+      ? result.affected as Array<Record<string, unknown>>
+      : [];
     if (input.operation === "cancel") {
-      await mapConcurrent(data ?? [], 10, async (member) => {
+      await mapConcurrent(affected, 10, async (member) => {
         await this.recordDomainAnalyticsEvent(principal, {
           eventData: { source: "batch" },
           eventType: "member.cancelled",
           memberId: String(member.id),
-          requestKey:
-            `member:${String(member.id)}:cancelled:` +
-            String(member.updated_at),
+          requestKey: `member:${String(member.id)}:cancelled:${commandId}`,
         });
       });
     }
-    return { updated: data?.length ?? 0 };
+    return { updated: Number(result.updated ?? 0) };
   }
 
   async exportMembers(input: {
@@ -3065,9 +3350,12 @@ export class ProductionCoreClubService implements CoreClubService {
     if (input.status) query = query.eq("status", input.status);
     if (input.from) query = query.gte("processing_date", input.from);
     if (input.to) query = query.lte("processing_date", input.to);
-    const { data, error } = await query.order("processing_date", {
-      ascending: false,
-    });
+    const { data, error } = await query
+      .order("processing_date", { ascending: false })
+      .limit(RELEASE_LIST_LIMIT)
+      .limit(RELEASE_SHIPMENT_DETAIL_LIMIT, {
+        referencedTable: "shipments",
+      });
     if (error) throw databaseError("Releases could not be loaded.");
     return (data ?? []).map(toPublicRelease);
   }
@@ -3085,180 +3373,188 @@ export class ProductionCoreClubService implements CoreClubService {
       .eq("id", releaseId)
       .eq("organization_id", organizationId)
       .eq("brand_id", brandId)
+      .limit(RELEASE_SHIPMENT_DETAIL_LIMIT, {
+        referencedTable: "shipments",
+      })
       .maybeSingle();
     if (error) throw databaseError("The release could not be loaded.");
     if (!data) throw new AppError(404, "not_found", "Release not found.");
     return toPublicRelease(data);
   }
 
-  async createRelease(input: ReleaseInput): Promise<Record<string, unknown>> {
+  async createRelease(
+    input: ReleaseInput,
+    commandId: string,
+    initialStatus: "draft" | "scheduled" = "draft",
+  ): Promise<Record<string, unknown>> {
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    await this.assertReleaseTiers(input, organizationId, brandId);
-    const { data: release, error: releaseError } = await this.admin
-      .from("releases")
-      .insert({
-        ...releaseToDatabase(input),
-        brand_id: brandId,
-        created_by: principal.user.id,
-        organization_id: organizationId,
-        status: "draft",
-      })
-      .select("*")
-      .single();
-    if (releaseError || !release) {
-      throw new AppError(409, "conflict", "The release could not be created.");
+    const { data, error } = await this.admin.rpc("apply_release_command", {
+      p_actor_user_id: principal.user.id,
+      p_brand_id: brandId,
+      p_command_id: commandId,
+      p_operation: "create",
+      p_organization_id: organizationId,
+      p_payload: {
+        description: input.description ?? "",
+        embargo_date: input.embargoDate,
+        initial_status: initialStatus,
+        name: input.name,
+        processing_date: input.processingDate,
+        tiers: input.tierPrices.map((tier) => ({
+          price_cents: tier.priceCents,
+          tier_id: tier.tierId,
+        })),
+        wines: input.wines.map((wine) => ({
+          price_cents: wine.priceCents,
+          quantity: wine.quantity,
+          wine_name: wine.wineName,
+        })),
+      },
+      p_release_id: null,
+    });
+    if (error) {
+      throw commandError(error, "The release could not be created.");
     }
-    try {
-      await this.replaceReleaseChildren(
-        release.id,
-        organizationId,
-        brandId,
-        input,
-      );
-      await this.audit(principal, "release.created", "release", release.id, {
+    const result = commandResult(data);
+    const releaseId = String(result.entityId ?? "");
+    assertUuid(releaseId, "Release");
+    await this.recordDomainAnalyticsEvent(principal, {
+      eventData: {
+        initialStatus,
         tier_count: input.tierIds.length,
         wine_count: input.wines.length,
-      });
-      await this.recordDomainAnalyticsEvent(principal, {
-        eventData: {
-          tierCount: input.tierIds.length,
-          wineCount: input.wines.length,
-        },
-        eventType: "release.created",
-        requestKey: `release:${release.id}:created`,
-      });
-    } catch (error) {
-      await this.admin
-        .from("releases")
-        .delete()
-        .eq("id", release.id)
-        .eq("organization_id", organizationId)
-        .eq("brand_id", brandId);
-      throw error;
+      },
+      eventType: "release.created",
+      requestKey: `release:${releaseId}:created:${commandId}`,
+    });
+    if (initialStatus === "scheduled") {
+      console.info(
+        JSON.stringify({
+          event: "release.notification.stub",
+          organizationId,
+          processingDate: input.processingDate,
+          releaseId,
+        }),
+      );
     }
-    return this.getRelease(release.id);
+    return { ...(await this.getRelease(releaseId)), command: result };
   }
 
   async updateRelease(
     releaseId: string,
     input: Partial<ReleaseInput>,
+    commandId: string,
   ): Promise<Record<string, unknown>> {
     assertUuid(releaseId, "Release");
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    const { data: existing, error: existingError } = await this.admin
-      .from("releases")
-      .select("id,status")
-      .eq("id", releaseId)
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .maybeSingle();
-    if (existingError) throw databaseError("The release could not be loaded.");
-    if (!existing) throw new AppError(404, "not_found", "Release not found.");
-    if (existing.status !== "draft") {
-      throw new AppError(
-        409,
-        "conflict",
-        "Only draft releases can be edited; scheduled prices are immutable snapshots.",
-      );
-    }
-    if (input.tierIds || input.tierPrices || input.wines) {
-      const current = await this.getRelease(releaseId);
-      const completeInput: ReleaseInput = {
-        description:
-          input.description ??
-          (typeof current.description === "string" ? current.description : null),
-        embargoDate:
-          input.embargoDate ??
-          (typeof current.embargoDate === "string" ? current.embargoDate : ""),
-        name:
-          input.name ?? (typeof current.name === "string" ? current.name : ""),
-        processingDate:
-          input.processingDate ??
-          (typeof current.processingDate === "string" ? current.processingDate : ""),
-        tierIds:
-          input.tierIds ??
-          (((current.tiers as Array<Record<string, unknown>> | undefined) ?? [])
-            .map((row) => row.id)
-            .filter((value): value is string => typeof value === "string")),
-        tierPrices:
-          input.tierPrices ??
-          (((current.tiers as Array<Record<string, unknown>> | undefined) ?? []).map(
-            (row) => ({
+    const current = await this.getRelease(releaseId);
+    const completeInput: ReleaseInput = {
+      description:
+        Object.prototype.hasOwnProperty.call(input, "description")
+          ? input.description ?? null
+          : typeof current.description === "string"
+            ? current.description
+            : null,
+      embargoDate:
+        input.embargoDate ??
+        (typeof current.embargoDate === "string" ? current.embargoDate : ""),
+      name:
+        input.name ?? (typeof current.name === "string" ? current.name : ""),
+      processingDate:
+        input.processingDate ??
+        (typeof current.processingDate === "string" ? current.processingDate : ""),
+      tierIds:
+        input.tierIds ??
+        (((current.tiers as Array<Record<string, unknown>> | undefined) ?? [])
+          .map((row) => row.id)
+          .filter((value): value is string => typeof value === "string")),
+      tierPrices:
+        input.tierPrices ??
+        (((current.tiers as Array<Record<string, unknown>> | undefined) ?? []).map(
+          (row) => ({
             priceCents: Number(row.priceCents),
             tierId: String(row.id),
-            }),
-          )),
-        wines:
-          input.wines ??
-          (((current.wines as Array<Record<string, unknown>> | undefined) ?? [])
-            .map((row) => ({
-              priceCents: Number(row.priceCents),
-              quantity: Number(row.quantity),
-              wineName: String(row.wineName),
-            }))),
-      };
-      await this.assertReleaseTiers(completeInput, organizationId, brandId);
-      await this.replaceReleaseChildren(
-        releaseId,
-        organizationId,
-        brandId,
-        completeInput,
-      );
-    }
-    const { data, error } = await this.admin
-      .from("releases")
-      .update(releaseToDatabase(input))
-      .eq("id", releaseId)
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .select("*")
-      .single();
-    if (error || !data) throw databaseError("The release could not be updated.");
-    await this.audit(principal, "release.updated", "release", releaseId, {
-      changed_fields: Object.keys(input),
+          }),
+        )),
+      wines:
+        input.wines ??
+        (((current.wines as Array<Record<string, unknown>> | undefined) ?? []).map(
+          (row) => ({
+            priceCents: Number(row.priceCents),
+            quantity: Number(row.quantity),
+            wineName: String(row.name),
+          }),
+        )),
+    };
+    const { data, error } = await this.admin.rpc("apply_release_command", {
+      p_actor_user_id: principal.user.id,
+      p_brand_id: brandId,
+      p_command_id: commandId,
+      p_operation: "update",
+      p_organization_id: organizationId,
+      p_payload: {
+        description: completeInput.description ?? "",
+        embargo_date: completeInput.embargoDate,
+        name: completeInput.name,
+        processing_date: completeInput.processingDate,
+        tiers: completeInput.tierPrices.map((tier) => ({
+          price_cents: tier.priceCents,
+          tier_id: tier.tierId,
+        })),
+        wines: completeInput.wines.map((wine) => ({
+          price_cents: wine.priceCents,
+          quantity: wine.quantity,
+          wine_name: wine.wineName,
+        })),
+      },
+      p_release_id: releaseId,
     });
-    return this.getRelease(releaseId);
+    if (error) throw commandError(error, "The release could not be updated.");
+    const result = commandResult(data);
+    return { ...(await this.getRelease(releaseId)), command: result };
   }
 
-  async scheduleRelease(releaseId: string): Promise<Record<string, unknown>> {
+  async scheduleRelease(
+    releaseId: string,
+    commandId: string,
+  ): Promise<Record<string, unknown>> {
     assertUuid(releaseId, "Release");
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    const { data, error } = await this.admin
-      .from("releases")
-      .update({ status: "scheduled" })
-      .eq("id", releaseId)
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .eq("status", "draft")
-      .select("*")
-      .maybeSingle();
-    if (error) throw databaseError("The release could not be scheduled.");
-    if (!data) {
-      throw new AppError(409, "conflict", "Only a draft release can be scheduled.");
-    }
-    await this.audit(principal, "release.scheduled", "release", releaseId, {
-      processing_date: data.processing_date,
+    const { data, error } = await this.admin.rpc("apply_release_command", {
+      p_actor_user_id: principal.user.id,
+      p_brand_id: brandId,
+      p_command_id: commandId,
+      p_operation: "schedule",
+      p_organization_id: organizationId,
+      p_payload: {},
+      p_release_id: releaseId,
     });
+    if (error) throw commandError(error, "The release could not be scheduled.");
+    const result = commandResult(data);
+    const release = await this.getRelease(releaseId);
     await this.recordDomainAnalyticsEvent(principal, {
-      eventData: { processingDate: String(data.processing_date) },
+      eventData: { processingDate: String(release.processingDate) },
       eventType: "release.scheduled",
-      requestKey: `release:${releaseId}:scheduled`,
+      requestKey: `release:${releaseId}:scheduled:${commandId}`,
     });
     console.info(
       JSON.stringify({
         event: "release.notification.stub",
         organizationId,
-        processingDate: data.processing_date,
+        processingDate: release.processingDate,
         releaseId,
       }),
     );
-    return this.getRelease(releaseId);
+    return { ...release, command: result };
   }
 
   async processRelease(releaseId: string): Promise<{
@@ -3271,25 +3567,9 @@ export class ProductionCoreClubService implements CoreClubService {
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
+    await assertBrandOperationalAccess(this.admin, organizationId, brandId);
     assertStripeBillingAuthority(this.env);
     const stripe = createStripe(this.env);
-    const { data: processingRelease, error: processingError } = await this.admin
-      .from("releases")
-      .update({ status: "processing" })
-      .eq("id", releaseId)
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .eq("status", "scheduled")
-      .select("id")
-      .maybeSingle();
-    if (processingError) throw databaseError("The release could not begin processing.");
-    if (!processingRelease) {
-      throw new AppError(
-        409,
-        "conflict",
-        "Only a scheduled release can begin processing.",
-      );
-    }
     const { error: createError } = await this.admin.rpc("create_release_shipments", {
       p_actor_user_id: principal.user.id,
       p_brand_id: brandId,
@@ -3297,17 +3577,18 @@ export class ProductionCoreClubService implements CoreClubService {
       p_release_id: releaseId,
     });
     if (createError) {
-      await this.admin
-        .from("releases")
-        .update({ status: "scheduled" })
-        .eq("id", releaseId)
-        .eq("organization_id", organizationId)
-        .eq("brand_id", brandId)
-        .eq("status", "processing");
-      throw new AppError(
-        createError.code === "23505" ? 409 : 500,
-        createError.code === "23505" ? "conflict" : "upstream_error",
-        "Release shipments could not be prepared.",
+      console.error(
+        JSON.stringify({
+          code: createError.code ?? "upstream_error",
+          event: "release.shipment_preparation_failed",
+          organizationId,
+          releaseId,
+          resumable: false,
+        }),
+      );
+      throw commandError(
+        createError,
+        "Release shipments could not be prepared transactionally.",
       );
     }
     const { data: shipments, error } = await this.admin
@@ -3377,7 +3658,7 @@ export class ProductionCoreClubService implements CoreClubService {
       .eq("organization_id", organizationId)
       .eq("brand_id", brandId)
       .eq("status", "declined")
-      .order("next_retry_date");
+      .order("next_retry_at");
     if (error) throw databaseError("The recovery queue could not be loaded.");
     return (data ?? []).map(toPublicShipment);
   }
@@ -3395,7 +3676,7 @@ export class ProductionCoreClubService implements CoreClubService {
     let query = this.admin
       .from("shipments")
       .select(
-        "id,member_id,release_id,status,shipping_address,tracking_number,carrier,charge_amount_cents,loyalty_discount_cents,decline_reason,retry_count,next_retry_at,created_at,updated_at,members(first_name,last_name,email),releases(name),release_tiers(tier_name),shipment_items(id,wine_name,quantity,price_cents)",
+        "id,member_id,release_id,status,shipping_address,tracking_number,carrier,charge_amount_cents,loyalty_discount_cents,tax_amount_cents,decline_reason,retry_count,next_retry_at,created_at,updated_at,members(first_name,last_name,email),releases(name),release_tiers(tier_name),shipment_items(id,wine_name,quantity,price_cents)",
         { count: "exact" },
       )
       .eq("organization_id", organizationId)
@@ -3467,8 +3748,10 @@ export class ProductionCoreClubService implements CoreClubService {
   async refundShipment(
     shipmentId: string,
     input: { amountCents?: number; reason?: string },
+    commandId: string,
   ): Promise<Record<string, unknown>> {
     assertUuid(shipmentId, "Shipment");
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
@@ -3484,6 +3767,57 @@ export class ProductionCoreClubService implements CoreClubService {
       .maybeSingle();
     if (error) throw databaseError("The shipment could not be loaded.");
     if (!shipment) throw new AppError(404, "not_found", "Shipment not found.");
+    const idempotencyKey = `shipment:${shipmentId}:refund:${commandId}`;
+    const { data: existingAttempt, error: existingAttemptError } =
+      await this.admin
+        .from("billing_attempts")
+        .select("id,status,amount_cents,metadata,stripe_refund_id")
+        .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
+        .eq("shipment_id", shipmentId)
+        .eq("attempt_kind", "refund")
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle();
+    if (existingAttemptError) {
+      throw databaseError("The existing refund attempt could not be loaded.");
+    }
+    if (existingAttempt) {
+      const requestedReason = input.reason ?? "";
+      const recordedReason =
+        typeof existingAttempt.metadata === "object" &&
+        existingAttempt.metadata !== null &&
+        "reason" in existingAttempt.metadata &&
+        typeof existingAttempt.metadata.reason === "string"
+          ? existingAttempt.metadata.reason
+          : "";
+      if (
+        (input.amountCents !== undefined &&
+          input.amountCents !== Number(existingAttempt.amount_cents)) ||
+        requestedReason !== recordedReason
+      ) {
+        throw new AppError(
+          409,
+          "conflict",
+          "This refund command was already used with different details.",
+        );
+      }
+      if (existingAttempt.status === "refunded") {
+        return {
+          amountCents: Number(existingAttempt.amount_cents),
+          id: shipmentId,
+          status: shipment.status,
+        };
+      }
+      if (
+        !["queued", "processing"].includes(existingAttempt.status as string)
+      ) {
+        throw new AppError(
+          409,
+          "conflict",
+          "This refund command already reached a terminal result.",
+        );
+      }
+    }
     if (
       !["charged", "label_created", "packed", "shipped", "delivered"].includes(
         shipment.status,
@@ -3514,9 +3848,6 @@ export class ProductionCoreClubService implements CoreClubService {
         "Refund amount must be a positive number of cents no greater than the remaining captured amount.",
       );
     }
-    const idempotencyKey = `shipment:${shipmentId}:refund:${Number(
-      shipment.refund_amount_cents ?? 0,
-    )}:${refundAmount}`;
     const { data: attemptData, error: attemptError } = await this.admin.rpc(
       "record_billing_attempt",
       {
@@ -3538,22 +3869,58 @@ export class ProductionCoreClubService implements CoreClubService {
     if (typeof billingAttemptId !== "string") {
       throw databaseError("The refund attempt is unavailable.");
     }
-    const refund = await createStripe(this.env).refunds.create(
-      {
-        amount: refundAmount,
-        metadata: {
-          brand_id: brandId,
-          organization_id: organizationId,
-          reason: input.reason ?? "",
-          shipment_id: shipmentId,
+    let refund: Stripe.Refund;
+    try {
+      refund = await createStripe(this.env).refunds.create(
+        {
+          amount: refundAmount,
+          metadata: {
+            billing_attempt_id: billingAttemptId,
+            brand_id: brandId,
+            organization_id: organizationId,
+            reason: input.reason ?? "",
+            shipment_id: shipmentId,
+          },
+          payment_intent: shipment.stripe_payment_intent_id,
+          reason: "requested_by_customer",
         },
-        payment_intent: shipment.stripe_payment_intent_id,
-        reason: "requested_by_customer",
-      },
-      {
-        idempotencyKey,
-      },
-    );
+        {
+          idempotencyKey,
+        },
+      );
+    } catch (error) {
+      if (!isRetryableStripeRecoveryError(error)) {
+        const { error: failureError } = await this.admin.rpc(
+          "apply_shipment_payment_event",
+          {
+            p_billing_attempt_id: billingAttemptId,
+            p_brand_id: brandId,
+            p_decline_code: safeStripeRecoveryErrorCode(error),
+            p_decline_reason: "Stripe rejected the refund request.",
+            p_event_created_at: new Date().toISOString(),
+            p_metadata: { reason: input.reason ?? "", source: "staff_refund" },
+            p_organization_id: organizationId,
+            p_shipment_id: shipmentId,
+            p_status: "failed",
+            p_stripe_charge_id: shipment.stripe_charge_id,
+            p_stripe_event_id: null,
+            p_stripe_refund_id: null,
+          },
+        );
+        if (failureError) {
+          throw databaseError(
+            "Stripe rejected the refund and its failed ledger state could not be recorded.",
+          );
+        }
+      }
+      throw new AppError(
+        502,
+        "upstream_error",
+        isRetryableStripeRecoveryError(error)
+          ? "Stripe did not confirm the refund. Vinifera will safely reconcile the same request."
+          : "Stripe rejected the refund request.",
+      );
+    }
     const { error: applyError } = await this.admin.rpc(
       "apply_shipment_payment_event",
       {
@@ -3638,6 +4005,13 @@ export class ProductionCoreClubService implements CoreClubService {
   }
 
   async validateShippingAddress(
+    address: PostalAddress,
+  ): Promise<{ address: PostalAddress; messages: string[]; valid: boolean }> {
+    await this.requireStaff(["owner", "admin", "manager", "staff"]);
+    return this.validateShippingAddressWithProvider(address);
+  }
+
+  private async validateShippingAddressWithProvider(
     address: PostalAddress,
   ): Promise<{ address: PostalAddress; messages: string[]; valid: boolean }> {
     const result = await createShippingProvider(this.env).validateAddress(address);
@@ -4173,9 +4547,40 @@ export class ProductionCoreClubService implements CoreClubService {
         ? inferGenericMapping(parsed.headers)
         : FORMAT_MAPPINGS[input.format]);
     const normalized = parsed.rows.map((row) => normalizeCsvMember(row, mapping));
+    const hasTierAssignments = normalized.some((member) => member.clubTierValue);
+    const { data: tiers, error: tierError } = hasTierAssignments
+      ? await this.admin
+          .from("club_tiers")
+          .select("id,name")
+          .eq("organization_id", organizationId)
+          .eq("brand_id", brandId)
+          .eq("active", true)
+      : { data: [], error: null };
+    if (tierError) throw databaseError("Club tiers could not be validated.");
+    const tierLookup = buildCsvTierLookup(
+      (tiers ?? []).map((tier) => ({
+        id: String(tier.id),
+        name: String(tier.name),
+      })),
+    );
+    for (const member of normalized) {
+      member.clubTierId = resolveCsvTierId(member.clubTierValue, tierLookup);
+    }
     const validationErrors = normalized
       .map(validateCsvMember)
       .filter((error): error is CsvValidationError => Boolean(error));
+    for (const member of normalized) {
+      if (member.clubTierValue && !member.clubTierId) {
+        validationErrors.push({
+          fields: {
+            clubTier:
+              "Use an active club tier name or tier ID from this winery.",
+          },
+          reason: "The club tier could not be resolved.",
+          rowNumber: member.rowNumber,
+        });
+      }
+    }
     const duplicateRows = new Map<string, number[]>();
     for (const member of normalized) {
       const rows = duplicateRows.get(member.email) ?? [];
@@ -4228,11 +4633,7 @@ export class ProductionCoreClubService implements CoreClubService {
       rowErrors.push(validationError);
       errorsByRow.set(validationError.rowNumber, rowErrors);
     }
-    const dbMapping = Object.fromEntries(
-      Object.entries(mapping)
-        .filter((entry): entry is [string, string] => Boolean(entry[1]))
-        .map(([target, source]) => [importTargetDatabaseKey(target), source]),
-    );
+    const dbMapping = csvMappingToDatabase(mapping);
     const source = input.format === "winedirect" ? "wine_direct" : input.format;
     const { error: importError } = await this.admin.from("member_imports").insert({
       column_mapping: dbMapping,
@@ -4321,12 +4722,7 @@ export class ProductionCoreClubService implements CoreClubService {
     if (!/^[0-9a-f-]{68}$/i.test(input.uploadToken)) {
       throw new AppError(400, "invalid_request", "The import token is invalid.");
     }
-    const mapping = Object.fromEntries(
-      Object.entries(input.mapping ?? {}).map(([sourceHeader, target]) => [
-        importTargetDatabaseKey(target),
-        sourceHeader,
-      ]),
-    );
+    const mapping = canonicalizeCsvImportMapping(input.mapping ?? {});
     const { data, error } = await this.admin.rpc("complete_member_import", {
       p_actor_user_id: principal.user.id,
       p_brand_id: brandId,
@@ -4335,12 +4731,17 @@ export class ProductionCoreClubService implements CoreClubService {
       p_upload_token: input.uploadToken,
     });
     if (error) {
+      const mappingChanged =
+        error.code === "22023" &&
+        String(error.message ?? "").includes("Column mapping changed after preview");
       throw new AppError(
         error.code === "22023" || error.code === "P0002" ? 400 : 500,
         error.code === "22023" || error.code === "P0002"
           ? "invalid_request"
           : "upstream_error",
-        error.code === "22023"
+        mappingChanged
+          ? "The column mapping changed after validation. Upload and preview the file again."
+          : error.code === "22023"
           ? "The import token expired or has already been used."
           : "The member import could not be completed.",
       );
@@ -4374,12 +4775,13 @@ export class ProductionCoreClubService implements CoreClubService {
     const { data, error } = await this.admin
       .from("shipments")
       .select(
-        "id,member_id,release_id,status,shipping_address,tracking_number,carrier,charge_amount_cents,loyalty_discount_cents,created_at,updated_at,releases(id,name,description,processing_date,embargo_date),shipment_items(id,wine_name,quantity,price_cents)",
+        "id,member_id,release_id,status,shipping_address,tracking_number,carrier,charge_amount_cents,loyalty_discount_cents,tax_amount_cents,created_at,updated_at,releases(id,name,description,processing_date,embargo_date),shipment_items(id,wine_name,quantity,price_cents)",
       )
       .eq("organization_id", principal.organization.id)
       .eq("brand_id", principal.brand.id)
       .eq("member_id", principal.user.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(MEMBER_PORTAL_HISTORY_LIMIT);
     if (error) throw databaseError("Shipment history could not be loaded.");
     const now = Date.now();
     return (data ?? []).map((shipment) => {
@@ -4406,9 +4808,11 @@ export class ProductionCoreClubService implements CoreClubService {
 
   async updateMemberPortalAddress(
     address: PostalAddress,
+    commandId: string,
   ): Promise<Record<string, unknown>> {
+    assertUuid(commandId, "Command");
     const principal = await this.requireMember();
-    const validation = await this.validateShippingAddress(address);
+    const validation = await this.validateShippingAddressWithProvider(address);
     if (!validation.valid) {
       throw new AppError(
         400,
@@ -4416,21 +4820,38 @@ export class ProductionCoreClubService implements CoreClubService {
         validation.messages.join(" ") || "Enter a valid shipping address.",
       );
     }
-    const { data, error } = await this.admin
+    const { data, error } = await this.admin.rpc(
+      "apply_member_portal_address_command",
+      {
+        p_auth_user_id: principal.user.id,
+        p_brand_id: principal.brand.id,
+        p_command_id: commandId,
+        p_member_id: principal.user.id,
+        p_organization_id: principal.organization.id,
+        p_validated_address: validation.address,
+      },
+    );
+    if (error) {
+      throw commandError(error, "The shipping address could not be updated.");
+    }
+    const result = commandResult(data);
+    const { data: member, error: memberError } = await this.admin
       .from("members")
-      .update({
-        ...(addressToDatabase(validation.address) ?? {}),
-        shipping_validated_at: new Date().toISOString(),
-      })
-      .eq("id", principal.user.id)
-      .eq("organization_id", principal.organization.id)
-      .eq("brand_id", principal.brand.id)
       .select(
         "id,shipping_address_line1,shipping_address_line2,shipping_city,shipping_region,shipping_postal_code,shipping_country_code",
       )
+      .eq("id", principal.user.id)
+      .eq("organization_id", principal.organization.id)
+      .eq("brand_id", principal.brand.id)
       .single();
-    if (error || !data) throw databaseError("The shipping address could not be updated.");
-    return { id: data.id, address: toPublicMember(data).address };
+    if (memberError || !member) {
+      throw databaseError("The updated shipping address could not be loaded.");
+    }
+    return {
+      address: toPublicMember(member).address,
+      command: result,
+      id: member.id,
+    };
   }
 
   private coreApplicationOrigin(): string {
@@ -4622,6 +5043,11 @@ export class ProductionCoreClubService implements CoreClubService {
     ) {
       throw new AppError(403, "forbidden", "Shipment tenant validation failed.");
     }
+    await assertBrandOperationalAccess(
+      this.admin,
+      organizationId,
+      shipment.brand_id,
+    );
     const avalara = await prepareAvalaraTax(this.env, this.admin, shipment);
     const billingAttemptId = await this.ensureBillingAttempt(
       shipment,
@@ -4874,13 +5300,202 @@ interface ProcessingAttemptRow {
   status: "processing" | "queued";
 }
 
+interface ProcessingRefundAttemptRow {
+  amount_cents: number;
+  id: string;
+  idempotency_key: string;
+  metadata: Record<string, unknown> | null;
+  recovery_lease_token: string;
+  shipments: ShipmentPaymentRow | ShipmentPaymentRow[] | null;
+}
+
+interface RefundRecoveryClaimRow {
+  billing_attempt_id: string;
+  lease_token: string;
+}
+
+export interface MemberSideEffectRow {
+  attempt_count: number;
+  brand_id: string;
+  command_id: string;
+  effect_type: "auth_user_delete" | "stripe_customer_sync";
+  lease_token: string;
+  max_attempts: number;
+  member_id: string;
+  organization_id: string;
+  outbox_id: string;
+  payload: Record<string, unknown>;
+  provider_subject_id: string;
+}
+
 export interface CoreClubScheduleReport {
   charged: number;
   claimedReleases: number;
   declined: number;
   failed: number;
+  memberSideEffectFailures: number;
+  memberSideEffects: number;
   recoveredAttempts: number;
+  refundsRecovered: number;
   retryAttempts: number;
+}
+
+function safeMemberSideEffectErrorCode(error: unknown): string {
+  if (error instanceof AppError && error.code === "activation_required") {
+    return "ACTIVATION_REQUIRED";
+  }
+  if (error instanceof Stripe.errors.StripeError) {
+    return `STRIPE_${error.type.replaceAll(/[^A-Za-z0-9_.:-]/g, "_").toUpperCase()}`;
+  }
+  return "PROVIDER_ERROR";
+}
+
+function safeStripeRecoveryErrorCode(error: unknown): string {
+  if (error instanceof Stripe.errors.StripeError) {
+    return `STRIPE_${error.type
+      .replaceAll(/[^A-Za-z0-9_.:-]/g, "_")
+      .toUpperCase()}`.slice(0, 100);
+  }
+  return "PROVIDER_ERROR";
+}
+
+function isRetryableStripeRecoveryError(error: unknown): boolean {
+  return (
+    !(error instanceof Stripe.errors.StripeError) ||
+    error instanceof Stripe.errors.StripeConnectionError ||
+    error instanceof Stripe.errors.StripeAPIError ||
+    error instanceof Stripe.errors.StripeRateLimitError
+  );
+}
+
+export async function executeMemberSideEffect(
+  admin: SupabaseClient,
+  stripe: Stripe,
+  effect: MemberSideEffectRow,
+): Promise<"applied" | "superseded"> {
+  if (effect.effect_type === "stripe_customer_sync") {
+    const payload = effect.payload ?? {};
+    const address =
+      payload.address && typeof payload.address === "object"
+        ? (payload.address as Stripe.AddressParam)
+        : payload.address === null
+          ? ""
+          : undefined;
+    const phone =
+      typeof payload.phone === "string"
+        ? payload.phone
+        : payload.phone === null
+          ? ""
+          : undefined;
+    await stripe.customers.update(
+      effect.provider_subject_id,
+      {
+        address,
+        email: typeof payload.email === "string" ? payload.email : undefined,
+        name: typeof payload.name === "string" ? payload.name : undefined,
+        phone,
+      },
+      {
+        idempotencyKey: [
+          "member-side-effect",
+          effect.organization_id,
+          effect.brand_id,
+          effect.member_id,
+          effect.effect_type,
+          effect.command_id,
+        ].join(":"),
+      },
+    );
+    return "applied";
+  }
+
+  const [memberReference, staffReference, platformReference] = await Promise.all([
+    admin
+      .from("members")
+      .select("id")
+      .eq("auth_user_id", effect.provider_subject_id)
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle(),
+    admin
+      .from("staff_users")
+      .select("id")
+      .eq("id", effect.provider_subject_id)
+      .limit(1)
+      .maybeSingle(),
+    admin
+      .from("platform_users")
+      .select("id")
+      .eq("id", effect.provider_subject_id)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (
+    memberReference.error ||
+    staffReference.error ||
+    platformReference.error
+  ) {
+    throw databaseError(
+      "Auth identity references could not be verified before deletion.",
+    );
+  }
+  if (
+    memberReference.data ||
+    staffReference.data ||
+    platformReference.data
+  ) {
+    return "superseded";
+  }
+
+  const { error } = await admin.auth.admin.deleteUser(effect.provider_subject_id);
+  if (error && error.status !== 404) {
+    throw error;
+  }
+  return "applied";
+}
+
+export async function processMemberSideEffects(
+  admin: SupabaseClient,
+  stripe: Stripe,
+  asOf: Date,
+): Promise<{ failed: number; processed: number }> {
+  const { data, error } = await admin.rpc("claim_member_side_effects", {
+    p_lease_seconds: 300,
+    p_limit: 50,
+    p_worker_id: `core-club:${asOf.toISOString()}`,
+  });
+  if (error) {
+    throw databaseError("Member provider side effects could not be claimed.");
+  }
+  const effects = (data ?? []) as MemberSideEffectRow[];
+  const results = await mapConcurrent(effects, 5, async (effect) => {
+    let errorCode: string | null = null;
+    let succeeded = true;
+    try {
+      const outcome = await executeMemberSideEffect(admin, stripe, effect);
+      errorCode = outcome === "superseded" ? "SUPERSEDED" : null;
+    } catch (error) {
+      succeeded = false;
+      errorCode = safeMemberSideEffectErrorCode(error);
+    }
+    const { error: completionError } = await admin.rpc(
+      "complete_member_side_effect",
+      {
+        p_error_code: errorCode,
+        p_lease_token: effect.lease_token,
+        p_outbox_id: effect.outbox_id,
+        p_succeeded: succeeded,
+      },
+    );
+    if (completionError) {
+      throw databaseError("A member provider side effect could not be finalized.");
+    }
+    return succeeded;
+  });
+  return {
+    failed: results.filter((succeeded) => !succeeded).length,
+    processed: results.length,
+  };
 }
 
 async function attachSystemPaymentIntent(
@@ -4947,6 +5562,110 @@ async function applySystemPaymentOutcome(
         ? "The scheduled charge moved money but its local ledger did not update."
         : "The scheduled decline could not be recorded.",
     );
+  }
+}
+
+async function applyRefundRecoveryFailure(
+  admin: SupabaseClient,
+  attempt: ProcessingRefundAttemptRow,
+  shipment: ShipmentPaymentRow,
+  errorCode: string,
+): Promise<void> {
+  const { error } = await admin.rpc("apply_shipment_payment_event", {
+    p_billing_attempt_id: attempt.id,
+    p_brand_id: shipment.brand_id,
+    p_decline_code: errorCode,
+    p_decline_reason: "Stripe rejected the refund request.",
+    p_event_created_at: new Date().toISOString(),
+    p_metadata: {
+      automatic: true,
+      recovery: true,
+    },
+    p_organization_id: shipment.organization_id,
+    p_shipment_id: shipment.id,
+    p_status: "failed",
+    p_stripe_charge_id: shipment.stripe_charge_id,
+    p_stripe_event_id: null,
+    p_stripe_refund_id: null,
+  });
+  if (error) {
+    throw databaseError("The failed refund attempt could not be finalized.");
+  }
+}
+
+export async function recoverRefundAttempt(
+  admin: SupabaseClient,
+  stripe: Stripe,
+  attempt: ProcessingRefundAttemptRow,
+): Promise<"failed" | "refunded" | "retry"> {
+  const shipment = oneRelation(attempt.shipments);
+  if (!shipment) {
+    throw databaseError("The refund recovery shipment is unavailable.");
+  }
+  if (
+    !shipment.stripe_payment_intent_id ||
+    shipment.organization_id.length === 0 ||
+    shipment.brand_id.length === 0
+  ) {
+    await applyRefundRecoveryFailure(
+      admin,
+      attempt,
+      shipment,
+      "LOCAL_REFERENCE_MISSING",
+    );
+    return "failed";
+  }
+  try {
+    const refund = await stripe.refunds.create(
+      {
+        amount: attempt.amount_cents,
+        metadata: {
+          billing_attempt_id: attempt.id,
+          brand_id: shipment.brand_id,
+          organization_id: shipment.organization_id,
+          reason:
+            typeof attempt.metadata?.reason === "string"
+              ? attempt.metadata.reason
+              : "",
+          shipment_id: shipment.id,
+        },
+        payment_intent: shipment.stripe_payment_intent_id,
+        reason: "requested_by_customer",
+      },
+      { idempotencyKey: attempt.idempotency_key },
+    );
+    const { error } = await admin.rpc("apply_shipment_payment_event", {
+      p_billing_attempt_id: attempt.id,
+      p_brand_id: shipment.brand_id,
+      p_decline_code: null,
+      p_decline_reason: null,
+      p_event_created_at: new Date().toISOString(),
+      p_metadata: {
+        automatic: true,
+        recovery: true,
+      },
+      p_organization_id: shipment.organization_id,
+      p_shipment_id: shipment.id,
+      p_status: "refunded",
+      p_stripe_charge_id: shipment.stripe_charge_id,
+      p_stripe_event_id: null,
+      p_stripe_refund_id: refund.id,
+    });
+    if (error) {
+      throw databaseError(
+        "The recovered refund succeeded but its local ledger did not update.",
+      );
+    }
+    return "refunded";
+  } catch (error) {
+    if (isRetryableStripeRecoveryError(error)) return "retry";
+    await applyRefundRecoveryFailure(
+      admin,
+      attempt,
+      shipment,
+      safeStripeRecoveryErrorCode(error),
+    );
+    return "failed";
   }
 }
 
@@ -5162,9 +5881,20 @@ export async function runCoreClubSchedule(
     claimedReleases: 0,
     declined: 0,
     failed: 0,
+    memberSideEffectFailures: 0,
+    memberSideEffects: 0,
     recoveredAttempts: 0,
+    refundsRecovered: 0,
     retryAttempts: 0,
   };
+  const sideEffects = await processMemberSideEffects(
+    admin,
+    stripe,
+    asOf,
+  );
+  report.memberSideEffects = sideEffects.processed;
+  report.memberSideEffectFailures = sideEffects.failed;
+  report.failed += sideEffects.failed;
   const { data: claimed, error: claimError } = await admin.rpc(
     "claim_due_releases",
     {
@@ -5228,7 +5958,10 @@ export async function runCoreClubSchedule(
       try {
         return await chargeSystemShipment(env, admin, stripe, shipment, {
           attemptKind: "charge",
-          idempotencyKey: `shipment:${shipment.id}:scheduled-charge`,
+          idempotencyKey: paymentIdempotencyKey(
+            shipment,
+            "release_processing",
+          ),
         });
       } catch {
         return "failed" as const;
@@ -5289,6 +6022,85 @@ export async function runCoreClubSchedule(
     (result) => result === "declined",
   ).length;
   report.failed += recoveryResults.filter((result) => result === "failed").length;
+
+  const { data: refundClaims, error: refundClaimsError } = await admin.rpc(
+    "claim_stale_refund_attempts",
+    {
+      p_as_of: asOf.toISOString(),
+      p_lease_seconds: 300,
+      p_limit: 100,
+      p_stale_seconds: 300,
+      p_worker_id: `core-club-refund:${asOf.toISOString()}`,
+    },
+  );
+  if (refundClaimsError) {
+    throw databaseError("Stale refund attempts could not be claimed.");
+  }
+  const claimedRefunds = (refundClaims ?? []) as RefundRecoveryClaimRow[];
+  const refundLeaseByAttempt = new Map(
+    claimedRefunds.map((claim) => [
+      claim.billing_attempt_id,
+      claim.lease_token,
+    ]),
+  );
+  let processingRefunds: ProcessingRefundAttemptRow[] = [];
+  if (claimedRefunds.length > 0) {
+    const { data, error } = await admin
+      .from("billing_attempts")
+      .select(
+        "id,amount_cents,idempotency_key,metadata,shipments!inner(id,organization_id,brand_id,member_id,release_id,status,charge_amount_cents,shipping_charge_cents,loyalty_discount_cents,tax_amount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,stripe_charge_id)",
+      )
+      .in(
+        "id",
+        claimedRefunds.map((claim) => claim.billing_attempt_id),
+      )
+      .eq("attempt_kind", "refund")
+      .eq("status", "processing");
+    if (error) {
+      throw databaseError("Claimed refund attempts could not be loaded.");
+    }
+    processingRefunds = ((data ?? []) as Omit<
+      ProcessingRefundAttemptRow,
+      "recovery_lease_token"
+    >[]).map((attempt) => ({
+      ...attempt,
+      recovery_lease_token:
+        refundLeaseByAttempt.get(attempt.id) ?? "",
+    }));
+  }
+  const refundRecoveryResults = await mapConcurrent(
+    processingRefunds,
+    5,
+    async (attempt) => {
+      let outcome: "failed" | "refunded" | "retry";
+      try {
+        outcome = await recoverRefundAttempt(admin, stripe, attempt);
+      } catch {
+        outcome = "retry";
+      }
+      const { error } = await admin.rpc(
+        "complete_refund_recovery_claim",
+        {
+          p_billing_attempt_id: attempt.id,
+          p_error_code:
+            outcome === "retry" ? "RECOVERY_RETRY_REQUIRED" : null,
+          p_lease_token: attempt.recovery_lease_token,
+          p_retry: outcome === "retry",
+        },
+      );
+      if (error) {
+        throw databaseError("A refund recovery lease could not be finalized.");
+      }
+      return outcome;
+    },
+  );
+  report.recoveredAttempts += refundRecoveryResults.length;
+  report.refundsRecovered += refundRecoveryResults.filter(
+    (result) => result === "refunded",
+  ).length;
+  report.failed += refundRecoveryResults.filter(
+    (result) => result !== "refunded",
+  ).length;
 
   const { data: retries, error: retryError } = await admin.rpc(
     "schedule_due_shipment_retries",

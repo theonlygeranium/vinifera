@@ -35,6 +35,21 @@ if (pgliteEntry === null) {
 
 const { PGlite } = await import(pathToFileURL(pgliteEntry).href);
 
+const phase2CurrentStackMigrations = [
+  "supabase/migrations/202607260001_phase_1_foundation.sql",
+  "supabase/migrations/202607260002_phase_2_core_club_loop.sql",
+  "supabase/migrations/202607260003_phase_3_retention_comms.sql",
+  "supabase/migrations/202607260004_phase_4_analytics.sql",
+  "supabase/migrations/202607260005_phase_5_scale_integrations.sql",
+  "supabase/migrations/202607260006_phase_5_permissions.sql",
+  "supabase/migrations/202607260007_stripe_runtime_retry_safety.sql",
+  "supabase/migrations/202607260008_phase_5_meta_attribution.sql",
+  "supabase/migrations/202607260009_credential_envelope_rotation.sql",
+  "supabase/migrations/202607260010_phase_5_tax_accounting_facts.sql",
+  "supabase/migrations/202607260011_provider_activation_runtime.sql",
+  "supabase/migrations/202607260012_custom_hostname_write_safety.sql",
+  "supabase/migrations/202607260013_phase_2_transactional_commands.sql",
+];
 const migrations =
   targetPhase === 1
     ? ["supabase/migrations/202607260001_phase_1_foundation.sql"]
@@ -54,6 +69,10 @@ const tests =
         "supabase/tests/005_phase_2_tenant_rls.test.sql",
         "supabase/tests/006_phase_2_server_rpcs.test.sql",
       ];
+const currentStackTests =
+  targetPhase === 2
+    ? ["supabase/tests/023_phase_2_transactional_commands.test.sql"]
+    : [];
 
 const bootstrapSql = `
   create role anon nologin;
@@ -194,7 +213,7 @@ function assertionPlan(sql, testFile) {
   }
   const planned = Number(plannedMatch[1]);
   const assertions = (
-    sql.match(/^select (?:ok|is|lives_ok|throws_ok)\(/gm) ?? []
+    sql.match(/^select (?:ok|is|isnt|lives_ok|throws_ok)\(/gm) ?? []
   ).length;
   if (planned !== assertions) {
     throw new Error(
@@ -204,10 +223,10 @@ function assertionPlan(sql, testFile) {
   return planned;
 }
 
-async function createDatabase() {
+async function createDatabase(migrationFiles = migrations) {
   const database = new PGlite();
   await database.exec(bootstrapSql);
-  for (const migration of migrations) {
+  for (const migration of migrationFiles) {
     let sql = await readRepositoryFile(migration);
     sql = sql.replace(
       "create extension if not exists pgcrypto with schema extensions;",
@@ -443,6 +462,7 @@ async function runPerformanceGates() {
         content_type,
         file_size_bytes,
         headers,
+        column_mapping,
         status,
         imported_by
       )
@@ -462,11 +482,18 @@ async function runPerformanceGates() {
         'text/csv',
         128000,
         '["Email","First","Last"]'::jsonb,
+        '{"email":"Email","first_name":"First","last_name":"Last"}'::jsonb,
         'previewed',
         '${ownerId}'
       );
     `);
     const importRows = Array.from({ length: 1_000 }, (_, index) => ({
+      normalized: {
+        email: `perf-import-${index + 1}@example.test`,
+        first_name: "Imported",
+        last_name: `Member ${index + 1}`,
+        status: "active",
+      },
       raw: {
         Email: `perf-import-${index + 1}@example.test`,
         First: "Imported",
@@ -480,13 +507,17 @@ async function runPerformanceGates() {
           organization_id,
           import_id,
           row_number,
-          raw_data
+          raw_data,
+          normalized_data,
+          status
         )
         select
           $2::uuid,
           $3::uuid,
           (fixture ->> 'row_number')::integer,
-          fixture -> 'raw'
+          fixture -> 'raw',
+          fixture -> 'normalized',
+          'valid'
         from jsonb_array_elements($1::jsonb) as staged(fixture)
       `,
       [JSON.stringify(importRows), organizationId, importId],
@@ -555,7 +586,15 @@ async function runPerformanceGates() {
 }
 
 let totalAssertions = 0;
-for (const testFile of tests) {
+const testCases = [
+  ...tests.map((testFile) => ({ migrations, testFile })),
+  ...currentStackTests.map((testFile) => ({
+    migrations: phase2CurrentStackMigrations,
+    testFile,
+  })),
+];
+for (const testCase of testCases) {
+  const { testFile } = testCase;
   let database;
   try {
     let sql = await readRepositoryFile(testFile);
@@ -564,7 +603,7 @@ for (const testFile of tests) {
       "create extension if not exists pgtap with schema extensions;",
       "",
     );
-    database = await createDatabase();
+    database = await createDatabase(testCase.migrations);
     await database.exec(sql);
     totalAssertions += assertions;
     console.log(`PASS ${testFile} (${assertions}/${assertions})`);

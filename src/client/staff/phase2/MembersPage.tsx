@@ -1000,6 +1000,11 @@ export function MemberDetailPage({ memberId }: { memberId: string }) {
               <small>{member.state.data.orderCount ?? 0} recorded orders</small>
             </article>
             <article className="metric-card">
+              <span>Communications</span>
+              <strong>{member.state.data.communicationCount}</strong>
+              <small>Recorded member contacts</small>
+            </article>
+            <article className="metric-card">
               <span>Churn risk</span>
               <strong>
                 {member.state.data.churnRisk === "not_scored" ||
@@ -1014,9 +1019,95 @@ export function MemberDetailPage({ memberId }: { memberId: string }) {
               <strong>{date(member.state.data.nextReleaseAt)}</strong>
               <small>Based on scheduled tier releases</small>
             </article>
+            <article className="metric-card">
+              <span>Provider sync</span>
+              <strong>
+                {member.state.data.externalSync?.state ===
+                "reconciliation_required"
+                  ? "Action required"
+                  : member.state.data.externalSync?.state === "pending"
+                    ? "Pending"
+                    : member.state.data.externalSync?.state === "synchronized"
+                      ? "Synchronized"
+                      : "Not required"}
+              </strong>
+              <small>
+                {member.state.data.externalSync?.deadLetterCount
+                  ? `${member.state.data.externalSync.deadLetterCount} failed provider job`
+                  : member.state.data.externalSync?.pendingCount
+                    ? `${member.state.data.externalSync.pendingCount} provider job queued`
+                    : "No unresolved provider work"}
+              </small>
+            </article>
           </div>
 
           <MemberChurnFactors memberId={memberId} />
+
+          <section className="operation-panel" aria-labelledby="member-orders-title">
+            <div className="panel-heading panel-heading--split">
+              <div>
+                <p className="eyebrow eyebrow--wine">Purchase history</p>
+                <h2 id="member-orders-title">Orders</h2>
+              </div>
+              <span className="status-pill">
+                {member.state.data.orderCount ?? 0} total
+              </span>
+            </div>
+            {member.state.data.orders?.length ? (
+              <>
+                <div
+                  aria-label="Recent member orders"
+                  className="data-table-wrap"
+                  tabIndex={0}
+                >
+                  <table className="data-table">
+                    <caption>Recent orders for this member</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Release</th>
+                        <th scope="col">Contents</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {member.state.data.orders.map((order) => (
+                        <tr key={order.id}>
+                          <td>{date(order.createdAt)}</td>
+                          <th scope="row">{order.releaseName}</th>
+                          <td>
+                            {order.items.length
+                              ? order.items
+                                  .map((item) => `${item.quantity}× ${item.name}`)
+                                  .join(", ")
+                              : "No item snapshot"}
+                          </td>
+                          <td>
+                            <span className={statusClass(order.status)}>
+                              {sentence(order.status)}
+                            </span>
+                          </td>
+                          <td>{money(order.totalAmountCents)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {member.state.data.historyMeta?.ordersTruncated ? (
+                  <p className="muted-copy">
+                    Showing the {member.state.data.historyMeta.orderLimit} most
+                    recent orders.
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <EmptyBlock
+                title="No orders recorded"
+                detail="This member does not have a Phase 2 shipment or order record yet."
+              />
+            )}
+          </section>
 
           <div className="detail-grid">
             <section className="operation-panel" aria-labelledby="member-activity-title">
@@ -1044,37 +1135,89 @@ export function MemberDetailPage({ memberId }: { memberId: string }) {
               ) : (
                 <EmptyBlock
                   title="No activity recorded"
-                  detail="Orders, status changes, payments, shipments, and communications will appear here."
+                  detail="Order, payment, and membership status events will appear here."
                 />
               )}
+              {member.state.data.historyMeta?.activityTruncated ? (
+                <p className="muted-copy">
+                  Showing the {member.state.data.historyMeta.activityLimit} most
+                  recent activity entries.
+                </p>
+              ) : null}
             </section>
-            <aside className="operation-panel" aria-labelledby="shipping-address-title">
+            <aside
+              className="operation-panel"
+              aria-labelledby="member-communications-title"
+            >
               <div className="panel-heading">
                 <div>
-                  <p className="eyebrow eyebrow--wine">Fulfillment</p>
-                  <h2 id="shipping-address-title">Shipping address</h2>
+                  <p className="eyebrow eyebrow--wine">Contact history</p>
+                  <h2 id="member-communications-title">
+                    Communications ({member.state.data.communicationCount})
+                  </h2>
                 </div>
               </div>
-              {member.state.data.address ? (
-                <address className="address-block">
-                  {member.state.data.firstName} {member.state.data.lastName}
-                  <br />
-                  {member.state.data.address.line1}
-                  <br />
-                  {member.state.data.address.line2 ? (
-                    <>
-                      {member.state.data.address.line2}
-                      <br />
-                    </>
+              {member.state.data.communications?.length ? (
+                <>
+                  <ol className="activity-list">
+                    {member.state.data.communications.map((communication) => (
+                      <li key={communication.id}>
+                        <span aria-hidden="true" />
+                        <div>
+                          <strong>{communication.title}</strong>
+                          {communication.detail ? (
+                            <p>{communication.detail}</p>
+                          ) : null}
+                          <time dateTime={communication.occurredAt}>
+                            {date(communication.occurredAt)}
+                          </time>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                  {member.state.data.historyMeta?.communicationsTruncated ? (
+                    <p className="muted-copy">
+                      Showing the{" "}
+                      {member.state.data.historyMeta.communicationLimit} most
+                      recent communications.
+                    </p>
                   ) : null}
-                  {member.state.data.address.city}, {member.state.data.address.state}{" "}
-                  {member.state.data.address.postalCode}
-                </address>
+                </>
               ) : (
-                <p className="muted-copy">No shipping address is on file.</p>
+                <EmptyBlock
+                  title="No communications recorded"
+                  detail="No staff-recorded communication audit entries exist for this member."
+                />
               )}
             </aside>
           </div>
+
+          <section className="operation-panel" aria-labelledby="shipping-address-title">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow eyebrow--wine">Fulfillment</p>
+                <h2 id="shipping-address-title">Shipping address</h2>
+              </div>
+            </div>
+            {member.state.data.address ? (
+              <address className="address-block">
+                {member.state.data.firstName} {member.state.data.lastName}
+                <br />
+                {member.state.data.address.line1}
+                <br />
+                {member.state.data.address.line2 ? (
+                  <>
+                    {member.state.data.address.line2}
+                    <br />
+                  </>
+                ) : null}
+                {member.state.data.address.city}, {member.state.data.address.state}{" "}
+                {member.state.data.address.postalCode}
+              </address>
+            ) : (
+              <p className="muted-copy">No shipping address is on file.</p>
+            )}
+          </section>
         </>
       )}
 

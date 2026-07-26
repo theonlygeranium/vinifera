@@ -27,6 +27,12 @@ connection-ready source architecture:
 - Stripe test-mode subscription and webhook adapters
 - Tenant-owned tiers, member CRM, release snapshots, shipments, recovery, fulfillment, and durable CSV import
 - Stripe test-mode shipment PaymentIntents, retries, refunds, and an hourly resumable release runner
+- Transactional UUID/SHA-256 command replay protection with atomic business,
+  audit, result, and leased provider-outbox persistence; browser resumption
+  stores no raw PII
+- Same-brand composite integrity, complete scheduled-release aggregates,
+  immutable Stripe event convergence, and bounded stale-refund recovery leases
+- A final live-reference check before member provider-identity deletion
 - EasyPost address/label adapter with fail-closed activation and a test-only deterministic simulator
 - Durable Resend email outbox, six lifecycle triggers, signed delivery webhooks, and unsubscribe handling
 - Explainable nightly churn snapshots, a configurable four-step cancellation flow, and a FIFO loyalty ledger
@@ -158,14 +164,16 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   expansion. Treat the first Price as created-or-unknown. Service connections
   are deferred, so no retry was attempted; reconcile the fixed lookup key only
   when activation is explicitly resumed.
-- The current credential-independent architecture gate passes: `npm audit` 0,
-  TypeScript green, Vitest 256/256, Phase 1 database 92/92, Phase 2 145/145,
-  Phase 3 138/138, Phase 4 121/121, Phase 5 migrations 001–012 plus pgTAP
-  013–022 at 279/279, Playwright 132/132 with zero axe violations, LCP 476 ms,
-  CLS 0, Pages/Worker/
-  production dry-run builds, production release 14/14, mobile release 7/7,
-  Stripe catalog 16/16, mobile identity, compile-only Capacitor preparation,
-  and Android synchronization.
+- The current credential-independent architecture gate passes: dependency
+  audit 0, TypeScript green, Vitest 290/290 with focused Phase 2 at 72/72,
+  Phase 1 database 92/92, Phase 2 231/231 (170 point-in-time plus 61
+  current-stack transactional), Phase 3 138/138, Phase 4 121/121, Phase 5
+  340/340, and Playwright 136/136 with Phase 2 at 38/38, zero axe violations,
+  and 375/768/1440 coverage. Phase 2 release/import RPCs complete in
+  10.76/338.85 ms, the single-worker 100-member roster in 941.7 ms, LCP in
+  712 ms, and CLS at 0. Pages and default/production Worker dry-run builds pass, as do
+  production release 14/14, mobile release 7/7, Stripe catalog 16/16, mobile
+  identity, and compile-only Capacitor Android/iOS sync.
 - Architecture commit `5d36471` passed GitHub Actions run
   [`30221722696`](https://github.com/theonlygeranium/vinifera/actions/runs/30221722696):
   quality completed in 5m23s, Java 21 Android lint/debug/minified release

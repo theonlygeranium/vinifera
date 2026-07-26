@@ -1,9 +1,11 @@
 export type FieldErrors = Record<string, string[] | string>;
 
 const BRAND_STORAGE_KEY = "vinifera.active-brand";
+const COMMAND_STORAGE_PREFIX = "vinifera.pending-command.";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 let nativeAccessTokenProvider: (() => Promise<string | null>) | null = null;
+const pendingCommandKeys = new Map<string, string>();
 
 interface ErrorBody {
   error?: {
@@ -95,11 +97,112 @@ function resolveApiUrl(path: `/api/${string}`) {
   return new URL(path, origin).toString();
 }
 
+function isTransactionalCoreCommand(
+  method: string,
+  path: `/api/${string}`,
+): boolean {
+  if (
+    method === "POST" &&
+    (
+      path === "/api/club-tiers" ||
+      path === "/api/members" ||
+      path === "/api/members/batch" ||
+      path === "/api/releases" ||
+      /^\/api\/club-tiers\/[0-9a-f-]+\/assign$/i.test(path) ||
+      /^\/api\/releases\/[0-9a-f-]+\/schedule$/i.test(path) ||
+      /^\/api\/shipments\/[0-9a-f-]+\/refund$/i.test(path)
+    )
+  ) {
+    return true;
+  }
+  if (
+    method === "PATCH" &&
+    (
+      path === "/api/member/profile/address" ||
+      /^\/api\/club-tiers\/[0-9a-f-]+$/i.test(path) ||
+      /^\/api\/members\/[0-9a-f-]+$/i.test(path) ||
+      /^\/api\/releases\/[0-9a-f-]+$/i.test(path)
+    )
+  ) {
+    return true;
+  }
+  return method === "DELETE" && (
+    /^\/api\/club-tiers\/[0-9a-f-]+$/i.test(path) ||
+    /^\/api\/members\/[0-9a-f-]+$/i.test(path)
+  );
+}
+
+async function commandFingerprint(
+  method: string,
+  path: `/api/${string}`,
+  body: BodyInit | null | undefined,
+): Promise<string> {
+  const source = `${method}:${path}:${typeof body === "string" ? body : ""}`;
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(source),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+function readPendingCommandKey(fingerprint: string): string | null {
+  const memoryKey = pendingCommandKeys.get(fingerprint);
+  if (memoryKey) return memoryKey;
+  try {
+    const stored = window.sessionStorage.getItem(
+      `${COMMAND_STORAGE_PREFIX}${fingerprint}`,
+    );
+    if (stored && UUID_PATTERN.test(stored)) {
+      pendingCommandKeys.set(fingerprint, stored);
+      return stored;
+    }
+  } catch {
+    // In-memory retry safety remains available when storage is unavailable.
+  }
+  return null;
+}
+
+function retainPendingCommandKey(fingerprint: string, commandId: string): void {
+  pendingCommandKeys.set(fingerprint, commandId);
+  try {
+    window.sessionStorage.setItem(
+      `${COMMAND_STORAGE_PREFIX}${fingerprint}`,
+      commandId,
+    );
+  } catch {
+    // In-memory retry safety remains available when storage is unavailable.
+  }
+}
+
+function clearPendingCommandKey(fingerprint: string): void {
+  pendingCommandKeys.delete(fingerprint);
+  try {
+    window.sessionStorage.removeItem(
+      `${COMMAND_STORAGE_PREFIX}${fingerprint}`,
+    );
+  } catch {
+    // Nothing else is required after the server reaches a terminal response.
+  }
+}
+
 export async function apiRequest<T>(
   path: `/api/${string}`,
   options: Omit<RequestInit, "credentials"> = {},
 ): Promise<T> {
   const headers = new Headers(options.headers);
+  const method = (options.method ?? "GET").toUpperCase();
+  const transactionalCommand = isTransactionalCoreCommand(method, path);
+  const fingerprint = transactionalCommand
+    ? await commandFingerprint(method, path, options.body)
+    : null;
+  if (fingerprint && !headers.has("Idempotency-Key")) {
+    const retainedKey = readPendingCommandKey(fingerprint);
+    const nextKey = retainedKey ?? crypto.randomUUID();
+    retainPendingCommandKey(fingerprint, nextKey);
+    headers.set("Idempotency-Key", nextKey);
+  }
   if (options.body && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
@@ -135,6 +238,14 @@ export async function apiRequest<T>(
   }
 
   const payload = await parseResponse(response);
+  const retryableResponse =
+    response.status >= 500 ||
+    response.status === 408 ||
+    response.status === 425 ||
+    response.status === 429;
+  if (fingerprint && !retryableResponse) {
+    clearPendingCommandKey(fingerprint);
+  }
   if (!response.ok) {
     const errorBody =
       typeof payload === "object" && payload !== null

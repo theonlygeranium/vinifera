@@ -646,8 +646,8 @@ as $$
       and b.id = p_brand_id
       and b.active
       and (
-        (b.billing_mode = 'independent' and b.access_status <> 'suspended')
-        or (b.billing_mode = 'shared' and o.access_status <> 'suspended')
+        (b.billing_mode = 'independent' and b.access_status in ('active', 'grace'))
+        or (b.billing_mode = 'shared' and o.access_status in ('active', 'grace'))
       )
   );
 $$;
@@ -5353,6 +5353,14 @@ set search_path = ''
 as $$
 begin
   perform private.require_brand_context(p_organization_id, p_brand_id);
+  if not private.brand_accepts_operational_charges(
+    p_organization_id,
+    p_brand_id
+  ) then
+    raise exception using
+      errcode = '42501',
+      message = 'The brand is not available for operational charges.';
+  end if;
   if not exists (
     select 1 from public.releases as release
     where release.organization_id = p_organization_id
@@ -5465,6 +5473,13 @@ begin
   if found then
     if v_existing.attempt_kind <> p_attempt_kind
       or v_existing.amount_cents <> p_amount_cents
+      or (
+        v_existing.idempotency_key = v_idempotency_key
+        and v_existing.stripe_payment_intent_id is not null
+        and nullif(btrim(p_stripe_payment_intent_id), '') is not null
+        and v_existing.stripe_payment_intent_id
+          <> nullif(btrim(p_stripe_payment_intent_id), '')
+      )
     then
       raise exception using
         errcode = '23505',
@@ -5474,7 +5489,10 @@ begin
       and v_existing.stripe_payment_intent_id is null
     then
       update public.billing_attempts
-      set stripe_payment_intent_id = p_stripe_payment_intent_id
+      set stripe_payment_intent_id = nullif(
+        btrim(p_stripe_payment_intent_id),
+        ''
+      )
       where id = v_existing.id;
     end if;
     return v_existing.id;

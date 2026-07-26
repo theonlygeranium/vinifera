@@ -11,11 +11,12 @@ values (
   'phase5-suspended-member@example.test'
 );
 
-insert into public.organizations (id, name, plan_tier)
+insert into public.organizations (id, name, plan_tier, subscription_status)
 values (
   'a2000000-0000-4000-8000-000000000001',
   'Phase 5 Backend Regression Winery',
-  'reserve'
+  'reserve',
+  'active'
 );
 
 set local role service_role;
@@ -37,7 +38,7 @@ values (
   'suspended-independent-label',
   'Suspended Independent Label Club',
   'independent',
-  'suspended'
+  'restricted'
 );
 
 insert into public.club_tiers (
@@ -273,7 +274,7 @@ select is(
     where id = 'a6000000-0000-4000-8000-000000000002'
   ),
   'scheduled',
-  'the suspended-brand release remains scheduled'
+  'the restricted-brand release remains scheduled'
 );
 
 create temporary table claimed_retries as
@@ -1029,6 +1030,11 @@ select is(
   null::timestamptz,
   'a host mismatch does not consume or link the signed context'
 );
+
+update public.brands
+set access_status = 'suspended'
+where id = 'a3000000-0000-4000-8000-000000000002'
+  and organization_id = 'a2000000-0000-4000-8000-000000000001';
 
 reset role;
 set local role authenticated;

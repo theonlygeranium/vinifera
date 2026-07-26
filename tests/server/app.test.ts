@@ -557,12 +557,14 @@ describe("Phase 1 API", () => {
 
 describe("Phase 3 member retention fields", () => {
   it("accepts birthday and same-tenant referral identifiers through member CRUD", async () => {
+    const commandId = "81000000-0000-4000-8000-000000000001";
     const createMember = vi.fn().mockResolvedValue({
       id: "30000000-0000-4000-8000-000000000009",
     });
     const foundation = service({ createMember });
     const response = await request(testApp(foundation))
       .post("/api/members")
+      .set("Idempotency-Key", commandId)
       .set("Origin", "https://vinifera.test")
       .send({
         birthday: "1990-07-26",
@@ -578,16 +580,19 @@ describe("Phase 3 member retention fields", () => {
         birthday: "1990-07-26",
         referredByMemberId: "30000000-0000-4000-8000-000000000001",
       }),
+      commandId,
     );
   });
 });
 
 describe("Phase 2 core club API", () => {
   it("normalizes the member UI contract before invoking the tenant service", async () => {
+    const commandId = "81000000-0000-4000-8000-000000000002";
     const createMember = vi.fn().mockResolvedValue({ id: "member-id" });
     const foundation = service({ createMember });
     const response = await request(testApp(foundation))
       .post("/api/members")
+      .set("Idempotency-Key", commandId)
       .set("Origin", "https://vinifera.test")
       .send({
         address: {
@@ -611,20 +616,19 @@ describe("Phase 2 core club API", () => {
         email: "member@example.com",
         shippingAddress: expect.objectContaining({ postalCode: "94558" }),
       }),
+      commandId,
     );
   });
 
-  it("creates and schedules a release from the fixed frontend payload", async () => {
+  it("creates a scheduled release atomically from the fixed frontend payload", async () => {
+    const commandId = "81000000-0000-4000-8000-000000000003";
     const createRelease = vi
       .fn()
       .mockResolvedValue({ id: "40000000-0000-4000-8000-000000000001" });
-    const scheduleRelease = vi.fn().mockResolvedValue({
-      id: "40000000-0000-4000-8000-000000000001",
-      status: "scheduled",
-    });
-    const foundation = service({ createRelease, scheduleRelease });
+    const foundation = service({ createRelease });
     const response = await request(testApp(foundation))
       .post("/api/releases")
+      .set("Idempotency-Key", commandId)
       .set("Origin", "https://vinifera.test")
       .send({
         description: "Fall allocation",
@@ -655,10 +659,43 @@ describe("Phase 2 core club API", () => {
           { priceCents: 0, quantity: 2, wineName: "Estate Cabernet" },
         ],
       }),
+      commandId,
+      "scheduled",
     );
-    expect(scheduleRelease).toHaveBeenCalledWith(
-      "40000000-0000-4000-8000-000000000001",
-    );
+  });
+
+  it("schedules an existing draft through the transactional command route", async () => {
+    const releaseId = "40000000-0000-4000-8000-000000000002";
+    const commandId = "81000000-0000-4000-8000-000000000004";
+    const scheduleRelease = vi
+      .fn()
+      .mockResolvedValue({ id: releaseId, status: "scheduled" });
+    const response = await request(
+      testApp(service({ scheduleRelease })),
+    )
+      .post(`/api/releases/${releaseId}/schedule`)
+      .set("Idempotency-Key", commandId)
+      .set("Origin", "https://vinifera.test")
+      .send({ confirmed: true });
+
+    expect(response.status).toBe(200);
+    expect(scheduleRelease).toHaveBeenCalledWith(releaseId, commandId);
+  });
+
+  it("rejects a transactional command without a UUID idempotency key", async () => {
+    const createMember = vi.fn();
+    const response = await request(testApp(service({ createMember })))
+      .post("/api/members")
+      .set("Origin", "https://vinifera.test")
+      .send({
+        email: "missing-key@example.com",
+        firstName: "Missing",
+        lastName: "Key",
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("invalid_request");
+    expect(createMember).not.toHaveBeenCalled();
   });
 
   it("requires an explicit confirmation before a release billing run", async () => {
@@ -726,6 +763,28 @@ describe("Phase 2 core club API", () => {
     expect(response.body.data.shipping.missing).toContain("APP_ENV");
   });
 
+  it("returns 401 when anonymous callers request provider-backed address validation", async () => {
+    const validateShippingAddress = vi.fn().mockRejectedValue(
+      new AppError(401, "unauthorized", "A valid sign-in is required."),
+    );
+    const response = await request(
+      testApp(service({ validateShippingAddress })),
+    )
+      .post("/api/shipping/validate-address")
+      .set("Origin", "https://vinifera.test")
+      .send({
+        city: "Napa",
+        country: "US",
+        line1: "1 Wine Way",
+        postalCode: "94558",
+        state: "CA",
+      });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("unauthorized");
+    expect(validateShippingAddress).toHaveBeenCalledOnce();
+  });
+
   it("returns member exports as a downloadable CSV instead of a JSON envelope", async () => {
     const response = await request(testApp())
       .get("/api/members/export")
@@ -738,6 +797,7 @@ describe("Phase 2 core club API", () => {
   });
 
   it("requires an explicit all-roster scope when batch ids are omitted", async () => {
+    const commandId = "81000000-0000-4000-8000-000000000004";
     const batchMembers = vi.fn().mockResolvedValue({ updated: 10 });
     const foundation = service({ batchMembers });
     const rejected = await request(testApp(foundation))
@@ -746,6 +806,7 @@ describe("Phase 2 core club API", () => {
       .send({ action: "pause" });
     const accepted = await request(testApp(foundation))
       .post("/api/members/batch")
+      .set("Idempotency-Key", commandId)
       .set("Origin", "https://vinifera.test")
       .send({ action: "pause", scope: "all" });
 
@@ -755,7 +816,7 @@ describe("Phase 2 core club API", () => {
       ids: undefined,
       operation: "pause",
       tierId: undefined,
-    });
+    }, commandId);
   });
 
   it("maps shipment roster search to the service search contract", async () => {
