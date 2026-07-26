@@ -125,7 +125,15 @@ export function normalizeMemberBranding(value: unknown): MemberBranding {
   };
 }
 
-export function MemberBrandingProvider({ children }: { children: ReactNode }) {
+function BrandingProvider({
+  children,
+  loadingLabel,
+  surfaceClassName,
+}: {
+  children: ReactNode;
+  loadingLabel: string;
+  surfaceClassName: "member-brand-surface" | "staff-brand-surface";
+}) {
   const [branding, setBranding] = useState<MemberBranding | null>(null);
 
   useEffect(() => {
@@ -160,15 +168,37 @@ export function MemberBrandingProvider({ children }: { children: ReactNode }) {
   }, [branding]);
 
   if (!branding) {
-    return <LoadingScreen label="Loading member portal" />;
+    return <LoadingScreen label={loadingLabel} />;
   }
 
   return (
     <MemberBrandingContext.Provider value={branding}>
-      <div className="member-brand-surface" style={style}>
+      <div className={surfaceClassName} style={style}>
         {children}
       </div>
     </MemberBrandingContext.Provider>
+  );
+}
+
+export function MemberBrandingProvider({ children }: { children: ReactNode }) {
+  return (
+    <BrandingProvider
+      loadingLabel="Loading member portal"
+      surfaceClassName="member-brand-surface"
+    >
+      {children}
+    </BrandingProvider>
+  );
+}
+
+export function StaffBrandingProvider({ children }: { children: ReactNode }) {
+  return (
+    <BrandingProvider
+      loadingLabel="Loading staff portal"
+      surfaceClassName="staff-brand-surface"
+    >
+      {children}
+    </BrandingProvider>
   );
 }
 

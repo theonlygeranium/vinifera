@@ -66,7 +66,8 @@ const invitationSchema = z.object({
   email,
   role: z.enum(["admin", "manager", "staff"]),
 });
-const billingSchema = z.object({ planTier });
+const billingSchema = z.object({ attemptId: z.uuid(), planTier });
+const billingPortalSchema = z.object({ attemptId: z.uuid() });
 const memberMagicLinkSchema = z.object({ brandId: z.uuid().optional(), email });
 const templateVariableSchema = z.record(
   z.string().regex(/^[a-z][a-z0-9_]*$/i),
@@ -616,6 +617,7 @@ export function createApp(options: AppOptions): express.Express {
     });
   const brandSchema = z.object({
     billingMode: z.enum(["shared", "independent"]).default("shared"),
+    defaultShippingChargeCents: z.number().int().min(0).max(100_000).optional(),
     description: z.string().trim().max(2_000).nullable().optional(),
     name: z.string().trim().min(1).max(200),
     slug: z
@@ -629,6 +631,7 @@ export function createApp(options: AppOptions): express.Express {
     .object({
       accentColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
       billingMode: z.enum(["shared", "independent"]).optional(),
+      defaultShippingChargeCents: z.number().int().min(0).max(100_000).optional(),
       description: z.string().trim().max(2_000).nullable().optional(),
       emailSenderAddress: email.nullable().optional(),
       emailSenderName: z.string().trim().min(1).max(200).optional(),
@@ -733,6 +736,46 @@ export function createApp(options: AppOptions): express.Express {
     );
   });
 
+  app.get("/api/integrations/avalara/filing", async (request, response) => {
+    data(
+      response,
+      await integrationService(request, response).getAvalaraFilingStatus(),
+    );
+  });
+
+  app.post(
+    "/api/integrations/avalara/filing/verify",
+    async (request, response) => {
+      data(
+        response,
+        await integrationService(
+          request,
+          response,
+        ).queueAvalaraFilingVerification(),
+        202,
+      );
+    },
+  );
+
+  app.get(
+    "/api/integrations/meta/attribution",
+    async (request, response) => {
+      const query = z
+        .object({
+          from: z.iso.datetime().optional(),
+          to: z.iso.datetime().optional(),
+        })
+        .parse(request.query);
+      data(
+        response,
+        await integrationService(
+          request,
+          response,
+        ).getMetaAttributionReport(query),
+      );
+    },
+  );
+
   app.get("/api/brands", async (request, response) => {
     data(response, await integrationService(request, response).listBrands());
   });
@@ -754,6 +797,16 @@ export function createApp(options: AppOptions): express.Express {
         uuid.parse(request.params.id),
         parseBody(brandPatchSchema, request),
       ),
+    );
+  });
+
+  app.post("/api/brands/:id/sender/verify", async (request, response) => {
+    data(
+      response,
+      await integrationService(request, response).activateBrandSender(
+        uuid.parse(request.params.id),
+      ),
+      202,
     );
   });
 
@@ -911,6 +964,65 @@ export function createApp(options: AppOptions): express.Express {
       input.deviceFingerprint,
     );
     response.status(204).end();
+  });
+
+  app.put("/api/member/privacy/meta", async (request, response) => {
+    const input = parseBody(
+      z
+        .object({
+          attribution: z
+            .object({
+              campaignId: z.string().trim().max(120).nullable().optional(),
+              campaignName: z.string().trim().max(200).nullable().optional(),
+              eventSourceUrl: z.url().max(2_048),
+              fbc: z.string().trim().max(255).nullable().optional(),
+              fbp: z.string().trim().max(255).nullable().optional(),
+              medium: z.string().trim().max(120).nullable().optional(),
+              occurredAt: z.iso.datetime(),
+              source: z.string().trim().max(120).nullable().optional(),
+            })
+            .optional(),
+          clientEventId: uuid.optional(),
+          consentSource: z
+            .string()
+            .trim()
+            .min(1)
+            .max(100)
+            .default("member_portal"),
+          consented: z.boolean(),
+          policyVersion: z.string().trim().min(1).max(80),
+        })
+        .superRefine((value, context) => {
+          if (value.attribution && !value.clientEventId) {
+            context.addIssue({
+              code: "custom",
+              message: "clientEventId is required with attribution.",
+              path: ["clientEventId"],
+            });
+          }
+          if (!value.consented && value.attribution) {
+            context.addIssue({
+              code: "custom",
+              message: "Attribution requires Meta consent.",
+              path: ["attribution"],
+            });
+          }
+        }),
+      request,
+    );
+    data(
+      response,
+      await integrationService(request, response).updateMemberMetaPrivacy(
+        input,
+      ),
+    );
+  });
+
+  app.get("/api/member/privacy/meta", async (request, response) => {
+    data(
+      response,
+      await integrationService(request, response).getMemberMetaPrivacy(),
+    );
   });
 
   app.get("/api/analytics/dashboard", async (request, response) => {
@@ -1281,12 +1393,18 @@ export function createApp(options: AppOptions): express.Express {
   });
 
   app.post("/api/billing/checkout", async (request, response) => {
-    const input = parseBody(billingSchema, request) as { planTier: PlanTier };
+    const input = parseBody(billingSchema, request) as {
+      attemptId: string;
+      planTier: PlanTier;
+    };
     data(response, await createService(request, response).createBillingCheckout(input));
   });
 
   app.post("/api/billing/portal", async (request, response) => {
-    data(response, await createService(request, response).createBillingPortal());
+    const input = parseBody(billingPortalSchema, request) as {
+      attemptId: string;
+    };
+    data(response, await createService(request, response).createBillingPortal(input));
   });
 
   app.get("/api/email/templates", async (request, response) => {
@@ -2028,9 +2146,12 @@ export function createApp(options: AppOptions): express.Express {
   });
 
   app.post("/api/member/billing/portal", async (request, response) => {
+    const input = parseBody(billingPortalSchema, request) as {
+      attemptId: string;
+    };
     data(
       response,
-      await coreService(request, response).createMemberPaymentMethodPortal(),
+      await coreService(request, response).createMemberPaymentMethodPortal(input),
     );
   });
 

@@ -55,6 +55,7 @@ Add the exact vendor-approved values as encrypted GitHub/Worker secrets:
 COMPLIANCE_PROVIDER=shipcompliant
 COMPLIANCE_SIMULATOR_ENABLED=false
 SHIPCOMPLIANT_BASE_URL
+SHIPCOMPLIANT_ENDPOINT_MODE=sandbox
 SHIPCOMPLIANT_TOKEN_PATH
 SHIPCOMPLIANT_CHECK_PATH
 SHIPCOMPLIANT_CONTRACT_VERSION
@@ -67,6 +68,12 @@ SHIPCOMPLIANT_LICENSE_ID
 The adapter requires HTTPS, an explicit contract version, and an explicit check
 path. Credentials alone cannot activate a guessed contract. No value may be
 Vite-prefixed or returned by a configuration endpoint.
+
+Before the adapter sends a request, the normalized sandbox/production origin
+must match the reviewed environment hash in
+`config/provider-target-policy.json`. Empty hash arrays deny the request.
+Production mode additionally requires the checked-in independent enable
+switch. Keep it disabled while service activation is deferred.
 
 ## 3. Validate OAuth and response mapping
 

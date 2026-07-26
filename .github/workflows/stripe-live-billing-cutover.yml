@@ -1,0 +1,297 @@
+name: Stripe live billing cutover
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Activate live billing or explicitly revert to test mode
+        required: true
+        type: choice
+        options:
+          - activate
+          - revert
+      git_sha:
+        description: Exact 40-character commit currently at canonical main
+        required: true
+        type: string
+      confirmation:
+        description: Exact operation confirmation from the reviewed live-billing policy
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vinifera-stripe-live-billing-control
+  cancel-in-progress: false
+
+jobs:
+  cutover:
+    name: ${{ inputs.operation }} Stripe billing mode
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: production
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PRODUCTION_CLOUDFLARE_API_TOKEN }}
+      PRODUCTION_CLOUDFLARE_ACCOUNT_ID: ${{ secrets.PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
+      PRODUCTION_LIVE_BILLING_AUTHORITY: ${{ secrets.PRODUCTION_LIVE_BILLING_AUTHORITY }}
+      PRODUCTION_STRIPE_LIVE_PRICE_CELLAR: ${{ secrets.PRODUCTION_STRIPE_LIVE_PRICE_CELLAR }}
+      PRODUCTION_STRIPE_LIVE_PRICE_ESTATE: ${{ secrets.PRODUCTION_STRIPE_LIVE_PRICE_ESTATE }}
+      PRODUCTION_STRIPE_LIVE_PRICE_RESERVE: ${{ secrets.PRODUCTION_STRIPE_LIVE_PRICE_RESERVE }}
+      PRODUCTION_STRIPE_LIVE_PRICE_VINE: ${{ secrets.PRODUCTION_STRIPE_LIVE_PRICE_VINE }}
+      PRODUCTION_STRIPE_LIVE_SECRET_KEY: ${{ secrets.PRODUCTION_STRIPE_LIVE_SECRET_KEY }}
+      PRODUCTION_STRIPE_LIVE_WEBHOOK_SECRET: ${{ secrets.PRODUCTION_STRIPE_LIVE_WEBHOOK_SECRET }}
+      PRODUCTION_STRIPE_TEST_PRICE_CELLAR: ${{ secrets.PRODUCTION_STRIPE_PRICE_CELLAR }}
+      PRODUCTION_STRIPE_TEST_PRICE_ESTATE: ${{ secrets.PRODUCTION_STRIPE_PRICE_ESTATE }}
+      PRODUCTION_STRIPE_TEST_PRICE_RESERVE: ${{ secrets.PRODUCTION_STRIPE_PRICE_RESERVE }}
+      PRODUCTION_STRIPE_TEST_PRICE_VINE: ${{ secrets.PRODUCTION_STRIPE_PRICE_VINE }}
+      PRODUCTION_STRIPE_TEST_SECRET_KEY: ${{ secrets.PRODUCTION_STRIPE_TEST_SECRET_KEY }}
+      PRODUCTION_STRIPE_TEST_WEBHOOK_SECRET: ${{ secrets.PRODUCTION_STRIPE_TEST_WEBHOOK_SECRET }}
+      PRODUCTION_WORKER_NAME: ${{ vars.PRODUCTION_WORKER_NAME }}
+      PRODUCTION_WORKER_ORIGIN: ${{ vars.PRODUCTION_WORKER_ORIGIN }}
+      STRIPE_LIVE_BILLING_CONFIRMATION: ${{ inputs.confirmation }}
+      STRIPE_LIVE_BILLING_GIT_SHA: ${{ inputs.git_sha }}
+
+    steps:
+      - name: Validate canonical immutable source target
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "theonlygeranium/vinifera" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$STRIPE_LIVE_BILLING_GIT_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Check out immutable source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.git_sha }}
+
+      - name: Verify commit is the immutable head of canonical main
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$STRIPE_LIVE_BILLING_GIT_SHA" ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          [[ "$(git rev-parse origin/main)" == "$STRIPE_LIVE_BILLING_GIT_SHA" ]]
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          cache: npm
+          node-version: 22.22.0
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify dedicated live-billing control tests
+        run: npx vitest run tests/scripts/stripe-live-billing.test.mjs
+
+      - name: Build production Worker without deploying
+        run: |
+          set -euo pipefail
+          npm run build
+          npm run build:worker:production
+
+      - name: Initialize sanitized evidence and ephemeral secret paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_dir="$RUNNER_TEMP/stripe-live-billing-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$evidence_dir"
+          {
+            echo "LIVE_BILLING_EVIDENCE_DIR=$evidence_dir"
+            echo "LIVE_BILLING_SECRET_FILE=$RUNNER_TEMP/stripe-live-billing-secrets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Capture sole prior production Worker version
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deployments status --env production --json \
+            > "$LIVE_BILLING_EVIDENCE_DIR/prior-deployment.json"
+          prior_version_id="$(node -e '
+            const fs = require("fs");
+            const deployment = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            if (!Array.isArray(deployment.versions) || deployment.versions.length !== 1 ||
+                Number(deployment.versions[0].percentage) !== 100 ||
+                !/^[0-9a-f-]{36}$/i.test(deployment.versions[0].version_id || "")) {
+              process.exit(1);
+            }
+            process.stdout.write(deployment.versions[0].version_id);
+          ' "$LIVE_BILLING_EVIDENCE_DIR/prior-deployment.json")"
+          echo "PRIOR_WORKER_VERSION_ID=$prior_version_id" >> "$GITHUB_ENV"
+
+      - name: Verify Stripe account, Prices, webhook, authority, and allowlisted targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          node scripts/stripe-live-billing.mjs execute "${{ inputs.operation }}" \
+            --report "$LIVE_BILLING_EVIDENCE_DIR/verification.json" \
+            --secret-file "$LIVE_BILLING_SECRET_FILE"
+
+      - name: Upload exact-SHA Worker with isolated Stripe bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$STRIPE_LIVE_BILLING_GIT_SHA" ]]
+          npx wrangler versions upload --env production --strict \
+            --secrets-file "$LIVE_BILLING_SECRET_FILE" \
+            --tag "stripe-${{ inputs.operation }}-$STRIPE_LIVE_BILLING_GIT_SHA" \
+            --message "vinifera stripe ${{ inputs.operation }} git_sha=$STRIPE_LIVE_BILLING_GIT_SHA" \
+            | tee "$LIVE_BILLING_EVIDENCE_DIR/version-output.txt"
+          node scripts/stripe-live-billing.mjs parse-version \
+            "$LIVE_BILLING_EVIDENCE_DIR/version-output.txt" \
+            --output "$LIVE_BILLING_EVIDENCE_DIR/version.json"
+          candidate_version_id="$(node -e '
+            const fs = require("fs");
+            process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).versionId);
+          ' "$LIVE_BILLING_EVIDENCE_DIR/version.json")"
+          echo "CANDIDATE_WORKER_VERSION_ID=$candidate_version_id" >> "$GITHUB_ENV"
+
+      - name: Promote verified Stripe-binding version
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler versions deploy "$CANDIDATE_WORKER_VERSION_ID@100%" \
+            --env production -y \
+            | tee "$LIVE_BILLING_EVIDENCE_DIR/deploy-output.txt"
+
+      - name: Verify production health after billing-mode change
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /api/health /api/health/configuration; do
+            output_name="$(basename "$path").json"
+            [[ "$path" == "/api/health/configuration" ]] && output_name="configuration.json"
+            ready=false
+            for attempt in {1..8}; do
+              if curl --fail --silent --show-error --connect-timeout 10 --max-time 20 \
+                "$PRODUCTION_WORKER_ORIGIN$path" \
+                > "$LIVE_BILLING_EVIDENCE_DIR/$output_name"; then
+                ready=true
+                break
+              fi
+              sleep 5
+            done
+            [[ "$ready" == "true" ]]
+          done
+          node -e '
+            const fs = require("fs");
+            const health = JSON.parse(fs.readFileSync(
+              process.env.LIVE_BILLING_EVIDENCE_DIR + "/health.json", "utf8"
+            ));
+            const configuration = JSON.parse(fs.readFileSync(
+              process.env.LIVE_BILLING_EVIDENCE_DIR + "/configuration.json", "utf8"
+            ));
+            if (health?.data?.status !== "ok" ||
+                configuration?.data?.billing?.configured !== true) process.exit(1);
+          '
+
+      - name: Automatically restore prior Worker version after a failed promotion
+        if: failure() && env.CANDIDATE_WORKER_VERSION_ID != '' && env.PRIOR_WORKER_VERSION_ID != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler versions deploy "$PRIOR_WORKER_VERSION_ID@100%" \
+            --env production -y \
+            | tee "$LIVE_BILLING_EVIDENCE_DIR/automatic-rollback-output.txt"
+          restored=false
+          for attempt in {1..8}; do
+            npx wrangler deployments status --env production --json \
+              > "$LIVE_BILLING_EVIDENCE_DIR/rollback-deployment.json"
+            if node -e '
+              const fs = require("fs");
+              const deployment = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              const expected = process.env.PRIOR_WORKER_VERSION_ID;
+              if (!Array.isArray(deployment.versions) ||
+                  deployment.versions.length !== 1 ||
+                  Number(deployment.versions[0].percentage) !== 100 ||
+                  deployment.versions[0].version_id !== expected) process.exit(1);
+            ' "$LIVE_BILLING_EVIDENCE_DIR/rollback-deployment.json"; then
+              restored=true
+              break
+            fi
+            sleep 5
+          done
+          [[ "$restored" == "true" ]]
+          for endpoint in health configuration; do
+            if [[ "$endpoint" == "health" ]]; then
+              path="/api/health"
+            else
+              path="/api/health/configuration"
+            fi
+            ready=false
+            for attempt in {1..8}; do
+              if curl --fail --silent --show-error --connect-timeout 10 --max-time 20 \
+                "$PRODUCTION_WORKER_ORIGIN$path" \
+                > "$LIVE_BILLING_EVIDENCE_DIR/rollback-$endpoint.json"; then
+                ready=true
+                break
+              fi
+              sleep 5
+            done
+            [[ "$ready" == "true" ]]
+          done
+          node -e '
+            const crypto = require("crypto");
+            const fs = require("fs");
+            const directory = process.env.LIVE_BILLING_EVIDENCE_DIR;
+            const health = JSON.parse(fs.readFileSync(
+              directory + "/rollback-health.json", "utf8"
+            ));
+            const configuration = JSON.parse(fs.readFileSync(
+              directory + "/rollback-configuration.json", "utf8"
+            ));
+            if (health?.data?.status !== "ok" ||
+                configuration?.data?.billing?.configured !== true) process.exit(1);
+            fs.writeFileSync(
+              directory + "/rollback-verification.json",
+              JSON.stringify({
+                healthVerified: true,
+                priorVersionSha256: crypto
+                  .createHash("sha256")
+                  .update(process.env.PRIOR_WORKER_VERSION_ID)
+                  .digest("hex"),
+                restoredAt: new Date().toISOString(),
+                restoredToSoleVersion: true,
+              }, null, 2) + "\\n",
+              { mode: 0o600 },
+            );
+          '
+
+      - name: Remove ephemeral Stripe secret bundle
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${LIVE_BILLING_SECRET_FILE:-}" &&
+                "$LIVE_BILLING_SECRET_FILE" == "$RUNNER_TEMP"/stripe-live-billing-secrets-* ]]; then
+            rm -f -- "$LIVE_BILLING_SECRET_FILE"
+          fi
+
+      - name: Remove raw provider and deployment command output from evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f -- \
+            "$LIVE_BILLING_EVIDENCE_DIR/prior-deployment.json" \
+            "$LIVE_BILLING_EVIDENCE_DIR/version-output.txt" \
+            "$LIVE_BILLING_EVIDENCE_DIR/deploy-output.txt" \
+            "$LIVE_BILLING_EVIDENCE_DIR/automatic-rollback-output.txt" \
+            "$LIVE_BILLING_EVIDENCE_DIR/rollback-deployment.json"
+
+      - name: Upload sanitized live-billing evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          if-no-files-found: error
+          name: stripe-live-billing-${{ inputs.operation }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.LIVE_BILLING_EVIDENCE_DIR }}
+          retention-days: 90

@@ -32,6 +32,10 @@ import {
   withAuditableComplianceId,
 } from "../../server/services/compliance";
 import {
+  providerTargetPolicy,
+  sha256ProviderTarget,
+} from "../../server/provider-targets";
+import {
   CHURN_FEATURE_NAMES,
   trainTemporalLogisticModel,
   type MlTrainingExample,
@@ -144,6 +148,7 @@ describe("Phase 4 compliance controls", () => {
       SHIPCOMPLIANT_BASE_URL: "https://sandbox.example.test",
       SHIPCOMPLIANT_CHECK_PATH: "/shipment/check",
       SHIPCOMPLIANT_CONTRACT_VERSION: "sandbox-v1",
+      SHIPCOMPLIANT_ENDPOINT_MODE: "sandbox",
     };
     expect(() => createComplianceProvider(incomplete)).toThrow(
       /SHIPCOMPLIANT_ACCOUNT_ID/,
@@ -180,12 +185,23 @@ describe("Phase 4 compliance controls", () => {
     const provider = new ShipCompliantProvider(
       {
         accountId: "sandbox-account",
+        appEnvironment: "test",
         apiKey: "key",
         apiSecret: "secret",
         baseUrl: "https://sandbox.example.test",
         checkPath: "/shipment/check",
         contractVersion: "sandbox-v1",
+        endpointMode: "sandbox",
         licenseId: "sandbox-license",
+        targetPolicy: {
+          ...providerTargetPolicy,
+          shipCompliant: {
+            ...providerTargetPolicy.shipCompliant,
+            stagingSandboxOriginSha256: [
+              sha256ProviderTarget("https://sandbox.example.test"),
+            ],
+          },
+        },
         tokenPath: "/oauth/token",
       },
       fetcher,
@@ -289,7 +305,10 @@ describe("Phase 4 compliance controls", () => {
       }
       throw new Error(`Unexpected EasyPost call: ${url}`);
     }) as typeof fetch;
-    const provider = new EasyPostShippingProvider("test-key", fetcher);
+    const provider = new EasyPostShippingProvider(
+      "EZTKtestcredential",
+      fetcher,
+    );
     const result = await provider.createLabel(labelRequest, {
       persistExternalShipment: async (shipmentId, rateId) => {
         expect(shipmentId).toBe("shp_created123");
@@ -330,7 +349,10 @@ describe("Phase 4 compliance controls", () => {
         { status: 200 },
       );
     }) as typeof fetch;
-    const provider = new EasyPostShippingProvider("test-key", fetcher);
+    const provider = new EasyPostShippingProvider(
+      "EZTKtestcredential",
+      fetcher,
+    );
     const result = await provider.createLabel(labelRequest, {
       externalRateId: "rate_stored",
       externalShipmentId: "shp_stored123",

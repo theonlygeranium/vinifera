@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { StaffBrandingProvider } from "../member/MemberBranding";
 import { LoadingScreen } from "../shared/LoadingScreen";
 import { Redirect, useRouter } from "../routes/router";
 import { StaffDashboard } from "./StaffDashboard";
@@ -209,7 +210,9 @@ function StaffRoutes() {
 export default function StaffArea() {
   return (
     <StaffSessionProvider>
-      <StaffRoutes />
+      <StaffBrandingProvider>
+        <StaffRoutes />
+      </StaffBrandingProvider>
     </StaffSessionProvider>
   );
 }

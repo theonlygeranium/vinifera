@@ -62,10 +62,28 @@ export interface Brand {
   domainStatus: BrandDomainStatus;
   sslStatus?: "unconfigured" | "pending" | "active" | "error";
   billingMode: "shared" | "independent";
+  defaultShippingChargeCents?: number;
   isDefault: boolean;
   emailSenderName?: string | null;
   emailSenderAddress?: string | null;
   emailDomainStatus?: "unconfigured" | "pending" | "verified" | "error";
+}
+
+export interface AvalaraFilingRegistration {
+  filingCalendarId: number;
+  filingFrequency: string | null;
+  regionCode: string;
+  status: "active" | "inactive" | "pending" | "unknown";
+}
+
+export interface AvalaraFilingStatus {
+  configured: boolean;
+  enabled: boolean;
+  registered: boolean;
+  registrations: AvalaraFilingRegistration[];
+  stale: boolean;
+  staleRegistrationCount: number;
+  verifiedAt: string | null;
 }
 
 export interface OrganizationBrandOverview {
@@ -91,6 +109,18 @@ export interface DomainVerification {
     value: string;
   } | null;
   sslStatus: "pending" | "active" | "error";
+}
+
+export interface SenderVerification {
+  dnsRecords: Array<{
+    name: string;
+    record: string;
+    status: string;
+    type: string;
+    value: string;
+  }>;
+  domain: string;
+  status: "pending" | "verified";
 }
 
 export interface MobileAppPolicy {

@@ -136,6 +136,15 @@ blocks every catalog write.
 
 ### 5.2 Bootstrap and verify the recurring catalog
 
+**Current pause:** protected run
+[`30218801133`](https://github.com/theonlygeranium/vinifera/actions/runs/30218801133)
+left the first test Price created-or-unknown, then failed closed when Stripe
+returned only the Product ID instead of the expanded Product. The controller
+now requests expansion and keeps the same stable lookup/idempotency key.
+Service connection work is deferred by owner direction. Do not retry this
+operation until activation is explicitly resumed; first reconcile the fixed
+lookup key and retain the sanitized result.
+
 From the reviewed allowlist commit, dispatch:
 
 ```text

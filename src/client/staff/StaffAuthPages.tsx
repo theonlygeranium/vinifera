@@ -3,6 +3,7 @@ import {
   type FormEvent,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { ApiError, postJson } from "../api/client";
@@ -143,6 +144,9 @@ export function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const checkoutAttempt = useRef<{ id: string; planTier: PlanTier } | null>(
+    null,
+  );
 
   const passwordError = useMemo(() => {
     if (!confirmation) return undefined;
@@ -171,7 +175,14 @@ export function SignupPage() {
         return;
       }
       if (!result.billingActivationRequired) {
+        if (checkoutAttempt.current?.planTier !== planTier) {
+          checkoutAttempt.current = {
+            id: crypto.randomUUID(),
+            planTier,
+          };
+        }
         const checkout = await postJson<{ url: string }>("/api/billing/checkout", {
+          attemptId: checkoutAttempt.current.id,
           planTier,
         });
         safeNavigate(checkout.url);

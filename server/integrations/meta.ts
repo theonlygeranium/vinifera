@@ -30,6 +30,7 @@ export interface MetaRawUserData {
 }
 
 export interface MetaConversionInput {
+  browserData?: MetaBrowserData | null;
   consented: boolean;
   customData?: Record<string, string | number | boolean | null>;
   eventId: string;
@@ -39,9 +40,72 @@ export interface MetaConversionInput {
   userData: MetaRawUserData;
 }
 
+export interface MetaBrowserData {
+  fbc?: string | null;
+  fbp?: string | null;
+}
+
 interface MetaClientOptions {
   fetcher?: (input: Request) => Promise<Response>;
   sleep?: IntegrationRequestOptions["sleep"];
+}
+
+const META_BROWSER_ID =
+  /^fb\.[12]\.\d{10,13}\.[A-Za-z0-9_-]{1,200}$/;
+const META_TEST_EVENT_CODE = /^TEST[A-Z0-9_-]{1,96}$/;
+
+export function normalizeMetaTestEventCode(
+  value: unknown,
+  required: boolean,
+): string | null {
+  const normalized =
+    typeof value === "string"
+      ? value.normalize("NFKC").trim().toUpperCase()
+      : "";
+  if (!normalized) {
+    if (required) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "A Meta test event code is required outside production.",
+      );
+    }
+    return null;
+  }
+  if (!META_TEST_EVENT_CODE.test(normalized)) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "The Meta test event code is invalid.",
+    );
+  }
+  return normalized;
+}
+
+export function normalizeMetaBrowserData(
+  input: MetaBrowserData | null | undefined,
+): Record<"fbc" | "fbp", string | undefined> {
+  const normalize = (
+    value: string | null | undefined,
+    field: "fbc" | "fbp",
+  ): string | undefined => {
+    if (value === null || value === undefined || value.trim() === "") {
+      return undefined;
+    }
+    const normalized = value.normalize("NFKC").trim();
+    if (!META_BROWSER_ID.test(normalized)) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        `The Meta ${field} browser identifier is invalid.`,
+      );
+    }
+    return normalized;
+  };
+  return {
+    fbc: normalize(input?.fbc, "fbc"),
+    fbp: normalize(input?.fbp, "fbp"),
+  };
 }
 
 export async function buildHashedMetaUserData(
@@ -88,6 +152,9 @@ export class MetaConversionsClient {
         "activation_required",
         "The Meta Graph API version is invalid.",
       );
+    }
+    if (credentials.testEventCode !== undefined) {
+      normalizeMetaTestEventCode(credentials.testEventCode, false);
     }
   }
 
@@ -137,6 +204,7 @@ export class MetaConversionsClient {
     const userData = await buildHashedMetaUserData(input.userData);
     assertHashedMetaUserData(userData);
     return this.sendHashedConversion({
+      browserData: input.browserData,
       consented: true,
       customData: input.customData,
       eventId: input.eventId,
@@ -148,6 +216,7 @@ export class MetaConversionsClient {
   }
 
   async sendHashedConversion(input: {
+    browserData?: MetaBrowserData | null;
     consented: boolean;
     customData?: Record<string, string | number | boolean | null>;
     eventId: string;
@@ -174,12 +243,15 @@ export class MetaConversionsClient {
       );
     }
     assertHashedMetaUserData(input.userData);
-    const userData = Object.fromEntries(
+    const browserData = normalizeMetaBrowserData(input.browserData);
+    const userData: Record<string, string | string[]> = Object.fromEntries(
       Object.entries(input.userData).map(([key, value]) => [
         key,
         Array.isArray(value) ? value : [value],
       ]),
     );
+    if (browserData.fbc) userData.fbc = browserData.fbc;
+    if (browserData.fbp) userData.fbp = browserData.fbp;
     const body = {
       data: [
         {

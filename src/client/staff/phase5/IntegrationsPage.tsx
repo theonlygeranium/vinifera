@@ -24,6 +24,7 @@ import {
   postJson,
 } from "../../api/client";
 import type {
+  AvalaraFilingStatus,
   IntegrationLog,
   IntegrationLogsResponse,
   IntegrationSummary,
@@ -89,6 +90,7 @@ type DraftConfig = {
   accountId: string;
   companyCode: string;
   pixelId: string;
+  testEventCode: string;
   accessToken: string;
   environment: "sandbox" | "production";
   graphApiVersion: string;
@@ -114,6 +116,7 @@ const EMPTY_DRAFT: DraftConfig = {
   accountId: "",
   companyCode: "",
   pixelId: "",
+  testEventCode: "",
   accessToken: "",
   environment: "sandbox",
   graphApiVersion: "",
@@ -147,6 +150,7 @@ function draftFrom(summary: IntegrationSummary): DraftConfig {
     accountId: stringConfig(summary.syncConfig, "accountId"),
     companyCode: stringConfig(summary.syncConfig, "companyCode"),
     pixelId: stringConfig(summary.syncConfig, "pixelId"),
+    testEventCode: stringConfig(summary.syncConfig, "testEventCode"),
     listId: stringConfig(summary.syncConfig, "listId"),
     memberEmailField: stringConfig(
       summary.syncConfig,
@@ -480,6 +484,23 @@ function ConfigurationFields({
             placeholder="Stored server-side only"
           />
         </div>
+        <div className="form-field">
+          <label htmlFor="meta-test-event-code">Test event code</label>
+          <input
+            id="meta-test-event-code"
+            value={draft.testEventCode}
+            onChange={(event) =>
+              update("testEventCode", event.target.value.toUpperCase())
+            }
+            pattern="TEST[A-Za-z0-9_-]{1,96}"
+            maxLength={100}
+            placeholder="TEST12345"
+          />
+          <small>
+            Required outside production so rehearsals cannot enter the live
+            Meta event stream.
+          </small>
+        </div>
       </div>
     </>
   );
@@ -517,6 +538,9 @@ export function IntegrationsPage() {
     currency: string;
     status: string;
   } | null>(null);
+  const [filingStatus, setFilingStatus] =
+    useState<AvalaraFilingStatus | null>(null);
+  const [filingLoading, setFilingLoading] = useState(false);
 
   const summaries = resource.state.status === "ready" ? resource.state.data.items : [];
   const selected = useMemo(
@@ -528,6 +552,7 @@ export function IntegrationsPage() {
     if (!selected) return;
     setDraft(draftFrom(selected));
     setReconciliation(null);
+    setFilingStatus(null);
     setLogsLoading(true);
     void apiRequest<IntegrationLogsResponse>(
       `/api/integrations/${selected.type}/logs?limit=25`,
@@ -535,6 +560,17 @@ export function IntegrationsPage() {
       .then((response) => setLogs(response.items))
       .catch(() => setLogs([]))
       .finally(() => setLogsLoading(false));
+    if (selected.type === "avalara") {
+      setFilingLoading(true);
+      void apiRequest<AvalaraFilingStatus>(
+        "/api/integrations/avalara/filing",
+      )
+        .then(setFilingStatus)
+        .catch(() => setFilingStatus(null))
+        .finally(() => setFilingLoading(false));
+    } else {
+      setFilingLoading(false);
+    }
   }, [selected]);
 
   function updateDraft<K extends keyof DraftConfig>(
@@ -592,6 +628,7 @@ export function IntegrationsPage() {
             : {
                 graphApiVersion: draft.graphApiVersion || null,
                 pixelId: draft.pixelId || null,
+                testEventCode: draft.testEventCode || null,
                 syncFrequency: draft.syncFrequency,
               };
     const credentials = {
@@ -616,6 +653,7 @@ export function IntegrationsPage() {
         ? {
             apiVersion: draft.graphApiVersion,
             pixelId: draft.pixelId,
+            testEventCode: draft.testEventCode,
           }
         : {}),
     };
@@ -756,6 +794,32 @@ export function IntegrationsPage() {
           error instanceof ApiError
             ? error.message
             : "The reconciliation report is not available.",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function verifyFilingStatus() {
+    if (!selected || selected.type !== "avalara") return;
+    setBusy("filing");
+    setFeedback(null);
+    try {
+      await postJson<{ jobId: string; status: string }>(
+        "/api/integrations/avalara/filing/verify",
+      );
+      setFeedback({
+        kind: "success",
+        message:
+          "Avalara filing verification was queued. The read-only snapshot will update after the worker completes.",
+      });
+    } catch (error) {
+      setFeedback({
+        kind: "error",
+        message:
+          error instanceof ApiError
+            ? error.message
+            : "Avalara filing verification could not be queued.",
       });
     } finally {
       setBusy(null);
@@ -990,6 +1054,19 @@ export function IntegrationsPage() {
                   {busy === "reconcile" ? "Loading…" : "Reconcile month"}
                 </button>
               ) : null}
+              {selected.type === "avalara" &&
+              selected.status === "active" &&
+              draft.filingEnabled ? (
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  disabled={busy !== null}
+                  onClick={() => void verifyFilingStatus()}
+                >
+                  <BookOpenCheck aria-hidden="true" />
+                  {busy === "filing" ? "Queueing…" : "Verify filing status"}
+                </button>
+              ) : null}
             </div>
 
             {reconciliation ? (
@@ -1009,6 +1086,84 @@ export function IntegrationsPage() {
                     <dd>{money(reconciliation.differenceCents)}</dd>
                   </div>
                 </dl>
+              </section>
+            ) : null}
+
+            {selected.type === "avalara" ? (
+              <section
+                className="reconciliation-summary"
+                aria-labelledby="avalara-filing-title"
+                aria-live="polite"
+              >
+                <h3 id="avalara-filing-title">Filing verification</h3>
+                {filingLoading ? (
+                  <p role="status">Loading filing status…</p>
+                ) : !filingStatus?.verifiedAt ? (
+                  <p>
+                    No filing snapshot has been verified yet. Enable filing
+                    verification, activate Avalara, then queue a read-only
+                    check.
+                  </p>
+                ) : (
+                  <>
+                    <dl>
+                      <div>
+                        <dt>Registration</dt>
+                        <dd>
+                          {filingStatus.registered
+                            ? "Active registration found"
+                            : "No active registration"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Last verified</dt>
+                        <dd>{formatTimestamp(filingStatus.verifiedAt)}</dd>
+                      </div>
+                      <div>
+                        <dt>Freshness</dt>
+                        <dd>
+                          {filingStatus.stale
+                            ? "Verification is stale"
+                            : "Current"}
+                        </dd>
+                      </div>
+                    </dl>
+                    {filingStatus.registrations.length ? (
+                      <div className="data-table-wrap" tabIndex={0}>
+                        <table className="data-table integration-log__table">
+                          <thead>
+                            <tr>
+                              <th scope="col">Region</th>
+                              <th scope="col">Frequency</th>
+                              <th scope="col">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filingStatus.registrations.map((registration) => (
+                              <tr key={registration.filingCalendarId}>
+                                <th scope="row">{registration.regionCode}</th>
+                                <td>
+                                  {registration.filingFrequency ?? "Unknown"}
+                                </td>
+                                <td>{sentence(registration.status)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p>No current filing registrations were returned.</p>
+                    )}
+                    {filingStatus.staleRegistrationCount > 0 ? (
+                      <p>
+                        {filingStatus.staleRegistrationCount} historical
+                        registration
+                        {filingStatus.staleRegistrationCount === 1 ? "" : "s"}{" "}
+                        marked stale by a newer snapshot.
+                      </p>
+                    ) : null}
+                  </>
+                )}
               </section>
             ) : null}
 

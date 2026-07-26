@@ -4,6 +4,12 @@ import type {
   WorkerEnv,
 } from "./types";
 import { AppError, requireConfigured } from "./lib/errors";
+import {
+  assertCloudflareCustomHostnameTarget,
+  assertEasyPostTarget,
+  assertFcmProjectTarget,
+  assertShipCompliantTarget,
+} from "./provider-targets";
 
 export type ProviderEnvironment = "live" | "production" | "sandbox" | "test";
 export type ProtectedProvider = "APNs" | "Avalara" | "QuickBooks" | "Stripe";
@@ -59,6 +65,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
           "SHIPCOMPLIANT_API_SECRET",
           "SHIPCOMPLIANT_CHECK_PATH",
           "SHIPCOMPLIANT_CONTRACT_VERSION",
+          "SHIPCOMPLIANT_ENDPOINT_MODE",
           "SHIPCOMPLIANT_LICENSE_ID",
         ])
       : env.COMPLIANCE_PROVIDER === "simulated" &&
@@ -86,6 +93,18 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
       compliance.configured = false;
       if (!compliance.missing.includes("SHIPCOMPLIANT_BASE_URL")) {
         compliance.missing.push("SHIPCOMPLIANT_BASE_URL");
+      }
+    }
+    try {
+      assertShipCompliantTarget({
+        appEnvironment: env.APP_ENV,
+        baseUrl: env.SHIPCOMPLIANT_BASE_URL,
+        endpointMode: env.SHIPCOMPLIANT_ENDPOINT_MODE,
+      });
+    } catch {
+      compliance.configured = false;
+      if (!compliance.missing.includes("SHIPCOMPLIANT_ENDPOINT_MODE")) {
+        compliance.missing.push("SHIPCOMPLIANT_ENDPOINT_MODE");
       }
     }
   }
@@ -159,6 +178,62 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
                   ]
                 : ["SHIPPING_PROVIDER"],
           };
+  if (env.SHIPPING_PROVIDER === "easypost" && env.EASYPOST_API_KEY) {
+    try {
+      assertEasyPostTarget({
+        apiKey: env.EASYPOST_API_KEY,
+        appEnvironment: env.APP_ENV,
+        liveLabelsEnabled: env.EASYPOST_LIVE_LABELS_ENABLED,
+      });
+    } catch {
+      shipping.configured = false;
+      if (!shipping.missing.includes("EASYPOST_LIVE_LABELS_ENABLED")) {
+        shipping.missing.push("EASYPOST_LIVE_LABELS_ENABLED");
+      }
+    }
+  }
+  const customDomains = capability(env, [
+    "CLOUDFLARE_CUSTOM_HOSTNAME_API_TOKEN",
+    "CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN",
+    "CLOUDFLARE_ZONE_ID",
+  ]);
+  if (
+    env.CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN &&
+    env.CLOUDFLARE_ZONE_ID
+  ) {
+    try {
+      assertCloudflareCustomHostnameTarget({
+        appEnvironment: env.APP_ENV,
+        fallbackOrigin: env.CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN,
+        zoneId: env.CLOUDFLARE_ZONE_ID,
+      });
+    } catch {
+      customDomains.configured = false;
+      if (!customDomains.missing.includes("CLOUDFLARE_ZONE_ID")) {
+        customDomains.missing.push("CLOUDFLARE_ZONE_ID");
+      }
+    }
+  }
+  const push = capability(env, [
+    "APNS_BUNDLE_ID",
+    "APNS_ENVIRONMENT",
+    "APNS_KEY_ID",
+    "APNS_PRIVATE_KEY",
+    "APNS_TEAM_ID",
+    "FCM_CLIENT_EMAIL",
+    "FCM_PRIVATE_KEY",
+    "FCM_PROJECT_ID",
+  ]);
+  if (env.FCM_PROJECT_ID) {
+    try {
+      assertFcmProjectTarget(env);
+    } catch {
+      push.configured = false;
+      if (!push.missing.includes("FCM_PROJECT_ID")) {
+        push.missing.push("FCM_PROJECT_ID");
+      }
+    }
+  }
   return {
     app: capability(env, ["APP_ORIGIN", "ALLOWED_ORIGINS"]),
     database: capability(env, [
@@ -169,11 +244,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
     billing,
     compliance,
     communications,
-    customDomains: capability(env, [
-      "CLOUDFLARE_CUSTOM_HOSTNAME_API_TOKEN",
-      "CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN",
-      "CLOUDFLARE_ZONE_ID",
-    ]),
+    customDomains,
     webhook: capability(env, ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]),
     googleOAuth: {
       configured: env.GOOGLE_OAUTH_ENABLED === "true",
@@ -206,16 +277,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
       "QUICKBOOKS_REDIRECT_URI",
       "QUICKBOOKS_STATE_SIGNING_SECRET",
     ]),
-    push: capability(env, [
-      "APNS_BUNDLE_ID",
-      "APNS_ENVIRONMENT",
-      "APNS_KEY_ID",
-      "APNS_PRIVATE_KEY",
-      "APNS_TEAM_ID",
-      "FCM_CLIENT_EMAIL",
-      "FCM_PRIVATE_KEY",
-      "FCM_PROJECT_ID",
-    ]),
+    push,
     shipping,
   };
 }

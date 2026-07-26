@@ -18,6 +18,7 @@ export interface AvalaraTaxLine {
   amountCents: number;
   description: string;
   itemCode: string;
+  kind: "shipping" | "wine";
   quantity: number;
   taxCode: string;
 }
@@ -45,9 +46,24 @@ export interface AvalaraTaxQuote {
     taxableCents: number;
   }>;
   providerId: number | null;
+  exemptAmountCents: number;
+  shippingTaxCents: number;
   status: "Saved";
   taxCents: number;
   totalCents: number;
+}
+
+export interface AvalaraFilingRegistrationStatus {
+  filingCalendarId: number;
+  filingFrequency: string | null;
+  regionCode: string;
+  status: "active" | "inactive" | "pending" | "unknown";
+}
+
+export interface AvalaraFilingStatus {
+  registered: boolean;
+  registrations: AvalaraFilingRegistrationStatus[];
+  verifiedAt: string;
 }
 
 export interface AvalaraRefundRequest {
@@ -164,13 +180,20 @@ export class AvalaraClient {
         tax?: number;
         taxable?: number;
       }>;
+      lines?: Array<{
+        exemptAmount?: number;
+        itemCode?: string;
+        lineNumber?: number | string;
+        number?: number | string;
+        tax?: number;
+      }>;
       totalAmount?: number;
       totalTax?: number;
     }>({
       attempts: 2,
       fetcher: this.options.fetcher,
       request: providerRequest(
-        `${this.baseUrl}/api/v2/transactions/create?$include=Summary,Addresses`,
+        `${this.baseUrl}/api/v2/transactions/create?$include=Summary,Addresses,Lines`,
         {
           body: JSON.stringify({
             addresses: {
@@ -225,9 +248,87 @@ export class AvalaraClient {
         taxableCents: Math.round(Number(summary.taxable ?? 0) * 100),
       })),
       providerId: payload.id ?? null,
+      exemptAmountCents: (payload.lines ?? []).reduce(
+        (total, line) =>
+          total + Math.max(0, Math.round(Number(line.exemptAmount ?? 0) * 100)),
+        0,
+      ),
+      shippingTaxCents: (payload.lines ?? []).reduce((total, line, index) => {
+        const providerLineNumber = Number(line.lineNumber ?? line.number);
+        const sourceIndex =
+          Number.isInteger(providerLineNumber) &&
+          providerLineNumber >= 1 &&
+          providerLineNumber <= input.lines.length
+            ? providerLineNumber - 1
+            : index;
+        const sourceLine = input.lines[sourceIndex];
+        return sourceLine?.kind === "shipping"
+          ? total + Math.max(0, Math.round(Number(line.tax ?? 0) * 100))
+          : total;
+      }, 0),
       status: "Saved",
       taxCents: Math.round(payload.totalTax * 100),
       totalCents: Math.round(Number(payload.totalAmount ?? 0) * 100),
+    };
+  }
+
+  async getFilingRegistrationStatus(): Promise<AvalaraFilingStatus> {
+    const payload = await requestIntegrationJson<{
+      value?: Array<{
+        active?: boolean;
+        filingFrequencyCode?: string;
+        id?: number;
+        region?: string;
+        status?: string;
+      }>;
+    }>({
+      attempts: 1,
+      fetcher: this.options.fetcher,
+      request: providerRequest(
+        `${this.baseUrl}/api/v2/companies/${encodeURIComponent(
+          this.credentials.companyCode,
+        )}/filingcalendars?$filter=active%20eq%20true`,
+        {
+          headers: this.headers(),
+          method: "GET",
+        },
+      ),
+      sleep: this.options.sleep,
+    });
+    const registrations = (payload.value ?? []).map((row) => {
+      if (
+        !Number.isInteger(row.id) ||
+        !row.region ||
+        !/^[A-Z0-9-]{2,12}$/i.test(row.region)
+      ) {
+        throw new AppError(
+          502,
+          "upstream_error",
+          "Avalara returned an invalid filing registration.",
+        );
+      }
+      const rawStatus = row.status?.toLowerCase();
+      const status =
+        rawStatus === "active" ||
+        rawStatus === "inactive" ||
+        rawStatus === "pending"
+          ? rawStatus
+          : row.active === true
+            ? "active"
+            : "unknown";
+      return {
+        filingCalendarId: row.id!,
+        filingFrequency: row.filingFrequencyCode ?? null,
+        regionCode: row.region.toUpperCase(),
+        status,
+      } satisfies AvalaraFilingRegistrationStatus;
+    });
+    return {
+      registered: registrations.some(
+        (registration) => registration.status === "active",
+      ),
+      registrations,
+      verifiedAt: new Date().toISOString(),
     };
   }
 

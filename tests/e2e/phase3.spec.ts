@@ -358,6 +358,14 @@ interface MockState {
     redemptionRate: { discountCents: number; points: number };
     tierName: string;
   };
+  metaPrivacy: {
+    consentSource: string | null;
+    consented: boolean | null;
+    consentedAt: string | null;
+    policyVersion: string | null;
+    revokedAt: string | null;
+    updatedAt: string | null;
+  };
 }
 
 function json(route: Route, data: unknown, status = 200) {
@@ -389,6 +397,14 @@ function createMockState(): MockState {
       pendingPoints: 50,
       redemptionRate: { discountCents: 1000, points: 100 },
       tierName: "Founders Circle",
+    },
+    metaPrivacy: {
+      consentSource: null,
+      consented: null,
+      consentedAt: null,
+      policyVersion: null,
+      revokedAt: null,
+      updatedAt: null,
     },
   };
 }
@@ -598,6 +614,37 @@ async function installMockApi(page: Page, capture: Capture = []) {
         swapped: "Your next shipment swap is confirmed.",
       };
       return json(route, { message: messages[event.outcome ?? ""] });
+    }
+    if (path === "/api/member/privacy/meta" && method === "GET") {
+      return json(route, state.metaPrivacy);
+    }
+    if (path === "/api/member/privacy/meta" && method === "PUT") {
+      const preference = body as {
+        attribution?: unknown;
+        consentSource: string;
+        consented: boolean;
+        policyVersion: string;
+      };
+      const updatedAt = "2026-07-26T15:00:00.000Z";
+      state.metaPrivacy = {
+        consentSource: preference.consentSource,
+        consented: preference.consented,
+        consentedAt: preference.consented ? updatedAt : null,
+        policyVersion: preference.policyVersion,
+        revokedAt:
+          !preference.consented &&
+          preference.consentSource === "member_portal_revoke"
+            ? updatedAt
+            : null,
+        updatedAt,
+      };
+      return json(route, {
+        attributionCaptured: Boolean(preference.attribution),
+        attributionId: preference.attribution
+          ? "99000000-0000-4000-8000-000000000001"
+          : null,
+        consented: preference.consented,
+      });
     }
 
     if (path === "/api/loyalty/members" && method === "GET") {
@@ -1180,5 +1227,47 @@ test.describe("Phase 3 loyalty program", () => {
     ).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
+  });
+
+  test("member can explicitly allow and revoke Meta attribution", async ({
+    page,
+  }) => {
+    const capture: Capture = [];
+    await installMockApi(page, capture);
+    await page.goto("/portal");
+
+    await expect(page.getByText("Current choice:")).toContainText(
+      "No choice recorded",
+    );
+    await page.getByRole("button", { name: "Allow attribution" }).click();
+    await expect(page.getByText("Current choice:")).toContainText("Allowed");
+    await expect(
+      page.getByText("Meta attribution is allowed for your member activity."),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Revoke consent" }).click();
+    await expect(page.getByText("Current choice:")).toContainText("Revoked");
+    await expect(
+      page.getByText(
+        "Meta attribution consent was revoked and stored identifiers were redacted.",
+      ),
+    ).toBeVisible();
+
+    const preferences = capture.filter(
+      (request) =>
+        request.method === "PUT" &&
+        request.path === "/api/member/privacy/meta",
+    );
+    expect(preferences).toHaveLength(2);
+    expect(preferences[0]?.body).toMatchObject({
+      consentSource: "member_portal_accept",
+      consented: true,
+      policyVersion: "2026-07",
+    });
+    expect(preferences[1]?.body).toMatchObject({
+      consentSource: "member_portal_revoke",
+      consented: false,
+      policyVersion: "2026-07",
+    });
   });
 });

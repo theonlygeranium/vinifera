@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "cloudflareCustomHostnames": {
+    "staging": {
+      "zoneIdSha256": [],
+      "fallbackOriginSha256": []
+    },
+    "production": {
+      "zoneIdSha256": [],
+      "fallbackOriginSha256": []
+    }
+  },
+  "fcm": {
+    "stagingProjectIdSha256": [],
+    "productionProjectIdSha256": []
+  },
+  "shipCompliant": {
+    "stagingSandboxOriginSha256": [],
+    "productionSandboxOriginSha256": [],
+    "productionOriginSha256": [],
+    "productionModeEnabled": false
+  }
+}

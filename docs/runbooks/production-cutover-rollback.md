@@ -18,6 +18,8 @@ domain cutover, and Pages restoration are separate operations.
   deployment.
 - The production Worker uses Stripe test mode and
   `LIVE_BILLING_ENABLED=false`.
+- `config/stripe-live-billing-policy.json` remains disabled; production Worker
+  deployment and public-domain cutover cannot change payment authority.
 - Every Phase 1–5 configuration capability reports configured before public
   domain movement.
 
@@ -133,3 +135,23 @@ Retain workflow summaries and sanitized artifacts for:
 Record the run URL and outcome in the current phase QA report and
 `CONTINUITY_BRIEF.md`. Only then may the deployment state be described as
 hosted or live.
+
+## Separate Stripe live-billing control
+
+Moving the Worker or public domain never enables live Stripe. A future
+owner-approved cutover uses the separate protected live-billing workflow only
+after:
+
+- its checked-in policy is explicitly enabled with independent authority;
+- the exact Cloudflare account, Worker name/origin, Stripe test/live accounts,
+  webhook endpoints, and four canonical Price contracts are hash-authorized;
+- both complete test and live secret sets are present in the protected
+  production environment;
+- the operation is bound to an immutable `main` commit and exact confirmation;
+  and
+- the Worker health/configuration contract passes after the atomic secret
+  update.
+
+The revert operation restores the reviewed test bindings and disables live
+billing. Neither operation is authorized while services are deferred, and a
+credential's presence alone is never sufficient.

@@ -17,6 +17,10 @@ import {
   type CustomHostnameResult,
 } from "../integrations/cloudflare-domains";
 import {
+  executeRetrySafeCustomHostnameWrite,
+  type CustomHostnameWriteClaim,
+} from "../integrations/custom-hostname-writes";
+import {
   KlaviyoClient,
   parseKlaviyoWebhookBatch,
   verifyKlaviyoWebhook,
@@ -31,6 +35,9 @@ import {
 import {
   buildHashedMetaUserData,
   MetaConversionsClient,
+  normalizeMetaBrowserData,
+  normalizeMetaTestEventCode,
+  type MetaBrowserData,
 } from "../integrations/meta";
 import {
   failedIntegrationJob,
@@ -42,6 +49,7 @@ import {
   decryptIntegrationCredentials,
   encryptIntegrationCredentials,
   hmacSha256Hex,
+  resolveExternalIntegrationCredentials,
   type EncryptedCredentialEnvelope,
 } from "../integrations/security";
 import { IntegrationProviderError } from "../integrations/http";
@@ -50,6 +58,10 @@ import {
   createApnsPushClient,
   createPushClient,
 } from "../integrations/push";
+import {
+  formatBrandSender,
+  ResendDomainsClient,
+} from "../integrations/resend-domains";
 import { ProductionAnalyticsService } from "./analytics";
 import {
   prepareAvalaraTax,
@@ -69,6 +81,157 @@ const SAFE_FONT_FAMILIES = new Set([
 const MOBILE_REDIRECT_URI =
   `${mobileIdentity.customScheme}://${mobileIdentity.mobileAuthRedirectPath.slice(1)}`;
 const MOBILE_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
+const META_ATTRIBUTION_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1_000;
+const META_ATTRIBUTION_QUERY_KEYS = new Set([
+  "utm_campaign",
+  "utm_id",
+  "utm_medium",
+  "utm_source",
+]);
+
+export interface MetaAttributionInput extends MetaBrowserData {
+  campaignId?: string | null;
+  campaignName?: string | null;
+  eventSourceUrl: string;
+  occurredAt: string;
+  source?: string | null;
+  medium?: string | null;
+}
+
+export interface NormalizedMetaAttribution {
+  browserData: Record<"fbc" | "fbp", string | undefined>;
+  campaignId: string | null;
+  campaignName: string | null;
+  eventSourceUrl: string;
+  medium: string | null;
+  occurredAt: string;
+  source: string | null;
+}
+
+function normalizedAttributionText(
+  value: string | null | undefined,
+  maximum: number,
+  label: string,
+): string | null {
+  const normalized = value?.normalize("NFKC").trim() ?? "";
+  if (!normalized) return null;
+  if (normalized.length > maximum || /[\p{Cc}\p{Cf}<>]/u.test(normalized)) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      `The Meta ${label} attribution value is invalid.`,
+    );
+  }
+  return normalized;
+}
+
+export function normalizeMetaAttribution(
+  input: MetaAttributionInput,
+  allowedHostnames: string[],
+  now = Date.now(),
+): NormalizedMetaAttribution {
+  let sourceUrl: URL;
+  try {
+    sourceUrl = new URL(input.eventSourceUrl);
+  } catch {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "The Meta event source URL is invalid.",
+    );
+  }
+  const allowedHosts = new Set(
+    allowedHostnames.map((hostname) => hostname.trim().toLowerCase()),
+  );
+  if (
+    sourceUrl.protocol !== "https:" ||
+    sourceUrl.username ||
+    sourceUrl.password ||
+    sourceUrl.port ||
+    !allowedHosts.has(sourceUrl.hostname.toLowerCase())
+  ) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "The Meta event source URL must be a first-party HTTPS page.",
+    );
+  }
+  const occurredAtMs = Date.parse(input.occurredAt);
+  if (
+    !Number.isFinite(occurredAtMs) ||
+    occurredAtMs > now + 5 * 60 * 1_000 ||
+    occurredAtMs < now - META_ATTRIBUTION_LOOKBACK_MS
+  ) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "The Meta attribution timestamp is invalid.",
+    );
+  }
+  const safeQuery = new URLSearchParams();
+  sourceUrl.hash = "";
+  for (const [key, value] of sourceUrl.searchParams) {
+    if (META_ATTRIBUTION_QUERY_KEYS.has(key) && value.length <= 200) {
+      safeQuery.append(key, value);
+    }
+  }
+  sourceUrl.search = safeQuery.toString();
+  if (sourceUrl.toString().length > 2_048) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "The Meta event source URL is too long.",
+    );
+  }
+  return {
+    browserData: normalizeMetaBrowserData(input),
+    campaignId: normalizedAttributionText(
+      input.campaignId ?? sourceUrl.searchParams.get("utm_id"),
+      120,
+      "campaign ID",
+    ),
+    campaignName: normalizedAttributionText(
+      input.campaignName ?? sourceUrl.searchParams.get("utm_campaign"),
+      200,
+      "campaign name",
+    ),
+    eventSourceUrl: sourceUrl.toString(),
+    medium: normalizedAttributionText(
+      input.medium ?? sourceUrl.searchParams.get("utm_medium"),
+      120,
+      "medium",
+    ),
+    occurredAt: new Date(occurredAtMs).toISOString(),
+    source: normalizedAttributionText(
+      input.source ?? sourceUrl.searchParams.get("utm_source"),
+      120,
+      "source",
+    ),
+  };
+}
+
+export function metaAttributionCustomData(
+  customData: Record<string, string | number | boolean | null>,
+  attribution: {
+    campaign_id?: unknown;
+    campaign_name?: unknown;
+    medium?: unknown;
+    source?: unknown;
+  } | null,
+): Record<string, string | number | boolean | null> {
+  if (!attribution) return customData;
+  const additions: Record<string, string> = {};
+  for (const [sourceKey, targetKey] of [
+    ["campaign_id", "campaign_id"],
+    ["campaign_name", "campaign_name"],
+    ["source", "utm_source"],
+    ["medium", "utm_medium"],
+  ] as const) {
+    const value = attribution[sourceKey];
+    if (typeof value === "string" && value) additions[targetKey] = value;
+  }
+  return { ...customData, ...additions };
+}
 
 export function normalizeMobileClubCode(value?: string): string | null {
   const normalized = value?.trim().toLocaleLowerCase("en-US") ?? "";
@@ -118,13 +281,14 @@ interface IntegrationConnectionRow {
 interface IntegrationRuntimeRow {
   brand_id: string | null;
   connection_id: string;
-  credential_ciphertext: string;
-  algorithm: "A256GCM";
-  credential_iv: string;
-  envelope_version: 1;
+  credential_ciphertext: string | null;
+  algorithm: "A256GCM" | null;
+  credential_iv: string | null;
+  envelope_version: 1 | null;
   external_account_id: string | null;
+  external_secret_ref: string | null;
   integration_type: IntegrationType;
-  key_version: string;
+  key_version: string | null;
   organization_id: string;
   storage_mode: "encrypted_envelope" | "external_reference";
   sync_config: Record<string, unknown>;
@@ -520,6 +684,7 @@ export class ProductionIntegrationService
 {
   private customHostnameClient(): CloudflareCustomHostnameClient {
     return new CloudflareCustomHostnameClient({
+      appEnvironment: this.env.APP_ENV,
       apiToken: requireConfigured(
         this.env.CLOUDFLARE_CUSTOM_HOSTNAME_API_TOKEN,
         "CLOUDFLARE_CUSTOM_HOSTNAME_API_TOKEN",
@@ -598,6 +763,225 @@ export class ProductionIntegrationService
       },
       mode: "custom",
     };
+  }
+
+  private requestHostname(): string {
+    const raw =
+      this.request.get("x-forwarded-host")?.split(",")[0] ??
+      this.request.get("host") ??
+      "";
+    try {
+      return new URL(`https://${raw.trim()}`).hostname.toLowerCase();
+    } catch {
+      return "";
+    }
+  }
+
+  private async activeMemberAttributionHostname(
+    organizationId: string,
+    brandId: string,
+  ): Promise<string> {
+    const hostname = this.requestHostname();
+    if (!hostname) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "The first-party attribution host is invalid.",
+      );
+    }
+    let canonical: string | null = null;
+    try {
+      canonical = this.env.APP_ORIGIN
+        ? new URL(this.env.APP_ORIGIN).hostname.toLowerCase()
+        : null;
+    } catch {
+      canonical = null;
+    }
+    if (canonical === hostname) return hostname;
+    const { data, error } = await this.admin.rpc("resolve_custom_domain", {
+      p_hostname: hostname,
+    });
+    const domain = rpcRow(data);
+    if (
+      error ||
+      domain?.organization_id !== organizationId ||
+      domain.brand_id !== brandId
+    ) {
+      throw new AppError(
+        403,
+        "forbidden",
+        "Meta attribution can be captured only on an active brand host.",
+      );
+    }
+    return hostname;
+  }
+
+  async getMemberMetaPrivacy(): Promise<Record<string, unknown>> {
+    const principal = await this.requireMember();
+    const memberClient = this.authenticatedSurfaceClient("member");
+    const { data, error } = await memberClient
+      .from("member_integration_consents")
+      .select(
+        "consent_source,consented,consented_at,policy_version,revoked_at,updated_at",
+      )
+      .eq("organization_id", principal.organization.id)
+      .eq("brand_id", principal.brand.id)
+      .eq("member_id", principal.user.id)
+      .eq("integration_type", "meta")
+      .maybeSingle();
+    if (error) {
+      throw databaseError("The member Meta privacy preference is unavailable.");
+    }
+    return {
+      consentSource: data?.consent_source ?? null,
+      consented: data ? Boolean(data.consented) : null,
+      consentedAt: data?.consented_at ?? null,
+      policyVersion: data?.policy_version ?? null,
+      revokedAt: data?.revoked_at ?? null,
+      updatedAt: data?.updated_at ?? null,
+    };
+  }
+
+  async updateMemberMetaPrivacy(input: {
+    attribution?: MetaAttributionInput;
+    clientEventId?: string;
+    consentSource: string;
+    consented: boolean;
+    policyVersion: string;
+  }): Promise<Record<string, unknown>> {
+    const principal = await this.requireMember();
+    if (!input.consented && input.attribution) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "Attribution cannot be captured when Meta consent is declined.",
+      );
+    }
+    let normalized: NormalizedMetaAttribution | null = null;
+    let envelope: EncryptedCredentialEnvelope | null = null;
+    let payloadHash: string | null = null;
+    if (input.attribution) {
+      if (!input.clientEventId) {
+        throw new AppError(
+          400,
+          "invalid_request",
+          "A client event ID is required for Meta attribution.",
+        );
+      }
+      assertUuid(input.clientEventId, "Meta attribution event");
+      const hostname = await this.activeMemberAttributionHostname(
+        principal.organization.id,
+        principal.brand.id,
+      );
+      normalized = normalizeMetaAttribution(input.attribution, [hostname]);
+      const encryptedBrowserData = {
+        fbc: normalized.browserData.fbc ?? null,
+        fbp: normalized.browserData.fbp ?? null,
+      };
+      envelope = await encryptIntegrationCredentials(
+        this.env,
+        {
+          integrationType: "meta_attribution",
+          organizationId: principal.organization.id,
+          targetId: input.clientEventId,
+        },
+        encryptedBrowserData,
+      );
+      payloadHash = await sha256(
+        JSON.stringify({
+          ...normalized,
+          browserData: encryptedBrowserData,
+        }),
+      );
+    }
+    const memberClient = this.authenticatedSurfaceClient("member");
+    const { error: consentError } = await memberClient.rpc(
+      "set_member_meta_consent",
+      {
+        p_brand_id: principal.brand.id,
+        p_consent_source: input.consentSource,
+        p_consented: input.consented,
+        p_member_id: principal.user.id,
+        p_organization_id: principal.organization.id,
+        p_policy_version: input.policyVersion,
+      },
+    );
+    if (consentError) {
+      throw databaseError("The member Meta privacy preference could not be saved.");
+    }
+    if (
+      normalized &&
+      envelope &&
+      payloadHash &&
+      input.clientEventId
+    ) {
+      const { error: captureError } = await this.admin.rpc(
+        "store_meta_attribution_touchpoint",
+        {
+          p_algorithm: envelope.algorithm,
+          p_brand_id: principal.brand.id,
+          p_browser_data_ciphertext: envelope.ciphertext,
+          p_browser_data_iv: envelope.iv,
+          p_campaign_id: normalized.campaignId,
+          p_campaign_name: normalized.campaignName,
+          p_envelope_version: envelope.version,
+          p_event_source_url: normalized.eventSourceUrl,
+          p_id: input.clientEventId,
+          p_key_version: envelope.keyVersion,
+          p_medium: normalized.medium,
+          p_member_id: principal.user.id,
+          p_occurred_at: normalized.occurredAt,
+          p_organization_id: principal.organization.id,
+          p_payload_hash: payloadHash,
+          p_source: normalized.source,
+        },
+      );
+      if (captureError) {
+        throw databaseError("The first-party Meta attribution could not be saved.");
+      }
+    }
+    return {
+      attributionCaptured: Boolean(normalized),
+      attributionId: normalized ? input.clientEventId : null,
+      consented: input.consented,
+    };
+  }
+
+  async getMetaAttributionReport(input: {
+    from?: string;
+    to?: string;
+  }): Promise<Record<string, unknown>> {
+    const principal = await this.requireStaff();
+    const organizationId = this.organizationId(principal);
+    const brandId = await this.activeBrandId(principal);
+    const to = input.to ? new Date(input.to) : new Date();
+    const from = input.from
+      ? new Date(input.from)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1_000);
+    if (
+      !Number.isFinite(from.getTime()) ||
+      !Number.isFinite(to.getTime()) ||
+      from > to
+    ) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "The Meta attribution report range is invalid.",
+      );
+    }
+    const { data, error } = await this.staffClient().rpc(
+      "get_meta_attribution_report",
+      {
+        p_brand_id: brandId,
+        p_from: from.toISOString(),
+        p_organization_id: organizationId,
+        p_to: to.toISOString(),
+      },
+    );
+    if (error) {
+      throw databaseError("The Meta attribution report could not be loaded.");
+    }
+    return toPublicRecord(data);
   }
 
   protected async activeBrandId(
@@ -744,16 +1128,22 @@ export class ProductionIntegrationService
       new AvalaraClient(normalized as AvalaraCredentials);
       return normalized;
     } else if (type === "meta") {
+      const testEventCode = normalizeMetaTestEventCode(
+        syncConfig.testEventCode,
+        this.env.APP_ENV !== "production",
+      );
       const normalized = {
         accessToken: credentials.accessToken,
         apiVersion: syncConfig.graphApiVersion,
         pixelId: syncConfig.pixelId,
+        testEventCode,
       };
       new MetaConversionsClient(
         normalized as unknown as {
           accessToken: string;
           apiVersion: string;
           pixelId: string;
+          testEventCode: string | null;
         },
       );
       return normalized;
@@ -860,7 +1250,13 @@ export class ProductionIntegrationService
         "Explicit consent confirmation is required before enabling an integration.",
       );
     }
-    const config = input.syncConfig ?? {};
+    const config = { ...(input.syncConfig ?? {}) };
+    if (type === "meta") {
+      config.testEventCode = normalizeMetaTestEventCode(
+        config.testEventCode,
+        input.optedIn && this.env.APP_ENV !== "production",
+      );
+    }
     if (type === "avalara" && config.environment === "production") {
       assertProviderEnvironment(this.env, "Avalara", "production");
     }
@@ -958,14 +1354,28 @@ export class ProductionIntegrationService
         "Explicit consent confirmation is required before enabling an integration.",
       );
     }
+    const effectiveSyncConfig = {
+      ...existing.sync_config,
+      ...input.syncConfig,
+    };
+    if (type === "meta") {
+      effectiveSyncConfig.testEventCode = normalizeMetaTestEventCode(
+        effectiveSyncConfig.testEventCode,
+        (input.optedIn ?? existing.opted_in) &&
+          this.env.APP_ENV !== "production",
+      );
+    }
     if (input.syncConfig) {
       if (
         type === "avalara" &&
-        input.syncConfig.environment === "production"
+        effectiveSyncConfig.environment === "production"
       ) {
         assertProviderEnvironment(this.env, "Avalara", "production");
       }
-      if (hasSecretKey(input.syncConfig) || byteLength(input.syncConfig) > 32_768) {
+      if (
+        hasSecretKey(effectiveSyncConfig) ||
+        byteLength(effectiveSyncConfig) > 32_768
+      ) {
         throw new AppError(400, "invalid_request", "Integration configuration is unsafe.");
       }
       const { error } = await this.staffClient().rpc(
@@ -976,16 +1386,17 @@ export class ProductionIntegrationService
           p_external_account_id: null,
           p_integration_type: type,
           p_organization_id: this.organizationId(principal),
-          p_sync_config: { ...existing.sync_config, ...input.syncConfig },
+          p_sync_config: effectiveSyncConfig,
         },
       );
       if (error) throw databaseError("The integration configuration could not be updated.");
     }
     if (input.credentials && Object.keys(input.credentials).length) {
-      const credentials = this.validateCredentials(type, input.credentials, {
-        ...existing.sync_config,
-        ...input.syncConfig,
-      });
+      const credentials = this.validateCredentials(
+        type,
+        input.credentials,
+        effectiveSyncConfig,
+      );
       await this.storeCredentials(
         this.organizationId(principal),
         existing.id,
@@ -1065,6 +1476,52 @@ export class ProductionIntegrationService
       jobId: data,
       status: "queued",
       syncType,
+    };
+  }
+
+  async queueAvalaraFilingVerification(): Promise<Record<string, unknown>> {
+    const principal = await this.requireStaff(["owner", "admin", "manager"]);
+    const existing = await this.connection(principal, "avalara");
+    if (
+      !existing ||
+      existing.status !== "active" ||
+      !existing.opted_in
+    ) {
+      throw new AppError(
+        503,
+        "activation_required",
+        "Activate and authorize Avalara before verifying filing status.",
+      );
+    }
+    if (existing.sync_config.filingEnabled !== true) {
+      throw new AppError(
+        409,
+        "conflict",
+        "Enable Avalara filing verification before queueing a check.",
+      );
+    }
+    const { data, error } = await this.admin.rpc(
+      "enqueue_integration_sync_job",
+      {
+        p_connection_id: existing.id,
+        p_cursor_data: {},
+        p_direction: "inbound",
+        p_entity_id: existing.brand_id,
+        p_entity_type: "brand",
+        p_idempotency_key:
+          `manual-filing:${existing.id}:${crypto.randomUUID()}`,
+        p_max_attempts: 8,
+        p_payload: {},
+        p_sync_type: "filing.verify",
+      },
+    );
+    if (error) {
+      throw databaseError("Avalara filing verification could not be queued.");
+    }
+    return {
+      jobId: data,
+      status: "queued",
+      syncType: "filing.verify",
     };
   }
 
@@ -1337,6 +1794,79 @@ export class ProductionIntegrationService
     };
   }
 
+  async getAvalaraFilingStatus(): Promise<Record<string, unknown>> {
+    const principal = await this.requireStaff();
+    const existing = await this.connection(principal, "avalara");
+    if (!existing) {
+      return {
+        configured: false,
+        enabled: false,
+        registered: false,
+        registrations: [],
+        stale: true,
+        staleRegistrationCount: 0,
+        verifiedAt: null,
+      };
+    }
+    const [{ data: snapshot, error: snapshotError }, { data: staleRows, error: staleError }] =
+      await Promise.all([
+        this.staffClient()
+          .from("avalara_filing_verification_snapshots")
+          .select(
+            "id,registered,registration_count,response_hash,verified_at",
+          )
+          .eq("connection_id", existing.id)
+          .order("verified_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        this.staffClient()
+          .from("avalara_filing_registration_statuses")
+          .select("id")
+          .eq("connection_id", existing.id)
+          .not("stale_at", "is", null),
+      ]);
+    if (snapshotError || staleError) {
+      throw databaseError("Avalara filing verification could not be loaded.");
+    }
+    const { data: registrationRows, error: registrationError } = snapshot
+      ? await this.staffClient()
+          .from("avalara_filing_registration_statuses")
+          .select(
+            "filing_calendar_id,region_code,filing_frequency,registration_status,verified_at",
+          )
+          .eq("connection_id", existing.id)
+          .eq("snapshot_id", snapshot.id)
+          .is("stale_at", null)
+          .order("region_code")
+      : { data: [], error: null };
+    if (registrationError) {
+      throw databaseError("Avalara filing registrations could not be loaded.");
+    }
+    const verifiedAt =
+      snapshot && typeof snapshot.verified_at === "string"
+        ? snapshot.verified_at
+        : null;
+    const stale =
+      !verifiedAt ||
+      Date.parse(verifiedAt) < Date.now() - 36 * 60 * 60 * 1_000 ||
+      Number(snapshot?.registration_count ?? 0) !==
+        (registrationRows ?? []).length;
+    return {
+      configured: true,
+      enabled: existing.sync_config.filingEnabled === true,
+      registered: snapshot?.registered === true,
+      registrations: (registrationRows ?? []).map((row) => ({
+        filingCalendarId: Number(row.filing_calendar_id),
+        filingFrequency: row.filing_frequency,
+        regionCode: row.region_code,
+        status: row.registration_status,
+      })),
+      stale,
+      staleRegistrationCount: (staleRows ?? []).length,
+      verifiedAt,
+    };
+  }
+
   async handleKlaviyoWebhook(
     integrationId: string,
     payload: Uint8Array,
@@ -1461,7 +1991,7 @@ export class ProductionIntegrationService
       p_organization_id: organizationId,
     });
     const row = rpcRow(data) as IntegrationRuntimeRow | null;
-    if (error || !row || row.storage_mode !== "encrypted_envelope") {
+    if (error || !row) {
       throw new AppError(
         503,
         "activation_required",
@@ -1472,6 +2002,27 @@ export class ProductionIntegrationService
   }
 
   private decryptRuntime<T>(row: IntegrationRuntimeRow): Promise<T> {
+    if (row.storage_mode === "external_reference") {
+      return Promise.resolve(
+        resolveExternalIntegrationCredentials<T>(
+          this.env,
+          row.external_secret_ref,
+        ),
+      );
+    }
+    if (
+      row.algorithm !== "A256GCM" ||
+      row.envelope_version !== 1 ||
+      !row.credential_ciphertext ||
+      !row.credential_iv ||
+      !row.key_version
+    ) {
+      throw new AppError(
+        503,
+        "activation_required",
+        "The stored integration credential format is unsupported.",
+      );
+    }
     return decryptIntegrationCredentials<T>(
       this.env,
       {
@@ -1498,7 +2049,7 @@ export class ProductionIntegrationService
     const { data, error } = await this.staffClient()
       .from("brands")
       .select(
-        "id,name,description,logo_url,primary_color,secondary_color,font_family,billing_mode,is_default,active,brand_custom_domains(hostname,status,certificate_expires_at),brand_sender_identities(from_name,from_email,status,updated_at)",
+        "id,name,description,logo_url,primary_color,secondary_color,font_family,billing_mode,default_shipping_charge_cents,is_default,active,brand_custom_domains(hostname,status,certificate_expires_at),brand_sender_identities(from_name,from_email,status,updated_at)",
       )
       .eq("organization_id", organizationId)
       .eq("active", true)
@@ -1533,6 +2084,7 @@ export class ProductionIntegrationService
         return {
           billingMode: row.billing_mode,
           customDomain: domain?.hostname ?? null,
+          defaultShippingChargeCents: row.default_shipping_charge_cents,
           description: row.description || null,
           domainStatus:
             domain?.status === "active"
@@ -1542,7 +2094,10 @@ export class ProductionIntegrationService
                 : domain
                   ? "pending_validation"
                   : "unconfigured",
-          emailDomainStatus: sender?.status ?? "unconfigured",
+          emailDomainStatus:
+            sender?.status === "failed"
+              ? "error"
+              : (sender?.status ?? "unconfigured"),
           emailSenderAddress: sender?.from_email ?? null,
           emailSenderName: sender?.from_name ?? null,
           fontFamily: row.font_family,
@@ -1567,6 +2122,7 @@ export class ProductionIntegrationService
 
   async createBrand(input: {
     billingMode: "independent" | "shared";
+    defaultShippingChargeCents?: number;
     description?: string | null;
     name: string;
     slug: string;
@@ -1576,6 +2132,8 @@ export class ProductionIntegrationService
       .from("brands")
       .insert({
         billing_mode: input.billingMode,
+        default_shipping_charge_cents:
+          input.defaultShippingChargeCents ?? 0,
         description: input.description ?? "",
         name: input.name,
         organization_id: this.organizationId(principal),
@@ -1607,9 +2165,18 @@ export class ProductionIntegrationService
       primaryColor: current.primary_color,
       secondaryColor: current.secondary_color,
     });
+    const update = {
+      ...theme.update,
+      ...(Object.hasOwn(input, "defaultShippingChargeCents")
+        ? {
+            default_shipping_charge_cents:
+              input.defaultShippingChargeCents,
+          }
+        : {}),
+    };
     const { data, error } = await this.staffClient()
       .from("brands")
-      .update(theme.update)
+      .update(update)
       .eq("organization_id", this.organizationId(principal))
       .eq("id", brandId)
       .select("*")
@@ -1618,7 +2185,9 @@ export class ProductionIntegrationService
     if (Object.hasOwn(input, "emailSenderAddress") || Object.hasOwn(input, "emailSenderName")) {
       const { data: existingSender } = await this.staffClient()
         .from("brand_sender_identities")
-        .select("id,from_name,from_email,status")
+        .select(
+          "id,from_name,from_email,status,provider_identity_id,verified_at",
+        )
         .eq("organization_id", this.organizationId(principal))
         .eq("brand_id", brandId)
         .maybeSingle();
@@ -1649,9 +2218,7 @@ export class ProductionIntegrationService
           : existingSender?.from_email;
       if (
         !fromName ||
-        fromName.length > 200 ||
-        !fromEmail ||
-        !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(fromEmail)
+        !fromEmail
       ) {
         throw new AppError(
           400,
@@ -1659,6 +2226,11 @@ export class ProductionIntegrationService
           "A valid sender name and email address are required.",
         );
       }
+      formatBrandSender({ fromEmail, fromName });
+      const senderUnchanged =
+        existingSender?.status !== "disabled" &&
+        existingSender?.from_name === fromName &&
+        existingSender?.from_email === fromEmail;
       const { error: senderError } = await this.staffClient()
         .from("brand_sender_identities")
         .upsert(
@@ -1667,9 +2239,15 @@ export class ProductionIntegrationService
             from_email: fromEmail,
             from_name: fromName,
             organization_id: this.organizationId(principal),
-            provider_identity_id: null,
-            status: "pending",
-            verified_at: null,
+            provider_identity_id: senderUnchanged
+              ? (existingSender?.provider_identity_id ?? null)
+              : null,
+            status: senderUnchanged
+              ? (existingSender?.status ?? "pending")
+              : "pending",
+            verified_at: senderUnchanged
+              ? (existingSender?.verified_at ?? null)
+              : null,
           },
           { onConflict: "organization_id,brand_id" },
         );
@@ -1686,6 +2264,70 @@ export class ProductionIntegrationService
       ],
     });
     return { ...toPublicRecord(data), contrast: theme.contrast ?? null };
+  }
+
+  async activateBrandSender(
+    brandId: string,
+  ): Promise<Record<string, unknown>> {
+    const principal = await this.requireStaff(["owner", "admin"]);
+    assertUuid(brandId, "Brand");
+    const organizationId = this.organizationId(principal);
+    const { data: sender, error } = await this.staffClient()
+      .from("brand_sender_identities")
+      .select("id,from_name,from_email,status,provider_identity_id")
+      .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
+      .maybeSingle();
+    if (error) {
+      throw databaseError("The brand sender identity could not be loaded.");
+    }
+    if (!sender || sender.status === "disabled") {
+      throw new AppError(
+        503,
+        "activation_required",
+        "Save a brand sender identity before starting domain verification.",
+      );
+    }
+    formatBrandSender({
+      fromEmail: String(sender.from_email),
+      fromName: String(sender.from_name),
+    });
+    const activation = await new ResendDomainsClient(
+      requireConfigured(this.env.RESEND_API_KEY, "RESEND_API_KEY"),
+    ).activate(
+      String(sender.from_email),
+      typeof sender.provider_identity_id === "string"
+        ? sender.provider_identity_id
+        : null,
+    );
+    const { data: saved, error: saveError } = await this.admin.rpc(
+      "set_brand_sender_identity_verification",
+      {
+        p_brand_id: brandId,
+        p_organization_id: organizationId,
+        p_provider_identity_id: activation.providerIdentityId,
+        p_status: activation.status,
+      },
+    );
+    if (saveError) {
+      throw databaseError("The brand sender verification could not be saved.");
+    }
+    await this.audit(
+      principal,
+      "brand_sender.verification_requested",
+      "brand",
+      brandId,
+      {
+        domain: activation.domain,
+        status: activation.status,
+      },
+    );
+    return {
+      ...toPublicRecord(rpcRow(saved) ?? {}),
+      dnsRecords: activation.dnsRecords,
+      domain: activation.domain,
+      status: activation.status,
+    };
   }
 
   async getBrandOverview(
@@ -1770,8 +2412,106 @@ export class ProductionIntegrationService
     }
     await this.activeBrandId(principal, brandId);
     const client = this.customHostnameClient();
-    const result = await client.createHostname(normalized, brandId);
-    await this.persistDomain(principal, brandId, result);
+    const store = {
+      claim: async (): Promise<CustomHostnameWriteClaim> => {
+        const { data, error } = await this.admin.rpc(
+          "claim_custom_hostname_write_attempt",
+          {
+            p_brand_id: brandId,
+            p_hostname: normalized,
+            p_lease_owner: `hostname:${principal.user.id}`,
+            p_lease_seconds: 120,
+            p_organization_id: this.organizationId(principal),
+          },
+        );
+        const row = Array.isArray(data) ? data[0] : data;
+        if (
+          error ||
+          !row ||
+          typeof row.attempt_id !== "string" ||
+          !["busy", "completed", "create", "lookup", "reconcile"].includes(
+            String(row.disposition),
+          )
+        ) {
+          throw databaseError("The custom-hostname write could not be claimed.");
+        }
+        return {
+          attemptId: row.attempt_id,
+          disposition: row.disposition as CustomHostnameWriteClaim["disposition"],
+          leaseToken:
+            typeof row.lease_token === "string" ? row.lease_token : null,
+          providerHostnameId:
+            typeof row.provider_hostname_id === "string"
+              ? row.provider_hostname_id
+              : null,
+        };
+      },
+      complete: async (attemptId: string, leaseToken: string): Promise<void> => {
+        const { error } = await this.admin.rpc(
+          "complete_custom_hostname_write_attempt",
+          {
+            p_attempt_id: attemptId,
+            p_lease_token: leaseToken,
+          },
+        );
+        if (error) throw databaseError("The custom-hostname write could not be completed.");
+      },
+      markLookupRequired: async (
+        attemptId: string,
+        leaseToken: string,
+        errorCode: string,
+      ): Promise<void> => {
+        const { error } = await this.admin.rpc(
+          "mark_custom_hostname_lookup_required",
+          {
+            p_attempt_id: attemptId,
+            p_error_code: errorCode,
+            p_lease_token: leaseToken,
+          },
+        );
+        if (error) throw databaseError("The custom-hostname lookup state could not be saved.");
+      },
+      recordProviderResult: async (
+        attemptId: string,
+        leaseToken: string,
+        providerHostnameId: string,
+      ): Promise<void> => {
+        const { error } = await this.admin.rpc(
+          "record_custom_hostname_provider_result",
+          {
+            p_attempt_id: attemptId,
+            p_lease_token: leaseToken,
+            p_provider_hostname_id: providerHostnameId,
+          },
+        );
+        if (error) throw databaseError("The custom-hostname provider result could not be saved.");
+      },
+      releaseLookup: async (
+        attemptId: string,
+        leaseToken: string,
+        errorCode: string,
+      ): Promise<void> => {
+        const { error } = await this.admin.rpc(
+          "release_custom_hostname_lookup",
+          {
+            p_attempt_id: attemptId,
+            p_error_code: errorCode,
+            p_lease_token: leaseToken,
+          },
+        );
+        if (error) throw databaseError("The custom-hostname lookup could not be released.");
+      },
+    };
+    const result = await executeRetrySafeCustomHostnameWrite({
+      brandId,
+      client,
+      hostname: normalized,
+      leaseOwner: `hostname:${principal.user.id}`,
+      organizationId: this.organizationId(principal),
+      persist: (providerResult) =>
+        this.persistDomain(principal, brandId, providerResult),
+      store,
+    });
     return {
       hostname: result.hostname,
       sslStatus: result.sslStatus === "active" ? "active" : "pending",
@@ -2730,6 +3470,7 @@ async function integrationRuntimeForJob(
   job: ClaimedIntegrationJob,
 ): Promise<{
   credentials: Record<string, unknown>;
+  storageMode: "encrypted_envelope" | "external_reference";
   syncConfig: Record<string, unknown>;
 }> {
   const { data, error } = await admin.rpc("get_integration_runtime", {
@@ -2738,38 +3479,56 @@ async function integrationRuntimeForJob(
     p_organization_id: job.organization_id,
   });
   const row = rpcRow(data);
-  if (
-    error ||
-    !row ||
-    row.storage_mode !== "encrypted_envelope" ||
-    row.algorithm !== "A256GCM" ||
-    row.envelope_version !== 1
-  ) {
+  if (error || !row) {
     throw new AppError(
       503,
       "activation_required",
       "The integration runtime credentials are unavailable.",
     );
   }
-  const credentials = await decryptIntegrationCredentials<
-    Record<string, unknown>
-  >(
-    env,
-    {
-      integrationType: job.integration_type,
-      organizationId: job.organization_id,
-      targetId: job.connection_id,
-    },
-    {
-      algorithm: "A256GCM",
-      ciphertext: String(row.credential_ciphertext),
-      iv: String(row.credential_iv),
-      keyVersion: String(row.key_version),
-      version: 1,
-    },
-  );
+  let credentials: Record<string, unknown>;
+  if (row.storage_mode === "external_reference") {
+    credentials = resolveExternalIntegrationCredentials(
+      env,
+      typeof row.external_secret_ref === "string"
+        ? row.external_secret_ref
+        : null,
+    );
+  } else if (
+    row.storage_mode === "encrypted_envelope" &&
+    row.algorithm === "A256GCM" &&
+    row.envelope_version === 1 &&
+    typeof row.credential_ciphertext === "string" &&
+    typeof row.credential_iv === "string" &&
+    typeof row.key_version === "string"
+  ) {
+    credentials = await decryptIntegrationCredentials<Record<string, unknown>>(
+      env,
+      {
+        integrationType: job.integration_type,
+        organizationId: job.organization_id,
+        targetId: job.connection_id,
+      },
+      {
+        algorithm: "A256GCM",
+        ciphertext: row.credential_ciphertext,
+        iv: row.credential_iv,
+        keyVersion: row.key_version,
+        version: 1,
+      },
+    );
+  } else {
+    throw new AppError(
+      503,
+      "activation_required",
+      "The integration runtime credentials are unavailable.",
+    );
+  }
   return {
     credentials,
+    storageMode: row.storage_mode as
+      | "encrypted_envelope"
+      | "external_reference",
     syncConfig:
       row.sync_config &&
       typeof row.sync_config === "object" &&
@@ -2847,13 +3606,21 @@ async function providerForJob(
         runtime.credentials as never,
         qboConfiguration(env),
         {
-          persistRotatedCredentials: (credentials) =>
-            persistQuickBooksRotation(
+          persistRotatedCredentials: (credentials) => {
+            if (runtime.storageMode === "external_reference") {
+              throw new AppError(
+                503,
+                "activation_required",
+                "QuickBooks rotated credentials must be updated in the external integration binding.",
+              );
+            }
+            return persistQuickBooksRotation(
               env,
               admin,
               job,
               credentials as unknown as Record<string, unknown>,
-            ),
+            );
+          },
         },
       ),
       syncConfig: runtime.syncConfig,
@@ -2868,8 +3635,19 @@ async function providerForJob(
     };
   }
   if (job.integration_type === "meta") {
+    const testEventCode = normalizeMetaTestEventCode(
+      runtime.syncConfig.testEventCode,
+      env.APP_ENV !== "production",
+    );
     return {
-      client: new MetaConversionsClient(runtime.credentials as never),
+      client: new MetaConversionsClient({
+        ...(runtime.credentials as unknown as {
+          accessToken: string;
+          apiVersion: string;
+          pixelId: string;
+        }),
+        testEventCode,
+      }),
       syncConfig: runtime.syncConfig,
     };
   }
@@ -3106,6 +3884,34 @@ async function executeKlaviyoProfiles(
   };
 }
 
+interface QuickBooksAccountMapping {
+  club_tier_id?: string | null;
+  mapping_kind: string;
+  quickbooks_account_id: string;
+  quickbooks_item_id: string | null;
+}
+
+export function resolveQuickBooksAccountMapping(
+  mappings: QuickBooksAccountMapping[],
+  mappingKind: string,
+  tierId: string | null,
+): QuickBooksAccountMapping | null {
+  const fallback = mappings.find(
+    (mapping) =>
+      mapping.mapping_kind === mappingKind && mapping.club_tier_id == null,
+  );
+  if (!tierId) return fallback ?? null;
+  return (
+    mappings.find(
+      (mapping) =>
+        mapping.mapping_kind === mappingKind &&
+        mapping.club_tier_id === tierId,
+    ) ??
+    fallback ??
+    null
+  );
+}
+
 async function executeQuickBooksTransactions(
   env: WorkerEnv,
   admin: SupabaseClient,
@@ -3125,7 +3931,7 @@ async function executeQuickBooksTransactions(
     ? await admin
         .from("shipments")
         .select(
-          "id,member_id,tier_id,status,charge_amount_cents,loyalty_discount_cents,tax_amount_cents,refund_amount_cents,paid_at,updated_at",
+          "id,member_id,tier_id,status,charge_amount_cents,shipping_charge_cents,loyalty_discount_cents,tax_amount_cents,refund_amount_cents,paid_at,updated_at",
         )
         .eq("id", deltaShipmentId)
         .eq("organization_id", job.organization_id)
@@ -3164,7 +3970,9 @@ async function executeQuickBooksTransactions(
     const tierId = typeof row.tier_id === "string" ? row.tier_id : null;
     let mappingQuery = admin
       .from("quickbooks_account_mappings")
-      .select("quickbooks_account_id,quickbooks_item_id,mapping_kind")
+      .select(
+        "club_tier_id,quickbooks_account_id,quickbooks_item_id,mapping_kind",
+      )
       .eq("connection_id", job.connection_id)
       .eq("brand_id", job.brand_id);
     mappingQuery = tierId
@@ -3172,8 +3980,15 @@ async function executeQuickBooksTransactions(
       : mappingQuery.is("club_tier_id", null);
     const { data: mappings, error: mappingError } = await mappingQuery;
     if (mappingError) throw databaseError("QuickBooks account mappings could not be loaded.");
-    const membership = (mappings ?? []).find(
-      (mapping) => mapping.mapping_kind === "membership",
+    const membership = resolveQuickBooksAccountMapping(
+      mappings ?? [],
+      "membership",
+      tierId,
+    );
+    const shipping = resolveQuickBooksAccountMapping(
+      mappings ?? [],
+      "shipping",
+      tierId,
     );
     const depositAccountRef = String(
       syncConfig.depositAccountRef ?? membership?.quickbooks_account_id ?? "",
@@ -3181,6 +3996,10 @@ async function executeQuickBooksTransactions(
     const itemRef = String(
       membership?.quickbooks_item_id ?? syncConfig.defaultItemRef ?? "",
     );
+    const shippingAccountRef = String(
+      shipping?.quickbooks_account_id ?? "",
+    );
+    const shippingItemRef = String(shipping?.quickbooks_item_id ?? "");
     const customerRef = String(syncConfig.defaultCustomerRef ?? "");
     if (!depositAccountRef || !itemRef || !customerRef) {
       throw new AppError(
@@ -3189,7 +4008,18 @@ async function executeQuickBooksTransactions(
         "QuickBooks account, item, and customer mappings are required.",
       );
     }
-    const payableCents = quickBooksShipmentFinancials(row, false).totalCents;
+    const saleFinancials = quickBooksShipmentLineFinancials(row);
+    if (
+      saleFinancials.shippingCents > 0 &&
+      (!shippingAccountRef || !shippingItemRef)
+    ) {
+      throw new AppError(
+        503,
+        "activation_required",
+        "A separate QuickBooks shipping income account and item mapping are required.",
+      );
+    }
+    const payableCents = saleFinancials.totalCents;
     const currentRefundCents = Math.min(
       payableCents,
       Math.max(0, Number(row.refund_amount_cents ?? 0)),
@@ -3221,7 +4051,7 @@ async function executeQuickBooksTransactions(
         ? requestedRefundCents
         : currentRefundCents;
       let deliveryClaim: RefundDeliveryClaim | null = null;
-      let financials: ReturnType<typeof quickBooksShipmentFinancials>;
+      let financials: QuickBooksLineFinancials;
       let receipt: {
         currencyCode: string;
         customerRef: string;
@@ -3257,12 +4087,12 @@ async function executeQuickBooksTransactions(
         }
         financials =
           refunded && deliveryClaim
-            ? quickBooksRefundDeltaFinancials(
+            ? quickBooksRefundDeltaLineFinancials(
                 row,
                 deliveryClaim.priorCumulativeAmountCents,
                 deliveryClaim.targetCumulativeAmountCents,
               )
-            : quickBooksShipmentFinancials(row, false);
+            : saleFinancials;
         if (financials.totalCents <= 0) {
           if (deliveryClaim?.leaseToken) {
             await releaseRefundDelivery(
@@ -3283,15 +4113,30 @@ async function executeQuickBooksTransactions(
             ? `VIR-${compactShipmentId.slice(0, 8)}-${refundTargetCents.toString(36)}`
             : `VIN-${compactShipmentId.slice(0, 17)}`,
           lines: [
-            {
-              amountCents: financials.subtotalCents,
+            ...(financials.wineCents > 0
+              ? [{
+              amountCents: financials.wineCents,
               description: `Vinifera shipment ${shipmentId}`,
               itemRef,
               taxCodeRef:
                 typeof syncConfig.taxCodeRef === "string"
                   ? syncConfig.taxCodeRef
                   : null,
-            },
+                }]
+              : []),
+            ...(financials.shippingCents > 0
+              ? [{
+                  amountCents: financials.shippingCents,
+                  description: `Vinifera shipping ${shipmentId}`,
+                  itemRef: shippingItemRef,
+                  taxCodeRef:
+                    typeof syncConfig.shippingTaxCodeRef === "string"
+                      ? syncConfig.shippingTaxCodeRef
+                      : typeof syncConfig.taxCodeRef === "string"
+                        ? syncConfig.taxCodeRef
+                        : null,
+                }]
+              : []),
           ],
           privateNote: `Vinifera shipment ${shipmentId}`,
           taxCents: financials.taxCents,
@@ -3403,32 +4248,83 @@ export function quickBooksShipmentFinancials(
   row: Record<string, unknown>,
   refunded: boolean,
 ): { subtotalCents: number; taxCents: number; totalCents: number } {
+  const financials = quickBooksShipmentLineFinancials(
+    row,
+    refunded ? Number(row.refund_amount_cents ?? 0) : undefined,
+  );
+  return {
+    subtotalCents: financials.wineCents + financials.shippingCents,
+    taxCents: financials.taxCents,
+    totalCents: financials.totalCents,
+  };
+}
+
+export interface QuickBooksLineFinancials {
+  shippingCents: number;
+  taxCents: number;
+  totalCents: number;
+  wineCents: number;
+}
+
+function allocateCumulativeRefund(
+  components: [number, number, number],
+  targetCents: number,
+): [number, number, number] {
+  const total = components.reduce((sum, value) => sum + value, 0);
+  const target = Math.min(total, Math.max(0, Math.round(targetCents)));
+  if (total === 0 || target === 0) return [0, 0, 0];
+  if (target === total) return [...components];
+  const exact = components.map((value) => (value * target) / total);
+  const allocated = exact.map(Math.floor);
+  let remainder = target - allocated.reduce((sum, value) => sum + value, 0);
+  const order = exact
+    .map((value, index) => ({ fraction: value - allocated[index]!, index }))
+    .sort(
+      (left, right) =>
+        right.fraction - left.fraction || left.index - right.index,
+    );
+  for (const item of order) {
+    if (remainder <= 0) break;
+    allocated[item.index] = allocated[item.index]! + 1;
+    remainder -= 1;
+  }
+  return allocated as [number, number, number];
+}
+
+export function quickBooksShipmentLineFinancials(
+  row: Record<string, unknown>,
+  cumulativeRefundCents?: number,
+): QuickBooksLineFinancials {
   const subtotalCents = Math.max(
     0,
-    Number(row.charge_amount_cents ?? 0) -
-      Number(row.loyalty_discount_cents ?? 0),
+    Math.round(
+      Number(row.charge_amount_cents ?? 0) -
+        Number(row.loyalty_discount_cents ?? 0),
+    ),
   );
-  const taxCents = Math.max(0, Number(row.tax_amount_cents ?? 0));
-  const payableCents = subtotalCents + taxCents;
-  if (!refunded) {
-    return { subtotalCents, taxCents, totalCents: payableCents };
-  }
-  const totalCents = Math.min(
-    payableCents,
-    Math.max(0, Number(row.refund_amount_cents ?? 0)),
+  const shippingCents = Math.min(
+    subtotalCents,
+    Math.max(0, Math.round(Number(row.shipping_charge_cents ?? 0))),
   );
-  const refundedTaxCents =
-    payableCents > 0
-      ? Math.min(
-          taxCents,
-          totalCents,
-          Math.round((taxCents * totalCents) / payableCents),
-        )
-      : 0;
+  const wineCents = subtotalCents - shippingCents;
+  const taxCents = Math.max(
+    0,
+    Math.round(Number(row.tax_amount_cents ?? 0)),
+  );
+  const components: [number, number, number] = [
+    wineCents,
+    shippingCents,
+    taxCents,
+  ];
+  const allocated =
+    cumulativeRefundCents === undefined
+      ? components
+      : allocateCumulativeRefund(components, cumulativeRefundCents);
   return {
-    subtotalCents: totalCents - refundedTaxCents,
-    taxCents: refundedTaxCents,
-    totalCents,
+    shippingCents: allocated[1],
+    taxCents: allocated[2],
+    totalCents: allocated.reduce((sum, value) => sum + value, 0),
+    wineCents: allocated[0],
   };
 }
 
@@ -3452,6 +4348,121 @@ export function quickBooksRefundDeltaFinancials(
   };
 }
 
+export function quickBooksRefundDeltaLineFinancials(
+  row: Record<string, unknown>,
+  priorRefundAmountCents: number,
+  targetRefundAmountCents: number,
+): QuickBooksLineFinancials {
+  const prior = quickBooksShipmentLineFinancials(
+    row,
+    priorRefundAmountCents,
+  );
+  const target = quickBooksShipmentLineFinancials(
+    row,
+    targetRefundAmountCents,
+  );
+  return {
+    shippingCents: target.shippingCents - prior.shippingCents,
+    taxCents: target.taxCents - prior.taxCents,
+    totalCents: target.totalCents - prior.totalCents,
+    wineCents: target.wineCents - prior.wineCents,
+  };
+}
+
+interface MetaAttributionRuntime {
+  browserData: Record<"fbc" | "fbp", string | undefined>;
+  customData: {
+    campaign_id?: unknown;
+    campaign_name?: unknown;
+    medium?: unknown;
+    source?: unknown;
+  } | null;
+  eventSourceUrl: string | null;
+  id: string | null;
+}
+
+async function attributionForMetaEvent(
+  env: WorkerEnv,
+  admin: SupabaseClient,
+  job: ClaimedIntegrationJob,
+  event: Record<string, unknown>,
+): Promise<MetaAttributionRuntime> {
+  const eventTime = Date.parse(String(event.event_time));
+  if (!Number.isFinite(eventTime) || !job.brand_id) {
+    return {
+      browserData: { fbc: undefined, fbp: undefined },
+      customData: null,
+      eventSourceUrl: null,
+      id: null,
+    };
+  }
+  let query = admin
+    .from("meta_attribution_touchpoints")
+    .select(
+      "id,event_source_url,campaign_id,campaign_name,source,medium,storage_mode,algorithm,envelope_version,key_version,browser_data_ciphertext,browser_data_iv",
+    )
+    .eq("organization_id", job.organization_id)
+    .eq("brand_id", job.brand_id)
+    .eq("member_id", event.member_id);
+  const linkedId =
+    typeof event.attribution_touchpoint_id === "string"
+      ? event.attribution_touchpoint_id
+      : null;
+  query = linkedId
+    ? query.eq("id", linkedId)
+    : query
+        .gte(
+          "occurred_at",
+          new Date(eventTime - META_ATTRIBUTION_LOOKBACK_MS).toISOString(),
+        )
+        .lte("occurred_at", new Date(eventTime + 5 * 60 * 1_000).toISOString())
+        .order("occurred_at", { ascending: false })
+        .limit(1);
+  const { data, error } = await query.maybeSingle();
+  if (error) {
+    throw databaseError("Meta attribution could not be resolved.");
+  }
+  if (!data) {
+    return {
+      browserData: { fbc: undefined, fbp: undefined },
+      customData: null,
+      eventSourceUrl: null,
+      id: null,
+    };
+  }
+  let browserData: Record<"fbc" | "fbp", string | undefined> = {
+    fbc: undefined,
+    fbp: undefined,
+  };
+  if (data.storage_mode === "encrypted_envelope") {
+    const decrypted = await decryptIntegrationCredentials<MetaBrowserData>(
+      env,
+      {
+        integrationType: "meta_attribution",
+        organizationId: job.organization_id,
+        targetId: String(data.id),
+      },
+      {
+        algorithm: data.algorithm,
+        ciphertext: data.browser_data_ciphertext,
+        iv: data.browser_data_iv,
+        keyVersion: data.key_version,
+        version: data.envelope_version,
+      } as EncryptedCredentialEnvelope,
+    );
+    browserData = normalizeMetaBrowserData(decrypted);
+  }
+  return {
+    browserData,
+    customData: data,
+    eventSourceUrl:
+      typeof data.event_source_url === "string"
+        ? data.event_source_url
+        : null,
+    id: String(data.id),
+  };
+}
+
 async function executeMetaConversions(
   env: WorkerEnv,
   admin: SupabaseClient,
@@ -3462,7 +4473,7 @@ async function executeMetaConversions(
   let pendingQuery = admin
     .from("meta_conversion_events")
     .select(
-      "id,member_id,event_id,event_name,event_time,action_source,user_data_hashes,custom_data",
+      "id,member_id,event_id,event_name,event_time,action_source,user_data_hashes,custom_data,attribution_touchpoint_id,event_source_url",
     )
     .eq("connection_id", job.connection_id)
     .in("status", ["queued", "retry"])
@@ -3506,20 +4517,47 @@ async function executeMetaConversions(
         "The queued Meta event type is unsupported.",
       );
     }
+    const attribution = await attributionForMetaEvent(
+      env,
+      admin,
+      job,
+      event,
+    );
     const result = await meta.sendHashedConversion({
+      browserData: attribution.browserData,
       consented: true,
-      customData: event.custom_data as Record<
-        string,
-        string | number | boolean | null
-      >,
+      customData: metaAttributionCustomData(
+        event.custom_data as Record<
+          string,
+          string | number | boolean | null
+        >,
+        attribution.customData,
+      ),
       eventId: event.event_id,
       eventName: event.event_name,
+      eventSourceUrl:
+        attribution.eventSourceUrl ??
+        (typeof event.event_source_url === "string"
+          ? event.event_source_url
+          : null),
       eventTime: event.event_time,
       userData: event.user_data_hashes as Record<string, string>,
     });
+    const persistedAttributionId =
+      attribution.id ??
+      (typeof event.attribution_touchpoint_id === "string"
+        ? event.attribution_touchpoint_id
+        : null);
+    const persistedSourceUrl =
+      attribution.eventSourceUrl ??
+      (typeof event.event_source_url === "string"
+        ? event.event_source_url
+        : null);
     const { error: persistError } = await admin
       .from("meta_conversion_events")
       .update({
+        attribution_touchpoint_id: persistedAttributionId,
+        event_source_url: persistedSourceUrl,
         provider_trace_id: result.traceId,
         sent_at: new Date().toISOString(),
         status: "completed",
@@ -3873,6 +4911,40 @@ async function executeAvalaraReconciliation(
   return successfulIntegrationJob({ processed });
 }
 
+async function executeAvalaraFilingVerification(
+  env: WorkerEnv,
+  admin: SupabaseClient,
+  job: ClaimedIntegrationJob,
+): Promise<IntegrationJobCompletion> {
+  const { client } = await providerForJob(env, admin, job);
+  const result = await (client as AvalaraClient).getFilingRegistrationStatus();
+  const registrations = result.registrations
+    .map((registration) => ({
+      filing_calendar_id: registration.filingCalendarId,
+      filing_frequency: registration.filingFrequency,
+      region_code: registration.regionCode,
+      registration_status: registration.status,
+    }))
+    .sort(
+      (left, right) =>
+        left.filing_calendar_id - right.filing_calendar_id,
+    );
+  const { error } = await admin.rpc(
+    "replace_avalara_filing_registration_snapshot",
+    {
+      p_connection_id: job.connection_id,
+      p_registrations: registrations,
+      p_response_hash: await sha256(JSON.stringify(registrations)),
+      p_snapshot_id: job.job_id,
+      p_verified_at: result.verifiedAt,
+    },
+  );
+  if (error) {
+    throw databaseError("Avalara filing verification could not be persisted.");
+  }
+  return successfulIntegrationJob({ processed: registrations.length });
+}
+
 async function executeAvalaraRefund(
   env: WorkerEnv,
   admin: SupabaseClient,
@@ -4080,7 +5152,7 @@ async function executeMetaEvent(
     await Promise.all([
       admin
         .from("member_integration_consents")
-        .select("consented,revoked_at")
+        .select("consented,revoked_at,updated_at")
         .eq("organization_id", job.organization_id)
         .eq("brand_id", job.brand_id)
         .eq("member_id", resolvedMemberId)
@@ -4130,7 +5202,10 @@ async function executeMetaEvent(
     ),
   );
   const eventTime = String(
-    shipment?.paid_at ?? shipment?.updated_at ?? member.updated_at,
+    shipment?.paid_at ??
+      shipment?.updated_at ??
+      (eventName === "Lead" ? consent.updated_at : null) ??
+      member.updated_at,
   );
   const customData =
     eventName === "Purchase"
@@ -4182,6 +5257,7 @@ export function metaPurchaseValue(
 
 export type IntegrationJobKind =
   | "avalara_calculate"
+  | "avalara_filing_verify"
   | "avalara_refund"
   | "avalara_reconcile"
   | "connection_validate"
@@ -4237,6 +5313,9 @@ export function integrationJobKind(
   if (integrationType === "avalara" && syncType === "tax.reconcile") {
     return "avalara_reconcile";
   }
+  if (integrationType === "avalara" && syncType === "filing.verify") {
+    return "avalara_filing_verify";
+  }
   if (integrationType === "avalara" && syncType === "avalara.tax.refund") {
     return "avalara_refund";
   }
@@ -4287,6 +5366,8 @@ export async function executeIntegrationJob(
       return executeAvalaraCalculate(env, admin, job);
     case "avalara_reconcile":
       return executeAvalaraReconciliation(env, admin, job);
+    case "avalara_filing_verify":
+      return executeAvalaraFilingVerification(env, admin, job);
     case "avalara_refund":
       return executeAvalaraRefund(env, admin, job);
     case "meta_conversions":
@@ -4302,7 +5383,7 @@ async function enqueueScheduledIntegrationWork(
 ): Promise<void> {
   const { data, error } = await admin
     .from("integration_connections")
-    .select("id,brand_id,integration_type")
+    .select("id,brand_id,integration_type,sync_config")
     .eq("status", "active")
     .eq("opted_in", true);
   if (error) throw databaseError("Active integrations could not be scheduled.");
@@ -4359,6 +5440,21 @@ async function enqueueScheduledIntegrationWork(
                   key: `tax-reconcile:${connection.id}:${dayKey}`,
                   syncType: "tax.reconcile",
                 },
+                ...(
+                  connection.sync_config &&
+                  typeof connection.sync_config === "object" &&
+                  !Array.isArray(connection.sync_config) &&
+                  (connection.sync_config as Record<string, unknown>)
+                    .filingEnabled === true
+                    ? [
+                        {
+                          direction: "inbound",
+                          key: `filing:${connection.id}:${dayKey}`,
+                          syncType: "filing.verify",
+                        },
+                      ]
+                    : []
+                ),
               ];
     for (const job of jobs) {
       const { error: queueError } = await admin.rpc(

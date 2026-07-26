@@ -26,6 +26,13 @@ Resend reports the domain as verified before using it in a production sender.
 `onboarding@resend.dev` is reserved for development testing. It is not the
 production sender.
 
+Phase 5 brand senders are verified independently from the legacy/default
+sender. In the staff **White-label** surface, save the exact brand sender name
+and address, start domain verification, and publish the returned DNS records.
+The sender remains `pending` until Resend reports both domain verification and
+sending capability. Replacing the address resets verification; clearing it
+disables that brand sender.
+
 ## 2. Configure repository secrets
 
 Add the following encrypted GitHub repository secrets:
@@ -50,6 +57,11 @@ links.
 
 Do not expose any of these values through Vite-prefixed variables or browser
 configuration.
+
+These bindings establish provider access and the default transactional sender;
+they do not mark every brand sender verified. A branded delivery must resolve a
+verified, active sender identity for the message's exact brand. Missing or
+pending brand verification leaves the durable email work queued.
 
 ## 3. Register the delivery webhook
 

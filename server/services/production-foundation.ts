@@ -24,6 +24,15 @@ import {
   verifyMemberAuthLinkCallback,
 } from "../lib/member-brand-context";
 import { ProductionIntegrationService } from "./integrations";
+import {
+  executeStripeBillingAttempt,
+  isNonterminalSubscriptionStatus,
+  provisionStripeCustomer,
+  stripeClientReferenceId,
+  supabaseStripeBillingAttemptStore,
+  supabaseStripeCustomerProvisioningStore,
+  type StripeSubscriptionStatus,
+} from "./stripe-runtime";
 import type {
   ApplicationService,
   AuthSurface,
@@ -37,6 +46,8 @@ import type {
 const STRIPE_API_VERSION = "2026-02-25.clover";
 const STAFF_COOKIE = "vinifera-staff-auth";
 const MEMBER_COOKIE = "vinifera-member-auth";
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface StaffUserRow {
   email: string;
@@ -367,28 +378,21 @@ export class ProductionFoundationService
       throw new AppError(409, "conflict", "An account with this email may already exist.");
     }
 
-    let stripeCustomerId: string | null = null;
+    const billingActivationRequired =
+      !getConfigurationReport(this.env).billing.configured ||
+      !getConfigurationReport(this.env).webhook.configured;
     try {
-      if (this.env.STRIPE_SECRET_KEY) {
-        const customer = await createStripe(this.env).customers.create({
-          email,
-          metadata: {
-            plan_tier: input.planTier,
-            supabase_user_id: data.user.id,
-          },
-          name: input.organizationName,
-        });
-        stripeCustomerId = customer.id;
-      }
-
-      const { error: bootstrapError } = await this.admin.rpc("bootstrap_organization", {
-        p_organization_name: input.organizationName,
-        p_owner_email: email,
-        p_owner_user_id: data.user.id,
-        p_plan_tier: input.planTier,
-        p_stripe_customer_id: stripeCustomerId,
-      });
-      if (bootstrapError) {
+      const { data: bootstrapData, error: bootstrapError } = await this.admin.rpc(
+        "bootstrap_organization",
+        {
+          p_organization_name: input.organizationName,
+          p_owner_email: email,
+          p_owner_user_id: data.user.id,
+          p_plan_tier: input.planTier,
+          p_stripe_customer_id: null,
+        },
+      );
+      if (bootstrapError || typeof bootstrapData !== "string") {
         throw bootstrapError;
       }
       if (data.session) {
@@ -397,9 +401,6 @@ export class ProductionFoundationService
       }
     } catch (error) {
       await this.admin.auth.admin.deleteUser(data.user.id).catch(() => undefined);
-      if (stripeCustomerId) {
-        await createStripe(this.env).customers.del(stripeCustomerId).catch(() => undefined);
-      }
       throw new AppError(
         502,
         "upstream_error",
@@ -408,9 +409,7 @@ export class ProductionFoundationService
     }
 
     return {
-      billingActivationRequired:
-        !getConfigurationReport(this.env).billing.configured ||
-        !getConfigurationReport(this.env).webhook.configured,
+      billingActivationRequired,
       principal: data.session ? await this.getStaffSession() : null,
     };
   }
@@ -736,7 +735,10 @@ export class ProductionFoundationService
     });
   }
 
-  async createBillingCheckout(input: { planTier: PlanTier }): Promise<{ url: string }> {
+  async createBillingCheckout(input: {
+    attemptId: string;
+    planTier: PlanTier;
+  }): Promise<{ url: string }> {
     const principal = await this.getStaffSession();
     if (!principal) throw authFailure();
     assertStaffRole(principal, ["owner"]);
@@ -760,72 +762,155 @@ export class ProductionFoundationService
     }
     const independent = brand.billing_mode === "independent";
     const stripe = createStripe(this.env);
+    const localSubscriptionId = independent
+      ? (brand.stripe_subscription_id as string | null)
+      : principal.organization.stripeSubscriptionId;
+    const localSubscriptionStatus = independent
+      ? String(brand.subscription_status)
+      : principal.organization.subscriptionStatus;
+    if (localSubscriptionId) {
+      let subscription: Stripe.Subscription;
+      try {
+        subscription = await stripe.subscriptions.retrieve(localSubscriptionId);
+      } catch {
+        throw new AppError(
+          502,
+          "upstream_error",
+          "The existing subscription could not be reconciled safely.",
+        );
+      }
+      const subscriptionStatus =
+        subscription.status as StripeSubscriptionStatus;
+      const { error: reconcileError } = await this.admin.rpc(
+        "reconcile_stripe_subscription_target",
+        {
+          p_brand_id: brandId,
+          p_organization_id: principal.organization.id,
+          p_stripe_subscription_id: subscription.id,
+          p_subscription_status: subscriptionStatus,
+        },
+      );
+      if (reconcileError) {
+        throw new AppError(
+          500,
+          "upstream_error",
+          "The existing subscription could not be reconciled safely.",
+        );
+      }
+      if (isNonterminalSubscriptionStatus(subscriptionStatus)) {
+        throw new AppError(
+          409,
+          "conflict",
+          "An existing subscription must be managed in the billing portal.",
+        );
+      }
+    } else if (isNonterminalSubscriptionStatus(localSubscriptionStatus)) {
+      throw new AppError(
+        409,
+        "conflict",
+        "An existing subscription is still reconciling. Retry this request shortly.",
+      );
+    }
+
     let customerId = independent
       ? (brand.stripe_customer_id as string | null)
       : principal.organization.stripeCustomerId;
     if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: principal.user.email,
-        metadata: {
-          brand_id: brandId,
-          billing_mode: independent ? "independent" : "shared",
-          organization_id: principal.organization.id,
-        },
-        name: independent ? String(brand.name) : principal.organization.name,
+      const scope = independent ? "brand" : "organization";
+      const subjectId = independent ? brandId : principal.organization.id;
+      customerId = await provisionStripeCustomer({
+        brandId: independent ? brandId : null,
+        createCustomer: (params, idempotencyKey) =>
+          stripe.customers.create(params, { idempotencyKey }),
+        memberId: null,
+        organizationId: principal.organization.id,
+        scope,
+        store: supabaseStripeCustomerProvisioningStore(this.admin),
+        subjectId,
       });
-      customerId = customer.id;
-      const { error } = independent
-        ? await this.admin
-            .from("brands")
-            .update({ stripe_customer_id: customerId })
-            .eq("organization_id", principal.organization.id)
-            .eq("id", brandId)
-            .eq("billing_mode", "independent")
-        : await this.admin
-            .from("organizations")
-            .update({ stripe_customer_id: customerId })
-            .eq("id", principal.organization.id);
-      if (error) {
-        await stripe.customers.del(customerId).catch(() => undefined);
-        throw new AppError(502, "upstream_error", "Billing could not be initialized.");
-      }
     }
 
     const origin = this.applicationOrigin();
-    const session = await stripe.checkout.sessions.create({
-      cancel_url: `${origin}/app/billing/cancel`,
-      customer: customerId,
-      line_items: [{ price: planPrice(this.env, input.planTier), quantity: 1 }],
-      metadata: {
-        brand_id: brandId,
-        billing_mode: independent ? "independent" : "shared",
-        organization_id: principal.organization.id,
-        plan_tier: input.planTier,
+    const requestedPriceId = planPrice(this.env, input.planTier);
+    return executeStripeBillingAttempt({
+      attemptId: input.attemptId,
+      brandId,
+      createSession: async ({
+        attemptId,
+        idempotencyKey,
+        planTier,
+        providerPayloadKey,
+      }) => {
+        if (!planTier) {
+          throw new AppError(
+            500,
+            "configuration_error",
+            "The checkout plan is unavailable.",
+          );
+        }
+        const session = await stripe.checkout.sessions.create(
+          {
+            cancel_url: `${origin}/app/billing/cancel`,
+            client_reference_id: stripeClientReferenceId({
+              brandId,
+              organizationId: principal.organization!.id,
+            }),
+            customer: customerId,
+            line_items: [{ price: providerPayloadKey, quantity: 1 }],
+            metadata: {
+              attempt_id: attemptId,
+              brand_id: brandId,
+              billing_mode: independent ? "independent" : "shared",
+              organization_id: principal.organization!.id,
+              plan_tier: planTier,
+            },
+            mode: "subscription",
+            subscription_data: {
+              metadata: {
+                attempt_id: attemptId,
+                brand_id: brandId,
+                billing_mode: independent ? "independent" : "shared",
+                organization_id: principal.organization!.id,
+                plan_tier: planTier,
+              },
+            },
+            success_url: `${origin}/app/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+          },
+          { idempotencyKey },
+        );
+        return { id: session.id, url: session.url };
       },
-      mode: "subscription",
-      subscription_data: {
-        metadata: {
-          brand_id: brandId,
-          billing_mode: independent ? "independent" : "shared",
-          organization_id: principal.organization.id,
-          plan_tier: input.planTier,
-        },
+      customerId,
+      memberId: null,
+      operation: "checkout",
+      organizationId: principal.organization.id,
+      planTier: input.planTier,
+      providerPayloadKey: requestedPriceId,
+      reconcileOpenCheckout: async (sessionId) => {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        if (session.status === "complete") {
+          return { status: "complete" as const, url: session.url };
+        }
+        if (session.status === "expired") {
+          return { status: "expired" as const, url: session.url };
+        }
+        return { status: "open" as const, url: session.url };
       },
-      success_url: `${origin}/app/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      store: supabaseStripeBillingAttemptStore(this.admin),
+      subjectId: independent ? brandId : principal.organization.id,
     });
-    if (!session.url) {
-      throw new AppError(502, "upstream_error", "Stripe did not return a checkout URL.");
-    }
-    return { url: session.url };
   }
 
-  async createBillingPortal(): Promise<{ url: string }> {
+  async createBillingPortal(input: {
+    attemptId: string;
+  }): Promise<{ url: string }> {
     const principal = await this.getStaffSession();
     if (!principal) throw authFailure();
     assertStaffRole(principal, ["owner"]);
     if (!principal.organization) {
       throw new AppError(403, "forbidden", "Platform operators do not have winery billing.");
     }
+    assertStripeBillingAuthority(this.env);
     const brandId = await this.activeBrandId(principal, undefined, true);
     const { data: brand, error: brandError } = await this.admin
       .from("brands")
@@ -844,11 +929,33 @@ export class ProductionFoundationService
     if (!customerId) {
       throw new AppError(409, "conflict", "Billing has not been activated for this winery.");
     }
-    const session = await createStripe(this.env).billingPortal.sessions.create({
-      customer: customerId,
-      return_url: `${this.applicationOrigin()}/app/settings/billing`,
+    const stripe = createStripe(this.env);
+    return executeStripeBillingAttempt({
+      attemptId: input.attemptId,
+      brandId,
+      createSession: async ({ idempotencyKey }) => {
+        const session = await stripe.billingPortal.sessions.create(
+          {
+            customer: customerId,
+            return_url: `${this.applicationOrigin()}/app/settings/billing`,
+          },
+          { idempotencyKey },
+        );
+        return { id: session.id, url: session.url };
+      },
+      customerId,
+      memberId: null,
+      operation: "staff_portal",
+      organizationId: principal.organization.id,
+      planTier: null,
+      providerPayloadKey: "staff_portal:v1",
+      reconcileOpenCheckout: async () => ({ status: "expired" as const }),
+      store: supabaseStripeBillingAttemptStore(this.admin),
+      subjectId:
+        brand.billing_mode === "independent"
+          ? brandId
+          : principal.organization.id,
     });
-    return { url: session.url };
   }
 
   async handleStripeWebhook(
@@ -904,14 +1011,17 @@ export class ProductionFoundationService
       "metadata" in object ? object.metadata?.brand_id ?? null : null;
     let billingMode: string | null =
       "metadata" in object ? object.metadata?.billing_mode ?? null : null;
+    let billingAttemptId: string | null =
+      "metadata" in object ? object.metadata?.attempt_id ?? null : null;
     let resolvedSubscription: Stripe.Subscription | null =
       object.object === "subscription" ? object : null;
-    if ((!organizationId || !brandId) && subscriptionId) {
+    if (!resolvedSubscription && subscriptionId) {
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
       resolvedSubscription = subscription;
-      organizationId = subscription.metadata.organization_id ?? null;
-      brandId = subscription.metadata.brand_id ?? null;
-      billingMode = subscription.metadata.billing_mode ?? null;
+      organizationId ??= subscription.metadata.organization_id ?? null;
+      brandId ??= subscription.metadata.brand_id ?? null;
+      billingMode ??= subscription.metadata.billing_mode ?? null;
+      billingAttemptId ??= subscription.metadata.attempt_id ?? null;
     }
     if (!organizationId && customerId) {
       const [{ data: brand }, { data: organization }] = await Promise.all([
@@ -974,6 +1084,27 @@ export class ProductionFoundationService
       : await this.admin.rpc("apply_subscription_event", eventArguments);
     if (error) {
       throw new AppError(500, "upstream_error", "The webhook could not be persisted.");
+    }
+    if (
+      billingAttemptId &&
+      UUID.test(billingAttemptId) &&
+      subscriptionId
+    ) {
+      const { error: attemptError } = await this.admin.rpc(
+        "reconcile_stripe_billing_attempt",
+        {
+          p_attempt_id: billingAttemptId,
+          p_organization_id: organizationId,
+          p_stripe_subscription_id: subscriptionId,
+        },
+      );
+      if (attemptError) {
+        throw new AppError(
+          500,
+          "upstream_error",
+          "The checkout reconciliation could not be persisted.",
+        );
+      }
     }
     const result = Array.isArray(data) ? data[0] : data;
     return { duplicate: Boolean(result?.duplicate) };

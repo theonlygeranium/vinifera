@@ -29,18 +29,20 @@ live provider or production-store result.
 
 | Gate | Result | Boundary |
 | --- | --- | --- |
-| Phase 5 embedded database | Pass — 167/167 assertions | Hosted Supabase native pgcrypto/pgTAP remains deferred |
+| Phase 5 embedded database | Pass — migrations 001–012 and pgTAP suites 013–022, 279/279 assertions | Hosted Supabase native pgcrypto/pgTAP remains deferred |
 | Prior-phase embedded database regression | Pass — Phase 2 145/145, Phase 3 138/138, Phase 4 121/121 | Hosted Supabase remains deferred |
-| Type, unit/integration, build, Worker package | Pass — `npm run check`, 189/189 tests across 16 files | Includes Stripe catalog control tests; no hosted Worker claim |
+| Type, unit/integration, build, Worker package | Pass — TypeScript green, 245/245 Vitest, Vite/Pages/Worker/production dry runs green | No hosted Worker claim |
 | Dependency audit | Pass — zero vulnerabilities in production and full audits | Snapshot from this run |
-| Full responsive/axe browser suite | Pass — 122/122 in 2.5 minutes | Local browser evidence; no hosted-provider claim |
+| Full responsive/axe browser suite | Pass — 123/123, zero axe violations | Local browser evidence; no hosted-provider claim |
 | Phase 5 visual review | Pass — six staff screenshots manually inspected | Physical-device and store screenshots remain deferred |
-| Mobile identity and native sync | Pass | Store signing remains deferred |
-| iOS simulator | Pass — build, install, launch, zero build warnings | Not a physical-device or TestFlight result |
-| Android | Pass — local and GitHub CI lint, debug APK, and R8 release APK | Signing and FCM remain deferred |
-| Static Pages rollback | Pass — unchanged | Still the public production baseline |
+| Mobile identity and native sync | Pass — identity, compile-only prep, and Android sync | Store signing remains deferred |
+| iOS simulator | Prior candidate pass — build, install, launch, zero build warnings | Not rerun for this architecture candidate; not a physical-device or TestFlight result |
+| Android | Prior candidate local/CI artifacts retained; current sync passes | Current local Gradle is blocked only by missing Java; Java 21 CI remains pending for this commit |
+| Static Pages rollback | Pass — source/artifact diff clean | Still the public production baseline |
 | Credential-gated release controls | Pass in source | Staging/production target hashes remain intentionally unresolved; no hosted mutation |
 | Signed mobile/store control | Pass in source | Immutable signed AAB/IPA and internal-track workflow wired; credentials and store execution deferred |
+| Envelope rotation control | Pass in source | Disabled policy, empty target/transition hashes, no rotation executed |
+| Stripe live-billing control | Pass in source | Independent authority and policy remain default-deny; no live connection or mutation |
 | GitHub post-hardening CI | Pass — [run 30217201984](https://github.com/theonlygeranium/vinifera/actions/runs/30217201984) | Quality and Android pass; migration/deploy skip while activation is off |
 | Hosted readiness | Pass — [run 30217462802](https://github.com/theonlygeranium/vinifera/actions/runs/30217462802) | GET-only classifications; no provider or deployment mutation |
 | Hosted providers, custom DNS, Stripe live | Deferred | External credentials or human authority required |
@@ -49,17 +51,18 @@ live provider or production-store result.
 
 | Capability | Verified local architecture | Credential/authority state | Hosted result |
 | --- | --- | --- | --- |
-| Supabase Phase 5 migration | Embedded migration and 167 assertions pass; Phase 2–4 regression gates also pass | Generic hosted Auth is reachable, but Phase 1/5 tables are absent and staging management credentials are unavailable | Deferred |
+| Supabase Phase 5 migration | Migrations 001–012 and pgTAP suites 013–022 pass 279/279; Phase 2–4 regression gates also pass | Generic hosted Auth is reachable, but Phase 1/5 tables are absent and staging management credentials are unavailable | Deferred |
 | Cloudflare Worker | Build and production/staging dry-run package pass; isolated staging workflow configured | Generic token is valid but lacks Workers read capability; no staging-scoped token | Deferred |
 | Integration credential keyring | AES-256-GCM round trip, version, and authenticated context pass | Wrapping key not provisioned | `activation_required` |
 | Klaviyo | Adapter, jobs, signatures, polling fallback, and request construction pass | Private key/account unavailable | `activation_required` |
-| QuickBooks Online | OAuth state/refresh, SHA-256 request IDs, ambiguity handling, pagination, durable refund checkpoints, and reconciliation pass | Intuit application/company unavailable | `activation_required` |
-| Avalara | Pre-charge quote, commit, durable refund checkpoint/return, liability, crash reconciliation, and fail-closed paths pass | AvaTax account/company unavailable | `activation_required` |
-| Meta CAPI | Consent, hashing, event identity, and request construction pass | Dataset/token unavailable | `activation_required` |
-| Custom hostname | Least-privilege client, ownership/certificate state, host routing, and theme guards pass | Zone-scoped token and winery DNS unavailable | Deferred |
+| QuickBooks Online | OAuth state/refresh, SHA-256 request IDs, ambiguity handling, pagination, separately persisted shipping, durable refund checkpoints, and reconciliation pass | Intuit application/company unavailable | `activation_required` |
+| Avalara | Wine/shipping mappings, exemptions, filing snapshots, pre-charge quote, commit, durable refund checkpoint/return, liability, crash reconciliation, and fail-closed paths pass | AvaTax account/company and winery filing authority unavailable | `activation_required` |
+| Meta CAPI | Consent, encrypted attribution, withdrawal redaction, credential rotation, hashing, event identity, and request construction pass | Dataset/token unavailable | `activation_required` |
+| Per-brand Resend | Staff sender/domain activation and verified-sender selection pass locally | Resend account and brand DNS unavailable | `activation_required` |
+| Custom hostname | Target hashes, least-privilege client, retry-safe write ledger, ownership/certificate state, host routing, and staff theme guards pass | Zone-scoped token and winery DNS unavailable | Deferred |
 | iOS | Identity, sync, simulator build/install/launch pass | Apple signing, APNs, and store authority unavailable | Deferred |
-| Android | Identity, sync, lint, debug APK, and R8 release APK pass locally and in GitHub CI | Signing, FCM, and store authority unavailable | Deferred |
-| Stripe test/live mode | Generic test key reaches Stripe; test-mode billing architecture passes | Four test Price IDs and webhook secret are absent; live mode additionally requires human approval | Deferred |
+| Android | Identity, compile-only prep, and sync pass for the current candidate; prior lint/debug/R8 evidence retained | Local Java unavailable and current Java 21 CI pending; signing, FCM, and store authority unavailable | Deferred |
+| Stripe test/live mode | Subject locks, idempotent attempts, webhook-wait reconciliation, test catalog, and default-deny live control pass locally | Catalog run left one Price created-or-unknown; services are deferred; live additionally requires human approval | Deferred |
 
 The post-phase release hardening additionally provides:
 
@@ -90,6 +93,11 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 
 - [x] Credential envelopes use AES-256-GCM, a random nonce, a versioned key,
       and authenticated organization/provider/target context.
+- [x] Deployment-managed connection credentials use only the restricted
+      `env://VINIFERA_INTEGRATION_SECRET_*` reference form.
+- [x] Envelope rotation is leased, resumable, bounded, and verifies zero old
+      integration, Meta-attribution, and mobile-push envelopes before key
+      retirement.
 - [x] Browser-readable connection metadata contains no credential material.
 - [x] Missing credentials return `activation_required` and transmit no data.
 - [x] Explicit opt-in is required before jobs can be claimed.
@@ -125,6 +133,8 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
       monthly reconciliation are implemented.
 - [x] Tax-inclusive, loyalty-net financial identities are shared across
       Vinifera, QuickBooks, Meta, and refund handling.
+- [x] Persisted shipping charges remain a separate accounting fact for mapped
+      freight items/accounts.
 - [x] QuickBooks and Avalara share a durable per-refund checkpoint. A crash
       after either provider write is reconciled and resumes only the incomplete
       side; the 4,863-cent and 4,862-cent increments converge exactly to the
@@ -147,6 +157,8 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 - [x] Liability reporting subtracts committed return tax from sales tax.
 - [x] Exemption, jurisdiction, shipping, liability, and filing states are
       represented.
+- [x] Wine/shipping tax-code mappings, exemption/customer/entity-use
+      references, and read-only filing-registration snapshots are brand scoped.
 - [x] ShipCompliant remains the alcohol-shipping compliance authority.
 - [x] Credential-free request construction completes inside the 500 ms
       application budget.
@@ -155,6 +167,9 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 ### Meta Conversions API
 
 - [x] Consent is checked before queue and immediately before transmission.
+- [x] Browser attribution is stored only with current consent in an
+      authenticated encrypted envelope, never in Web Storage, and is redacted
+      on consent withdrawal.
 - [x] Identifiers, including date of birth, are normalized and SHA-256 hashed
       before a network request object is created.
 - [x] The conversion ledger accepts hashes rather than raw identifiers.
@@ -183,6 +198,10 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
       credentials, and custom ports are rejected.
 - [x] Sender identities are unique per brand and may be safely replaced or
       disabled.
+- [x] Staff can configure and verify the exact per-brand Resend sender from the
+      white-label surface; an unverified sender cannot be used for delivery.
+- [x] Custom-hostname creates use a durable write ledger and provider lookup
+      before retry after an indeterminate result.
 - [ ] Hosted two-brand workflow: **Deferred**.
 - [ ] Live custom hostname/DNS/certificate: **Deferred**.
 
@@ -256,11 +275,9 @@ npm run qa:db:phase5
 Result:
 
 ```text
-PASS supabase/tests/013_phase_5_schema.test.sql (36/36)
-PASS supabase/tests/014_phase_5_multibrand_rls.test.sql (26/26)
-PASS supabase/tests/015_phase_5_integrations_mobile.test.sql (55/55)
-PASS supabase/tests/016_phase_5_backend_regressions.test.sql (50/50)
-PASS Phase 5 embedded database verification (167/167)
+PASS migrations 001–012
+PASS supabase/tests/013–022 (279/279)
+PASS Phase 5 embedded database verification (279/279)
 PASS Phase 2 embedded database verification (145/145)
 PASS Phase 3 embedded database verification (138/138)
 PASS Phase 4 embedded database verification (121/121)
@@ -282,25 +299,27 @@ verification.
 
 | Command/check | Result |
 | --- | --- |
-| `npm run check` | Pass — TypeScript zero errors, 189/189 Vitest tests across 16 files, Vite build, Worker dry run |
-| `npm run qa:stripe-catalog` | Pass — 15/15 account, test-mode, allowlist, idempotency, drift, workflow, semantic-deploy, and sanitization tests |
+| `npm run check` | Pass — TypeScript zero errors, 245/245 Vitest tests, Vite build, Worker dry run |
+| `npm run qa:stripe-catalog` | Pass — 16/16 account, test-mode, allowlist, idempotency, drift, workflow, semantic-deploy, and sanitization tests |
 | `npm run qa:production-release` | Pass — 14/14 fail-closed production release/control tests |
 | `npm run qa:mobile-release` | Pass — 7/7 immutable signing and internal-store release tests |
 | `npm run build:worker:production` | Pass — route-free production Worker version dry run with live billing disabled |
+| `npm run build:pages` | Pass — rollback artifact diff clean |
+| `npm run qa:mobile:identity` | Pass |
+| Compile-only Capacitor preparation + Android sync | Pass |
+| Current local Gradle | Not run — no local Java runtime; Java 21 CI pending for this commit |
 | `npm audit --omit=dev --audit-level=moderate` | Pass — zero vulnerabilities |
 | `npm audit --audit-level=moderate` | Pass — zero vulnerabilities |
-| Full post-remediation browser suite | Pass — 122/122 in 2.5 minutes |
+| Full post-remediation browser suite | Pass — 123/123 |
 | Full-suite multi-brand performance assertion | Pass — 898.65 ms / 2,000 ms |
 | Full-suite axe scans | Pass — 0 WCAG 2.1 AA violations |
 | [GitHub Phase 5 workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30214620782) | Pass — quality 4m08s, Android 6m44s; hosted migration/deploy skipped while activation is off |
 | [GitHub post-hardening workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30217201984) | Pass — quality 5m18s, Android 6m54s; hosted migration/deploy skipped while activation is off |
 | [GET-only hosted readiness](https://github.com/theonlygeranium/vinifera/actions/runs/30217462802) | Pass — sanitized evidence artifact; no mutations |
 
-The final complete browser rerun passed all 122 tests in 2.5 minutes with
-retries disabled. Before that run, the Phase 5 loading-state test was changed
-from a timer race to a controlled request gate and passed 10/10 repetitions
-with retries disabled. This supersedes the earlier 121-pass partial run and its
-targeted-only follow-up.
+The current complete browser rerun passed all 123 tests with retries disabled,
+zero axe violations, LCP 476 ms, and CLS 0. The prior 122-test run and its
+loading-state stabilization remain historical evidence.
 
 ## Accessibility, responsive, and visual gate
 
@@ -334,7 +353,7 @@ not physical-device accessibility proof.
 
 | Check | Budget | Local result |
 | --- | ---: | ---: |
-| Integration-page LCP | < 2.5 s | Pass — 404 ms |
+| Integration-page LCP | < 2.5 s | Pass — 476 ms |
 | Integration-page CLS | < 0.1 | Pass — 0 |
 | Multi-brand dashboard usable | < 2 s | Pass — 898.65 ms |
 | Klaviyo 1,000-member source/request construction | < 30 s | Pass — 1.78 ms |
@@ -417,8 +436,8 @@ is supplied.
 - [x] Android identity, manifest, permission, link, `FileProvider`, artwork,
       R8, and Gradle integrity source gates pass.
 - [x] Capacitor Android synchronization completes.
-- [x] GitHub CI passes with Java 21, Android API 36, lint, debug APK, and R8
-      release APK assembly.
+- [x] Prior GitHub CI passes with Java 21, Android API 36, lint, debug APK, and
+      R8 release APK assembly; that evidence is retained below.
 - [x] The exact repository Gradle command passes locally in 2 minutes 29
       seconds with 0 lint errors and 33 non-blocking warnings:
 
@@ -440,6 +459,11 @@ is supplied.
       local SHA-256 above; the environment-specific CI debug APK SHA-256 is
       `00738f931ba0a13b7ccdee7fe194adb37eec956441467c11e586459faa7dd95b`.
 - [x] The downloaded CI lint report records 0 errors and 33 warnings.
+- [x] Current architecture candidate passes compile-only preparation and
+      Capacitor Android synchronization.
+- [ ] Current architecture candidate Gradle rerun: **Pending**. The local Mac
+      has no Java runtime, so Gradle cannot start; the Java 21 Android CI job is
+      the required current-commit evidence.
 - [ ] Emulator/physical-device, FCM, signing, and Play internal-track evidence:
       **Deferred**.
 
@@ -468,9 +492,11 @@ Phase 5 tables in place.
 - [ ] Install from TestFlight and the Play internal track.
 - [ ] Obtain human approval for Stripe live keys, webhook, charge, and refund.
 
-The first six credential/control-plane actions are now wired and fail closed.
-Their checkboxes remain open until the protected workflows produce redacted
-hosted artifacts; source coverage is not counted as provider or store evidence.
+All credential-independent application, database, provider-boundary, release,
+rotation, target-safety, white-label, and mobile-shell architecture is wired
+and fails closed. The checkboxes remain open until protected workflows produce
+redacted hosted artifacts; source coverage is not counted as provider, store,
+DNS, or live-payment evidence.
 
 ## Final decision
 

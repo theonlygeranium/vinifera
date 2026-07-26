@@ -534,7 +534,7 @@ select public.store_integration_credentials(
   null,
   null,
   null,
-  'vault://vinifera/klaviyo/sibling'
+  'env://VINIFERA_INTEGRATION_SECRET_KLAVIYO_SIBLING'
 );
 select public.set_integration_health(
   'e5000000-0000-4000-8000-000000000002',
@@ -574,7 +574,7 @@ select public.store_integration_credentials(
   null,
   null,
   null,
-  'vault://vinifera/meta/default'
+  'env://VINIFERA_INTEGRATION_SECRET_META_DEFAULT'
 );
 select public.set_integration_health(
   'e5000000-0000-4000-8000-000000000003',
@@ -637,7 +637,7 @@ select public.store_integration_credentials(
   null,
   null,
   null,
-  'vault://vinifera/quickbooks/default'
+  'env://VINIFERA_INTEGRATION_SECRET_QUICKBOOKS_DEFAULT'
 );
 select public.set_integration_health(
   'e5000000-0000-4000-8000-000000000004',

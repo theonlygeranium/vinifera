@@ -1,13 +1,21 @@
 import { AppError } from "../lib/errors";
 import {
+  assertCloudflareCustomHostnameTarget,
+  type ProviderTargetPolicy,
+  providerTargetPolicy,
+} from "../provider-targets";
+import type { WorkerEnv } from "../types";
+import {
   providerRequest,
   requestIntegrationJson,
   type IntegrationRequestOptions,
 } from "./http";
 
 export interface CloudflareDomainCredentials {
+  appEnvironment: WorkerEnv["APP_ENV"];
   apiToken: string;
   fallbackOrigin: string;
+  targetPolicy?: ProviderTargetPolicy;
   zoneId: string;
 }
 
@@ -44,6 +52,14 @@ export class CloudflareCustomHostnameClient {
         "Cloudflare custom-hostname credentials must be connected.",
       );
     }
+    assertCloudflareCustomHostnameTarget(
+      {
+        appEnvironment: credentials.appEnvironment,
+        fallbackOrigin: credentials.fallbackOrigin,
+        zoneId: credentials.zoneId,
+      },
+      credentials.targetPolicy ?? providerTargetPolicy,
+    );
     let fallbackOrigin = credentials.fallbackOrigin.trim().toLowerCase();
     if (fallbackOrigin.startsWith("https://")) {
       const parsed = new URL(fallbackOrigin);
@@ -94,6 +110,7 @@ export class CloudflareCustomHostnameClient {
       result?: Record<string, unknown>;
       success?: boolean;
     }>({
+      attempts: 1,
       fetcher: this.options.fetcher,
       request: providerRequest(
         `https://api.cloudflare.com/client/v4/zones/${encodeURIComponent(
@@ -120,6 +137,54 @@ export class CloudflareCustomHostnameClient {
       );
     }
     return normalizeHostname(payload.result);
+  }
+
+  async findHostname(
+    hostname: string,
+    brandId: string,
+  ): Promise<CustomHostnameResult | null> {
+    const endpoint = new URL(
+      `https://api.cloudflare.com/client/v4/zones/${encodeURIComponent(
+        this.credentials.zoneId,
+      )}/custom_hostnames`,
+    );
+    endpoint.searchParams.set("hostname", hostname);
+    endpoint.searchParams.set("per_page", "50");
+    const payload = await requestIntegrationJson<{
+      result?: Array<Record<string, unknown>>;
+      success?: boolean;
+    }>({
+      fetcher: this.options.fetcher,
+      request: providerRequest(endpoint.toString(), {
+        headers: this.headers(),
+        method: "GET",
+      }),
+      sleep: this.options.sleep,
+    });
+    if (!payload.success || !Array.isArray(payload.result)) {
+      throw new AppError(
+        502,
+        "upstream_error",
+        "Cloudflare custom-hostname lookup is unavailable.",
+      );
+    }
+    const matches = payload.result.filter((row) => {
+      const metadata =
+        row.custom_metadata &&
+        typeof row.custom_metadata === "object" &&
+        !Array.isArray(row.custom_metadata)
+          ? (row.custom_metadata as Record<string, unknown>)
+          : {};
+      return row.hostname === hostname && metadata.brand_id === brandId;
+    });
+    if (matches.length > 1) {
+      throw new AppError(
+        502,
+        "upstream_error",
+        "Cloudflare returned duplicate custom-hostname records.",
+      );
+    }
+    return matches.length === 1 ? normalizeHostname(matches[0]!) : null;
   }
 
   async getHostname(externalId: string): Promise<CustomHostnameResult> {

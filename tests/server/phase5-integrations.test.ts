@@ -14,6 +14,8 @@ import {
 import {
   buildHashedMetaUserData,
   MetaConversionsClient,
+  normalizeMetaBrowserData,
+  normalizeMetaTestEventCode,
 } from "../../server/integrations/meta";
 import {
   QuickBooksClient,
@@ -28,7 +30,12 @@ import {
   encryptIntegrationCredentials,
   hmacSha256Hex,
   normalizeMetaIdentifier,
+  resolveExternalIntegrationCredentials,
 } from "../../server/integrations/security";
+import {
+  formatBrandSender,
+  ResendDomainsClient,
+} from "../../server/integrations/resend-domains";
 import {
   IntegrationProviderError,
   providerRequest,
@@ -42,6 +49,8 @@ import {
   executeIntegrationJob,
   integrationJobKind,
   metaPurchaseValue,
+  metaAttributionCustomData,
+  normalizeMetaAttribution,
   normalizeMobileClubCode,
   quickBooksRefundDeltaFinancials,
   quickBooksShipmentFinancials,
@@ -51,6 +60,10 @@ import {
 } from "../../server/services/integrations";
 import { brandAllowsOperationalAccess } from "../../server/services/core-club";
 import type { WorkerEnv } from "../../server/types";
+import {
+  providerTargetPolicy,
+  sha256ProviderTarget,
+} from "../../server/provider-targets";
 
 const organizationId = "10000000-0000-4000-8000-000000000001";
 const integrationId = "20000000-0000-4000-8000-000000000002";
@@ -138,6 +151,144 @@ function integrationAdminMock(input: {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("provider activation runtime seams", () => {
+  it("resolves only allowlisted env credential bindings without exposing values", () => {
+    const credentials = resolveExternalIntegrationCredentials<{
+      accessToken: string;
+    }>(
+      {
+        VINIFERA_INTEGRATION_SECRET_META_REHEARSAL: JSON.stringify({
+          accessToken: "provider-secret-value",
+        }),
+      } as never,
+      "env://VINIFERA_INTEGRATION_SECRET_META_REHEARSAL",
+    );
+    expect(credentials).toEqual({ accessToken: "provider-secret-value" });
+    for (const reference of [
+      "vault://vinifera/meta",
+      "env://PATH",
+      "env://vinifera_integration_secret_meta",
+      "env://VINIFERA_INTEGRATION_SECRET_META/../../PATH",
+    ]) {
+      expect(() =>
+        resolveExternalIntegrationCredentials(
+          {} as never,
+          reference,
+        ),
+      ).toThrowError(
+        expect.objectContaining({ code: "activation_required", status: 503 }),
+      );
+    }
+    try {
+      resolveExternalIntegrationCredentials(
+        {
+          VINIFERA_INTEGRATION_SECRET_META_REHEARSAL:
+            "provider-secret-value",
+        } as never,
+        "env://VINIFERA_INTEGRATION_SECRET_META_REHEARSAL",
+      );
+    } catch (error) {
+      expect(String(error)).not.toContain("provider-secret-value");
+      expect(String(error)).not.toContain(
+        "VINIFERA_INTEGRATION_SECRET_META_REHEARSAL",
+      );
+    }
+  });
+
+  it("requires and normalizes Meta rehearsal codes outside production", () => {
+    expect(normalizeMetaTestEventCode(" test123_abc ", true)).toBe(
+      "TEST123_ABC",
+    );
+    expect(normalizeMetaTestEventCode(null, false)).toBeNull();
+    expect(() => normalizeMetaTestEventCode(null, true)).toThrow(
+      /required outside production/,
+    );
+    expect(() => normalizeMetaTestEventCode("LIVE123", false)).toThrow(
+      /invalid/,
+    );
+  });
+
+  it("creates and verifies only the exact Resend sender domain", async () => {
+    const responses = [
+      { data: [] },
+      {
+        id: "domain_123",
+        name: "estate.example.com",
+        status: "pending",
+      },
+      {},
+      {
+        capabilities: { sending: "enabled" },
+        id: "domain_123",
+        name: "estate.example.com",
+        records: [
+          {
+            name: "send.estate.example.com",
+            record: "SPF",
+            status: "verified",
+            type: "TXT",
+            value: "v=spf1 include:amazonses.com ~all",
+          },
+        ],
+        status: "verified",
+      },
+    ];
+    const fetcher = vi.fn(async (request: Request) => {
+      expect(request.url).toMatch(/^https:\/\/api\.resend\.com\//);
+      expect(request.headers.get("authorization")).toBe(
+        "Bearer resend-api-key",
+      );
+      return new Response(JSON.stringify(responses.shift()), {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      });
+    });
+    const activation = await new ResendDomainsClient("resend-api-key", {
+      fetcher,
+      sleep: async () => undefined,
+    }).activate("club@estate.example.com");
+    expect(activation).toMatchObject({
+      domain: "estate.example.com",
+      providerIdentityId: "domain_123",
+      status: "verified",
+    });
+    expect(activation.dnsRecords).toHaveLength(1);
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(
+      formatBrandSender({
+        fromEmail: "club@estate.example.com",
+        fromName: "Estate Club",
+      }),
+    ).toBe("Estate Club <club@estate.example.com>");
+    expect(() =>
+      formatBrandSender({
+        fromEmail: "club@evil.example",
+        fromName: "Estate <attacker@example.com>",
+      }),
+    ).toThrow(/sender name is invalid/);
+  });
+
+  it("rejects a stored Resend identity that resolves to another domain", async () => {
+    const fetcher = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          capabilities: { sending: "enabled" },
+          id: "domain_123",
+          name: "other.example.com",
+          status: "verified",
+        }),
+        { headers: { "Content-Type": "application/json" }, status: 200 },
+      ),
+    );
+    await expect(
+      new ResendDomainsClient("resend-api-key", { fetcher }).activate(
+        "club@estate.example.com",
+        "domain_123",
+      ),
+    ).rejects.toMatchObject({ code: "upstream_error", status: 502 });
+  });
 });
 
 async function testApnsPrivateKey(): Promise<string> {
@@ -739,6 +890,7 @@ describe("Phase 5 provider clients", () => {
               member_id: "40000000-0000-4000-8000-000000000004",
               paid_at: "2026-07-26T12:00:00.000Z",
               refund_amount_cents: 5_363,
+              shipping_charge_cents: 2_000,
               status: "charged",
               tax_amount_cents: 725,
               tier_id: null,
@@ -754,6 +906,11 @@ describe("Phase 5 provider clients", () => {
                 mapping_kind: "membership",
                 quickbooks_account_id: "deposit-1",
                 quickbooks_item_id: "item-1",
+              },
+              {
+                mapping_kind: "shipping",
+                quickbooks_account_id: "shipping-income-1",
+                quickbooks_item_id: "shipping-item-1",
               },
             ],
             error: null,
@@ -812,7 +969,20 @@ describe("Phase 5 provider clients", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]?.url).toContain("/refundreceipt");
     expect(requests[0]?.body).toMatchObject({
-      Line: [{ Amount: 50 }],
+      Line: [
+        {
+          Amount: 40,
+          SalesItemLineDetail: {
+            ItemRef: { value: "item-1" },
+          },
+        },
+        {
+          Amount: 10,
+          SalesItemLineDetail: {
+            ItemRef: { value: "shipping-item-1" },
+          },
+        },
+      ],
       TxnTaxDetail: { TotalTax: 3.63 },
     });
     expect(persisted).toEqual([
@@ -1004,6 +1174,7 @@ describe("Phase 5 provider clients", () => {
               amountCents: 10_000,
               description: "Wine",
               itemCode: "wine-1",
+              kind: "wine",
               quantity: 1,
               taxCode: "P0000000",
             },
@@ -1086,6 +1257,104 @@ describe("Phase 5 provider clients", () => {
       refundType: "Percentage",
       referenceCode: "Vinifera shipment shipment-1",
     });
+  });
+
+  it("replaces the Avalara filing snapshot from a read-only worker check", async () => {
+    const envelope = await encryptIntegrationCredentials(
+      encryptionEnv,
+      {
+        integrationType: "avalara",
+        organizationId,
+        targetId: integrationId,
+      },
+      {
+        accountId: "avalara-account",
+        baseUrl: "https://sandbox-rest.avatax.com",
+        companyCode: "VINIFERA",
+        licenseKey: "avalara-license",
+      },
+    );
+    const persisted: Array<Record<string, unknown>> = [];
+    const admin = integrationAdminMock({
+      onRpc: async (name, parameters) => {
+        if (name === "get_integration_runtime") {
+          return {
+            data: {
+              algorithm: envelope.algorithm,
+              connection_id: integrationId,
+              credential_ciphertext: envelope.ciphertext,
+              credential_iv: envelope.iv,
+              envelope_version: envelope.version,
+              integration_type: "avalara",
+              key_version: envelope.keyVersion,
+              organization_id: organizationId,
+              storage_mode: "encrypted_envelope",
+              sync_config: { filingEnabled: true },
+            },
+            error: null,
+          };
+        }
+        if (name === "replace_avalara_filing_registration_snapshot") {
+          persisted.push(parameters);
+          return { data: { currentCount: 1, staleCount: 0 }, error: null };
+        }
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+      onTable: (table) => {
+        throw new Error(`Unexpected table ${table}`);
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (request: Request) => {
+        expect(request.method).toBe("GET");
+        return new Response(
+          JSON.stringify({
+            value: [
+              {
+                active: true,
+                filingFrequencyCode: "Monthly",
+                id: 17,
+                region: "CA",
+                status: "Active",
+              },
+            ],
+          }),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }),
+    );
+
+    await expect(
+      executeIntegrationJob(encryptionEnv, admin as never, {
+        attempt_count: 1,
+        brand_id: "50000000-0000-4000-8000-000000000005",
+        connection_id: integrationId,
+        cursor_data: {},
+        entity_id: "50000000-0000-4000-8000-000000000005",
+        idempotency_key: "filing:daily:2026-07-26",
+        integration_type: "avalara",
+        job_id: "60000000-0000-4000-8000-000000000006",
+        lease_token: "lease-token",
+        organization_id: organizationId,
+        payload: {},
+        sync_type: "filing.verify",
+      }),
+    ).resolves.toMatchObject({ outcome: "synced", processed: 1 });
+    expect(persisted).toEqual([
+      expect.objectContaining({
+        p_connection_id: integrationId,
+        p_registrations: [
+          {
+            filing_calendar_id: 17,
+            filing_frequency: "Monthly",
+            region_code: "CA",
+            registration_status: "active",
+          },
+        ],
+        p_snapshot_id: "60000000-0000-4000-8000-000000000006",
+      }),
+    ]);
   });
 
   it("executes Avalara refund work through committed ReturnInvoice ledger persistence", async () => {
@@ -1415,14 +1684,25 @@ describe("Phase 5 provider clients", () => {
         accessToken: "server-access-token",
         apiVersion: "v25.0",
         pixelId: "pixel-1",
+        testEventCode: "TEST12345",
       },
       { fetcher },
     );
     const metaStartedAt = performance.now();
     await client.sendConversion({
+      browserData: {
+        fbc: "fb.1.1721995200000.click_abc-123",
+        fbp: "fb.1.1721995200000.browser_abc-123",
+      },
       consented: true,
+      customData: {
+        campaign_id: "summer-club",
+        value: 125,
+      },
       eventId: "shipment:1001:purchase",
       eventName: "Purchase",
+      eventSourceUrl:
+        "https://club.example.test/join?utm_campaign=summer-club",
       eventTime: "2026-07-26T12:00:00.000Z",
       userData: {
         email: " Member@Example.Test ",
@@ -1440,6 +1720,20 @@ describe("Phase 5 provider clients", () => {
     expect(serialized).not.toContain("707");
     const body = JSON.parse(serialized);
     expect(body.data[0].user_data.em[0]).toMatch(/^[a-f0-9]{64}$/);
+    expect(body.data[0].user_data.fbc).toBe(
+      "fb.1.1721995200000.click_abc-123",
+    );
+    expect(body.data[0].user_data.fbp).toBe(
+      "fb.1.1721995200000.browser_abc-123",
+    );
+    expect(body.data[0].event_source_url).toBe(
+      "https://club.example.test/join?utm_campaign=summer-club",
+    );
+    expect(body.data[0].custom_data).toMatchObject({
+      campaign_id: "summer-club",
+      value: 125,
+    });
+    expect(body.test_event_code).toBe("TEST12345");
     await expect(
       client.sendConversion({
         consented: false,
@@ -1449,7 +1743,75 @@ describe("Phase 5 provider clients", () => {
         userData: { email: "blocked@example.test" },
       }),
     ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      client.sendConversion({
+        browserData: { fbc: "raw-click-id" },
+        consented: true,
+        eventId: "shipment:1003:purchase",
+        eventName: "Purchase",
+        eventTime: "2026-07-26T12:00:00.000Z",
+        userData: { email: "blocked@example.test" },
+      }),
+    ).rejects.toMatchObject({ code: "invalid_request" });
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Meta attribution first-party, minimal, and campaign-safe", () => {
+    const now = Date.parse("2026-07-26T12:00:00.000Z");
+    const attribution = normalizeMetaAttribution(
+      {
+        campaignId: null,
+        campaignName: null,
+        eventSourceUrl:
+          "https://club.example.test/join?fbclid=discard&utm_id=launch-1&utm_campaign=Summer%20Club&utm_source=meta&utm_medium=paid#discard",
+        fbc: "fb.1.1721995200000.click_abc-123",
+        fbp: "fb.1.1721995200000.browser_abc-123",
+        occurredAt: "2026-07-26T11:59:00.000Z",
+      },
+      ["club.example.test"],
+      now,
+    );
+    expect(attribution).toMatchObject({
+      campaignId: "launch-1",
+      campaignName: "Summer Club",
+      eventSourceUrl:
+        "https://club.example.test/join?utm_id=launch-1&utm_campaign=Summer+Club&utm_source=meta&utm_medium=paid",
+      medium: "paid",
+      source: "meta",
+    });
+    expect(attribution.eventSourceUrl).not.toContain("fbclid");
+    expect(
+      metaAttributionCustomData(
+        { currency: "USD", value: 125 },
+        {
+          campaign_id: attribution.campaignId,
+          campaign_name: attribution.campaignName,
+          medium: attribution.medium,
+          source: attribution.source,
+        },
+      ),
+    ).toEqual({
+      campaign_id: "launch-1",
+      campaign_name: "Summer Club",
+      currency: "USD",
+      utm_medium: "paid",
+      utm_source: "meta",
+      value: 125,
+    });
+    expect(normalizeMetaBrowserData(null)).toEqual({
+      fbc: undefined,
+      fbp: undefined,
+    });
+    expect(() =>
+      normalizeMetaAttribution(
+        {
+          eventSourceUrl: "https://attacker.example/join",
+          occurredAt: "2026-07-26T11:59:00.000Z",
+        },
+        ["club.example.test"],
+        now,
+      ),
+    ).toThrowError(/first-party HTTPS page/);
   });
 
   it("normalizes Meta birthdays to YYYYMMDD and emits the db hash field", async () => {
@@ -1489,9 +1851,22 @@ describe("Phase 5 provider clients", () => {
     });
     const client = new CloudflareCustomHostnameClient(
       {
+        appEnvironment: "test",
         apiToken: "custom-hostname-only-token",
         fallbackOrigin: "origin.vinifera.test",
-        zoneId: "zone-id",
+        targetPolicy: {
+          ...providerTargetPolicy,
+          cloudflareCustomHostnames: {
+            ...providerTargetPolicy.cloudflareCustomHostnames,
+            staging: {
+              fallbackOriginSha256: [
+                sha256ProviderTarget("origin.vinifera.test"),
+              ],
+              zoneIdSha256: [sha256ProviderTarget("a".repeat(32))],
+            },
+          },
+        },
+        zoneId: "a".repeat(32),
       },
       { fetcher },
     );
@@ -1534,6 +1909,9 @@ describe("Phase 5 job, theme, and native delivery controls", () => {
     );
     expect(integrationJobKind("avalara", "tax.reconcile")).toBe(
       "avalara_reconcile",
+    );
+    expect(integrationJobKind("avalara", "filing.verify")).toBe(
+      "avalara_filing_verify",
     );
     for (const suffix of ["lead", "purchase", "referral", "tier_upgrade"]) {
       expect(integrationJobKind("meta", `meta.event.${suffix}`)).toBe(

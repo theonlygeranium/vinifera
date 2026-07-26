@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { MemberBrand } from "../member/MemberBranding";
-import { Brand } from "./Brand";
 
 interface AuthLayoutProps {
   title: string;
@@ -24,7 +23,7 @@ export function AuthLayout({
           {surface === "member" ? (
             <MemberBrand homeHref="/portal" />
           ) : (
-            <Brand homeHref="/" />
+            <MemberBrand homeHref="/app" />
           )}
         </div>
         <header className="auth-card__header">

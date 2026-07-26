@@ -11,6 +11,7 @@ import {
   deliverLoggedTestEmail,
   portalLoginIdempotencyKey,
   renderTransactionalEmail,
+  resolveBrandSenderIdentity,
   ResendEmailProvider,
   sanitizeTemplateHtml,
   sanitizeTemplateSubject,
@@ -149,6 +150,7 @@ describe("Phase 3 provider activation", () => {
       provider.sendBatch(
         [
           {
+            from: "Estate Club <club@estate.example.com>",
             html: "<p>Hello</p>",
             subject: "Welcome",
             to: "member@example.com",
@@ -164,6 +166,34 @@ describe("Phase 3 provider activation", () => {
           "Idempotency-Key": "outbox:stable",
         }),
       }),
+    );
+    const requestBody = JSON.parse(
+      String(fetcher.mock.calls[0]?.[1]?.body ?? "[]"),
+    );
+    expect(requestBody[0].from).toBe(
+      "Estate Club <club@estate.example.com>",
+    );
+  });
+
+  it("uses verified brand senders and never falls back for configured pending identities", () => {
+    expect(
+      resolveBrandSenderIdentity({
+        fromEmail: "club@estate.example.com",
+        fromName: "Estate Club",
+        id: "sender-1",
+        status: "verified",
+      }),
+    ).toBe("Estate Club <club@estate.example.com>");
+    expect(resolveBrandSenderIdentity(null)).toBeUndefined();
+    expect(() =>
+      resolveBrandSenderIdentity({
+        fromEmail: "club@estate.example.com",
+        fromName: "Estate Club",
+        id: "sender-1",
+        status: "pending",
+      }),
+    ).toThrowError(
+      expect.objectContaining({ code: "activation_required", status: 503 }),
     );
   });
 });
@@ -293,6 +323,56 @@ describe("Phase 3 email safety", () => {
     expect(result).toEqual({ failed: 0, sent: 100 });
     expect(mark).toHaveBeenCalledTimes(100);
     expect(performance.now() - started).toBeLessThan(10_000);
+  });
+
+  it("fails only configured unverified brand rows while delivering fallback rows", async () => {
+    const provider = {
+      sendBatch: vi.fn().mockResolvedValue([{ id: "fallback-delivery" }]),
+    };
+    const mark = vi.fn().mockResolvedValue(undefined);
+    const base = {
+      attempt_count: 1,
+      body: "<p>Hello</p>",
+      member_id: null,
+      organization_id: organizationId,
+      payload: null,
+      subject: "Welcome",
+      trigger_type: "welcome" as const,
+    };
+    const result = await deliverClaimedEmails({
+      appOrigin: "https://vinifera.test",
+      env: { UNSUBSCRIBE_SIGNING_SECRET: signingSecret },
+      mark,
+      provider,
+      rows: [
+        {
+          ...base,
+          email_log_id: "log-pending",
+          outbox_id: "outbox-pending",
+          sender_from_email: "club@estate.example.com",
+          sender_from_name: "Estate Club",
+          sender_identity_id: "sender-pending",
+          sender_status: "pending",
+          to_email: "pending@example.com",
+        },
+        {
+          ...base,
+          email_log_id: "log-fallback",
+          outbox_id: "outbox-fallback",
+          to_email: "fallback@example.com",
+        },
+      ],
+    });
+    expect(result).toEqual({ failed: 1, sent: 1 });
+    expect(provider.sendBatch).toHaveBeenCalledWith(
+      [expect.objectContaining({ to: "fallback@example.com" })],
+      expect.stringMatching(/^outbox:/),
+    );
+    expect(mark).toHaveBeenCalledWith(
+      expect.objectContaining({ email_log_id: "log-pending" }),
+      "failed",
+      null,
+    );
   });
 
   it("persists a test-email log before provider delivery and converges its receipt", async () => {

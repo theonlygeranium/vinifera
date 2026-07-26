@@ -44,8 +44,16 @@ connection-ready source architecture:
 - A common leased/idempotent connector framework for Klaviyo, QuickBooks,
   Avalara, and Meta with encrypted credential envelopes, reconciliation, and
   sanitized attempt logs
+- Stripe billing-subject Customer locks, opaque idempotent Checkout/portal
+  attempts, one nonterminal Checkout per subject, and signed-webhook
+  reconciliation from `awaiting_webhook`
+- Consent-gated encrypted Meta attribution with withdrawal redaction and
+  resumable integration/attribution/push envelope rotation
+- Separately persisted QuickBooks shipping, Avalara wine/shipping mappings,
+  exemptions, and filing snapshots
 - Cloudflare for SaaS custom-hostname lifecycle and WCAG-validated white-label
-  portal themes
+  portal themes, a retry-safe hostname write ledger, staff brand controls, and
+  per-brand Resend sender verification
 - Capacitor iOS/Android projects with secure mobile magic-link exchange,
   rotating sessions, biometric relock, APNs/FCM adapters, barcode scanning,
   network recovery, offline read-only data, and store-directed updates
@@ -59,6 +67,9 @@ connection-ready source architecture:
 - A Stripe test-only catalog controller that probes an account fingerprint
   without writes, then creates or verifies the four canonical recurring Prices
   only after tracked account authorization and exact confirmation
+- Restricted environment credential references, provider target hash policies,
+  and independently disabled credential-rotation and Stripe live-billing
+  controls
 
 The Worker is connection-ready but must not replace the Pages custom-domain
 baseline until the hosted Supabase, Stripe, provider, DNS, physical-device, and
@@ -139,8 +150,19 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   [`30218801133`](https://github.com/theonlygeranium/vinifera/actions/runs/30218801133)
   failed closed after its first idempotent provider create because the create
   response did not expand the Product; the controller now requests that
-  expansion. Treat the first Price as created-or-unknown until a reviewed retry
-  reconciles the fixed lookup key.
+  expansion. Treat the first Price as created-or-unknown. Service connections
+  are deferred, so no retry was attempted; reconcile the fixed lookup key only
+  when activation is explicitly resumed.
+- The current credential-independent architecture gate passes: `npm audit` 0,
+  TypeScript green, Vitest 245/245, Phase 2 database 145/145, Phase 3 138/138,
+  Phase 4 121/121, Phase 5 migrations 001–012 plus pgTAP 013–022 at 279/279,
+  Playwright 123/123 with zero axe violations, LCP 476 ms, CLS 0, Pages/Worker/
+  production dry-run builds, production release 14/14, mobile release 7/7,
+  Stripe catalog 16/16, mobile identity, compile-only Capacitor preparation,
+  and Android synchronization.
+- The current local Gradle rerun cannot start because this Mac has no Java
+  runtime. Prior Android CI/artifacts remain historical evidence; the Java 21
+  Android job is pending for the current commit.
 - GitHub environments `staging`, `production`, and `mobile-release` are
   restricted to `main` and require review by `theonlygeranium`; self-review is
   currently allowed because no second human reviewer is configured.
@@ -167,9 +189,10 @@ The code must remain fail-closed until these external connections are active:
    `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` only for the isolated
    `vinifera-staging` Worker.
 3. Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP.
-4. After the account-fingerprint authorization commit passes CI,
-   bootstrap/verify the four recurring Stripe test Prices, then register
-   `/api/billing/webhook` and add its signing secret.
+4. When service activation is explicitly resumed, reconcile the
+   created-or-unknown Stripe test Price from run `30218801133`, then
+   bootstrap/verify the four recurring Prices without a blind retry, register
+   `/api/billing/webhook`, and add its signing secret.
 5. Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled.
 6. Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof.
 7. Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests.
@@ -232,4 +255,8 @@ npm run build:mobile:web
 npm run build:mobile:android
 ```
 
-The human supervisor explicitly authorized credential-gated integrations to remain connection-ready while architecture work continues. Keep every deferred provider fail-closed and do not describe a hosted exit criterion as passed without redacted runtime evidence.
+The human supervisor directed the team to complete architecture now and connect
+services later. Keep every deferred provider fail-closed; do not retry the
+uncertain Stripe catalog write, populate target policies, dispatch provider
+mutations, or describe a hosted exit criterion as passed without explicit
+activation authority and redacted runtime evidence.

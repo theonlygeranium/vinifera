@@ -1,6 +1,7 @@
 import { AppError, requireConfigured } from "../lib/errors";
 import type { WorkerEnv } from "../types";
 import { assertProviderEnvironment } from "../config";
+import { assertFcmProjectTarget } from "../provider-targets";
 import {
   providerRequest,
   requestIntegrationJson,
@@ -312,6 +313,7 @@ export class ApnsPushClient {
 }
 
 export function createPushClient(env: WorkerEnv): FcmPushClient {
+  assertFcmProjectTarget(env);
   return new FcmPushClient({
     clientEmail: requireConfigured(env.FCM_CLIENT_EMAIL, "FCM_CLIENT_EMAIL"),
     privateKey: requireConfigured(env.FCM_PRIVATE_KEY, "FCM_PRIVATE_KEY"),

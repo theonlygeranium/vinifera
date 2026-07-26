@@ -14,25 +14,29 @@ const allowlist = JSON.parse(await readFile(allowlistPath, "utf8"));
 const [operation, kind] = process.argv.slice(2);
 
 if (operation === "hash") {
-  const environmentName =
-    kind === "supabase"
-      ? "SUPABASE_PROJECT_ID"
-      : kind === "cloudflare"
-        ? "CLOUDFLARE_ACCOUNT_ID"
-        : null;
+  const environmentName = {
+    cloudflare: "CLOUDFLARE_ACCOUNT_ID",
+    "cloudflare-origin": "CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN",
+    "cloudflare-zone": "CLOUDFLARE_ZONE_ID",
+    "fcm-project": "FCM_PROJECT_ID",
+    "shipcompliant-origin": "SHIPCOMPLIANT_BASE_URL",
+    supabase: "SUPABASE_PROJECT_ID",
+  }[kind];
   if (!environmentName) {
-    throw new Error("Hash operation requires supabase or cloudflare.");
+    throw new Error("Hash operation target is unsupported.");
   }
   console.log(hashActivationTarget(kind, process.env[environmentName]));
 } else if (operation === "verify-target") {
-  const environmentName =
-    kind === "supabase"
-      ? "SUPABASE_PROJECT_ID"
-      : kind === "cloudflare"
-        ? "CLOUDFLARE_ACCOUNT_ID"
-        : null;
+  const environmentName = {
+    cloudflare: "CLOUDFLARE_ACCOUNT_ID",
+    "cloudflare-origin": "CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN",
+    "cloudflare-zone": "CLOUDFLARE_ZONE_ID",
+    "fcm-project": "FCM_PROJECT_ID",
+    "shipcompliant-origin": "SHIPCOMPLIANT_BASE_URL",
+    supabase: "SUPABASE_PROJECT_ID",
+  }[kind];
   if (!environmentName) {
-    throw new Error("Target verification requires supabase or cloudflare.");
+    throw new Error("Target verification target is unsupported.");
   }
   verifyActivationTarget({
     allowlist,
@@ -44,6 +48,7 @@ if (operation === "hash") {
   const result = verifyStagingCustomHostnameOrigin(
     process.env.CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN,
     allowlist.deniedProductionCustomHostnameOrigins,
+    allowlist.staging.cloudflareFallbackOriginSha256,
   );
   console.log(
     result.configured
@@ -52,6 +57,6 @@ if (operation === "hash") {
   );
 } else {
   throw new Error(
-    "Usage: verify-staging-activation.mjs <hash|verify-target> <supabase|cloudflare> or verify-custom-hostname-origin",
+    "Usage: verify-staging-activation.mjs <hash|verify-target> <target> or verify-custom-hostname-origin",
   );
 }

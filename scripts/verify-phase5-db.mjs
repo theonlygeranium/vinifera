@@ -38,12 +38,24 @@ const migrations = [
   "supabase/migrations/202607260004_phase_4_analytics.sql",
   "supabase/migrations/202607260005_phase_5_scale_integrations.sql",
   "supabase/migrations/202607260006_phase_5_permissions.sql",
+  "supabase/migrations/202607260007_stripe_runtime_retry_safety.sql",
+  "supabase/migrations/202607260008_phase_5_meta_attribution.sql",
+  "supabase/migrations/202607260009_credential_envelope_rotation.sql",
+  "supabase/migrations/202607260010_phase_5_tax_accounting_facts.sql",
+  "supabase/migrations/202607260011_provider_activation_runtime.sql",
+  "supabase/migrations/202607260012_custom_hostname_write_safety.sql",
 ];
 const tests = [
   "supabase/tests/013_phase_5_schema.test.sql",
   "supabase/tests/014_phase_5_multibrand_rls.test.sql",
   "supabase/tests/015_phase_5_integrations_mobile.test.sql",
   "supabase/tests/016_phase_5_backend_regressions.test.sql",
+  "supabase/tests/017_stripe_runtime_retry_safety.test.sql",
+  "supabase/tests/018_phase_5_meta_attribution.test.sql",
+  "supabase/tests/019_credential_envelope_rotation.test.sql",
+  "supabase/tests/020_phase_5_tax_accounting_facts.test.sql",
+  "supabase/tests/021_provider_activation_runtime.test.sql",
+  "supabase/tests/022_custom_hostname_write_safety.test.sql",
 ];
 
 async function readRepositoryFile(relativeFile) {

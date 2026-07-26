@@ -6,7 +6,12 @@
 
 ## Outcome
 
-The production architecture is implemented and connection-ready without production mock data. The React applications, Express Worker, Supabase migration/RLS model, Stripe adapters, activation gates, CI/CD, and documentation pass the available local gate. The existing Pages custom domain remains the public baseline.
+The production architecture is implemented and connection-ready without
+production mock data. The React applications, Express Worker, Supabase
+migration/RLS model, retry-safe Stripe runtime, activation gates, CI/CD, and
+documentation pass the complete local architecture gate. Services remain
+intentionally disconnected, and the existing Pages custom domain remains the
+public baseline.
 
 Phase 1 is not marked complete because the real hosted Supabase and Stripe test-mode exit checks require the deferred credentials and provider control-plane configuration listed below.
 
@@ -16,8 +21,8 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 |---|---:|---|
 | Dependency audit | Pass | `npm audit` reports 0 vulnerabilities |
 | TypeScript | Pass | `npm run typecheck` |
-| API/unit integration | Pass | Vitest 10/10 |
-| Browser QA | Pass | Playwright 21/21 |
+| API/unit integration | Pass | Current full Vitest regression 245/245 |
+| Browser QA | Pass | Current full Playwright regression 123/123 |
 | Worker packaging | Pass | Wrangler dry run |
 | Pages rollback packaging | Pass | `CF_PAGES=1` preserves the original extensionless app |
 | Initial JS | Pass | 62.25 KB gzip, budget < 200 KB |
@@ -28,12 +33,13 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 | Performance | Pass locally | LCP < 2.5 s and CLS < 0.1 assertions |
 | Security headers | Pass | CSP, HSTS, frame denial, nosniff, referrer and permissions policies |
 | Browser credential storage | Pass | no local/session storage keys or server secrets |
-| Database migration | Pass in embedded PostgreSQL | bootstrap, invite, limiter, Stripe transitions, reconciliation, cross-tenant RLS |
-| pgTAP suites | Ready | 92 plan-balanced assertions; native Supabase run pending |
+| Database migration | Pass in embedded PostgreSQL | migrations 001–012; bootstrap, invite, limiter, Stripe subject locks, webhook-wait reconciliation, and cross-tenant RLS |
+| pgTAP suites | Pass locally | Current Phase 5 migration/pgTAP gate 279/279 across suites 013–022; native hosted Supabase run pending |
 | Hosted activation controls | Pass in source | Staging target hashes fail closed; linked pgTAP and core Worker configuration are mandatory when activated |
 | Production release/rollback control | Pass in source | First bootstrap has no route; custom-domain movement retains Pages and requires all Phase 1–5 capabilities |
 | Read-only hosted readiness | Pass — [run 30217462802](https://github.com/theonlygeranium/vinifera/actions/runs/30217462802) | Supabase Auth and Stripe test API are reachable; Phase 1 tables, four Stripe Prices, webhook secret, staging-scoped credentials, and Workers-capable Cloudflare authority remain pending |
-| Stripe test catalog control | Probe pass — [run 30218422165](https://github.com/theonlygeranium/vinifera/actions/runs/30218422165); 16/16 focused tests | Sanitized evidence confirmed a test-mode generic credential and no provider write; protected bootstrap run [30218801133](https://github.com/theonlygeranium/vinifera/actions/runs/30218801133) then failed closed after its first idempotent provider create because the response did not expand its Product. The controller now requests Product expansion; a reviewed retry remains pending |
+| Stripe test catalog control | Probe pass — [run 30218422165](https://github.com/theonlygeranium/vinifera/actions/runs/30218422165); 16/16 focused tests | Sanitized evidence confirmed a test-mode generic credential and no probe write; protected bootstrap run [30218801133](https://github.com/theonlygeranium/vinifera/actions/runs/30218801133) left the first test Price created-or-unknown, then failed closed because the response did not expand its Product. The controller now requests Product expansion. Connections are deferred, so no retry was attempted |
+| Release controls | Pass locally | Production release 14/14; live Stripe remains independently default-deny |
 
 ## Functional gate
 
@@ -48,6 +54,7 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 | Magic-link rate limit | Pass in embedded PostgreSQL | atomic rolling 5/email/hour plus IP ceiling |
 | Staff/member session isolation | Pass | distinct HTTP-only cookie names and API/browser checks |
 | Stripe Checkout and portal | Connection-ready | hosted test Prices and portal configuration pending |
+| Concurrent/retried billing | Pass in local architecture | customer provisioning locks, immutable billing subjects, stable idempotency keys, one nonterminal Checkout, and `awaiting_webhook` reconciliation prevent duplicate sessions/subscriptions |
 | Signed Stripe webhook | Pass at handler/database boundaries | real endpoint signing secret and replay pending |
 | Seven/fourteen-day access lifecycle | Pass in embedded PostgreSQL | hourly Worker reconciliation configured |
 | Cross-tenant RLS | Pass in embedded PostgreSQL | hosted two-organization verification pending |
@@ -67,6 +74,9 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 - Supabase server keys and Stripe secret keys are Worker-only and absent from frontend source and browser storage.
 - RLS is enabled and forced on all seven tables. Browser roles receive only explicit `SELECT` grants and policy-filtered rows.
 - Stripe webhooks retain the raw request body, verify the signature, reject live-mode events through Phase 4, and persist event IDs idempotently.
+- Live Stripe is independent from Worker deployment and remains disabled by
+  checked-in policy, empty reviewed target hashes, and separate production
+  authority.
 - Missing providers return typed `activation_required` errors. Session probes fail closed as unauthenticated.
 
 ## Deferred activation checklist
@@ -80,7 +90,8 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
       `supabase test db --linked`.
 - [ ] Enable the custom access-token hook, Google OAuth, SMTP, production redirect URLs, and 900-second OTP expiry.
 - [ ] Bootstrap, verify, and bind the four Stripe recurring test Price IDs
-      after the reviewed account-fingerprint commit passes CI.
+      only after service activation is resumed. First reconcile the
+      created-or-unknown Price from run `30218801133`; do not blind retry.
 - [ ] Register the Worker webhook endpoint and add `STRIPE_WEBHOOK_SECRET`.
 - [ ] Create two real test organizations and verify hosted cross-tenant RLS.
 - [ ] Complete staff signup/login/reset/OAuth/invite and member magic-link flows.
@@ -103,5 +114,7 @@ npm test
 npm run build
 npm run build:worker
 npm run build:worker:production
+npm run qa:production-release
+npm run qa:stripe-catalog
 npm run qa:e2e
 ```

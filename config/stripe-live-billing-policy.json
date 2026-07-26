@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "independentAuthorityEnabled": false,
+  "apiVersion": "2026-02-25.clover",
+  "catalogVersion": "2026-07-26-v1",
+  "currency": "usd",
+  "interval": "month",
+  "confirmations": {
+    "activate": "ACTIVATE VINIFERA STRIPE LIVE BILLING",
+    "revert": "REVERT VINIFERA STRIPE BILLING TO TEST MODE"
+  },
+  "authorityPhrase": "AUTHORIZE VINIFERA STRIPE LIVE BILLING CONTROL",
+  "targetHashes": {
+    "cloudflareAccountIdSha256": [],
+    "workerNameSha256": [],
+    "workerOriginSha256": []
+  },
+  "modes": {
+    "live": {
+      "accountIdSha256": [],
+      "webhookEndpointUrlSha256": []
+    },
+    "test": {
+      "accountIdSha256": [],
+      "webhookEndpointUrlSha256": []
+    }
+  },
+  "requiredWebhookEvents": [
+    "checkout.session.completed",
+    "customer.subscription.created",
+    "customer.subscription.deleted",
+    "customer.subscription.updated",
+    "invoice.payment_failed",
+    "invoice.payment_succeeded"
+  ],
+  "plans": [
+    {
+      "plan": "vine",
+      "productName": "Vinifera Vine",
+      "lookupKey": "vinifera_vine_monthly_usd_v1",
+      "unitAmount": 14900
+    },
+    {
+      "plan": "cellar",
+      "productName": "Vinifera Cellar",
+      "lookupKey": "vinifera_cellar_monthly_usd_v1",
+      "unitAmount": 34900
+    },
+    {
+      "plan": "estate",
+      "productName": "Vinifera Estate",
+      "lookupKey": "vinifera_estate_monthly_usd_v1",
+      "unitAmount": 74900
+    },
+    {
+      "plan": "reserve",
+      "productName": "Vinifera Reserve",
+      "lookupKey": "vinifera_reserve_monthly_usd_v1",
+      "unitAmount": 150000
+    }
+  ]
+}

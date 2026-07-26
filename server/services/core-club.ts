@@ -26,6 +26,7 @@ import {
   runFailureIsolatedAnalyticsWrite,
 } from "../lib/analytics-events";
 import { AppError, requireConfigured } from "../lib/errors";
+import { assertEasyPostTarget } from "../provider-targets";
 import {
   readMemberBrandContextCookie,
   verifyMemberBrandContext,
@@ -60,6 +61,12 @@ import {
   type ComplianceCheckRequest,
   type ComplianceCheckResult,
 } from "./compliance";
+import {
+  executeStripeBillingAttempt,
+  provisionStripeCustomer,
+  supabaseStripeBillingAttemptStore,
+  supabaseStripeCustomerProvisioningStore,
+} from "./stripe-runtime";
 
 const STRIPE_API_VERSION = "2026-02-25.clover";
 const STAFF_COOKIE = "vinifera-staff-auth";
@@ -163,6 +170,7 @@ export interface ShipmentPaymentRow {
   organization_id: string;
   release_id: string;
   retry_count: number;
+  shipping_charge_cents?: number;
   status: ShipmentStatus;
   stripe_payment_intent_id?: string | null;
   tax_amount_cents?: number;
@@ -795,7 +803,20 @@ export class EasyPostShippingProvider implements ShippingProvider {
   constructor(
     private readonly apiKey: string,
     private readonly fetcher: typeof fetch = fetch,
-  ) {}
+    authority: {
+      appEnvironment: WorkerEnv["APP_ENV"];
+      liveLabelsEnabled?: WorkerEnv["EASYPOST_LIVE_LABELS_ENABLED"];
+    } = {
+      appEnvironment: "test",
+      liveLabelsEnabled: "false",
+    },
+  ) {
+    assertEasyPostTarget({
+      apiKey,
+      appEnvironment: authority.appEnvironment,
+      liveLabelsEnabled: authority.liveLabelsEnabled,
+    });
+  }
 
   private async request<T>(path: string, body: Record<string, unknown>): Promise<T> {
     const response = await this.fetcher(`https://api.easypost.com/v2${path}`, {
@@ -999,6 +1020,11 @@ export function createShippingProvider(env: WorkerEnv): ShippingProvider {
   if (env.SHIPPING_PROVIDER === "easypost") {
     return new EasyPostShippingProvider(
       requireConfigured(env.EASYPOST_API_KEY, "EASYPOST_API_KEY"),
+      fetch,
+      {
+        appEnvironment: env.APP_ENV,
+        liveLabelsEnabled: env.EASYPOST_LIVE_LABELS_ENABLED,
+      },
     );
   }
   throw new AppError(
@@ -1466,7 +1492,7 @@ async function persistAvalaraTaxStatus(
     p_currency_code: prepared.quote.currencyCode,
     p_document_code: prepared.quote.code,
     p_document_status: status,
-    p_exempt_amount_cents: 0,
+    p_exempt_amount_cents: prepared.quote.exemptAmountCents,
     p_jurisdiction_summary: prepared.quote.jurisdictionSummary,
     p_provider_transaction_code: prepared.quote.code,
     p_request_hash: prepared.requestHash,
@@ -1474,7 +1500,7 @@ async function persistAvalaraTaxStatus(
       JSON.stringify({ quote: prepared.quote, status }),
     ),
     p_shipment_id: shipment.id,
-    p_shipping_tax_cents: 0,
+    p_shipping_tax_cents: prepared.quote.shippingTaxCents,
     p_tax_amount_cents: prepared.quote.taxCents,
     p_taxable_basis_cents: shipmentSubtotalAmount(shipment),
   });
@@ -1562,18 +1588,74 @@ export async function prepareAvalaraTax(
       "Avalara requires complete origin and destination addresses.",
     );
   }
+  const shipmentSubtotalCents = shipmentSubtotalAmount(shipment);
+  const shippingChargeCents = Math.min(
+    shipmentSubtotalCents,
+    Math.max(0, Number(source.shipping_charge_cents ?? 0)),
+  );
+  const wineSubtotalCents = shipmentSubtotalCents - shippingChargeCents;
+  const wineTaxCode =
+    typeof source.wine_tax_code === "string" ? source.wine_tax_code : null;
+  const wineItemCode =
+    typeof source.wine_item_code === "string" ? source.wine_item_code : null;
+  const shippingTaxCode =
+    typeof source.shipping_tax_code === "string"
+      ? source.shipping_tax_code
+      : null;
+  const shippingItemCode =
+    typeof source.shipping_item_code === "string"
+      ? source.shipping_item_code
+      : null;
+  if (!wineTaxCode || !wineItemCode) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "Avalara requires a wine tax-code mapping for this brand and tier.",
+    );
+  }
+  if (shippingChargeCents > 0 && (!shippingTaxCode || !shippingItemCode)) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "Avalara requires a shipping tax-code mapping when shipping is charged.",
+    );
+  }
   const request: AvalaraTaxRequest = {
     currencyCode: "USD",
-    customerCode: `member-${shipment.member_id}`,
+    customerCode:
+      typeof source.provider_customer_code === "string"
+        ? source.provider_customer_code
+        : `member-${shipment.member_id}`,
     destination,
+    entityUseCode:
+      typeof source.entity_use_code === "string"
+        ? source.entity_use_code
+        : null,
+    exemptionNumber:
+      typeof source.provider_exemption_reference === "string"
+        ? source.provider_exemption_reference
+        : null,
     lines: [
       {
-        amountCents: shipmentSubtotalAmount(shipment),
+        amountCents: wineSubtotalCents,
         description: "Wine club shipment",
-        itemCode: `shipment-${shipment.id}`,
+        itemCode: wineItemCode,
+        kind: "wine",
         quantity: 1,
-        taxCode: "P0000000",
+        taxCode: wineTaxCode,
       },
+      ...(shippingChargeCents > 0
+        ? [
+            {
+              amountCents: shippingChargeCents,
+              description: "Wine club shipping",
+              itemCode: shippingItemCode!,
+              kind: "shipping" as const,
+              quantity: 1,
+              taxCode: shippingTaxCode!,
+            },
+          ]
+        : []),
     ],
     origin,
     transactionCode:
@@ -1585,7 +1667,7 @@ export async function prepareAvalaraTax(
   const { data: existing, error: existingError } = await admin
     .from("avalara_tax_calculations")
     .select(
-      "id,provider_transaction_code,document_code,document_status,currency_code,tax_amount_cents,jurisdiction_summary,request_hash",
+      "id,provider_transaction_code,document_code,document_status,currency_code,tax_amount_cents,shipping_tax_cents,exempt_amount_cents,jurisdiction_summary,request_hash",
     )
     .eq("connection_id", connection.id)
     .eq("organization_id", shipment.organization_id)
@@ -1622,6 +1704,8 @@ export async function prepareAvalaraTax(
           ? existing.jurisdiction_summary
           : [],
         providerId: null,
+        exemptAmountCents: Number(existing.exempt_amount_cents ?? 0),
+        shippingTaxCents: Number(existing.shipping_tax_cents ?? 0),
         status: "Saved",
         taxCents: Number(existing.tax_amount_cents ?? 0),
         totalCents:
@@ -2634,39 +2718,12 @@ export class ProductionCoreClubService implements CoreClubService {
         "Referring member",
       );
     }
-    let stripeCustomerId: string | null = null;
-    if (this.env.STRIPE_SECRET_KEY) {
-      const customer = await createStripe(this.env).customers.create(
-        {
-          address: input.shippingAddress
-            ? {
-                city: input.shippingAddress.city,
-                country: input.shippingAddress.country,
-                line1: input.shippingAddress.line1,
-                line2: input.shippingAddress.line2 ?? undefined,
-                postal_code: input.shippingAddress.postalCode,
-                state: input.shippingAddress.state,
-              }
-            : undefined,
-          email: normalizeEmail(input.email),
-          metadata: { brand_id: brandId, organization_id: organizationId },
-          name: `${input.firstName.trim()} ${input.lastName.trim()}`,
-          phone: input.phone ?? undefined,
-        },
-        {
-          idempotencyKey:
-            `member:${organizationId}:${brandId}:${normalizeEmail(input.email)}`,
-        },
-      );
-      stripeCustomerId = customer.id;
-    }
     const { data, error } = await this.admin
       .from("members")
       .insert({
         ...memberToDatabase(input),
         brand_id: brandId,
         organization_id: organizationId,
-        stripe_customer_id: stripeCustomerId,
       })
       .select("*")
       .single();
@@ -2675,12 +2732,13 @@ export class ProductionCoreClubService implements CoreClubService {
     }
     await this.audit(principal, "member.created", "member", data.id, {
       club_tier_id: input.clubTierId ?? null,
-      stripe_customer_created: Boolean(stripeCustomerId),
+      stripe_customer_created: false,
+      stripe_customer_provisioning: "deferred_until_payment_method_setup",
     });
     await this.recordDomainAnalyticsEvent(principal, {
       eventData: {
         hasClubTier: Boolean(input.clubTierId),
-        stripeCustomerCreated: Boolean(stripeCustomerId),
+        stripeCustomerCreated: false,
       },
       eventType: "member.created",
       memberId: data.id,
@@ -3242,7 +3300,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const { data: shipments, error } = await this.admin
       .from("shipments")
       .select(
-        "id,organization_id,brand_id,member_id,release_id,status,charge_amount_cents,loyalty_discount_cents,tax_amount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,brand_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
+        "id,organization_id,brand_id,member_id,release_id,status,charge_amount_cents,shipping_charge_cents,loyalty_discount_cents,tax_amount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,brand_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
       )
       .eq("organization_id", organizationId)
       .eq("brand_id", brandId)
@@ -3513,11 +3571,14 @@ export class ProductionCoreClubService implements CoreClubService {
     };
   }
 
-  async createMemberPaymentMethodPortal(): Promise<{ url: string }> {
+  async createMemberPaymentMethodPortal(input: {
+    attemptId: string;
+  }): Promise<{ url: string }> {
     const principal = await this.requireMember();
+    assertStripeBillingAuthority(this.env);
     const { data: member, error } = await this.admin
       .from("members")
-      .select("id,organization_id,email,first_name,last_name,stripe_customer_id")
+      .select("id,organization_id,stripe_customer_id")
       .eq("id", principal.user.id)
       .eq("organization_id", principal.organization.id)
       .eq("brand_id", principal.brand.id)
@@ -3526,39 +3587,41 @@ export class ProductionCoreClubService implements CoreClubService {
     const stripe = createStripe(this.env);
     let customerId = member.stripe_customer_id as string | null;
     if (!customerId) {
-      const customer = await stripe.customers.create(
-        {
-          email: member.email,
-          metadata: {
-            brand_id: principal.brand.id,
-            member_id: member.id,
-            organization_id: member.organization_id,
-          },
-          name: `${member.first_name} ${member.last_name}`,
-        },
-        {
-          idempotencyKey:
-            `member:${member.organization_id}:${principal.brand.id}:${member.id}`,
-        },
-      );
-      customerId = customer.id;
-      const { error: updateError } = await this.admin
-        .from("members")
-        .update({ stripe_customer_id: customerId })
-        .eq("id", member.id)
-        .eq("organization_id", member.organization_id)
-        .eq("brand_id", principal.brand.id);
-      if (updateError) {
-        await stripe.customers.del(customerId).catch(() => undefined);
-        throw databaseError("Member billing could not be initialized.");
-      }
+      customerId = await provisionStripeCustomer({
+        brandId: principal.brand.id,
+        createCustomer: (params, idempotencyKey) =>
+          stripe.customers.create(params, { idempotencyKey }),
+        memberId: member.id,
+        organizationId: member.organization_id,
+        scope: "member",
+        store: supabaseStripeCustomerProvisioningStore(this.admin),
+        subjectId: member.id,
+      });
     }
-    const session = await stripe.billingPortal.sessions.create({
-      customer: customerId,
-      flow_data: { type: "payment_method_update" },
-      return_url: `${this.coreApplicationOrigin()}/portal/payment-method`,
+    return executeStripeBillingAttempt({
+      attemptId: input.attemptId,
+      brandId: principal.brand.id,
+      createSession: async ({ idempotencyKey }) => {
+        const session = await stripe.billingPortal.sessions.create(
+          {
+            customer: customerId,
+            flow_data: { type: "payment_method_update" },
+            return_url: `${this.coreApplicationOrigin()}/portal/payment-method`,
+          },
+          { idempotencyKey },
+        );
+        return { id: session.id, url: session.url };
+      },
+      customerId,
+      memberId: member.id,
+      operation: "member_portal",
+      organizationId: member.organization_id,
+      planTier: null,
+      providerPayloadKey: "member_portal:v1",
+      reconcileOpenCheckout: async () => ({ status: "expired" as const }),
+      store: supabaseStripeBillingAttemptStore(this.admin),
+      subjectId: member.id,
     });
-    return { url: session.url };
   }
 
   async validateShippingAddress(
@@ -4511,7 +4574,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const { data, error } = await this.admin
       .from("shipments")
       .select(
-        "id,organization_id,brand_id,member_id,release_id,status,charge_amount_cents,loyalty_discount_cents,tax_amount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,brand_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
+        "id,organization_id,brand_id,member_id,release_id,status,charge_amount_cents,shipping_charge_cents,loyalty_discount_cents,tax_amount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,brand_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
       )
       .eq("id", shipmentId)
       .eq("organization_id", organizationId)
@@ -5139,7 +5202,7 @@ export async function runCoreClubSchedule(
   const { data: pending, error: pendingError } = await admin
     .from("shipments")
     .select(
-      "id,organization_id,brand_id,member_id,release_id,status,charge_amount_cents,loyalty_discount_cents,tax_amount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,brand_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id),releases!inner(status)",
+      "id,organization_id,brand_id,member_id,release_id,status,charge_amount_cents,shipping_charge_cents,loyalty_discount_cents,tax_amount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,brand_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id),releases!inner(status)",
     )
     .eq("status", "pending")
     .eq("releases.status", "processing")
@@ -5166,7 +5229,7 @@ export async function runCoreClubSchedule(
   const { data: processingAttempts, error: processingAttemptsError } = await admin
     .from("billing_attempts")
     .select(
-      "id,idempotency_key,attempt_kind,status,shipments!inner(id,organization_id,brand_id,member_id,release_id,status,charge_amount_cents,loyalty_discount_cents,tax_amount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,brand_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id))",
+      "id,idempotency_key,attempt_kind,status,shipments!inner(id,organization_id,brand_id,member_id,release_id,status,charge_amount_cents,shipping_charge_cents,loyalty_discount_cents,tax_amount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,brand_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id))",
     )
     .in("attempt_kind", ["charge", "retry"])
     .in("status", ["processing", "queued"])
@@ -5234,7 +5297,7 @@ export async function runCoreClubSchedule(
         const { data, error } = await admin
           .from("shipments")
           .select(
-            "id,organization_id,brand_id,member_id,release_id,status,charge_amount_cents,loyalty_discount_cents,tax_amount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,brand_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
+            "id,organization_id,brand_id,member_id,release_id,status,charge_amount_cents,shipping_charge_cents,loyalty_discount_cents,tax_amount_cents,loyalty_redemption_id,retry_count,stripe_payment_intent_id,members!inner(id,organization_id,brand_id,email,first_name,last_name,status,stripe_customer_id,stripe_payment_method_id)",
           )
           .eq("id", retry.shipment_id)
           .eq("organization_id", retry.organization_id)

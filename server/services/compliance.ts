@@ -1,4 +1,9 @@
 import { AppError, requireConfigured } from "../lib/errors";
+import {
+  assertShipCompliantTarget,
+  type ProviderTargetPolicy,
+  providerTargetPolicy,
+} from "../provider-targets";
 import type {
   ComplianceStatus,
   PostalAddress,
@@ -143,12 +148,15 @@ interface OAuthToken {
 
 interface ShipCompliantConfiguration {
   accountId: string;
+  appEnvironment: WorkerEnv["APP_ENV"];
   apiKey: string;
   apiSecret: string;
   baseUrl: string;
   checkPath: string;
   contractVersion: string;
+  endpointMode: WorkerEnv["SHIPCOMPLIANT_ENDPOINT_MODE"];
   licenseId: string;
+  targetPolicy?: ProviderTargetPolicy;
   tokenPath: string;
 }
 
@@ -314,7 +322,16 @@ export class ShipCompliantProvider implements ComplianceProvider {
   constructor(
     private readonly configuration: ShipCompliantConfiguration,
     private readonly fetcher: typeof fetch = fetch,
-  ) {}
+  ) {
+    assertShipCompliantTarget(
+      {
+        appEnvironment: configuration.appEnvironment,
+        baseUrl: configuration.baseUrl,
+        endpointMode: configuration.endpointMode,
+      },
+      configuration.targetPolicy ?? providerTargetPolicy,
+    );
+  }
 
   private async accessToken(): Promise<string> {
     if (
@@ -502,6 +519,7 @@ export function createComplianceProvider(
         env.SHIPCOMPLIANT_ACCOUNT_ID,
         "SHIPCOMPLIANT_ACCOUNT_ID",
       ),
+      appEnvironment: env.APP_ENV,
       apiKey: requireConfigured(
         env.SHIPCOMPLIANT_API_KEY,
         "SHIPCOMPLIANT_API_KEY",
@@ -525,6 +543,10 @@ export function createComplianceProvider(
         env.SHIPCOMPLIANT_CONTRACT_VERSION,
         "SHIPCOMPLIANT_CONTRACT_VERSION",
       ),
+      endpointMode: requireConfigured(
+        env.SHIPCOMPLIANT_ENDPOINT_MODE,
+        "SHIPCOMPLIANT_ENDPOINT_MODE",
+      ) as WorkerEnv["SHIPCOMPLIANT_ENDPOINT_MODE"],
       licenseId: requireConfigured(
         env.SHIPCOMPLIANT_LICENSE_ID,
         "SHIPCOMPLIANT_LICENSE_ID",

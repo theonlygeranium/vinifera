@@ -78,6 +78,7 @@ export interface WorkerEnv {
   CLOUDFLARE_CUSTOM_HOSTNAME_API_TOKEN?: string;
   CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN?: string;
   CLOUDFLARE_ZONE_ID?: string;
+  EASYPOST_LIVE_LABELS_ENABLED?: "true" | "false";
   MOBILE_ANDROID_LATEST_VERSION?: string;
   MOBILE_ANDROID_MINIMUM_VERSION?: string;
   MOBILE_ANDROID_PACKAGE_NAME?: string;
@@ -109,6 +110,7 @@ export interface WorkerEnv {
   SHIPCOMPLIANT_BASE_URL?: string;
   SHIPCOMPLIANT_CHECK_PATH?: string;
   SHIPCOMPLIANT_CONTRACT_VERSION?: string;
+  SHIPCOMPLIANT_ENDPOINT_MODE?: "production" | "sandbox";
   SHIPCOMPLIANT_LICENSE_ID?: string;
   SHIPCOMPLIANT_TOKEN_PATH?: string;
   SHIPPING_ALLOWED_STATES?: string;
@@ -172,8 +174,11 @@ export interface MemberPrincipal {
 export interface FoundationService {
   acceptStaffInvite(input: { inviteToken?: string; password: string }): Promise<StaffPrincipal>;
   completeStaffPasswordReset(input: { password: string }): Promise<void>;
-  createBillingCheckout(input: { planTier: PlanTier }): Promise<{ url: string }>;
-  createBillingPortal(): Promise<{ url: string }>;
+  createBillingCheckout(input: {
+    attemptId: string;
+    planTier: PlanTier;
+  }): Promise<{ url: string }>;
+  createBillingPortal(input: { attemptId: string }): Promise<{ url: string }>;
   createStaffInvitation(input: {
     email: string;
     role: "admin" | "manager" | "staff";
@@ -290,7 +295,9 @@ export interface CoreClubService {
   createClubTier(input: ClubTierInput): Promise<Record<string, unknown>>;
   createMember(input: MemberInput): Promise<Record<string, unknown>>;
   deleteMember(memberId: string): Promise<void>;
-  createMemberPaymentMethodPortal(): Promise<{ url: string }>;
+  createMemberPaymentMethodPortal(input: {
+    attemptId: string;
+  }): Promise<{ url: string }>;
   createRelease(input: ReleaseInput): Promise<Record<string, unknown>>;
   deleteClubTier(tierId: string): Promise<void>;
   exportMembers(input: {
@@ -570,6 +577,7 @@ export interface AnalyticsService {
 }
 
 export interface IntegrationService {
+  activateBrandSender(brandId: string): Promise<Record<string, unknown>>;
   completeMobileMagicLink(input: {
     state: string;
     tokenHash: string;
@@ -592,6 +600,7 @@ export interface IntegrationService {
   ): Promise<Record<string, unknown>>;
   createBrand(input: {
     billingMode: "independent" | "shared";
+    defaultShippingChargeCents?: number;
     description?: string | null;
     name: string;
     slug: string;
@@ -606,8 +615,14 @@ export interface IntegrationService {
     redirectUri: string;
   }): Promise<Record<string, unknown>>;
   getAvalaraLiability(): Promise<Record<string, unknown>>;
+  getAvalaraFilingStatus(): Promise<Record<string, unknown>>;
   getBrandDomain(brandId: string): Promise<Record<string, unknown>>;
   getBrandOverview(brandId?: string | "all"): Promise<Record<string, unknown>>;
+  getMetaAttributionReport(input: {
+    from?: string;
+    to?: string;
+  }): Promise<Record<string, unknown>>;
+  getMemberMetaPrivacy(): Promise<Record<string, unknown>>;
   getMobileAppPolicy(input: {
     platform: "android" | "ios";
     version: string;
@@ -648,6 +663,7 @@ export interface IntegrationService {
   queueIntegrationSync(
     type: IntegrationType,
   ): Promise<Record<string, unknown>>;
+  queueAvalaraFilingVerification(): Promise<Record<string, unknown>>;
   registerMobileDevice(input: {
     appVersion: string;
     brandId?: string | null;
@@ -667,6 +683,22 @@ export interface IntegrationService {
     redirectUri: string;
   }): Promise<void>;
   unregisterMobileDevice(deviceFingerprint: string): Promise<void>;
+  updateMemberMetaPrivacy(input: {
+    attribution?: {
+      campaignId?: string | null;
+      campaignName?: string | null;
+      eventSourceUrl: string;
+      fbc?: string | null;
+      fbp?: string | null;
+      medium?: string | null;
+      occurredAt: string;
+      source?: string | null;
+    };
+    clientEventId?: string;
+    consentSource: string;
+    consented: boolean;
+    policyVersion: string;
+  }): Promise<Record<string, unknown>>;
   updateBrand(
     brandId: string,
     input: Record<string, unknown>,

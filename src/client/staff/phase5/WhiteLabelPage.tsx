@@ -13,8 +13,18 @@ import {
   useMemo,
   useState,
 } from "react";
-import { ApiError, deleteJson, patchJson, putJson } from "../../api/client";
-import type { Brand, DomainVerification } from "../../api/phase5";
+import {
+  ApiError,
+  deleteJson,
+  patchJson,
+  postJson,
+  putJson,
+} from "../../api/client";
+import type {
+  Brand,
+  DomainVerification,
+  SenderVerification,
+} from "../../api/phase5";
 import { FormFeedback } from "../../shared/FormFeedback";
 import {
   ActivationBlock,
@@ -110,9 +120,11 @@ export function WhiteLabelPage() {
   const [verification, setVerification] = useState<DomainVerification | null>(
     null,
   );
-  const [busy, setBusy] = useState<"brand" | "domain" | "remove-domain" | null>(
-    null,
-  );
+  const [senderVerification, setSenderVerification] =
+    useState<SenderVerification | null>(null);
+  const [busy, setBusy] = useState<
+    "brand" | "domain" | "remove-domain" | "sender" | null
+  >(null);
   const [feedback, setFeedback] = useState<{
     kind: "success" | "error";
     message: string;
@@ -123,6 +135,7 @@ export function WhiteLabelPage() {
     setDraft(editableBrand(brand));
     setHostname(brand.customDomain ?? "");
     setVerification(null);
+    setSenderVerification(null);
   }, [brand]);
 
   const primaryContrast = useMemo(
@@ -200,6 +213,36 @@ export function WhiteLabelPage() {
           error instanceof ApiError
             ? error.message
             : "The custom domain could not be verified.",
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function verifySender() {
+    if (!brand) return;
+    setBusy("sender");
+    setFeedback(null);
+    try {
+      const result = await postJson<SenderVerification>(
+        `/api/brands/${brand.id}/sender/verify`,
+      );
+      setSenderVerification(result);
+      await brandScope.refresh();
+      setFeedback({
+        kind: "success",
+        message:
+          result.status === "verified"
+            ? "The brand sender domain is verified and active."
+            : "Sender-domain verification started. Publish the DNS records below, then check again.",
+      });
+    } catch (error) {
+      setFeedback({
+        kind: "error",
+        message:
+          error instanceof ApiError
+            ? error.message
+            : "The sender domain could not be verified.",
       });
     } finally {
       setBusy(null);
@@ -455,6 +498,45 @@ export function WhiteLabelPage() {
               Sender status: {brand.emailDomainStatus ?? "unconfigured"}.
               Resend must verify the exact sender domain before activation.
             </p>
+            <button
+              type="button"
+              className="button button--secondary"
+              disabled={
+                busy !== null ||
+                !draft.emailSenderAddress ||
+                brand.emailDomainStatus === "verified"
+              }
+              onClick={() => void verifySender()}
+            >
+              {busy === "sender"
+                ? "Checking sender…"
+                : brand.emailDomainStatus === "verified"
+                  ? "Sender verified"
+                  : "Verify sender domain"}
+            </button>
+            {senderVerification?.dnsRecords.map((record) => (
+              <div
+                className="dns-instructions"
+                role="status"
+                key={`${record.type}:${record.name}`}
+              >
+                <div>
+                  <strong>{record.type || record.record}</strong>
+                  <span>{record.name}</span>
+                </div>
+                <code>{record.value}</code>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={`Copy ${record.type || record.record} sender DNS value`}
+                  onClick={() =>
+                    void navigator.clipboard.writeText(record.value)
+                  }
+                >
+                  <Copy aria-hidden="true" />
+                </button>
+              </div>
+            ))}
           </fieldset>
           <button
             className="button button--primary"

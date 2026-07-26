@@ -5,6 +5,8 @@ const ENVELOPE_VERSION = 1;
 const GCM_IV_BYTES = 12;
 const SHA256_HEX = /^[a-f0-9]{64}$/;
 const KEY_VERSION = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/;
+const EXTERNAL_INTEGRATION_SECRET_REFERENCE =
+  /^env:\/\/(VINIFERA_INTEGRATION_SECRET_[A-Z0-9_]{1,96})$/;
 
 export interface CredentialContext {
   integrationType: string;
@@ -18,6 +20,53 @@ export interface EncryptedCredentialEnvelope {
   iv: string;
   keyVersion: string;
   version: 1;
+}
+
+export function resolveExternalIntegrationCredentials<T>(
+  env: WorkerEnv,
+  reference: string | null | undefined,
+): T {
+  const match =
+    typeof reference === "string"
+      ? EXTERNAL_INTEGRATION_SECRET_REFERENCE.exec(reference)
+      : null;
+  if (!match) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "The external integration credential reference is invalid.",
+    );
+  }
+  const binding = (env as unknown as Record<string, unknown>)[match[1]!];
+  if (
+    typeof binding !== "string" ||
+    !binding ||
+    Buffer.byteLength(binding, "utf8") > 32_768
+  ) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "The external integration credential binding is unavailable.",
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(binding);
+  } catch {
+    throw new AppError(
+      503,
+      "activation_required",
+      "The external integration credential binding is invalid.",
+    );
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "The external integration credential binding is invalid.",
+    );
+  }
+  return parsed as T;
 }
 
 function decodeBase64(value: string): Uint8Array {

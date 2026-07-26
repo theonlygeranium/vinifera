@@ -70,7 +70,9 @@ curl http://localhost:8787/api/health/configuration
 
 `LIVE_BILLING_ENABLED` defaults off. A live Stripe secret without that separate
 authority cannot create or confirm charges, process release billing, retry
-payments, or start a Checkout session.
+payments, or start a Checkout session. Production Worker deployment cannot
+change this authority; the separate live-billing policy and workflow are also
+disabled by default.
 
 ## Supabase
 
@@ -127,6 +129,14 @@ generic test key for a write. The controller is account-hash allowlisted,
 idempotent, and has no customer, subscription, payment, refund, portal, or
 webhook operation.
 
+Protected bootstrap run `30218801133` reached an indeterminate boundary: its
+first test Price is created-or-unknown and the run then failed closed because
+the Product was not expanded in the provider response. The controller now
+requests Product expansion and retains the same lookup/idempotency key. Service
+connections are currently deferred, so do not dispatch another bootstrap.
+When activation resumes, reconcile the fixed lookup key before allowing any
+create.
+
 After the isolated Worker exists, register:
 
 ```text
@@ -142,6 +152,13 @@ Subscribe the endpoint to:
 - `invoice.payment_failed`
 
 Store the resulting signing secret as `STRIPE_WEBHOOK_SECRET`. Configure the Stripe Customer Portal before testing `/api/billing/portal`.
+
+Runtime Customer creation is serialized per immutable organization, brand, or
+member billing subject. Checkout and portal calls require an opaque billing
+attempt ID and reuse stable idempotency keys. One nonterminal Checkout may
+exist per billing subject; after Stripe reports completion, Vinifera keeps the
+attempt in `awaiting_webhook` and refuses a replacement until the signed
+subscription webhook reconciles it.
 
 Phases 1–4 remain in Stripe test mode. Phase 5 includes the independent-brand
 billing architecture, but replacing test keys with approved live keys,
@@ -265,6 +282,18 @@ INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION
 INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS
 ```
 
+As an alternative to a database envelope, a connection may store only an exact
+`env://VINIFERA_INTEGRATION_SECRET_<NAME>` reference. The matching Worker
+binding contains the credential JSON. Arbitrary secret-manager URIs, path
+syntax, and browser-selected binding names are rejected.
+
+Key rotation uses the protected credential-envelope rotation workflow and
+`config/credential-envelope-rotation-policy.json`. Keep both source and target
+versions in the keyring, authorize the exact Supabase project and key
+transition by hash, run bounded start/resume batches, and require verify to
+report zero old integration, Meta-attribution, and mobile-push envelopes before
+removing the source key.
+
 QuickBooks uses Worker-level Intuit application OAuth configuration:
 
 ```text
@@ -277,7 +306,20 @@ QUICKBOOKS_STATE_SIGNING_SECRET
 
 The returned QuickBooks access and rolling refresh tokens are encrypted per
 connection in the same database envelope boundary. They are not shared
-environment variables.
+environment variables. QuickBooks transaction facts now expose the persisted
+shipping charge separately so mapped receipts do not silently classify freight
+as wine revenue.
+
+Avalara activation requires brand-scoped wine and shipping tax-code mappings,
+current exemption/customer/entity-use references, nexus review, and a
+read-only filing-registration verification snapshot. Enabling the staff filing
+toggle does not grant filing authority.
+
+Meta browser attribution is accepted only after current member consent. Its
+browser identifiers are encrypted at rest and never written to Web Storage;
+the outbound conversion contains normalized hashes. Consent withdrawal redacts
+the encrypted attribution while preserving minimized campaign and response
+hashes for aggregate audit.
 
 Multi-brand rows are protected by forced RLS, and service-role queries validate
 the active brand independently of browser input. Existing organizations receive
@@ -294,7 +336,17 @@ MEMBER_BRAND_CONTEXT_SECRET
 ```
 
 A hostname is not active until Cloudflare reports both domain-control and
-certificate activation. Winery DNS changes remain human-controlled.
+certificate activation. Winery DNS changes remain human-controlled. Before any
+custom-hostname or FCM/ShipCompliant provider call, the normalized destination
+must match `config/provider-target-policy.json`; empty hash arrays deny the
+operation. Hostname create attempts also use a durable write ledger, and an
+unknown create result is looked up at Cloudflare before another create is
+allowed.
+
+Staff manage the brand theme, WCAG contrast, HTTPS logo, portal title, custom
+hostname, and transactional sender from the brand-scoped white-label page.
+Resend creates or verifies the exact brand sender domain and returns DNS
+records; delivery stays disabled until that sender identity is verified.
 
 The checked-in Capacitor projects use `VITE_MOBILE_API_ORIGIN` only as a
 non-secret build-time HTTPS origin. They have no public-origin fallback.
@@ -325,6 +377,12 @@ review remain activation evidence. See
 `docs/runbooks/phase-5-provider-mobile-activation.md` and
 `docs/runbooks/mobile-store-release.md`.
 
+For the current architecture candidate, mobile identity, compile-only web
+preparation, and Capacitor Android synchronization pass. Local Gradle cannot
+start because this Mac has no Java runtime; the Java 21 Android CI job remains
+pending for this commit. Prior successful Android artifacts remain historical
+evidence and are not a substitute for the current commit's CI result.
+
 ## Build and verify
 
 ```bash
@@ -336,6 +394,7 @@ npm run build:worker
 npm run build:worker:production
 npm run qa:mobile-release
 npm run qa:production-release
+npm run qa:stripe-catalog
 npm run qa:db:phase2
 npm run qa:db:phase3
 npm run qa:db:phase4
@@ -345,6 +404,14 @@ npm run qa:e2e
 npm run build:mobile:web
 npm run build:mobile:android
 ```
+
+The current credential-independent architecture gate passes TypeScript,
+245/245 Vitest tests, Phase 2 145/145, Phase 3 138/138, Phase 4 121/121, Phase
+5 279/279 embedded PostgreSQL/pgTAP assertions, and 123/123 Playwright tests
+with zero axe violations. Pages, Worker, and production Worker dry-run builds
+pass. The focused release controls pass 14/14, mobile-release controls 7/7,
+Stripe catalog controls 16/16, and mobile identity passes. These are local
+architecture results, not service-connection or hosted exit evidence.
 
 `npm run build` runs Vite, then copies the marketing site, investor guide, and static metadata into `dist/`. The original `app` prototype is retained in source as a visual reference and is not included in the authenticated production bundle.
 
@@ -386,6 +453,9 @@ Additional manual workflows provide:
   credentials but never mutates;
 - an account-hash-authorized, idempotent Stripe test Product/Price catalog
   probe/bootstrap/verifier;
+- a target-hash-authorized, resumable credential-envelope rotation controller;
+- an independently authorized, default-deny Stripe live/test cutover and
+  reversion controller;
 - protected production Worker bootstrap, immutable version upload/deploy,
   14-capability custom-domain cutover, Worker rollback, and Pages restoration;
   and

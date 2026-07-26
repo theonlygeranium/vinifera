@@ -178,21 +178,42 @@ Integration connections use explicit `activation_required`, `configured`,
 credentials are stored as versioned AES-256-GCM database envelopes whose
 wrapping key remains a Worker secret. QuickBooks application OAuth credentials
 are Worker configuration; each winery's access and rolling refresh tokens are
-encrypted per connection. Jobs are leased, idempotent, bounded, retryable, and
-reconcilable. Logs contain sanitized correlation/provider identifiers rather
-than credentials or raw customer payloads.
+encrypted per connection. A connection may instead reference an environment
+binding through the exact `env://VINIFERA_INTEGRATION_SECRET_*` form; arbitrary
+vault schemes, paths, and browser-supplied environment names are rejected.
+Jobs are leased, idempotent, bounded, retryable, and reconcilable. A protected,
+resumable rotation controller covers integration, encrypted Meta-attribution,
+and mobile-push envelopes, and verifies that no source-version ciphertext
+remains before an old wrapping key can be retired. Logs contain sanitized
+correlation/provider identifiers rather than credentials or raw customer
+payloads.
 
 Avalara calculates tax before Stripe confirmation and fails a connected charge
 closed. A successful charge commits the matching tax transaction;
 ShipCompliant remains the independent alcohol-shipping authority before label
-purchase. Meta identifiers are normalized and SHA-256 hashed before the
-transport object is constructed, and marketing consent is checked again
-immediately before disclosure.
+purchase. Winery-managed wine and shipping tax-code mappings, verified
+exemption references, entity-use codes, and read-only filing-registration
+snapshots make each tax input auditable. QuickBooks receipts include the
+separately persisted shipping charge rather than folding it invisibly into wine
+revenue.
+
+Meta identifiers are normalized and SHA-256 hashed before the transport object
+is constructed, and marketing consent is checked both before attribution
+storage and immediately before disclosure. Browser attribution identifiers are
+stored only in an authenticated encrypted envelope, never in Web Storage or
+plaintext database columns. Consent withdrawal redacts the encrypted browser
+payload while retaining minimized campaign and response-hash facts needed for
+auditable aggregate reporting.
 
 White-label routing trusts only a hostname whose Cloudflare ownership and
 certificate states are active. Unknown or pending hosts use the canonical,
 unbranded portal and never select tenant context. Theme colors are validated
-against WCAG normal-text contrast.
+against WCAG normal-text contrast. Staff configure each brand's accessible
+theme, HTTPS logo, portal title, custom hostname, and transactional sender from
+one brand-scoped white-label surface. Resend domain creation/verification is
+per brand, and email delivery uses only a verified active sender. Cloudflare
+hostname creates are coordinated through a durable ledger; an indeterminate
+create must be reconciled by provider lookup before another create is allowed.
 
 Capacitor wraps the built React application rather than creating a second UI.
 The native boundary adds Keychain/Keystore-backed session and offline storage,
@@ -242,10 +263,21 @@ The staging Worker pipeline re-runs the read-only semantic verifier and
 requires each configured `STAGING_STRIPE_PRICE_*` value to match that catalog
 before it can deploy.
 
+Credential-envelope rotation and Stripe live-billing cutover are separate,
+protected production controls. Rotation is disabled by checked-in policy until
+the exact Supabase project, source/target key transition, immutable commit, and
+confirmation are authorized; it then uses bounded leases and a verify-only
+terminal gate. Live Stripe remains default-deny even after production Worker
+deployment. Activation or reversion requires independent authority, reviewed
+Worker/account/webhook target hashes, the canonical four-Price contract, an
+immutable commit, exact confirmation, and post-change health checks.
+
 Production Worker bootstrap contains no route or custom-domain declaration.
 Public cutover requires all Phase 1–5 configuration capabilities and retains
 the active Pages project for automatic/manual restoration. The release
-controller enforces Stripe test mode and cannot enable live billing.
+controller enforces Stripe test mode and cannot enable live billing. The
+separate live-billing controller is also disabled by default and is not an
+automatic phase or deployment step.
 
 ---
 
@@ -269,12 +301,32 @@ controller enforces Stripe test mode and cannot enable live billing.
 - Stripe secret format and environment are validated at runtime. Live
   credentials are rejected outside production, and live charge/Checkout paths
   require the independent `LIVE_BILLING_ENABLED=true` authority.
+- Stripe Customer creation is serialized per immutable organization, brand, or
+  member billing subject and uses stable idempotency keys. Checkout and portal
+  attempts use opaque caller attempt IDs, payload fingerprints, database
+  leases, and stable session keys. Only one nonterminal Checkout can exist per
+  billing subject; a completed Checkout remains `awaiting_webhook` and blocks a
+  replacement until the signed subscription event reconciles it.
 - Stripe catalog writes separately require a test key, exact operation
   confirmation, immutable `main` commit, account fingerprint allowlist, and
   exact Product/Price contract. A mismatched existing lookup key fails closed.
+- Stripe live-billing mutation is independent from production deployment,
+  default-disabled in policy, and requires separate authority plus reviewed
+  test/live account, webhook, Worker, and Price contracts.
+- Cloudflare custom-hostname, FCM, and ShipCompliant targets must match
+  normalized SHA-256 policies. Empty policies deny outbound mutation.
+- Indeterminate custom-hostname creates enter a durable lookup/reconciliation
+  state; retries cannot issue another create until the provider result is
+  resolved.
 - Production QuickBooks, Avalara, and APNs endpoints are rejected outside
   `APP_ENV=production`; Avalara accepts only its canonical sandbox or production
   origin.
+- Meta browser attribution is consent-gated, encrypted at rest, excluded from
+  Web Storage, and redacted on consent withdrawal. Provider transport receives
+  hashed identifiers only.
+- Credential-envelope rotation is leased, resumable, bounded, and verified
+  across integration, Meta-attribution, and mobile-push secrets before an old
+  key version may be removed.
 - Native refresh tokens are hashed/rotating and push tokens are encrypted;
   Keychain/Keystore-backed storage holds native session and offline data.
 - Native bundles have no implicit API-origin fallback. Compile-only, isolated
@@ -343,6 +395,10 @@ All animations are disabled under `@media (prefers-reduced-motion: reduce)`.
 - Supabase migration management requires `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, and `SUPABASE_DB_PASSWORD`.
 - Supabase Google OAuth and outbound Auth email require dashboard/provider configuration.
 - Stripe requires four recurring test Price IDs and a webhook signing secret.
+  Protected test-catalog run `30218801133` left its first Price
+  created-or-unknown before failing closed; do not retry while provider
+  connections are deferred. When activation resumes, reconcile the fixed
+  lookup key before any create.
 - Phase 2 shipment billing requires Stripe test customers/payment methods for
   members and Phase 2 webhook event subscriptions.
 - EasyPost requires a server-only test key and a complete per-winery origin
@@ -361,15 +417,29 @@ All animations are disabled under `@media (prefers-reduced-motion: reduce)`.
 - Phase 5 provider activation requires the integration wrapping key, explicit
   winery opt-in, approved field/account mappings, and provider sandbox or live
   accounts. Winery credentials stay in encrypted connection envelopes.
+- Environment-referenced winery credentials require a dedicated
+  `VINIFERA_INTEGRATION_SECRET_*` Worker binding and the matching exact
+  `env://` reference; no generic secret-manager URI is accepted.
+- Credential rotation requires an enabled reviewed policy, an allowlisted
+  Supabase project and key-version transition, both old and new key versions in
+  the Worker keyring, and protected start/resume/verify operations.
 - QuickBooks additionally requires Intuit application OAuth secrets in the
   Worker; returned connection tokens remain encrypted in PostgreSQL.
+- Avalara activation additionally requires reviewed wine/shipping mappings,
+  exemption validation, nexus, and winery-controlled filing authority.
+- Per-brand Resend activation requires the exact sender domain to be verified;
+  one global `RESEND_FROM` does not activate a brand sender identity.
+- Provider runtime activation requires the exact Cloudflare custom-hostname,
+  FCM, and ShipCompliant target hashes to be reviewed in
+  `config/provider-target-policy.json`.
 - White-label activation requires a zone-scoped Cloudflare custom-hostname
   token, winery DNS, and active ownership plus certificate states.
 - Native activation requires Apple/Google developer accounts, platform push
   credentials, signing material, privacy/store metadata, physical-device tests,
   and TestFlight/Play internal-track evidence.
 - Replacing Stripe test keys with live keys and running a real charge/refund is
-  a human-controlled Phase 5 launch action.
+  a human-controlled Phase 5 launch action. The checked-in live-billing policy
+  and its independent authority switch remain disabled until then.
 - The Worker custom-domain cutover occurs only after the hosted Phase 1–5
   activation and regression gates pass.
 
@@ -381,3 +451,6 @@ Analytics, ML, benchmarking, and compliance decisions are recorded in
 [the Phase 4 ADR](./decisions/2026-07-26-phase-4-analytics-intelligence.md).
 Scale, connector, brand, white-label, and mobile decisions are recorded in
 [the Phase 5 ADR](./decisions/2026-07-26-phase-5-scale-integrations.md).
+Credential-independent completion, retry safety, consent minimization, target
+hashes, rotation, and deferred live activation are recorded in
+[the deferred-service activation ADR](./decisions/2026-07-26-deferred-service-activation-safety.md).

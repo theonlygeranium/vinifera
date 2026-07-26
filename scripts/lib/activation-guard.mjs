@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const SUPABASE_PROJECT_REF_PATTERN = /^[a-z0-9]{20}$/;
 const CLOUDFLARE_ACCOUNT_ID_PATTERN = /^[0-9a-f]{32}$/;
+const FCM_PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,62}$/;
 const HOSTNAME_PATTERN =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COMPILE_ONLY_ORIGIN = "https://unconfigured.invalid";
@@ -20,6 +21,82 @@ const TARGETS = {
         throw new Error("The supplied Cloudflare account ID has an invalid format.");
       }
       return normalized;
+    },
+  },
+  "cloudflare-origin": {
+    allowlistKey: "cloudflareFallbackOriginSha256",
+    deniedKey: "cloudflareFallbackOriginSha256",
+    environmentName: "CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN",
+    label: "Cloudflare custom-hostname fallback origin",
+    normalize(value) {
+      const { hostname, parsed, value: original } = parseHostnameInput(value);
+      if (
+        parsed.protocol !== "https:" ||
+        parsed.username ||
+        parsed.password ||
+        parsed.port ||
+        parsed.pathname !== "/" ||
+        parsed.search ||
+        parsed.hash ||
+        original !== hostname ||
+        !HOSTNAME_PATTERN.test(hostname)
+      ) {
+        throw new Error("The supplied Cloudflare fallback origin is invalid.");
+      }
+      return hostname;
+    },
+  },
+  "cloudflare-zone": {
+    allowlistKey: "cloudflareZoneIdSha256",
+    deniedKey: "cloudflareZoneIdSha256",
+    environmentName: "CLOUDFLARE_ZONE_ID",
+    label: "Cloudflare zone ID",
+    normalize(value) {
+      const normalized = String(value ?? "").trim().toLowerCase();
+      if (!CLOUDFLARE_ACCOUNT_ID_PATTERN.test(normalized)) {
+        throw new Error("The supplied Cloudflare zone ID has an invalid format.");
+      }
+      return normalized;
+    },
+  },
+  "fcm-project": {
+    allowlistKey: "fcmProjectIdSha256",
+    deniedKey: "fcmProjectIdSha256",
+    environmentName: "FCM_PROJECT_ID",
+    label: "Firebase project ID",
+    normalize(value) {
+      const normalized = String(value ?? "").trim().toLowerCase();
+      if (!FCM_PROJECT_ID_PATTERN.test(normalized)) {
+        throw new Error("The supplied Firebase project ID has an invalid format.");
+      }
+      return normalized;
+    },
+  },
+  "shipcompliant-origin": {
+    allowlistKey: "shipCompliantSandboxOriginSha256",
+    deniedKey: "shipCompliantSandboxOriginSha256",
+    environmentName: "SHIPCOMPLIANT_BASE_URL",
+    label: "ShipCompliant sandbox origin",
+    normalize(value) {
+      let parsed;
+      try {
+        parsed = new URL(String(value ?? "").trim());
+      } catch {
+        throw new Error("The supplied ShipCompliant origin has an invalid format.");
+      }
+      if (
+        parsed.protocol !== "https:" ||
+        parsed.username ||
+        parsed.password ||
+        parsed.port ||
+        parsed.pathname !== "/" ||
+        parsed.search ||
+        parsed.hash ||
+        !HOSTNAME_PATTERN.test(parsed.hostname.toLowerCase())
+      ) {
+        throw new Error("The supplied ShipCompliant origin is invalid.");
+      }
+      return parsed.origin.toLowerCase();
     },
   },
   supabase: {
@@ -40,7 +117,7 @@ const TARGETS = {
 function targetDefinition(kind) {
   const definition = TARGETS[kind];
   if (!definition) {
-    throw new Error("Activation target kind must be supabase or cloudflare.");
+    throw new Error("Activation target kind is unsupported.");
   }
   return definition;
 }
@@ -131,6 +208,7 @@ function parseHostnameInput(rawValue) {
 export function verifyStagingCustomHostnameOrigin(
   rawValue,
   deniedProductionOrigins,
+  allowedOriginHashes,
 ) {
   if (rawValue === undefined || rawValue === null || String(rawValue).trim() === "") {
     return { configured: false, hostname: null };
@@ -167,6 +245,20 @@ export function verifyStagingCustomHostnameOrigin(
     throw new Error(
       "The staging custom-hostname origin must be one canonical HTTPS hostname without scheme, credentials, port, path, query, or fragment.",
     );
+  }
+  if (allowedOriginHashes !== undefined) {
+    const allowed = validatedHashList(
+      allowedOriginHashes,
+      "staging.cloudflareFallbackOriginSha256",
+    );
+    if (
+      allowed.length === 0 ||
+      !allowed.includes(hashActivationTarget("cloudflare-origin", hostname))
+    ) {
+      throw new Error(
+        "The staging custom-hostname origin is not an allowlisted staging target.",
+      );
+    }
   }
   return { configured: true, hostname };
 }

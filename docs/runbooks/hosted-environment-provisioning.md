@@ -22,6 +22,11 @@ Generic repository secrets are deliberately limited to
 checks and emits a credential-free report. Mutating workflows do not fall back
 to them.
 
+The architecture is currently complete but services are intentionally
+disconnected. Do not treat the sections below as permission to dispatch a
+mutation. Resume only the smallest provider-specific step after its credential,
+target, and human authority are available.
+
 ## Staging target authorization
 
 Resolve a dedicated Supabase project and Cloudflare account independently.
@@ -42,6 +47,14 @@ public Vinifera hostname as a staging custom-hostname origin.
 
 The initial checked-in arrays are intentionally empty. Until they are updated,
 all staging mutations fail before provider APIs are called.
+
+Phase 4/5 provider calls have an additional target policy in
+`config/provider-target-policy.json`. Review and hash the exact normalized
+Cloudflare custom-hostname zone/fallback origin, FCM project, and
+ShipCompliant sandbox/production origin in the appropriate environment scope.
+Empty arrays fail with `activation_required`. ShipCompliant production mode
+also requires its independent checked-in switch; a credential alone cannot
+select a production endpoint.
 
 ## Staging environment contract
 
@@ -97,6 +110,12 @@ Optional capabilities may remain false in staging while their credentials are
 pending. Their application paths continue returning explicit activation
 states.
 
+Winery connection secrets may be stored in an authenticated encrypted
+database envelope or referenced by the exact
+`env://VINIFERA_INTEGRATION_SECRET_<NAME>` form. The matching Worker binding
+contains the provider credential JSON. Do not use a generic secret-manager URI
+or store the credential value in the reference column.
+
 ## Production policy preparation
 
 `config/production-release-policy.json` contains hashes for the known Pages
@@ -145,6 +164,31 @@ Before domain cutover, all configuration capabilities listed in the production
 policy must report configured. Follow
 `production-cutover-rollback.md`; do not use Worker bootstrap or version upload
 as proof that the public application is operational.
+
+## Deferred production controls
+
+Credential-envelope rotation is controlled by
+`config/credential-envelope-rotation-policy.json` and the protected production
+workflow. Its policy begins disabled with empty project/transition hashes. To
+activate it later:
+
+1. retain both source and target key versions in the production keyring;
+2. authorize the exact Supabase project and key-version transition hashes;
+3. bind the workflow to the immutable `main` commit and exact start/resume
+   confirmation;
+4. allow bounded leases to rotate integration, encrypted Meta-attribution, and
+   mobile-push envelopes; and
+5. run verify until all source-version counts are zero before deleting the old
+   key.
+
+Stripe live billing is controlled separately by
+`config/stripe-live-billing-policy.json`. It is disabled by default and is not
+part of Worker deployment or domain cutover. A later activation requires the
+independent authority phrase, reviewed Cloudflare Worker, test/live Stripe
+account and webhook hashes, canonical Price contracts, immutable commit, exact
+confirmation, and post-change health evidence. Reversion restores only the
+reviewed test bindings. Do not populate or execute this control while service
+connections are deferred.
 
 ## Mobile-release environment
 

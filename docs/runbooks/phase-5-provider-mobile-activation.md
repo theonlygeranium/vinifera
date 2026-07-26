@@ -10,6 +10,10 @@ Never paste secret values into an issue, commit, terminal transcript, or QA
 report. Record only the secret name, owner, rotation date, and the evidence
 produced by the activation check.
 
+The architecture is complete and the services in this runbook are currently
+disconnected. No activation, provider retry, DNS write, filing enrollment,
+live payment, or store submission is authorized merely by this document.
+
 ## 1. Shared production prerequisites
 
 1. Apply every Supabase migration in order and run `npm run qa:db:phase5`.
@@ -36,8 +40,10 @@ produced by the activation check.
    organization and brand identifiers.
 
 Rotate the wrapping key by adding a new version, changing the active version,
-rewrapping stored envelopes through the server-only rotation job, verifying
-the old-version count is zero, and only then removing the old key.
+authorizing the exact project/key transition in the disabled-by-default
+rotation policy, rewrapping stored integration, Meta-attribution, and
+mobile-push envelopes through leased resumable batches, verifying the
+old-version count is zero, and only then removing the old key.
 
 ## 2. Connector activation contract
 
@@ -56,6 +62,11 @@ Each connector follows the same lifecycle:
 Disconnecting a provider stops new jobs immediately, revokes provider tokens
 when the provider supports revocation, and preserves sanitized reconciliation
 history for audit.
+
+An organization that uses deployment-managed secrets may store only an exact
+`env://VINIFERA_INTEGRATION_SECRET_<NAME>` reference. The referenced Worker
+binding contains the credential JSON. Arbitrary vault schemes and paths are
+rejected; a reference is not an activation signal.
 
 ## 3. Klaviyo
 
@@ -107,6 +118,8 @@ Activation:
 2. Start OAuth from **Settings → Integrations → QuickBooks**.
 3. Confirm the returned realm/company before approving the connection.
 4. Map each club tier to an income item/account and choose the deposit account.
+   Map the separately persisted shipping charge to its approved freight item
+   or account rather than combining it with wine revenue.
 5. Run the bootstrap receipt/refund sync.
 6. Run monthly reconciliation and resolve every ambiguous provider outcome.
 
@@ -140,7 +153,8 @@ Activation:
 
 1. Connect the credentials and validate the company code.
 2. Configure origin addresses and wine/shipping tax-code mappings.
-3. Verify nexus and exemption behavior with the winery's tax administrator.
+3. Verify nexus, provider customer/exemption references, entity-use codes, and
+   exemption effective dates with the winery's tax administrator.
 4. Calculate a sandbox shipment before Stripe confirmation. The transaction
    must remain `Saved`.
 5. Simulate a successful charge and verify the same AvaTax transaction becomes
@@ -153,8 +167,11 @@ Activation:
    its write. Restart reconciliation and confirm the durable checkpoint resumes
    only the incomplete provider operation without duplicating the completed
    write.
-8. Configure auto-filing in the Avalara account for at least one approved
-   state; Vinifera records status but does not silently enroll a jurisdiction.
+8. Request a read-only filing-registration snapshot and review current,
+   pending, inactive, and stale jurisdictions.
+9. Configure auto-filing in the Avalara account for at least one approved
+   state only after separate winery tax-administrator authority; Vinifera
+   records status but does not silently enroll a jurisdiction.
 
 When an organization has opted into Avalara, a calculation failure blocks the
 charge. ShipCompliant remains the alcohol-shipping compliance authority.
@@ -181,9 +198,13 @@ Activation:
 
 1. Connect the dataset and token.
 2. Review the consent policy and event mapping.
-3. Send `Lead`, `Purchase`, `tier_upgrade`, and `referral` test events.
-4. Verify each stable `event_id` in Meta Events Manager.
-5. Remove the test-event code before production activation.
+3. Verify browser attribution is written only after current member consent,
+   uses an authenticated encrypted envelope, and never appears in Web Storage.
+4. Send `Lead`, `Purchase`, `tier_upgrade`, and `referral` test events.
+5. Verify each stable `event_id` in Meta Events Manager.
+6. Withdraw consent and confirm the encrypted browser attribution is redacted
+   while minimized campaign/response-hash audit facts remain.
+7. Remove the test-event code before production activation.
 
 Email, phone, name, address fragments, birth date, and external identifiers
 are normalized and SHA-256 hashed before the network request object is
@@ -219,6 +240,17 @@ Activation:
    updates that identity and resets it to `pending`; clearing it marks it
    `disabled`. Do not send branded email until provider verification advances
    the identity to `verified`.
+
+The staff white-label surface is the operational UI for the brand theme,
+accessible foreground, HTTPS logo, portal title, custom hostname, and
+transactional sender. Resend domain creation/verification is scoped to the
+exact brand sender domain; a global default sender does not verify it.
+
+Before Cloudflare receives a request, the zone and fallback origin must match
+the reviewed hashes in `config/provider-target-policy.json`. Hostname creation
+uses a durable attempt ledger. If the result is indeterminate, reconcile by
+hostname/brand lookup; do not issue another create until the provider identity
+is known.
 
 Do not mark a hostname active based only on DNS propagation. Cloudflare
 hostname status and certificate status must both be active.
@@ -307,6 +339,12 @@ The following actions always require a human owner:
 - changing winery DNS;
 - accepting Intuit, Meta, Apple, Google, or Klaviyo production terms; and
 - submitting signed binaries to an app store.
+
+Stripe live activation additionally remains disabled in
+`config/stripe-live-billing-policy.json`. It requires independent authority,
+reviewed Worker/account/webhook hashes, canonical test/live Price contracts,
+an immutable commit, exact protected confirmation, and post-change health
+evidence. Production Worker deployment cannot turn live billing on.
 
 Phase 5's hosted exit criterion passes only after at least Klaviyo,
 QuickBooks, and one of Avalara or Meta are verified against real provider

@@ -10,7 +10,13 @@ import {
   Truck,
   Wine,
 } from "lucide-react";
-import { type FormEvent, useCallback, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ApiError, apiRequest, patchJson, postJson } from "../api/client";
 import { type Address, type PortalShipment } from "../api/phase2";
 import { useRouter } from "../routes/router";
@@ -33,6 +39,7 @@ import {
 import { useMobileRuntime } from "../mobile/MobileRuntime";
 import { clearNativeSession } from "../mobile/native-session";
 import { MemberBrand } from "./MemberBranding";
+import { MetaPrivacyControl } from "./MetaPrivacyControl";
 
 const blankAddress: Address = {
   line1: "",
@@ -59,6 +66,7 @@ export function MemberPortal() {
     message: string;
     kind: "error" | "success";
   } | null>(null);
+  const paymentPortalAttemptId = useRef<string | null>(null);
 
   const sortedShipments = useMemo(
     () =>
@@ -135,7 +143,11 @@ export function MemberPortal() {
     setBusy("billing");
     setFeedback(null);
     try {
-      const result = await postJson<{ url: string }>("/api/member/billing/portal");
+      paymentPortalAttemptId.current ??= crypto.randomUUID();
+      const result = await postJson<{ url: string }>(
+        "/api/member/billing/portal",
+        { attemptId: paymentPortalAttemptId.current },
+      );
       const target = new URL(result.url, window.location.origin);
       if (
         target.protocol !== "https:" &&
@@ -145,6 +157,9 @@ export function MemberPortal() {
       }
       window.location.assign(target.toString());
     } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 409) {
+        paymentPortalAttemptId.current = null;
+      }
       setFeedback({
         message:
           caught instanceof ApiError
@@ -358,6 +373,8 @@ export function MemberPortal() {
             </fieldset>
 
             <MemberLoyaltyPanel shipmentId={upcoming?.id ?? null} />
+
+            <MetaPrivacyControl />
 
             <section className="operation-panel portal-history" aria-labelledby="shipment-history-title">
               <div className="panel-heading">

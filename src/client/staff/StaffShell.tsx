@@ -26,11 +26,12 @@ import {
   type ReactNode,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { ApiError, postJson } from "../api/client";
+import { MemberBrand } from "../member/MemberBranding";
 import { Link, useRouter } from "../routes/router";
-import { Brand } from "../shared/Brand";
 import { FormFeedback } from "../shared/FormFeedback";
 import { useStaffSession } from "./StaffSessionContext";
 import { useBrandScope } from "./phase5/BrandScopeContext";
@@ -100,6 +101,7 @@ export function StaffShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState<"logout" | "billing" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const billingAttempt = useRef<{ id: string; key: string } | null>(null);
 
   const activePath = useMemo(() => {
     const pathname = location.pathname.replace(/\/+$/, "");
@@ -152,10 +154,22 @@ export function StaffShell({
         ["active", "trialing", "past_due", "unpaid"].includes(
           organization?.subscriptionStatus ?? "",
         );
+      const planTier = organization?.planTier ?? "vine";
+      const attemptKey = hasSubscription ? "staff_portal" : `checkout:${planTier}`;
+      if (billingAttempt.current?.key !== attemptKey) {
+        billingAttempt.current = {
+          id: crypto.randomUUID(),
+          key: attemptKey,
+        };
+      }
+      const attemptId = billingAttempt.current.id;
       const result = hasSubscription
-        ? await postJson<{ url: string }>("/api/billing/portal")
+        ? await postJson<{ url: string }>("/api/billing/portal", {
+            attemptId,
+          })
         : await postJson<{ url: string }>("/api/billing/checkout", {
-            planTier: organization?.planTier ?? "vine",
+            attemptId,
+            planTier,
           });
       const target = new URL(result.url, window.location.origin);
       if (
@@ -166,6 +180,9 @@ export function StaffShell({
       }
       window.location.assign(target.toString());
     } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 409) {
+        billingAttempt.current = null;
+      }
       setError(
         caught instanceof ApiError
           ? caught.message
@@ -190,7 +207,7 @@ export function StaffShell({
         aria-label="Staff navigation"
       >
         <div className="staff-sidebar__brand">
-          <Brand inverse homeHref="/app" />
+          <MemberBrand inverse homeHref="/app" />
           <button
             type="button"
             className="icon-button staff-sidebar__close"

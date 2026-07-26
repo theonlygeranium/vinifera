@@ -10,6 +10,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Completed the credential-independent production architecture with Stripe
+  billing-subject locks and webhook-wait reconciliation, consent-gated
+  encrypted Meta attribution, resumable envelope rotation, separately
+  persisted QuickBooks shipping, Avalara mappings/exemptions/filing snapshots,
+  per-brand Resend activation, provider target policies, a retry-safe hostname
+  ledger, and staff white-label controls.
+- Added independently protected, default-deny credential-rotation and Stripe
+  live-billing controls plus restricted
+  `env://VINIFERA_INTEGRATION_SECRET_*` runtime references.
+- Added the deferred-service activation ADR and aligned setup, architecture,
+  environment, activation, QA, and continuity documentation with the
+  connect-services-later operating model.
 - Added a protected Stripe test-catalog workflow with a read-only account
   fingerprint probe, tracked SHA-256 account authorization, exact typed
   confirmations, idempotent Product/Price creation, drift verification, and
@@ -35,6 +47,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Recorded the final local architecture gate: dependency audit 0, TypeScript
+  green, Vitest 245/245, Phase 2/3/4 database regressions 145/138/121, Phase 5
+  migrations 001–012 and pgTAP suites 013–022 at 279/279, Playwright 123/123
+  with zero axe violations, LCP 476 ms, CLS 0, Pages/Worker/production dry-run
+  builds, production release 14/14, mobile release 7/7, Stripe catalog 16/16,
+  mobile identity, compile-only Capacitor preparation, and Android sync.
+- Classified the current Android Gradle rerun as pending because the local Mac
+  has no Java runtime; prior Android artifacts remain historical evidence and
+  Java 21 CI is required for the current commit.
 - Requested Product expansion on newly created Stripe Prices so the controller
   can validate the Product contract in the same response. Protected bootstrap
   run `30218801133` failed closed after the first provider create because the
@@ -84,6 +105,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- Required stable Stripe Customer/session idempotency, one nonterminal Checkout
+  per immutable billing subject, and an `awaiting_webhook` state that prevents
+  replacement Checkout creation before signed subscription reconciliation.
+- Required current consent and encrypted-at-rest browser attribution for Meta,
+  redaction on consent withdrawal, bounded verified envelope rotation, and
+  normalized target hashes for Cloudflare custom hostnames, FCM, and
+  ShipCompliant.
+- Kept live Stripe independent from Worker deployment and default-denied behind
+  disabled policy, separate authority, reviewed account/webhook/Worker/Price
+  targets, immutable commit binding, and exact protected confirmations.
 - Restricted catalog bootstrap to `sk_test_*`, the canonical four monthly plan
   contracts, an immutable `main` commit, an allowlisted account fingerprint,
   stable lookup/idempotency keys, and a workflow that cannot create customers,
@@ -119,9 +150,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Deferred
 
-- The Stripe test account fingerprint is intentionally unresolved in the
-  initial catalog policy. Probe, review, allowlist, bootstrap, Price-secret
-  promotion, and staging webhook registration remain activation steps.
+- All external services remain disconnected by owner direction. No hosted,
+  provider, DNS, store, or live-payment exit criterion is claimed.
+- Protected Stripe bootstrap run `30218801133` left its first test Price
+  created-or-unknown before failing closed. No retry was attempted; activation
+  must later reconcile the fixed lookup key before any create.
+- The Stripe test account fingerprint is tracked from the completed read-only
+  probe. Catalog reconciliation/bootstrap, Price-secret promotion, and staging
+  webhook registration remain deferred activation steps.
 - Hosted target IDs/hashes, staging-scoped provider credentials, production
   control-plane credentials, native signing credentials, store authority,
   provider round trips, physical-device QA, and Stripe live approval remain

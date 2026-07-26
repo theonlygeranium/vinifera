@@ -225,6 +225,29 @@ describe("Phase 1 API", () => {
     });
   });
 
+  it("exposes the brand sender verification activation seam", async () => {
+    const activateBrandSender = vi.fn().mockResolvedValue({
+      dnsRecords: [],
+      domain: "estate.example.com",
+      status: "pending",
+    });
+    const foundation = service({
+      activateBrandSender,
+      listIntegrations: vi.fn().mockResolvedValue([]),
+    });
+    const brandId = "30000000-0000-4000-8000-000000000003";
+    const response = await request(testApp(foundation))
+      .post(`/api/brands/${brandId}/sender/verify`)
+      .set("Origin", "https://vinifera.test");
+
+    expect(response.status).toBe(202);
+    expect(activateBrandSender).toHaveBeenCalledWith(brandId);
+    expect(response.body.data).toMatchObject({
+      domain: "estate.example.com",
+      status: "pending",
+    });
+  });
+
   it("allows only the exact configured Capacitor origin", async () => {
     const foundation = service();
     const nativeEnv = {
@@ -394,11 +417,26 @@ describe("Phase 1 API", () => {
     const response = await request(testApp(foundation))
       .post("/api/billing/checkout")
       .set("Origin", "https://vinifera.test")
-      .send({ planTier: "vine" });
+      .send({
+        attemptId: "80000000-0000-4000-8000-000000000001",
+        planTier: "vine",
+      });
 
     expect(response.status).toBe(503);
     expect(response.body.error.code).toBe("activation_required");
     expect(response.body.error.requestId).toBeTruthy();
+  });
+
+  it("rejects malformed caller billing attempt identifiers before service invocation", async () => {
+    const foundation = service();
+    const response = await request(testApp(foundation))
+      .post("/api/billing/checkout")
+      .set("Origin", "https://vinifera.test")
+      .send({ attemptId: "owner@example.com", planTier: "vine" });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("invalid_request");
+    expect(foundation.createBillingCheckout).not.toHaveBeenCalled();
   });
 });
 

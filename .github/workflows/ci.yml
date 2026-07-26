@@ -216,7 +216,14 @@ jobs:
           APNS_ENVIRONMENT: ${{ secrets.STAGING_APNS_ENVIRONMENT }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.STAGING_CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN: ${{ secrets.STAGING_CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.STAGING_CLOUDFLARE_ZONE_ID }}
+          COMPLIANCE_PROVIDER: ${{ secrets.STAGING_COMPLIANCE_PROVIDER }}
+          EASYPOST_API_KEY: ${{ secrets.STAGING_EASYPOST_API_KEY }}
+          FCM_PROJECT_ID: ${{ secrets.STAGING_FCM_PROJECT_ID }}
           QUICKBOOKS_ENVIRONMENT: ${{ secrets.STAGING_QUICKBOOKS_ENVIRONMENT }}
+          SHIPCOMPLIANT_BASE_URL: ${{ secrets.STAGING_SHIPCOMPLIANT_BASE_URL }}
+          SHIPCOMPLIANT_ENDPOINT_MODE: ${{ secrets.STAGING_SHIPCOMPLIANT_ENDPOINT_MODE }}
           STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
         run: |
           if [[ -n "$STRIPE_SECRET_KEY" && "$STRIPE_SECRET_KEY" != sk_test_* ]]; then
@@ -229,6 +236,28 @@ jobs:
           fi
           if [[ -n "$APNS_ENVIRONMENT" && "$APNS_ENVIRONMENT" != "sandbox" ]]; then
             echo "::error::The staging Worker accepts only APNS_ENVIRONMENT=sandbox."
+            exit 1
+          fi
+          if [[ -n "$EASYPOST_API_KEY" && "$EASYPOST_API_KEY" != EZTK* ]]; then
+            echo "::error::The staging Worker accepts only an EasyPost EZTK test key."
+            exit 1
+          fi
+          if [[ "$COMPLIANCE_PROVIDER" == "shipcompliant" &&
+                "$SHIPCOMPLIANT_ENDPOINT_MODE" != "sandbox" ]]; then
+            echo "::error::The staging Worker accepts only ShipCompliant sandbox mode."
+            exit 1
+          fi
+          if [[ -n "$CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN" ||
+                -n "$CLOUDFLARE_ZONE_ID" ]]; then
+            [[ -n "$CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN" &&
+               -n "$CLOUDFLARE_ZONE_ID" ]] || {
+              echo "::error::Staging Cloudflare custom-hostname target metadata is incomplete."
+              exit 1
+            }
+          fi
+          if [[ "$COMPLIANCE_PROVIDER" == "shipcompliant" &&
+                -z "$SHIPCOMPLIANT_BASE_URL" ]]; then
+            echo "::error::Staging ShipCompliant sandbox origin is missing."
             exit 1
           fi
           if [[ -n "$CLOUDFLARE_ACCOUNT_ID" && -n "$CLOUDFLARE_API_TOKEN" ]]; then
@@ -246,14 +275,27 @@ jobs:
           node-version: 22.22.0
           cache: npm
 
-      - name: Verify allowlisted staging Cloudflare target and hostname origin
+      - name: Verify all configured staging provider targets
         if: steps.activation.outputs.ready == 'true'
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.STAGING_CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN: ${{ secrets.STAGING_CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.STAGING_CLOUDFLARE_ZONE_ID }}
+          COMPLIANCE_PROVIDER: ${{ secrets.STAGING_COMPLIANCE_PROVIDER }}
+          FCM_PROJECT_ID: ${{ secrets.STAGING_FCM_PROJECT_ID }}
+          SHIPCOMPLIANT_BASE_URL: ${{ secrets.STAGING_SHIPCOMPLIANT_BASE_URL }}
         run: |
           node scripts/verify-staging-activation.mjs verify-target cloudflare
-          node scripts/verify-staging-activation.mjs verify-custom-hostname-origin
+          if [[ -n "$CLOUDFLARE_ZONE_ID" ]]; then
+            node scripts/verify-staging-activation.mjs verify-target cloudflare-zone
+            node scripts/verify-staging-activation.mjs verify-custom-hostname-origin
+          fi
+          if [[ -n "$FCM_PROJECT_ID" ]]; then
+            node scripts/verify-staging-activation.mjs verify-target fcm-project
+          fi
+          if [[ "$COMPLIANCE_PROVIDER" == "shipcompliant" ]]; then
+            node scripts/verify-staging-activation.mjs verify-target shipcompliant-origin
+          fi
 
       - name: Install and build
         if: steps.activation.outputs.ready == 'true'
@@ -295,6 +337,7 @@ jobs:
           COMPLIANCE_PROVIDER: ${{ secrets.STAGING_COMPLIANCE_PROVIDER }}
           COMPLIANCE_SIMULATOR_ENABLED: ${{ secrets.STAGING_COMPLIANCE_SIMULATOR_ENABLED }}
           EASYPOST_API_KEY: ${{ secrets.STAGING_EASYPOST_API_KEY }}
+          EASYPOST_LIVE_LABELS_ENABLED: "false"
           EMAIL_PROVIDER: ${{ secrets.STAGING_EMAIL_PROVIDER }}
           EMAIL_SIMULATOR_ENABLED: ${{ secrets.STAGING_EMAIL_SIMULATOR_ENABLED }}
           FCM_CLIENT_EMAIL: ${{ secrets.STAGING_FCM_CLIENT_EMAIL }}
@@ -335,6 +378,7 @@ jobs:
           SHIPCOMPLIANT_BASE_URL: ${{ secrets.STAGING_SHIPCOMPLIANT_BASE_URL }}
           SHIPCOMPLIANT_CHECK_PATH: ${{ secrets.STAGING_SHIPCOMPLIANT_CHECK_PATH }}
           SHIPCOMPLIANT_CONTRACT_VERSION: ${{ secrets.STAGING_SHIPCOMPLIANT_CONTRACT_VERSION }}
+          SHIPCOMPLIANT_ENDPOINT_MODE: ${{ secrets.STAGING_SHIPCOMPLIANT_ENDPOINT_MODE }}
           SHIPCOMPLIANT_LICENSE_ID: ${{ secrets.STAGING_SHIPCOMPLIANT_LICENSE_ID }}
           SHIPCOMPLIANT_TOKEN_PATH: ${{ secrets.STAGING_SHIPCOMPLIANT_TOKEN_PATH }}
           STRIPE_PRICE_CELLAR: ${{ secrets.STAGING_STRIPE_PRICE_CELLAR }}
@@ -366,6 +410,7 @@ jobs:
             "COMPLIANCE_PROVIDER",
             "COMPLIANCE_SIMULATOR_ENABLED",
             "EASYPOST_API_KEY",
+            "EASYPOST_LIVE_LABELS_ENABLED",
             "EMAIL_PROVIDER",
             "EMAIL_SIMULATOR_ENABLED",
             "FCM_CLIENT_EMAIL",
@@ -406,6 +451,7 @@ jobs:
             "SHIPCOMPLIANT_BASE_URL",
             "SHIPCOMPLIANT_CHECK_PATH",
             "SHIPCOMPLIANT_CONTRACT_VERSION",
+            "SHIPCOMPLIANT_ENDPOINT_MODE",
             "SHIPCOMPLIANT_LICENSE_ID",
             "SHIPCOMPLIANT_TOKEN_PATH",
             "STRIPE_PRICE_CELLAR",

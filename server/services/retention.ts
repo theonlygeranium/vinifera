@@ -11,6 +11,7 @@ import type {
   StaffPrincipal,
   WorkerEnv,
 } from "../types";
+import { formatBrandSender } from "../integrations/resend-domains";
 import { ProductionCoreClubService } from "./core-club";
 
 const RESEND_API_ORIGIN = "https://api.resend.com";
@@ -28,12 +29,17 @@ const EMAIL_TRIGGERS: readonly EmailTriggerType[] = [
 
 interface ClaimedEmail {
   attempt_count: number;
+  brand_id?: string | null;
   body: string;
   email_log_id: string;
   member_id: string | null;
   organization_id: string;
   outbox_id: string;
   payload: Record<string, unknown> | null;
+  sender_from_email?: string | null;
+  sender_from_name?: string | null;
+  sender_identity_id?: string | null;
+  sender_status?: "disabled" | "failed" | "pending" | "verified" | null;
   subject: string;
   to_email: string;
   trigger_type: EmailTriggerType;
@@ -41,6 +47,7 @@ interface ClaimedEmail {
 
 interface OutgoingEmail {
   attachments?: EmailAttachment[];
+  from?: string;
   headers?: Record<string, string>;
   html: string;
   subject: string;
@@ -486,37 +493,25 @@ function fromDomain(from: string): string | null {
 
 function requireResendConfiguration(env: WorkerEnv): {
   apiKey: string;
-  from: string;
+  from?: string;
 } {
   const apiKey = requireConfigured(env.RESEND_API_KEY, "RESEND_API_KEY");
-  const from = requireConfigured(env.RESEND_FROM, "RESEND_FROM");
-  const domain = requireConfigured(
-    env.RESEND_SENDING_DOMAIN,
-    "RESEND_SENDING_DOMAIN",
-  ).toLowerCase();
-  if (env.RESEND_DOMAIN_VERIFIED !== "true") {
-    throw new AppError(
-      503,
-      "activation_required",
-      "The Resend sending domain must pass SPF and DKIM verification before email delivery is enabled.",
-    );
-  }
-  if (fromDomain(from) !== domain) {
-    throw new AppError(
-      503,
-      "activation_required",
-      "RESEND_FROM must use the verified Resend sending domain.",
-    );
-  }
-  return { apiKey, from };
+  const from = env.RESEND_FROM?.trim();
+  const domain = env.RESEND_SENDING_DOMAIN?.trim().toLowerCase();
+  const verified =
+    Boolean(from) &&
+    Boolean(domain) &&
+    env.RESEND_DOMAIN_VERIFIED === "true" &&
+    fromDomain(from!) === domain;
+  return { apiKey, from: verified ? from : undefined };
 }
 
 export class ResendEmailProvider implements TransactionalEmailProvider {
   readonly #apiKey: string;
-  readonly #from: string;
+  readonly #from: string | undefined;
 
   constructor(
-    configuration: { apiKey: string; from: string },
+    configuration: { apiKey: string; from?: string },
     private readonly fetcher: typeof fetch = fetch,
   ) {
     this.#apiKey = configuration.apiKey;
@@ -534,6 +529,13 @@ export class ResendEmailProvider implements TransactionalEmailProvider {
         "Email batches must contain between 1 and 100 messages.",
       );
     }
+    if (messages.some((message) => !(message.from ?? this.#from))) {
+      throw new AppError(
+        503,
+        "activation_required",
+        "A verified global or brand sender identity is required before email delivery.",
+      );
+    }
     const response = await this.fetcher(`${RESEND_API_ORIGIN}/emails/batch`, {
       body: JSON.stringify(
         messages.map((message) => ({
@@ -542,7 +544,7 @@ export class ResendEmailProvider implements TransactionalEmailProvider {
             content_type: attachment.contentType,
             filename: attachment.filename,
           })),
-          from: this.#from,
+          from: message.from ?? this.#from,
           headers: message.headers,
           html: message.html,
           subject: message.subject,
@@ -1025,6 +1027,43 @@ async function markEmail(
   if (error) throw databaseError("The email delivery receipt could not be recorded.");
 }
 
+export function resolveBrandSenderIdentity(
+  identity:
+    | {
+        fromEmail: string | null | undefined;
+        fromName: string | null | undefined;
+        id: string | null | undefined;
+        status: string | null | undefined;
+      }
+    | null
+    | undefined,
+): string | undefined {
+  if (!identity?.id) return undefined;
+  if (
+    identity.status !== "verified" ||
+    !identity.fromEmail ||
+    !identity.fromName
+  ) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "The configured brand sender must be verified before email delivery.",
+    );
+  }
+  try {
+    return formatBrandSender({
+      fromEmail: identity.fromEmail,
+      fromName: identity.fromName,
+    });
+  } catch {
+    throw new AppError(
+      503,
+      "activation_required",
+      "The configured brand sender is unsafe and cannot be used.",
+    );
+  }
+}
+
 export async function deliverClaimedEmails(input: {
   appOrigin: string;
   env: WorkerEnv;
@@ -1046,8 +1085,33 @@ export async function deliverClaimedEmails(input: {
     throw new AppError(400, "invalid_request", "At most 100 emails can be delivered.");
   }
   if (!input.rows.length) return { failed: 0, sent: 0 };
+  const deliveryRows: Array<{ from?: string; row: ClaimedEmail }> = [];
+  const rejectedRows: ClaimedEmail[] = [];
+  for (const row of input.rows) {
+    try {
+      const from = resolveBrandSenderIdentity(
+        row.sender_identity_id
+          ? {
+              fromEmail: row.sender_from_email,
+              fromName: row.sender_from_name,
+              id: row.sender_identity_id,
+              status: row.sender_status,
+            }
+          : null,
+      );
+      deliveryRows.push({ from, row });
+    } catch {
+      rejectedRows.push(row);
+    }
+  }
+  await Promise.allSettled(
+    rejectedRows.map((row) => input.mark(row, "failed", null)),
+  );
+  if (!deliveryRows.length) {
+    return { failed: rejectedRows.length, sent: 0 };
+  }
   const prepared = await Promise.all(
-    input.rows.map(async (row) => {
+    deliveryRows.map(async ({ from, row }) => {
       const variables = Object.fromEntries(
         Object.entries(row.payload ?? {})
           .filter((entry): entry is [string, string | number | boolean] =>
@@ -1086,6 +1150,7 @@ export async function deliverClaimedEmails(input: {
       });
       return {
         attachments: emailAttachments(row.payload),
+        from,
         headers: row.member_id
           ? {
               "List-Unsubscribe": `<${unsubscribeUrl.toString()}>`,
@@ -1099,19 +1164,19 @@ export async function deliverClaimedEmails(input: {
     }),
   );
   const idempotencyKey = `outbox:${await sha256(
-    input.rows.map((row) => row.outbox_id).sort().join(":"),
+    deliveryRows.map(({ row }) => row.outbox_id).sort().join(":"),
   )}`;
   try {
     const receipts = await input.provider.sendBatch(prepared, idempotencyKey);
     await Promise.all(
-      input.rows.map((row, index) =>
+      deliveryRows.map(({ row }, index) =>
         input.mark(row, "sent", receipts[index]?.id ?? null),
       ),
     );
-    return { failed: 0, sent: input.rows.length };
+    return { failed: rejectedRows.length, sent: deliveryRows.length };
   } catch (error) {
     await Promise.allSettled(
-      input.rows.map((row) => input.mark(row, "failed", null)),
+      deliveryRows.map(({ row }) => input.mark(row, "failed", null)),
     );
     throw error;
   }
@@ -1186,9 +1251,34 @@ export class ProductionRetentionService
       .eq("brand_id", brandId)
       .order("trigger_type");
     if (error) throw databaseError("Email templates could not be loaded.");
-    const senderStatus = getConfigurationReport(this.env).communications.configured
-      ? "active"
-      : "activation_required";
+    const { data: sender, error: senderError } = await this.admin
+      .from("brand_sender_identities")
+      .select("id,from_name,from_email,status")
+      .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
+      .neq("status", "disabled")
+      .maybeSingle();
+    if (senderError) {
+      throw databaseError("The brand sender identity could not be loaded.");
+    }
+    let senderStatus: "active" | "activation_required";
+    if (sender) {
+      try {
+        resolveBrandSenderIdentity({
+          fromEmail: sender.from_email,
+          fromName: sender.from_name,
+          id: sender.id,
+          status: sender.status,
+        });
+        senderStatus = "active";
+      } catch {
+        senderStatus = "activation_required";
+      }
+    } else {
+      senderStatus = getConfigurationReport(this.env).communications.configured
+        ? "active"
+        : "activation_required";
+    }
     return (data ?? []).map((template) => ({
       ...toPublicRecord(template),
       senderStatus,
@@ -1386,6 +1476,26 @@ export class ProductionRetentionService
       unsubscribeUrl: "#email-preferences",
       variables: input.variables,
     });
+    const { data: sender, error: senderError } = await this.admin
+      .from("brand_sender_identities")
+      .select("id,from_name,from_email,status")
+      .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
+      .neq("status", "disabled")
+      .maybeSingle();
+    if (senderError) {
+      throw databaseError("The brand sender identity could not be loaded.");
+    }
+    const from = resolveBrandSenderIdentity(
+      sender
+        ? {
+            fromEmail: sender.from_email,
+            fromName: sender.from_name,
+            id: sender.id,
+            status: sender.status,
+          }
+        : null,
+    );
     const idempotencyKey = `email:test:${crypto.randomUUID()}`;
     const delivery = await deliverLoggedTestEmail({
       enqueue: async () => {
@@ -1418,7 +1528,7 @@ export class ProductionRetentionService
           throw databaseError("The test email receipt could not be recorded.");
         }
       },
-      message: { ...rendered, to: input.email },
+      message: { ...rendered, from, to: input.email },
       provider: createTransactionalEmailProvider(this.env),
     });
     return { accepted: true, deliveryId: delivery.deliveryId };
