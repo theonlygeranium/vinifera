@@ -47,6 +47,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Raised the GitHub Actions artifact/log retention setting from 1 day to the
+  repository's allowed 90-day maximum so QA, native-build, rollback, and
+  protected activation evidence follows the workflow retention contracts.
+- Pinned Android setup in CI and signed mobile release to
+  `android-actions/setup-android` v4.0.1, whose action runtime is Node 24,
+  removing the runner's Node 20 compatibility warning.
 - Recorded the final local architecture gate: dependency audit 0, TypeScript
   green, Vitest 245/245, Phase 2/3/4 database regressions 145/138/121, Phase 5
   migrations 001–012 and pgTAP suites 013–022 at 279/279, Playwright 123/123

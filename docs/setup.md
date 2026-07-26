@@ -379,9 +379,11 @@ review remain activation evidence. See
 
 For the current architecture candidate, mobile identity, compile-only web
 preparation, and Capacitor Android synchronization pass. Local Gradle cannot
-start because this Mac has no Java runtime; the Java 21 Android CI job remains
-pending for this commit. Prior successful Android artifacts remain historical
-evidence and are not a substitute for the current commit's CI result.
+start because this Mac has no Java runtime. Architecture commit `5d36471`
+passed the Java 21 Android lint/debug/minified release job in GitHub Actions
+run `30221722696`; documentation commit `0abeab1` passed the same gate in run
+`30221936765`. Android setup is pinned to v4.0.1, whose action runtime is Node
+24.
 
 ## Build and verify
 

@@ -122,6 +122,10 @@ tokens, DNS outside Cloudflare, or already distributed mobile builds.
 
 ## Evidence
 
+The repository-level GitHub Actions artifact/log retention is set to the
+allowed 90-day maximum. Individual workflows may request a shorter 7-, 14-, or
+90-day period, but must never request more than the repository maximum.
+
 Retain workflow summaries and sanitized artifacts for:
 
 - target-policy pass;

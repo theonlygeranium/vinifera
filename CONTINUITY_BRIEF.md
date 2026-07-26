@@ -165,6 +165,9 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   quality completed in 5m23s, Java 21 Android lint/debug/minified release
   assembly completed in 4m37s, and credential-gated migration/deployment jobs
   skipped. This Mac still has no local Java runtime.
+- GitHub Actions artifact/log retention is configured at the allowed 90-day
+  maximum. Android setup is pinned to v4.0.1/Node 24 in normal CI and the
+  protected mobile-release workflow.
 - GitHub environments `staging`, `production`, and `mobile-release` are
   restricted to `main` and require review by `theonlygeranium`; self-review is
   currently allowed because no second human reviewer is configured.
