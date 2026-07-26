@@ -4,18 +4,15 @@ import { join } from 'node:path';
 const ROOT = '.';
 const DIST = 'dist';
 
-// Clean dist
 await rm(DIST, { recursive: true, force: true });
 await mkdir(DIST, { recursive: true });
 
-// Copy root HTML files
-const rootFiles = ['index.html', 'app.html'];
+const rootFiles = ['index.html', 'app'];
 for (const f of rootFiles) {
   await copyFile(join(ROOT, f), join(DIST, f));
   console.log(`  copied ${f}`);
 }
 
-// Copy public/ contents (includes _redirects, _headers)
 const pubDir = join(ROOT, 'public');
 try {
   const pubFiles = await readdir(pubDir);
