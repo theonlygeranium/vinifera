@@ -40,10 +40,11 @@ jobs:
       - name: Run unit and integration tests
         run: npm test
 
-      - name: Verify Phase 2 and Phase 3 database architecture
+      - name: Verify Phase 2 through Phase 4 database architecture
         run: |
           npm run qa:db:phase2
           npm run qa:db:phase3
+          npm run qa:db:phase4
 
       - name: Build static assets
         run: npm run build
@@ -122,6 +123,8 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_WORKERS_DEPLOY_ENABLED: ${{ secrets.CLOUDFLARE_WORKERS_DEPLOY_ENABLED }}
+      COMPLIANCE_PROVIDER: ${{ secrets.COMPLIANCE_PROVIDER }}
+      COMPLIANCE_SIMULATOR_ENABLED: ${{ secrets.COMPLIANCE_SIMULATOR_ENABLED }}
       EASYPOST_API_KEY: ${{ secrets.EASYPOST_API_KEY }}
       EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
       EMAIL_SIMULATOR_ENABLED: ${{ secrets.EMAIL_SIMULATOR_ENABLED }}
@@ -134,6 +137,14 @@ jobs:
       RESEND_WEBHOOK_SECRET: ${{ secrets.RESEND_WEBHOOK_SECRET }}
       SHIPPING_PROVIDER: ${{ secrets.SHIPPING_PROVIDER }}
       SHIPPING_SIMULATOR_ENABLED: ${{ secrets.SHIPPING_SIMULATOR_ENABLED }}
+      SHIPCOMPLIANT_ACCOUNT_ID: ${{ secrets.SHIPCOMPLIANT_ACCOUNT_ID }}
+      SHIPCOMPLIANT_API_KEY: ${{ secrets.SHIPCOMPLIANT_API_KEY }}
+      SHIPCOMPLIANT_API_SECRET: ${{ secrets.SHIPCOMPLIANT_API_SECRET }}
+      SHIPCOMPLIANT_BASE_URL: ${{ secrets.SHIPCOMPLIANT_BASE_URL }}
+      SHIPCOMPLIANT_CHECK_PATH: ${{ secrets.SHIPCOMPLIANT_CHECK_PATH }}
+      SHIPCOMPLIANT_CONTRACT_VERSION: ${{ secrets.SHIPCOMPLIANT_CONTRACT_VERSION }}
+      SHIPCOMPLIANT_LICENSE_ID: ${{ secrets.SHIPCOMPLIANT_LICENSE_ID }}
+      SHIPCOMPLIANT_TOKEN_PATH: ${{ secrets.SHIPCOMPLIANT_TOKEN_PATH }}
       STRIPE_PRICE_CELLAR: ${{ secrets.STRIPE_PRICE_CELLAR }}
       STRIPE_PRICE_ESTATE: ${{ secrets.STRIPE_PRICE_ESTATE }}
       STRIPE_PRICE_RESERVE: ${{ secrets.STRIPE_PRICE_RESERVE }}
@@ -186,6 +197,8 @@ jobs:
           node --input-type=module <<'NODE' | npx wrangler secret bulk
           const names = [
             "AUTH_EMAIL_ENABLED",
+            "COMPLIANCE_PROVIDER",
+            "COMPLIANCE_SIMULATOR_ENABLED",
             "EASYPOST_API_KEY",
             "EMAIL_PROVIDER",
             "EMAIL_SIMULATOR_ENABLED",
@@ -198,6 +211,14 @@ jobs:
             "RESEND_WEBHOOK_SECRET",
             "SHIPPING_PROVIDER",
             "SHIPPING_SIMULATOR_ENABLED",
+            "SHIPCOMPLIANT_ACCOUNT_ID",
+            "SHIPCOMPLIANT_API_KEY",
+            "SHIPCOMPLIANT_API_SECRET",
+            "SHIPCOMPLIANT_BASE_URL",
+            "SHIPCOMPLIANT_CHECK_PATH",
+            "SHIPCOMPLIANT_CONTRACT_VERSION",
+            "SHIPCOMPLIANT_LICENSE_ID",
+            "SHIPCOMPLIANT_TOKEN_PATH",
             "STRIPE_PRICE_CELLAR",
             "STRIPE_PRICE_ESTATE",
             "STRIPE_PRICE_RESERVE",

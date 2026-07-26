@@ -498,6 +498,31 @@ async function installMockApi(page: Page, capture: Capture = []) {
         total: items.length,
       });
     }
+    if (path === "/api/churn-intelligence" && method === "GET") {
+      const riskLevel = url.searchParams.get("riskLevel");
+      const search = url.searchParams.get("search")?.toLowerCase();
+      const items = churnScores
+        .filter(
+          (score) =>
+            (!riskLevel || score.riskLevel === riskLevel) &&
+            (!search ||
+              `${score.memberName} ${score.email}`
+                .toLowerCase()
+                .includes(search)),
+        )
+        .map((score) => ({
+          ...score,
+          rulesScore: score.score,
+          source: "rules",
+          topFeatures: score.contributingFactors,
+        }));
+      return json(route, {
+        fallbackReason:
+          "The production ML gate is still pending, so explainable Phase 3 rules remain authoritative.",
+        items,
+        mode: "rules_fallback",
+      });
+    }
     if (/^\/api\/members\/[^/]+\/churn-score$/.test(path)) {
       return json(
         route,
@@ -850,19 +875,21 @@ test.describe("Phase 3 communications and explainable churn", () => {
     await expect(rows.nth(0)).toContainText("Jordan Cellar");
     await expect(rows.nth(0)).toContainText("High risk · 82%");
     await expect(rows.nth(1)).toContainText("Avery Vine");
+    await expect(
+      page.getByRole("heading", {
+        name: "Rules engine is protecting score continuity",
+      }),
+    ).toBeVisible();
 
-    await rows.nth(0).getByText("2 factors", { exact: true }).click();
+    await rows.nth(0).getByText("Why this score?", { exact: true }).click();
     await expect(rows.nth(0).getByText("Missed payments")).toBeVisible();
     await expect(rows.nth(0).getByText("Portal inactivity")).toBeVisible();
 
     await page.getByLabel("Filter by risk level").selectOption("high");
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText("Jordan Cellar");
-    await expect(
-      rows.first().getByRole("progressbar", {
-        name: "Jordan Cellar churn risk",
-      }),
-    ).toHaveAttribute("aria-valuenow", "82");
+    await expect(rows.first()).toContainText("Rules 82");
+    await expect(rows.first()).toContainText("Rules fallback");
   });
 });
 

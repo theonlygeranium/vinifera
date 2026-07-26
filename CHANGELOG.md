@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.0] — 2026-07-26
+
+### Added
+
+- Tenant-scoped analytics event, daily aggregate, cohort, dashboard-layout,
+  and scheduled-report architecture backed only by production operational
+  facts.
+- Responsive revenue, member, shipment, engagement, cohort, LTV, and
+  acquisition dashboards with accessible chart tables and CSV exports.
+- Deterministic L2 logistic churn trainer with immutable snapshots, temporal
+  holdout, five expanding folds, calibration, confusion matrix, rules
+  baseline, heuristic model score bands, feature attribution, drift
+  monitoring, and nightly batch scoring architecture.
+- Fail-closed model lifecycle gates for production provenance, minimum data
+  volume, ROC AUC, rules-baseline superiority, and a completed 30-day A/B test.
+- Estate/Reserve benchmark opt-in, progressively coarsened k-anonymous peer
+  groups, percentile comparisons, and polished quarterly PDF/email reports.
+- Connection-ready ShipCompliant OAuth adapter, auditable compliance ledger,
+  tax estimates, provider response IDs, provider-health states, dashboard, and
+  mandatory post-charge/pre-label checks.
+- Compliance input fingerprints and durable EasyPost label attempts that
+  persist the carrier shipment before purchase, reuse successful outcomes, and
+  support resume or reconciliation without blind duplicate purchases.
+- Phase 4 ADR, model card, ShipCompliant activation runbook, database verifier,
+  browser QA, and visual/PDF evidence.
+- A passing Phase 4 local architecture gate with 121/121 embedded database
+  assertions, a keyboard-only browser workflow, deterministic sub-500ms chart
+  rendering evidence, and measured database scale checks. Hosted real-data,
+  model-accuracy, peer-cohort, and ShipCompliant activation remain deferred.
+
+### Changed
+
+- Routed the implemented label path through the Phase 4 provider-backed
+  fail-closed boundary. The Phase 2 whitelist remains historical code and is
+  not legal authority; hosted ShipCompliant activation is still pending.
+- Extended the Worker schedule for daily analytics/features/predictions,
+  monthly candidate training, scheduled summaries, and quarterly benchmarks.
+- Extended setup, architecture, CI, secret contracts, and configuration health
+  for credential-deferred compliance activation.
+
+### Security
+
+- Forced row-level security across every Phase 4 tenant table and restricted
+  cross-tenant aggregation/model lifecycle RPCs to the service role.
+- Rejected identifying analytics payload fields, suppressed peer metrics below
+  ten wineries, prevented synthetic model promotion, and kept all
+  ShipCompliant credentials server-side.
+
 ## [0.3.0] — 2026-07-26
 
 ### Added

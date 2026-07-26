@@ -68,12 +68,22 @@ describe("Phase 2 shipping provider boundary", () => {
       toContact: { name: "Avery Vine", phone: "7075550101" },
     };
 
-    const [first, second] = await Promise.all([
-      provider.createLabel(input),
-      provider.createLabel(input),
-    ]);
+    const persisted: string[] = [];
+    const first = await provider.createLabel(input, {
+      persistExternalShipment: async (shipmentId, rateId) => {
+        persisted.push(shipmentId, rateId);
+      },
+    });
+    const second = await provider.createLabel(input, {
+      externalRateId: first.rateId,
+      externalShipmentId: first.providerReference,
+      persistExternalShipment: async () => {
+        throw new Error("Recovery must not persist a second shipment.");
+      },
+    });
 
     expect(first).toEqual(second);
+    expect(persisted).toEqual([first.providerReference, first.rateId]);
     expect(first.trackingNumber).toMatch(/^1ZSIM\d{12}$/);
     expect(first.labelUrl).toMatch(/^https:\/\/example\.invalid\/labels\//);
   });

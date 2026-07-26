@@ -9,7 +9,7 @@ import Stripe from "stripe";
 import { getConfigurationReport, isProduction } from "../config";
 import { assertStaffRole } from "../lib/authorization";
 import { AppError, requireConfigured } from "../lib/errors";
-import { ProductionRetentionService } from "./retention";
+import { ProductionAnalyticsService } from "./analytics";
 import type {
   ApplicationService,
   AuthSurface,
@@ -177,7 +177,7 @@ function stripeObjectId(value: string | { id: string } | null): string | null {
 }
 
 export class ProductionFoundationService
-  extends ProductionRetentionService
+  extends ProductionAnalyticsService
   implements ApplicationService
 {
   constructor(

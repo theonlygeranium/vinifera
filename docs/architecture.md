@@ -6,11 +6,13 @@
 ## System overview
 
 Vinifera is transitioning from a static Cloudflare Pages prototype to a
-full-stack SaaS application. The Phase 1 foundation, Phase 2 core-club, and
-Phase 3 retention architecture use a same-origin React application and Express API packaged in one
+full-stack SaaS application. The Phase 1 foundation, Phase 2 core-club,
+Phase 3 retention, and Phase 4 intelligence architecture use a same-origin
+React application and Express API packaged in one
 Cloudflare Worker. Supabase provides Auth and PostgreSQL; Stripe provides SaaS
 subscriptions and club-shipment payments; EasyPost is the first shipping
-adapter; Resend is the first transactional email adapter.
+adapter; Resend is the first transactional email adapter; ShipCompliant is the
+credential-gated compliance provider.
 
 ```text
 Browser
@@ -23,10 +25,13 @@ Cloudflare Worker + Static Assets
                                       ├── Supabase Auth/PostgreSQL
                                       ├── Stripe Billing + PaymentIntents
                                       ├── EasyPost labels + tracking
-                                      └── Resend transactional delivery
+                                      ├── Resend transactional delivery
+                                      └── ShipCompliant legality + tax checks
 ```
 
-The existing Pages custom-domain deployment remains the live baseline until the new Worker staging deployment passes the complete Phase 1 activation and QA gate.
+The existing Pages custom-domain deployment remains the live baseline until the
+new Worker staging deployment passes the complete Phase 1–4 activation and QA
+gates.
 
 Cloudflare Pages injects `CF_PAGES=1`. In that environment the build also copies
 the original extensionless `app` prototype, so the Git-integrated Pages project
@@ -103,6 +108,45 @@ shipment charges and refunds.
 
 ---
 
+## Analytics and growth intelligence
+
+```text
+tenant operational facts
+  ├── daily analytics aggregates and cohorts ──> dashboard + CSV
+  ├── immutable feature snapshots
+  │     └── deterministic L2 logistic training
+  │           ├── temporal 80/20 holdout + five expanding folds
+  │           ├── candidate/shadow + 30-day A/B comparison
+  │           └── nightly prediction or rules fallback
+  ├── opted-in benchmark contributions
+  │     └── coarsened k >= 10 aggregates ──> dashboard + quarterly report
+  └── post-charge/pre-label shipment compliance check
+        └── ShipCompliant OAuth adapter ──> exact compliant permits label
+```
+
+Analytics event payloads are allowlisted, size-bounded product metadata.
+Direct identifiers such as email, address, phone, name, and provider secrets
+are rejected. Dashboard layouts and schedules remain tenant- and staff-owned.
+
+Model training stores immutable dataset and feature-contract provenance,
+coefficients, standardization parameters, temporal metrics, calibration,
+confusion matrix, and the rules baseline. Candidate registration never implies
+promotion. PostgreSQL refuses production activation unless volume, provenance,
+AUC, drift, and completed A/B-superiority gates all pass; the browser applies a
+second defensive fallback.
+
+Benchmark values are returned only after an opted-in cohort reaches ten
+wineries. Region/member-band dimensions are progressively coarsened until the
+threshold is satisfied; exact participant counts are exposed only as bands.
+
+Shipment labels no longer rely on the Phase 2 whitelist when the Phase 4 path
+is active. After a successful charge, every label attempt performs or reuses a
+current provider decision immediately before label purchase. Only `compliant`
+proceeds; `unknown`, `non_compliant`, incomplete, timed-out, or unconfigured
+responses block fulfillment and persist an auditable hold.
+
+---
+
 ## Build and deployment pipeline
 
 ```text
@@ -157,6 +201,7 @@ The Worker serves `/app/*` and `/portal/*` from the Vite shell with `text/html; 
 | Stripe PaymentIntents | Release charges, retries, refunds | Shipment billing returns `503 activation_required` |
 | EasyPost | Address verification, carrier rates, labels, tracking | Shipping returns `503 activation_required` |
 | Resend | Transactional templates, batch delivery, events | Delivery returns `503 activation_required`; durable work remains queued |
+| ShipCompliant | Post-charge/pre-label shipment legality, volume, and tax checks | Labels fail closed; dashboard reports `activation_required` until the contracted adapter configuration is complete |
 | Google via Supabase | Staff OAuth | OAuth route remains disabled until configured |
 | SMTP via Supabase | Invite/reset/magic-link delivery | Delivery QA remains pending |
 
@@ -190,9 +235,19 @@ All animations are disabled under `@media (prefers-reduced-motion: reduce)`.
 - Resend requires a server-only API key, verified winery sender domain, signed
   webhook secret, and unsubscribe signing secret. The email simulator is
   rejected outside an explicitly enabled test runtime.
-- The Worker custom-domain cutover occurs only after live Phase 1 exit verification.
+- Production ML promotion requires qualifying production history and a
+  completed 30-day A/B result. Synthetic QA data is permanently ineligible.
+- Peer results require Estate/Reserve entitlement, explicit opt-in, and a
+  coarsened cohort of at least ten wineries.
+- ShipCompliant requires vendor-approved OAuth credentials, versioned sandbox
+  paths, account/license mapping, and verified provider responses. Missing or
+  degraded configuration blocks labels.
+- The Worker custom-domain cutover occurs only after the hosted Phase 1–4
+  activation and regression gates pass.
 
 See [the Phase 1 ADR](./decisions/2026-07-26-phase-1-foundation-architecture.md)
 and [the Phase 2 ADR](./decisions/2026-07-26-phase-2-core-club-loop.md) for
 rationale and tradeoffs. Retention-specific decisions are recorded in
 [the Phase 3 ADR](./decisions/2026-07-26-phase-3-retention-communications.md).
+Analytics, ML, benchmarking, and compliance decisions are recorded in
+[the Phase 4 ADR](./decisions/2026-07-26-phase-4-analytics-intelligence.md).

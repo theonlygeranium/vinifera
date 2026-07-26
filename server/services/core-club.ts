@@ -8,8 +8,14 @@ import type { Request, Response } from "express";
 import Stripe from "stripe";
 import { isProduction } from "../config";
 import { assertStaffRole } from "../lib/authorization";
+import {
+  ANALYTICS_EVENT_TYPES,
+  analyticsEventIdempotencyKey,
+  runFailureIsolatedAnalyticsWrite,
+} from "../lib/analytics-events";
 import { AppError, requireConfigured } from "../lib/errors";
 import type {
+  ComplianceStatus,
   ClubTierInput,
   CoreClubService,
   CsvMapping,
@@ -26,6 +32,14 @@ import type {
   StaffRole,
   WorkerEnv,
 } from "../types";
+import {
+  complianceRequestFingerprint,
+  createComplianceProvider,
+  permitsLabelGeneration,
+  withAuditableComplianceId,
+  type ComplianceCheckRequest,
+  type ComplianceCheckResult,
+} from "./compliance";
 
 const STRIPE_API_VERSION = "2026-02-25.clover";
 const STAFF_COOKIE = "vinifera-staff-auth";
@@ -138,6 +152,16 @@ interface ShipmentLabelRow extends ShipmentPaymentRow {
   shipment_items?: Array<Record<string, unknown>>;
 }
 
+interface ShipmentComplianceContext {
+  bottleCount: number;
+  destination: PostalAddress;
+  memberBirthday?: string | null;
+  organizationId: string;
+  origin: PostalAddress;
+  recipientName: string;
+  shipment: ShipmentLabelRow;
+}
+
 interface CsvRow {
   rowNumber: number;
   values: Record<string, string>;
@@ -193,8 +217,20 @@ export interface LabelResult {
   trackingNumber: string;
 }
 
+export interface LabelPurchaseRecovery {
+  externalRateId?: string | null;
+  externalShipmentId?: string | null;
+  persistExternalShipment: (
+    externalShipmentId: string,
+    externalRateId: string,
+  ) => Promise<void>;
+}
+
 export interface ShippingProvider {
-  createLabel(input: LabelRequest): Promise<LabelResult>;
+  createLabel(
+    input: LabelRequest,
+    recovery?: LabelPurchaseRecovery,
+  ): Promise<LabelResult>;
   validateAddress(address: PostalAddress): Promise<AddressValidationResult>;
 }
 
@@ -302,6 +338,11 @@ function toPublicValue(value: unknown): unknown {
 
 function toPublicRecord(value: unknown): Record<string, unknown> {
   return (toPublicValue(value) ?? {}) as Record<string, unknown>;
+}
+
+function rpcRecord(value: unknown): Record<string, unknown> {
+  const row = Array.isArray(value) ? value[0] : value;
+  return toPublicRecord(row);
 }
 
 function toPublicMember(value: unknown): Record<string, unknown> {
@@ -588,21 +629,26 @@ function allowedStates(env: WorkerEnv): Set<string> {
   return configured?.length ? new Set(configured) : DEFAULT_ALLOWED_STATES;
 }
 
-function assertShippingCompliance(env: WorkerEnv, address: PostalAddress): void {
-  if (address.country.toUpperCase() !== "US") {
-    throw new AppError(
-      409,
-      "conflict",
-      "International alcohol shipments require a compliance integration.",
-    );
-  }
-  if (!allowedStates(env).has(address.state.toUpperCase())) {
-    throw new AppError(
-      409,
-      "conflict",
-      `Shipping alcohol to ${address.state.toUpperCase()} is not enabled for this winery.`,
-    );
-  }
+/**
+ * Phase 2's state whitelist is retained only as an explicitly inactive
+ * emergency reference. It is not a legal compliance decision and is never
+ * consulted by address validation, the compliance dashboard, or label
+ * generation after the Phase 4 ShipCompliant gate was introduced.
+ */
+export function assessLegacyShippingWhitelist(
+  env: WorkerEnv,
+  address: PostalAddress,
+): { allowed: boolean; reason: string | null } {
+  const countryAllowed = address.country.toUpperCase() === "US";
+  const stateAllowed = allowedStates(env).has(address.state.toUpperCase());
+  return {
+    allowed: countryAllowed && stateAllowed,
+    reason: countryAllowed
+      ? stateAllowed
+        ? null
+        : `The legacy Phase 2 whitelist did not include ${address.state.toUpperCase()}.`
+      : "The legacy Phase 2 whitelist covered only United States destinations.",
+  };
 }
 
 async function sha256(value: string): Promise<string> {
@@ -637,18 +683,36 @@ export class SimulatedShippingProvider implements ShippingProvider {
     };
   }
 
-  async createLabel(input: LabelRequest): Promise<LabelResult> {
+  async createLabel(
+    input: LabelRequest,
+    recovery?: LabelPurchaseRecovery,
+  ): Promise<LabelResult> {
     const hash = await sha256(JSON.stringify(input));
-    return {
+    const label = {
       carrier: "SIMULATED",
       labelId: `simlabel_${hash.slice(0, 18)}`,
       labelUrl: `https://example.invalid/labels/${hash.slice(0, 24)}.pdf`,
-      providerReference: `simshipment_${hash.slice(0, 18)}`,
-      rateId: `simrate_${hash.slice(0, 18)}`,
+      providerReference:
+        recovery?.externalShipmentId ?? `simshipment_${hash.slice(0, 18)}`,
+      rateId: recovery?.externalRateId ?? `simrate_${hash.slice(0, 18)}`,
       rateCents: 1_595,
       service: "Ground",
       trackingNumber: `1ZSIM${deterministicDigits(hash, 12)}`,
     };
+    if (!recovery) {
+      throw new AppError(
+        503,
+        "activation_required",
+        "Simulated label creation requires a durable database attempt lease.",
+      );
+    }
+    if (!recovery.externalShipmentId) {
+      await recovery.persistExternalShipment(
+        label.providerReference,
+        label.rateId,
+      );
+    }
+    return label;
   }
 }
 
@@ -687,10 +751,13 @@ interface EasyPostShipment {
 }
 
 export class EasyPostShippingProvider implements ShippingProvider {
-  constructor(private readonly apiKey: string) {}
+  constructor(
+    private readonly apiKey: string,
+    private readonly fetcher: typeof fetch = fetch,
+  ) {}
 
   private async request<T>(path: string, body: Record<string, unknown>): Promise<T> {
-    const response = await fetch(`https://api.easypost.com/v2${path}`, {
+    const response = await this.fetcher(`https://api.easypost.com/v2${path}`, {
       body: JSON.stringify(body),
       headers: {
         Authorization: `Basic ${Buffer.from(`${this.apiKey}:`).toString("base64")}`,
@@ -713,6 +780,34 @@ export class EasyPostShippingProvider implements ShippingProvider {
         502,
         "upstream_error",
         "The shipping provider rejected the request.",
+      );
+    }
+    return payload;
+  }
+
+  private async retrieve<T>(path: string): Promise<T> {
+    const response = await this.fetcher(`https://api.easypost.com/v2${path}`, {
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${this.apiKey}:`).toString("base64")}`,
+        Accept: "application/json",
+      },
+      method: "GET",
+    });
+    const payload = (await response.json()) as T & {
+      error?: { message?: string };
+    };
+    if (!response.ok) {
+      console.error(
+        JSON.stringify({
+          event: "shipping.provider_retrieval_failed",
+          path,
+          status: response.status,
+        }),
+      );
+      throw new AppError(
+        502,
+        "upstream_error",
+        "The stored carrier shipment could not be retrieved.",
       );
     }
     return payload;
@@ -749,25 +844,38 @@ export class EasyPostShippingProvider implements ShippingProvider {
     };
   }
 
-  async createLabel(input: LabelRequest): Promise<LabelResult> {
-    const shipment = await this.request<EasyPostShipment>("/shipments", {
-      shipment: {
-        from_address: toEasyPostAddress(input.fromAddress, input.fromContact),
-        options: {
-          alcohol: true,
-          delivery_confirmation: "ADULT_SIGNATURE",
-        },
-        parcel: {
-          height: input.parcel.heightInches,
-          length: input.parcel.lengthInches,
-          weight: input.parcel.weightOunces,
-          width: input.parcel.widthInches,
-        },
-        reference: input.externalId,
-        to_address: toEasyPostAddress(input.toAddress, input.toContact),
-      },
-    });
+  async createLabel(
+    input: LabelRequest,
+    recovery?: LabelPurchaseRecovery,
+  ): Promise<LabelResult> {
+    let shipment = recovery?.externalShipmentId
+      ? await this.retrieve<EasyPostShipment>(
+          `/shipments/${encodeURIComponent(recovery.externalShipmentId)}`,
+        )
+      : await this.request<EasyPostShipment>("/shipments", {
+          shipment: {
+            from_address: toEasyPostAddress(input.fromAddress, input.fromContact),
+            options: {
+              alcohol: true,
+              delivery_confirmation: "ADULT_SIGNATURE",
+            },
+            parcel: {
+              height: input.parcel.heightInches,
+              length: input.parcel.lengthInches,
+              weight: input.parcel.weightOunces,
+              width: input.parcel.widthInches,
+            },
+            reference: input.externalId,
+            to_address: toEasyPostAddress(input.toAddress, input.toContact),
+          },
+        });
     const rate =
+      shipment.rates?.find((candidate) =>
+        recovery?.externalRateId
+          ? candidate.id === recovery.externalRateId
+          : false,
+      ) ??
+      shipment.selected_rate ??
       shipment.lowest_rate ??
       [...(shipment.rates ?? [])].sort(
         (left, right) => Number(left.rate ?? Infinity) - Number(right.rate ?? Infinity),
@@ -775,10 +883,25 @@ export class EasyPostShippingProvider implements ShippingProvider {
     if (!shipment.id || !rate?.id) {
       throw new AppError(502, "upstream_error", "No carrier rate is available.");
     }
-    const purchased = await this.request<EasyPostShipment>(
-      `/shipments/${shipment.id}/buy`,
-      { rate: { id: rate.id } },
-    );
+    if (!recovery?.externalShipmentId) {
+      if (!recovery) {
+        throw new AppError(
+          503,
+          "activation_required",
+          "EasyPost label purchases require a durable database attempt lease.",
+        );
+      }
+      await recovery.persistExternalShipment(shipment.id, rate.id);
+    }
+    const alreadyPurchased =
+      Boolean(shipment.postage_label?.label_url) &&
+      Boolean(shipment.tracking_code ?? shipment.tracker?.tracking_code);
+    const purchased = alreadyPurchased
+      ? shipment
+      : await this.request<EasyPostShipment>(
+          `/shipments/${shipment.id}/buy`,
+          { rate: { id: rate.id } },
+        );
     const purchasedRate = purchased.selected_rate ?? rate;
     const trackingNumber =
       purchased.tracking_code ?? purchased.tracker?.tracking_code;
@@ -1350,9 +1473,390 @@ export class ProductionCoreClubService implements CoreClubService {
     if (error) throw databaseError("The audit entry could not be persisted.");
   }
 
+  protected async recordDomainAnalyticsEvent(
+    principal: StaffPrincipal | MemberPrincipal,
+    input: {
+      eventData?: Record<string, string | number | boolean | null>;
+      eventType: string;
+      memberId?: string | null;
+      requestKey: string;
+    },
+  ): Promise<void> {
+    const organizationId = principal.organization?.id;
+    if (!organizationId) throw authFailure();
+    const actorUserId =
+      "authUserId" in principal.user
+        ? principal.user.authUserId
+        : principal.user.id;
+    if (!ANALYTICS_EVENT_TYPES.has(input.eventType)) {
+      console.error(
+        JSON.stringify({
+          event: "analytics.domain_event_rejected",
+          eventType: input.eventType,
+          organizationId,
+        }),
+      );
+      return;
+    }
+    await runFailureIsolatedAnalyticsWrite(
+      async () => {
+        const { error } = await this.admin.rpc("record_analytics_event", {
+          p_event_data: input.eventData ?? {},
+          p_event_type: input.eventType,
+          p_idempotency_key: await analyticsEventIdempotencyKey({
+            actorUserId,
+            eventType: input.eventType,
+            organizationId,
+            requestKey: input.requestKey,
+          }),
+          p_member_id: input.memberId ?? null,
+          p_occurred_at: new Date().toISOString(),
+          p_organization_id: organizationId,
+        });
+        if (error) throw error;
+      },
+      () => {
+        // The stable event key makes a later retry safe.
+        console.error(
+          JSON.stringify({
+            event: "analytics.domain_event_failed",
+            eventType: input.eventType,
+            organizationId,
+            requestKey: input.requestKey,
+          }),
+        );
+      },
+    );
+  }
+
   protected organizationId(principal: StaffPrincipal): string {
     if (!principal.organization) throw authFailure();
     return principal.organization.id;
+  }
+
+  private async yearToDateBottleCount(
+    organizationId: string,
+    memberId: string,
+    checkedAt: Date,
+  ): Promise<number> {
+    const yearStart = new Date(
+      Date.UTC(checkedAt.getUTCFullYear(), 0, 1),
+    ).toISOString();
+    const { data, error } = await this.admin
+      .from("shipments")
+      .select("shipment_items(quantity)")
+      .eq("organization_id", organizationId)
+      .eq("member_id", memberId)
+      .gte("created_at", yearStart)
+      .in("status", [
+        "charged",
+        "label_created",
+        "packed",
+        "shipped",
+        "delivered",
+      ]);
+    if (error) {
+      throw databaseError(
+        "The member's year-to-date shipment volume could not be loaded.",
+      );
+    }
+    return (data ?? []).reduce((shipmentTotal, shipment) => {
+      const items = Array.isArray(shipment.shipment_items)
+        ? shipment.shipment_items
+        : shipment.shipment_items
+          ? [shipment.shipment_items]
+          : [];
+      return (
+        shipmentTotal +
+        items.reduce(
+          (itemTotal, item) =>
+            itemTotal +
+            Math.max(
+              0,
+              Number(
+                item && typeof item === "object"
+                  ? (item as Record<string, unknown>).quantity
+                  : 0,
+              ),
+            ),
+          0,
+        )
+      );
+    }, 0);
+  }
+
+  protected async checkShipmentCompliance(
+    principal: StaffPrincipal,
+    context: ShipmentComplianceContext,
+  ): Promise<{
+    check: Record<string, unknown>;
+    requestFingerprint: string;
+    result: ComplianceCheckResult;
+  }> {
+    const checkedAt = new Date();
+    const yearToDateBottleCount = await this.yearToDateBottleCount(
+      context.organizationId,
+      context.shipment.member_id,
+      checkedAt,
+    );
+    const request: ComplianceCheckRequest = {
+      destination: context.destination,
+      organizationId: context.organizationId,
+      origin: context.origin,
+      recipient: {
+        dateOfBirth: context.memberBirthday,
+        name: context.recipientName,
+      },
+      shipment: {
+        bottleCount: context.bottleCount,
+        chargeAmountCents: payableShipmentAmount(context.shipment),
+        id: context.shipment.id,
+        yearToDateBottleCount,
+      },
+    };
+    const requestFingerprint = await complianceRequestFingerprint(
+      request,
+      checkedAt,
+    );
+    let result: ComplianceCheckResult;
+    try {
+      result = await createComplianceProvider(this.env).checkShipment(request);
+    } catch (error) {
+      if (
+        error instanceof AppError &&
+        error.code === "activation_required"
+      ) {
+        throw error;
+      }
+      result = {
+        checkedAt: checkedAt.toISOString(),
+        evidence: {
+          ageVerified: null,
+          originToRecipientAllowed: null,
+          recipientStateAllowed: null,
+          rulesVersion: null,
+          volumeWithinLimit: null,
+        },
+        provider:
+          this.env.COMPLIANCE_PROVIDER === "simulated"
+            ? "simulated"
+            : "shipcompliant",
+        providerResponseId: null,
+        reason: "The compliance provider could not return a verified decision.",
+        status: "unknown",
+        taxEstimateCents: null,
+      };
+    }
+    result = withAuditableComplianceId(
+      result,
+      () => requestFingerprint.slice(0, 32),
+    );
+    const { data, error } = await this.admin.rpc(
+      "record_shipment_compliance_check",
+      {
+        p_actor_user_id: principal.user.id,
+        p_checked_at: result.checkedAt,
+        p_metadata: {
+          age_verified: result.evidence.ageVerified,
+          bottle_count: context.bottleCount,
+          contract_version:
+            result.provider === "shipcompliant"
+              ? this.env.SHIPCOMPLIANT_CONTRACT_VERSION
+              : "test-simulator-v1",
+          destination_country: context.destination.country.toUpperCase(),
+          destination_region: context.destination.state.toUpperCase(),
+          origin_to_recipient_allowed:
+            result.evidence.originToRecipientAllowed,
+          provider: result.provider,
+          provider_response_is_local:
+            result.providerResponseId?.startsWith("local-") ?? false,
+          recipient_state_allowed:
+            result.evidence.recipientStateAllowed,
+          request_fingerprint_sha256: requestFingerprint,
+          rules_version: result.evidence.rulesVersion,
+          volume_within_limit: result.evidence.volumeWithinLimit,
+          year_to_date_bottle_count: yearToDateBottleCount,
+        },
+        p_organization_id: context.organizationId,
+        p_provider: result.provider,
+        p_provider_response_id: result.providerResponseId,
+        p_reason: result.reason,
+        p_shipment_id: context.shipment.id,
+        p_status: result.status,
+        p_tax_estimate_cents: result.taxEstimateCents,
+      },
+    );
+    if (error) {
+      throw databaseError("The compliance decision could not be persisted.");
+    }
+    const row =
+      Array.isArray(data) && data.length
+        ? data[0]
+        : data && typeof data === "object"
+          ? data
+          : {
+              checked_at: result.checkedAt,
+              provider: result.provider,
+              provider_response_id: result.providerResponseId,
+              reason: result.reason,
+              shipment_id: context.shipment.id,
+              status: result.status,
+              tax_estimate_cents: result.taxEstimateCents,
+            };
+    await this.recordDomainAnalyticsEvent(principal, {
+      eventData: {
+        provider: result.provider,
+        status: result.status,
+        taxEstimateCents: result.taxEstimateCents,
+      },
+      eventType: "shipment.compliance_checked",
+      memberId: context.shipment.member_id,
+      requestKey: `compliance:${context.shipment.id}:${result.providerResponseId}`,
+    });
+    return {
+      check: toPublicRecord(row),
+      requestFingerprint,
+      result,
+    };
+  }
+
+  protected complianceBlock(
+    status: Exclude<ComplianceStatus, "compliant">,
+    reason: string | null,
+  ): AppError {
+    return new AppError(
+      409,
+      "conflict",
+      status === "non_compliant"
+        ? reason || "ShipCompliant blocked this alcohol shipment."
+        : reason ||
+            "No verified compliance decision is available, so the alcohol label is blocked.",
+    );
+  }
+
+  protected async checkStoredShipmentCompliance(
+    principal: StaffPrincipal,
+    shipmentId: string,
+  ): Promise<Record<string, unknown>> {
+    assertUuid(shipmentId, "Shipment");
+    const organizationId = this.organizationId(principal);
+    const [{ data: organization, error: organizationError }, shipmentResult] =
+      await Promise.all([
+        this.admin
+          .from("organizations")
+          .select("name,shipping_origin_address")
+          .eq("id", organizationId)
+          .single(),
+        this.admin
+          .from("shipments")
+          .select(
+            "id,organization_id,member_id,release_id,status,shipping_address,charge_amount_cents,loyalty_discount_cents,retry_count,members!inner(id,organization_id,email,first_name,last_name,phone,birthday),shipment_items(*)",
+          )
+          .eq("id", shipmentId)
+          .eq("organization_id", organizationId)
+          .maybeSingle(),
+      ]);
+    if (organizationError || !organization) {
+      throw databaseError("The winery shipping settings could not be loaded.");
+    }
+    if (shipmentResult.error) {
+      throw databaseError("The shipment could not be loaded.");
+    }
+    if (!shipmentResult.data) {
+      throw new AppError(404, "not_found", "Shipment not found.");
+    }
+    const shipment = shipmentResult.data as ShipmentLabelRow;
+    if (shipment.status !== "charged") {
+      throw new AppError(
+        409,
+        "conflict",
+        "Operational compliance checks run only after charge and before label generation.",
+      );
+    }
+    const destination = getAddress(shipment.shipping_address);
+    if (!destination) {
+      throw new AppError(
+        409,
+        "conflict",
+        "A complete member shipping address is required.",
+      );
+    }
+    const validation =
+      await createShippingProvider(this.env).validateAddress(destination);
+    if (!validation.valid) {
+      throw new AppError(
+        409,
+        "conflict",
+        validation.messages.join(" ") || "The shipping address is invalid.",
+      );
+    }
+    const { data: preparedShipment, error: preparationError } =
+      await this.admin.rpc("set_validated_shipment_address", {
+        p_actor_user_id: principal.user.id,
+        p_organization_id: organizationId,
+        p_shipment_id: shipment.id,
+        p_validated_address: {
+          city: validation.address.city,
+          country_code: validation.address.country,
+          line1: validation.address.line1,
+          line2: validation.address.line2,
+          postal_code: validation.address.postalCode,
+          region: validation.address.state,
+        },
+        p_validation_messages: validation.messages,
+        p_validation_status: "valid",
+      });
+    if (preparationError) {
+      throw databaseError(
+        "The validated shipping address could not be persisted.",
+      );
+    }
+    if (!preparedShipment) {
+      throw new AppError(
+        409,
+        "conflict",
+        "The shipment changed before its validated address could be prepared.",
+      );
+    }
+    const origin = parseOriginAddress(organization.shipping_origin_address);
+    const member = oneRelation(shipment.members);
+    const recipientName =
+      typeof shipment.shipping_address?.name === "string"
+        ? shipment.shipping_address.name.trim()
+        : `${member?.first_name ?? ""} ${member?.last_name ?? ""}`.trim();
+    if (!recipientName) {
+      throw new AppError(
+        409,
+        "conflict",
+        "A recipient name is required for compliance verification.",
+      );
+    }
+    const bottleCount = Math.max(
+      1,
+      (shipment.shipment_items ?? []).reduce(
+        (total, item) => total + Math.max(0, Number(item.quantity ?? 0)),
+        0,
+      ),
+    );
+    const decision = await this.checkShipmentCompliance(principal, {
+      bottleCount,
+      destination: validation.address,
+      memberBirthday: member?.birthday,
+      organizationId,
+      origin,
+      recipientName,
+      shipment,
+    });
+    return {
+      ...decision.check,
+      blocksLabel: decision.result.status !== "compliant",
+      provider: decision.result.provider,
+      providerResponseId: decision.result.providerResponseId,
+      reason: decision.result.reason,
+      requestFingerprint: decision.requestFingerprint,
+      status: decision.result.status,
+      taxEstimateCents: decision.result.taxEstimateCents,
+    };
   }
 
   async listClubTiers(): Promise<Array<Record<string, unknown>>> {
@@ -1561,6 +2065,15 @@ export class ProductionCoreClubService implements CoreClubService {
       club_tier_id: input.clubTierId ?? null,
       stripe_customer_created: Boolean(stripeCustomerId),
     });
+    await this.recordDomainAnalyticsEvent(principal, {
+      eventData: {
+        hasClubTier: Boolean(input.clubTierId),
+        stripeCustomerCreated: Boolean(stripeCustomerId),
+      },
+      eventType: "member.created",
+      memberId: data.id,
+      requestKey: `member:${data.id}:created`,
+    });
     return toPublicMember(data);
   }
 
@@ -1625,6 +2138,12 @@ export class ProductionCoreClubService implements CoreClubService {
     }
     await this.audit(principal, "member.updated", "member", memberId, {
       changed_fields: Object.keys(input),
+    });
+    await this.recordDomainAnalyticsEvent(principal, {
+      eventData: { changedFieldCount: Object.keys(input).length },
+      eventType: "member.updated",
+      memberId,
+      requestKey: `member:${memberId}:updated:${data.updated_at ?? "current"}`,
     });
     return toPublicMember(data);
   }
@@ -1706,6 +2225,14 @@ export class ProductionCoreClubService implements CoreClubService {
     await this.audit(principal, `member.${status}`, "member", memberId, {
       previous_status: existing.status,
     });
+    if (status === "cancelled") {
+      await this.recordDomainAnalyticsEvent(principal, {
+        eventData: { previousStatus: String(existing.status) },
+        eventType: "member.cancelled",
+        memberId,
+        requestKey: `member:${memberId}:cancelled:${String(data.updated_at)}`,
+      });
+    }
     return toPublicMember(data);
   }
 
@@ -1746,7 +2273,7 @@ export class ProductionCoreClubService implements CoreClubService {
       .update(updates)
       .eq("organization_id", organizationId);
     if (input.ids?.length) query = query.in("id", input.ids);
-    const { data, error } = await query.select("id");
+    const { data, error } = await query.select("id,updated_at");
     if (error) throw databaseError("The member batch operation failed.");
     await this.audit(
       principal,
@@ -1755,6 +2282,18 @@ export class ProductionCoreClubService implements CoreClubService {
       organizationId,
       { count: data?.length ?? 0, tier_id: input.tierId ?? null },
     );
+    if (input.operation === "cancel") {
+      await mapConcurrent(data ?? [], 10, async (member) => {
+        await this.recordDomainAnalyticsEvent(principal, {
+          eventData: { source: "batch" },
+          eventType: "member.cancelled",
+          memberId: String(member.id),
+          requestKey:
+            `member:${String(member.id)}:cancelled:` +
+            String(member.updated_at),
+        });
+      });
+    }
     return { updated: data?.length ?? 0 };
   }
 
@@ -1874,6 +2413,14 @@ export class ProductionCoreClubService implements CoreClubService {
         tier_count: input.tierIds.length,
         wine_count: input.wines.length,
       });
+      await this.recordDomainAnalyticsEvent(principal, {
+        eventData: {
+          tierCount: input.tierIds.length,
+          wineCount: input.wines.length,
+        },
+        eventType: "release.created",
+        requestKey: `release:${release.id}:created`,
+      });
     } catch (error) {
       await this.admin
         .from("releases")
@@ -1979,6 +2526,11 @@ export class ProductionCoreClubService implements CoreClubService {
     await this.audit(principal, "release.scheduled", "release", releaseId, {
       processing_date: data.processing_date,
     });
+    await this.recordDomainAnalyticsEvent(principal, {
+      eventData: { processingDate: String(data.processing_date) },
+      eventType: "release.scheduled",
+      requestKey: `release:${releaseId}:scheduled`,
+    });
     console.info(
       JSON.stringify({
         event: "release.notification.stub",
@@ -2076,6 +2628,15 @@ export class ProductionCoreClubService implements CoreClubService {
       skipped: results.filter((result) => result === "skipped").length,
     };
     await this.audit(principal, "release.processed", "release", releaseId, summary);
+    await this.recordDomainAnalyticsEvent(principal, {
+      eventData: {
+        charged: summary.charged,
+        declined: summary.declined,
+        skipped: summary.skipped,
+      },
+      eventType: "release.processed",
+      requestKey: `release:${releaseId}:processed`,
+    });
     return summary;
   }
 
@@ -2327,7 +2888,6 @@ export class ProductionCoreClubService implements CoreClubService {
   async validateShippingAddress(
     address: PostalAddress,
   ): Promise<{ address: PostalAddress; messages: string[]; valid: boolean }> {
-    assertShippingCompliance(this.env, address);
     const result = await createShippingProvider(this.env).validateAddress(address);
     return {
       address: result.address,
@@ -2395,7 +2955,7 @@ export class ProductionCoreClubService implements CoreClubService {
     const { data, error } = await this.admin
       .from("shipments")
       .select(
-        "id,organization_id,member_id,release_id,status,shipping_address,charge_amount_cents,retry_count,members!inner(id,organization_id,email,first_name,last_name,phone),shipment_items(*)",
+        "id,organization_id,member_id,release_id,status,shipping_address,charge_amount_cents,loyalty_discount_cents,retry_count,members!inner(id,organization_id,email,first_name,last_name,phone,birthday),shipment_items(*)",
       )
       .eq("organization_id", organizationId)
       .in("id", shipmentIds);
@@ -2429,13 +2989,44 @@ export class ProductionCoreClubService implements CoreClubService {
               "A complete member shipping address is required.",
             );
           }
-          assertShippingCompliance(this.env, toAddress);
           const validation = await provider.validateAddress(toAddress);
           if (!validation.valid) {
             throw new AppError(
               409,
               "conflict",
               validation.messages.join(" ") || "The shipping address is invalid.",
+            );
+          }
+          const validatedShippingAddress = {
+            city: validation.address.city,
+            country_code: validation.address.country,
+            line1: validation.address.line1,
+            line2: validation.address.line2,
+            postal_code: validation.address.postalCode,
+            region: validation.address.state,
+          };
+          // Persist the normalized address while the shipment is still charged.
+          // The database invalidates any earlier decision here, then the
+          // compliance RPC fingerprints this exact immutable pre-label state.
+          const { data: preparedShipment, error: preparationError } =
+            await this.admin.rpc("set_validated_shipment_address", {
+              p_actor_user_id: principal.user.id,
+              p_organization_id: organizationId,
+              p_shipment_id: shipment.id,
+              p_validated_address: validatedShippingAddress,
+              p_validation_messages: validation.messages,
+              p_validation_status: "valid",
+            });
+          if (preparationError) {
+            throw databaseError(
+              "The validated shipping address could not be persisted.",
+            );
+          }
+          if (!preparedShipment) {
+            throw new AppError(
+              409,
+              "conflict",
+              "The shipment changed before its validated address could be prepared.",
             );
           }
           const items = shipment.shipment_items ?? [];
@@ -2466,7 +3057,33 @@ export class ProductionCoreClubService implements CoreClubService {
               "The member needs a recipient name and phone before an adult-signature label can be generated.",
             );
           }
-          const label = await provider.createLabel({
+          const compliance = await this.checkShipmentCompliance(principal, {
+            bottleCount,
+            destination: validation.address,
+            memberBirthday: member?.birthday,
+            organizationId,
+            origin: fromAddress,
+            recipientName,
+            shipment,
+          });
+          if (!permitsLabelGeneration(compliance.result.status)) {
+            const block = this.complianceBlock(
+              compliance.result.status,
+              compliance.result.reason,
+            );
+            return {
+              compliance: compliance.check,
+              error: {
+                code: block.code,
+                message: block.message,
+                reason: compliance.result.reason,
+                status: compliance.result.status,
+              },
+              shipmentId: shipment.id,
+              success: false,
+            };
+          }
+          const labelRequest: LabelRequest = {
             externalId: shipment.id,
             fromAddress,
             fromContact: {
@@ -2485,42 +3102,177 @@ export class ProductionCoreClubService implements CoreClubService {
               name: recipientName,
               phone: recipientPhone,
             },
-          });
-          const { error: transitionError } = await this.admin.rpc(
-            "transition_shipment",
-            {
-              p_actor_user_id: principal.user.id,
-              p_carrier: label.carrier,
-              p_metadata: {
-                address_validation_messages: validation.messages,
-                address_validation_status: "valid",
-                external_label_id: label.labelId,
-                external_rate_id: label.rateId,
-                external_shipment_id: label.providerReference,
-                label_cost_cents: label.rateCents,
-                label_format: "PDF",
-                label_url: label.labelUrl,
-                provider_metadata: { service: label.service },
-                shipping_provider: this.env.SHIPPING_PROVIDER,
-                validated_shipping_address: {
-                  city: validation.address.city,
-                  country_code: validation.address.country,
-                  line1: validation.address.line1,
-                  line2: validation.address.line2,
-                  postal_code: validation.address.postalCode,
-                  region: validation.address.state,
+          };
+          {
+            const { data: attemptData, error: attemptError } =
+              await this.admin.rpc("acquire_shipping_label_attempt", {
+                p_actor_user_id: principal.user.id,
+                p_lease_seconds: 300,
+                p_organization_id: organizationId,
+                p_provider: this.env.SHIPPING_PROVIDER,
+                p_shipment_id: shipment.id,
+                p_worker_id: `staff:${principal.user.id}`,
+              });
+            if (attemptError) {
+              throw databaseError(
+                "A durable shipping label attempt could not be acquired.",
+              );
+            }
+            const attempt = rpcRecord(attemptData);
+            const disposition = String(attempt.disposition ?? "");
+            if (disposition === "succeeded") {
+              const providerMetadata =
+                attempt.providerMetadata &&
+                typeof attempt.providerMetadata === "object"
+                  ? (attempt.providerMetadata as Record<string, unknown>)
+                  : {};
+              await this.recordDomainAnalyticsEvent(principal, {
+                eventData: {
+                  carrier: String(attempt.carrier ?? "unknown"),
+                  provider: String(attempt.provider ?? "unknown"),
+                  rateCents: Number(attempt.labelCostCents ?? 0),
                 },
-              },
-              p_organization_id: organizationId,
-              p_shipment_id: shipment.id,
-              p_target_status: "label_created",
-              p_tracking_number: label.trackingNumber,
-            },
-          );
-          if (transitionError) {
-            throw databaseError("The shipment status could not be updated.");
+                eventType: "shipment.label_created",
+                memberId: shipment.member_id,
+                requestKey: `label:${shipment.id}:${String(attempt.externalLabelId)}`,
+              });
+              return {
+                label: {
+                  carrier: attempt.carrier,
+                  labelId: attempt.externalLabelId,
+                  labelUrl: attempt.labelUrl,
+                  providerReference: attempt.externalShipmentId,
+                  rateId: attempt.externalRateId,
+                  rateCents: Number(attempt.labelCostCents ?? 0),
+                  service:
+                    typeof providerMetadata.service === "string"
+                      ? providerMetadata.service
+                      : "Recovered",
+                  trackingNumber: attempt.trackingNumber,
+                },
+                recovered: true,
+                shipmentId: shipment.id,
+                success: true,
+              };
+            }
+            if (disposition === "in_progress") {
+              throw new AppError(
+                409,
+                "conflict",
+                "Another worker is already purchasing this shipment label.",
+              );
+            }
+            const attemptId = String(attempt.attemptId ?? "");
+            const leaseToken = String(attempt.leaseToken ?? "");
+            if (
+              !attemptId ||
+              !leaseToken ||
+              ![
+                "create_shipment",
+                "recover_purchase",
+                "reconcile",
+              ].includes(disposition)
+            ) {
+              throw new AppError(
+                409,
+                "conflict",
+                "The shipping label attempt requires reconciliation before another purchase.",
+              );
+            }
+            let externalShipmentPersisted = Boolean(
+              attempt.externalShipmentId,
+            );
+            try {
+              const label = await provider.createLabel(
+                {
+                  ...labelRequest,
+                  externalId: String(attempt.correlationReference),
+                },
+                {
+                externalRateId:
+                  typeof attempt.externalRateId === "string"
+                    ? attempt.externalRateId
+                    : null,
+                externalShipmentId:
+                  typeof attempt.externalShipmentId === "string"
+                    ? attempt.externalShipmentId
+                    : null,
+                persistExternalShipment: async (
+                  externalShipmentId,
+                  externalRateId,
+                ) => {
+                  const { error: persistError } = await this.admin.rpc(
+                    "persist_shipping_label_external_shipment",
+                    {
+                      p_attempt_id: attemptId,
+                      p_external_rate_id: externalRateId,
+                      p_external_shipment_id: externalShipmentId,
+                      p_lease_token: leaseToken,
+                    },
+                  );
+                  if (persistError) {
+                    throw databaseError(
+                      "The external carrier shipment could not be persisted before purchase.",
+                    );
+                  }
+                  externalShipmentPersisted = true;
+                },
+                },
+              );
+              const { error: completionError } = await this.admin.rpc(
+                "complete_shipping_label_attempt",
+                {
+                  p_attempt_id: attemptId,
+                  p_carrier: label.carrier,
+                  p_error_message: null,
+                  p_external_label_id: label.labelId,
+                  p_label_cost_cents: label.rateCents,
+                  p_label_url: label.labelUrl,
+                  p_lease_token: leaseToken,
+                  p_outcome: "succeeded",
+                  p_provider_metadata: {
+                    label_format: "PDF",
+                    service: label.service,
+                  },
+                  p_tracking_number: label.trackingNumber,
+                },
+              );
+              if (completionError) {
+                throw databaseError(
+                  "The purchased carrier label could not be committed.",
+                );
+              }
+              await this.recordDomainAnalyticsEvent(principal, {
+                eventData: {
+                  carrier: label.carrier,
+                  provider: this.env.SHIPPING_PROVIDER ?? "unknown",
+                  rateCents: label.rateCents,
+                },
+                eventType: "shipment.label_created",
+                memberId: shipment.member_id,
+                requestKey: `label:${shipment.id}:${label.labelId}`,
+              });
+              return { label, shipmentId: shipment.id, success: true };
+            } catch (error) {
+              await this.admin.rpc("complete_shipping_label_attempt", {
+                p_attempt_id: attemptId,
+                p_carrier: null,
+                p_error_message: externalShipmentPersisted
+                  ? "Carrier purchase outcome requires reconciliation."
+                  : "Carrier shipment creation failed before persistence.",
+                p_external_label_id: null,
+                p_label_cost_cents: null,
+                p_label_url: null,
+                p_lease_token: leaseToken,
+                p_outcome: externalShipmentPersisted
+                  ? "indeterminate"
+                  : "failed",
+                p_provider_metadata: {},
+                p_tracking_number: null,
+              });
+              throw error;
+            }
           }
-          return { label, shipmentId: shipment.id, success: true };
         } catch (error) {
           return {
             error:
@@ -2627,6 +3379,16 @@ export class ProductionCoreClubService implements CoreClubService {
       throw new AppError(409, "conflict", "That shipment status change is not allowed.");
     }
     const result = Array.isArray(data) ? data[0] : data;
+    if (input.status === "shipped" || input.status === "delivered") {
+      await this.recordDomainAnalyticsEvent(principal, {
+        eventData: { status: input.status },
+        eventType:
+          input.status === "shipped"
+            ? "shipment.shipped"
+            : "shipment.delivered",
+        requestKey: `shipment:${shipmentId}:${input.status}`,
+      });
+    }
     return { id: shipmentId, status: result };
   }
 
@@ -3234,6 +3996,18 @@ export class ProductionCoreClubService implements CoreClubService {
         stripe_payment_intent_id: outcome.paymentIntentId,
       },
     );
+    await this.recordDomainAnalyticsEvent(principal, {
+      eventData: {
+        amountCents: payableShipmentAmount(shipment),
+        source: outcome.source,
+      },
+      eventType:
+        outcome.status === "charged"
+          ? "shipment.charged"
+          : "shipment.declined",
+      memberId: shipment.member_id,
+      requestKey: `billing-attempt:${billingAttemptId}:${outcome.status}`,
+    });
     if (outcome.status === "declined") {
       console.info(
         JSON.stringify({

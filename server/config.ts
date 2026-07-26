@@ -21,6 +21,46 @@ export function getAllowedOrigins(env: WorkerEnv): string[] {
 }
 
 export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
+  const compliance =
+    env.COMPLIANCE_PROVIDER === "shipcompliant"
+      ? capability(env, [
+          "COMPLIANCE_PROVIDER",
+          "SHIPCOMPLIANT_BASE_URL",
+          "SHIPCOMPLIANT_ACCOUNT_ID",
+          "SHIPCOMPLIANT_API_KEY",
+          "SHIPCOMPLIANT_API_SECRET",
+          "SHIPCOMPLIANT_CHECK_PATH",
+          "SHIPCOMPLIANT_CONTRACT_VERSION",
+          "SHIPCOMPLIANT_LICENSE_ID",
+        ])
+      : env.COMPLIANCE_PROVIDER === "simulated" &&
+          env.APP_ENV === "test" &&
+          env.COMPLIANCE_SIMULATOR_ENABLED === "true"
+        ? { configured: true, missing: [] }
+        : {
+            configured: false,
+            missing:
+              env.COMPLIANCE_PROVIDER === "simulated"
+                ? [
+                    ...(env.APP_ENV === "test" ? [] : ["APP_ENV"]),
+                    ...(env.COMPLIANCE_SIMULATOR_ENABLED === "true"
+                      ? []
+                      : ["COMPLIANCE_SIMULATOR_ENABLED"]),
+                  ]
+                : ["COMPLIANCE_PROVIDER"],
+          };
+  if (env.COMPLIANCE_PROVIDER === "shipcompliant" && env.SHIPCOMPLIANT_BASE_URL) {
+    try {
+      if (new URL(env.SHIPCOMPLIANT_BASE_URL).protocol !== "https:") {
+        throw new Error("ShipCompliant must use HTTPS.");
+      }
+    } catch {
+      compliance.configured = false;
+      if (!compliance.missing.includes("SHIPCOMPLIANT_BASE_URL")) {
+        compliance.missing.push("SHIPCOMPLIANT_BASE_URL");
+      }
+    }
+  }
   const communications =
     env.EMAIL_PROVIDER === "resend"
       ? capability(env, [
@@ -76,7 +116,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
     env.SHIPPING_PROVIDER === "easypost"
       ? capability(env, ["SHIPPING_PROVIDER", "EASYPOST_API_KEY"])
       : env.SHIPPING_PROVIDER === "simulated" &&
-          env.APP_ENV !== "production" &&
+          env.APP_ENV === "test" &&
           env.SHIPPING_SIMULATOR_ENABLED === "true"
         ? { configured: true, missing: [] }
         : {
@@ -84,7 +124,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
             missing:
               env.SHIPPING_PROVIDER === "simulated"
                 ? [
-                    ...(env.APP_ENV === "production" ? ["APP_ENV"] : []),
+                    ...(env.APP_ENV === "test" ? [] : ["APP_ENV"]),
                     ...(env.SHIPPING_SIMULATOR_ENABLED === "true"
                       ? []
                       : ["SHIPPING_SIMULATOR_ENABLED"]),
@@ -105,6 +145,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
       "STRIPE_PRICE_ESTATE",
       "STRIPE_PRICE_RESERVE",
     ]),
+    compliance,
     communications,
     webhook: capability(env, ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]),
     googleOAuth: {

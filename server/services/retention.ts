@@ -40,10 +40,17 @@ interface ClaimedEmail {
 }
 
 interface OutgoingEmail {
+  attachments?: EmailAttachment[];
   headers?: Record<string, string>;
   html: string;
   subject: string;
   to: string;
+}
+
+export interface EmailAttachment {
+  contentBase64: string;
+  contentType: "application/pdf" | "text/csv";
+  filename: string;
 }
 
 export interface EmailBatchResult {
@@ -358,6 +365,7 @@ export function sanitizeTemplateHtml(input: string): string {
     "a",
     "blockquote",
     "br",
+    "caption",
     "div",
     "em",
     "h1",
@@ -368,6 +376,12 @@ export function sanitizeTemplateHtml(input: string): string {
     "p",
     "span",
     "strong",
+    "table",
+    "tbody",
+    "td",
+    "th",
+    "thead",
+    "tr",
     "u",
     "ul",
   ]);
@@ -523,6 +537,11 @@ export class ResendEmailProvider implements TransactionalEmailProvider {
     const response = await this.fetcher(`${RESEND_API_ORIGIN}/emails/batch`, {
       body: JSON.stringify(
         messages.map((message) => ({
+          attachments: message.attachments?.map((attachment) => ({
+            content: attachment.contentBase64,
+            content_type: attachment.contentType,
+            filename: attachment.filename,
+          })),
           from: this.#from,
           headers: message.headers,
           html: message.html,
@@ -557,6 +576,46 @@ export class ResendEmailProvider implements TransactionalEmailProvider {
     }
     return results;
   }
+}
+
+function emailAttachments(payload: Record<string, unknown> | null): EmailAttachment[] {
+  const value = payload?.attachments;
+  if (!Array.isArray(value) || value.length > 2) return [];
+  const attachments: EmailAttachment[] = [];
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+      return [];
+    }
+    const record = candidate as Record<string, unknown>;
+    const contentBase64 =
+      typeof record.content_base64 === "string"
+        ? record.content_base64
+        : typeof record.contentBase64 === "string"
+          ? record.contentBase64
+          : "";
+    const contentType =
+      record.content_type === "application/pdf" ||
+      record.content_type === "text/csv"
+        ? record.content_type
+        : record.contentType === "application/pdf" ||
+            record.contentType === "text/csv"
+          ? record.contentType
+          : null;
+    const filename =
+      typeof record.filename === "string"
+        ? record.filename.replaceAll(/[^\w .-]/g, "_").slice(0, 160)
+        : "";
+    if (
+      !contentType ||
+      !filename ||
+      contentBase64.length > 2_800_000 ||
+      !/^[A-Za-z0-9+/]*={0,2}$/.test(contentBase64)
+    ) {
+      return [];
+    }
+    attachments.push({ contentBase64, contentType, filename });
+  }
+  return attachments;
 }
 
 export class SimulatedEmailProvider implements TransactionalEmailProvider {
@@ -1026,6 +1085,7 @@ export async function deliverClaimedEmails(input: {
         variables,
       });
       return {
+        attachments: emailAttachments(row.payload),
         headers: row.member_id
           ? {
               "List-Unsubscribe": `<${unsubscribeUrl.toString()}>`,
@@ -1105,6 +1165,12 @@ export class ProductionRetentionService
     if (error) {
       throw databaseError("Member portal activity could not be recorded.");
     }
+    await this.recordDomainAnalyticsEvent(principal, {
+      eventData: { source: "member_session" },
+      eventType: "portal.login",
+      memberId: principal.user.id,
+      requestKey: portalLoginIdempotencyKey(principal.user.id, asOf),
+    });
   }
 
   async listEmailTemplates(): Promise<Array<Record<string, unknown>>> {
@@ -2039,6 +2105,17 @@ export class ProductionRetentionService
       );
     }
     const outcome = toPublicRecord(data);
+    if (input.action === "cancelled") {
+      await this.recordDomainAnalyticsEvent(principal, {
+        eventData: {
+          source: "cancel_flow",
+          stepId,
+        },
+        eventType: "member.cancelled",
+        memberId: principal.user.id,
+        requestKey: `cancel-flow:${attemptId}:${stepId}:cancelled`,
+      });
+    }
     return {
       ...outcome,
       message:
@@ -2393,6 +2470,15 @@ export class ProductionRetentionService
         "Those points cannot be applied to the upcoming shipment.",
       );
     }
+    await this.recordDomainAnalyticsEvent(principal, {
+      eventData: {
+        points: input.points,
+        shipmentId: input.shipmentId,
+      },
+      eventType: "loyalty.redeemed",
+      memberId: principal.user.id,
+      requestKey: `loyalty:${input.idempotencyKey}`,
+    });
     return toPublicRecord(data);
   }
 

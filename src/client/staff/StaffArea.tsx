@@ -18,10 +18,13 @@ import {
   ResetPasswordPage,
   SignupPage,
 } from "./StaffAuthPages";
-import { ChurnWatchPage } from "./phase3/ChurnWatchPage";
 import { CommunicationsPage } from "./phase3/CommunicationsPage";
 import { LoyaltyPage } from "./phase3/LoyaltyPage";
 import { RetentionPage } from "./phase3/RetentionPage";
+import { AnalyticsPage } from "./phase4/AnalyticsPage";
+import { BenchmarksPage } from "./phase4/BenchmarksPage";
+import { ChurnIntelligencePage } from "./phase4/ChurnIntelligencePage";
+import { CompliancePage } from "./phase4/CompliancePage";
 import {
   StaffSessionProvider,
   useStaffSession,
@@ -136,7 +139,7 @@ function StaffRoutes() {
   if (route === "/app/churn-watch") {
     return (
       <ProtectedPage>
-        <ChurnWatchPage />
+        <ChurnIntelligencePage />
       </ProtectedPage>
     );
   }
@@ -151,6 +154,27 @@ function StaffRoutes() {
     return (
       <ProtectedPage>
         <LoyaltyPage />
+      </ProtectedPage>
+    );
+  }
+  if (route === "/app/analytics") {
+    return (
+      <ProtectedPage>
+        <AnalyticsPage />
+      </ProtectedPage>
+    );
+  }
+  if (route === "/app/benchmarks") {
+    return (
+      <ProtectedPage>
+        <BenchmarksPage />
+      </ProtectedPage>
+    );
+  }
+  if (route === "/app/compliance") {
+    return (
+      <ProtectedPage>
+        <CompliancePage />
       </ProtectedPage>
     );
   }

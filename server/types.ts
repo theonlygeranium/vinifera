@@ -39,6 +39,14 @@ export type CancelFlowOutcome =
   | "downgraded"
   | "swapped"
   | "cancelled";
+export type AnalyticsRange =
+  | "7d"
+  | "30d"
+  | "90d"
+  | "12m"
+  | "all"
+  | "custom";
+export type ComplianceStatus = "compliant" | "non_compliant" | "unknown";
 
 export interface WorkerEnv {
   ALLOWED_ORIGINS?: string;
@@ -46,6 +54,8 @@ export interface WorkerEnv {
   APP_ORIGIN?: string;
   ASSETS?: Fetcher;
   AUTH_EMAIL_ENABLED?: "true" | "false";
+  COMPLIANCE_PROVIDER?: "shipcompliant" | "simulated";
+  COMPLIANCE_SIMULATOR_ENABLED?: "true" | "false";
   GOOGLE_OAUTH_ENABLED?: "true" | "false";
   RATE_LIMIT_PEPPER?: string;
   EASYPOST_API_KEY?: string;
@@ -56,6 +66,14 @@ export interface WorkerEnv {
   RESEND_FROM?: string;
   RESEND_SENDING_DOMAIN?: string;
   RESEND_WEBHOOK_SECRET?: string;
+  SHIPCOMPLIANT_ACCOUNT_ID?: string;
+  SHIPCOMPLIANT_API_KEY?: string;
+  SHIPCOMPLIANT_API_SECRET?: string;
+  SHIPCOMPLIANT_BASE_URL?: string;
+  SHIPCOMPLIANT_CHECK_PATH?: string;
+  SHIPCOMPLIANT_CONTRACT_VERSION?: string;
+  SHIPCOMPLIANT_LICENSE_ID?: string;
+  SHIPCOMPLIANT_TOKEN_PATH?: string;
   SHIPPING_ALLOWED_STATES?: string;
   SHIPPING_PROVIDER?: "easypost" | "simulated";
   SHIPPING_SIMULATOR_ENABLED?: "true" | "false";
@@ -426,9 +444,90 @@ export interface RetentionService {
   upsertEmailTemplate(input: EmailTemplateInput): Promise<Record<string, unknown>>;
 }
 
+export interface AnalyticsService {
+  acknowledgeHighRiskAlert(alertId: string): Promise<Record<string, unknown>>;
+  exportAnalyticsWidget(
+    widget: string,
+    input: {
+      from?: string;
+      range: AnalyticsRange;
+      to?: string;
+    },
+  ): Promise<{ contents: string; filename: string }>;
+  getAnalyticsDashboard(input: {
+    from?: string;
+    range: AnalyticsRange;
+    to?: string;
+  }): Promise<Record<string, unknown>>;
+  getAnalyticsLayout(): Promise<Record<string, unknown>>;
+  getBenchmarkComparison(): Promise<Record<string, unknown>>;
+  getComplianceCheck(checkId: string): Promise<Record<string, unknown>>;
+  getChurnIntelligence(input: {
+    limit: number;
+    offset: number;
+    riskLevel?: "low" | "medium" | "high";
+    search?: string;
+  }): Promise<Record<string, unknown>>;
+  getMemberChurnIntelligence(memberId: string): Promise<Record<string, unknown>>;
+  getMlOperations(): Promise<Record<string, unknown>>;
+  listComplianceChecks(input: {
+    limit: number;
+    offset: number;
+    releaseId?: string;
+    status?: ComplianceStatus;
+  }): Promise<Record<string, unknown>>;
+  listScheduledAnalyticsReports(): Promise<Array<Record<string, unknown>>>;
+  recordAnalyticsEvent(input: {
+    eventData?: Record<string, string | number | boolean | null>;
+    eventType: string;
+    idempotencyKey: string;
+    memberId?: string;
+  }): Promise<{ accepted: boolean }>;
+  runShipmentComplianceCheck(
+    shipmentId: string,
+  ): Promise<Record<string, unknown>>;
+  runReleaseComplianceChecks(
+    releaseId: string,
+  ): Promise<{
+    compliant: number;
+    nonCompliant: number;
+    results: Array<Record<string, unknown>>;
+    unknown: number;
+  }>;
+  saveAnalyticsLayout(input: {
+    widgets: Array<{
+      enabled: boolean;
+      id: string;
+      order: number;
+      size: "half" | "full";
+    }>;
+  }): Promise<Record<string, unknown>>;
+  setBenchmarkOptIn(input: {
+    optedIn: boolean;
+    quarterlyReportEnabled: boolean;
+  }): Promise<Record<string, unknown>>;
+  upsertScheduledAnalyticsReport(input: {
+    enabled: boolean;
+    frequency: "weekly" | "monthly";
+    id?: string;
+    recipientEmail: string;
+    widgetIds: string[];
+  }): Promise<Record<string, unknown>>;
+  updateScheduledAnalyticsReport(
+    reportId: string,
+    input: Partial<{
+      enabled: boolean;
+      frequency: "weekly" | "monthly";
+      recipientEmail: string;
+      widgetIds: string[];
+    }>,
+  ): Promise<Record<string, unknown>>;
+}
+
 export type ApplicationService = FoundationService &
   CoreClubService &
-  RetentionService;
+  RetentionService &
+  AnalyticsService;
 
 export type FoundationServiceFactory = (
   request: Request,
@@ -448,6 +547,7 @@ export interface ConfigurationCapability {
 export interface ConfigurationReport {
   app: ConfigurationCapability;
   billing: ConfigurationCapability;
+  compliance: ConfigurationCapability;
   communications: ConfigurationCapability;
   database: ConfigurationCapability;
   email: ConfigurationCapability;

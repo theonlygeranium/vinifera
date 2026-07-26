@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { httpServerHandler } from "cloudflare:node";
 import { createApp } from "./app";
 import { withSecurityHeaders } from "./lib/security";
+import { runAnalyticsSchedule } from "./services/analytics";
 import { runCoreClubSchedule } from "./services/core-club";
 import { reconcileSubscriptionAccess } from "./services/production-foundation";
 import { runRetentionSchedule } from "./services/retention";
@@ -92,11 +93,30 @@ export default {
     context: ExecutionContext,
   ): Promise<void> {
     context.waitUntil(
-      Promise.all([
+      Promise.allSettled([
+        runAnalyticsSchedule(workerEnv),
         reconcileSubscriptionAccess(workerEnv),
         runCoreClubSchedule(workerEnv),
         runRetentionSchedule(workerEnv),
-      ]).then(() => undefined),
+      ]).then((results) => {
+        const failedJobs = results.flatMap((result, index) =>
+          result.status === "rejected"
+            ? [
+                [
+                  "analytics",
+                  "subscription reconciliation",
+                  "core club",
+                  "retention",
+                ][index] ?? `job ${index + 1}`,
+              ]
+            : [],
+        );
+        if (failedJobs.length) {
+          throw new Error(
+            `Scheduled work failed after all jobs ran: ${failedJobs.join(", ")}.`,
+          );
+        }
+      }),
     );
   },
 };

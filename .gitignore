@@ -9,6 +9,8 @@ dist-ssr/
 coverage/
 playwright-report/
 test-results/
+.playwright-mcp/
+tmp/
 *.lcov
 
 # Local environment and secret files

@@ -424,9 +424,9 @@ insert into public.shipments (
   charge_amount_cents
 )
 values
-  ('88000000-0000-4000-8000-000000000001', '82000000-0000-4000-8000-000000000001', '84000000-0000-4000-8000-000000000001', '85000000-0000-4000-8000-000000000001', '86000000-0000-4000-8000-000000000001', '83000000-0000-4000-8000-000000000001', '{"line1":"1 Estate Way"}', 15000),
-  ('88000000-0000-4000-8000-000000000002', '82000000-0000-4000-8000-000000000001', '84000000-0000-4000-8000-000000000001', '85000000-0000-4000-8000-000000000002', '86000000-0000-4000-8000-000000000002', '83000000-0000-4000-8000-000000000001', '{"line1":"1 Estate Way"}', 15000),
-  ('88000000-0000-4000-8000-000000000003', '82000000-0000-4000-8000-000000000001', '84000000-0000-4000-8000-000000000001', '85000000-0000-4000-8000-000000000003', '86000000-0000-4000-8000-000000000003', '83000000-0000-4000-8000-000000000001', '{"line1":"1 Estate Way"}', 1000);
+  ('88000000-0000-4000-8000-000000000001', '82000000-0000-4000-8000-000000000001', '84000000-0000-4000-8000-000000000001', '85000000-0000-4000-8000-000000000001', '86000000-0000-4000-8000-000000000001', '83000000-0000-4000-8000-000000000001', '{"line1":"1 Estate Way","state":"CA"}', 15000),
+  ('88000000-0000-4000-8000-000000000002', '82000000-0000-4000-8000-000000000001', '84000000-0000-4000-8000-000000000001', '85000000-0000-4000-8000-000000000002', '86000000-0000-4000-8000-000000000002', '83000000-0000-4000-8000-000000000001', '{"line1":"1 Estate Way","state":"CA"}', 15000),
+  ('88000000-0000-4000-8000-000000000003', '82000000-0000-4000-8000-000000000001', '84000000-0000-4000-8000-000000000001', '85000000-0000-4000-8000-000000000003', '86000000-0000-4000-8000-000000000003', '83000000-0000-4000-8000-000000000001', '{"line1":"1 Estate Way","state":"CA"}', 1000);
 
 insert into public.shipment_items (
   id,
@@ -542,6 +542,33 @@ select ok(
 update public.shipments
 set status = 'charged', paid_at = now()
 where id = '88000000-0000-4000-8000-000000000001';
+
+-- Phase 4 adds a fail-closed pre-label compliance gate. Keep this Phase 3
+-- regression runnable both before and after that migration without creating a
+-- compile-time dependency on the later RPC.
+set local request.jwt.claims = '{"role":"service_role"}';
+do $$
+begin
+  if to_regproc('public.record_shipment_compliance_check') is not null then
+    execute $phase4$
+      select public.record_shipment_compliance_check(
+        '82000000-0000-4000-8000-000000000001',
+        '88000000-0000-4000-8000-000000000001',
+        'compliant',
+        null,
+        0,
+        'simulated-phase3-label-gate',
+        'simulated',
+        now(),
+        '81000000-0000-4000-8000-000000000001',
+        '{"recipient_state_allowed":true,"origin_to_recipient_allowed":true,"age_verified":true,"volume_within_limit":true,"rules_version":"phase3-regression","request_fingerprint_sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}'::jsonb
+      )
+    $phase4$;
+  end if;
+end;
+$$;
+set local request.jwt.claims = '{}';
+
 update public.shipments
 set
   status = 'label_created',

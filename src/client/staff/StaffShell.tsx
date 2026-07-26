@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Boxes,
   CalendarDays,
   CreditCard,
@@ -10,8 +11,10 @@ import {
   Menu,
   PackageCheck,
   RefreshCw,
+  Scale,
   Sparkles,
   Tags,
+  Trophy,
   Upload,
   Users,
   X,
@@ -31,7 +34,10 @@ import { useStaffSession } from "./StaffSessionContext";
 const navSections = [
   {
     label: "Overview",
-    links: [{ href: "/app", label: "Dashboard", icon: LayoutDashboard }],
+    links: [
+      { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/app/analytics", label: "Analytics", icon: BarChart3 },
+    ],
   },
   {
     label: "Club Operations",
@@ -41,6 +47,7 @@ const navSections = [
       { href: "/app/releases", label: "Release Schedule", icon: CalendarDays },
       { href: "/app/shipments", label: "Shipments", icon: Boxes },
       { href: "/app/fulfillment", label: "Fulfillment", icon: PackageCheck },
+      { href: "/app/compliance", label: "Compliance", icon: Scale },
       { href: "/app/recovery", label: "Payment Recovery", icon: RefreshCw },
       { href: "/app/import", label: "Import Members", icon: Upload },
     ],
@@ -52,6 +59,7 @@ const navSections = [
       { href: "/app/communications", label: "Communications", icon: Mail },
       { href: "/app/retention", label: "Cancel Flow", icon: HeartHandshake },
       { href: "/app/loyalty", label: "Loyalty & Rewards", icon: Gift },
+      { href: "/app/benchmarks", label: "Peer Benchmarks", icon: Trophy },
     ],
   },
 ] as const;

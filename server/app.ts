@@ -16,6 +16,7 @@ import {
 import { createProductionFoundationService } from "./services/production-foundation";
 import { verifyUnsubscribeToken } from "./services/retention";
 import type {
+  AnalyticsService,
   ApplicationService,
   ClubTierInput,
   CsvMapping,
@@ -154,6 +155,40 @@ const releaseSchema = z.object({
       }),
     )
     .min(1),
+});
+const analyticsRange = z.enum(["7d", "30d", "90d", "12m", "all", "custom"]);
+const analyticsRangeQuerySchema = z.object({
+  from: z.iso.date().optional(),
+  range: analyticsRange.default("30d"),
+  to: z.iso.date().optional(),
+});
+const analyticsWidget = z.enum([
+  "revenue-by-tier",
+  "member-growth",
+  "member-cohorts",
+  "ltv-by-tier",
+  "shipment-operations",
+  "engagement",
+  "acquisition",
+]);
+const analyticsLayoutSchema = z.object({
+  widgets: z
+    .array(
+      z.object({
+        enabled: z.boolean(),
+        id: analyticsWidget,
+        order: z.number().int().min(0).max(100),
+        size: z.enum(["half", "full"]),
+      }),
+    )
+    .min(1)
+    .max(7),
+});
+const analyticsReportSchema = z.object({
+  enabled: z.boolean(),
+  frequency: z.enum(["weekly", "monthly"]),
+  recipientEmail: email,
+  widgetIds: z.array(analyticsWidget).min(1).max(7),
 });
 
 interface AppOptions {
@@ -323,6 +358,20 @@ export function createApp(options: AppOptions): express.Express {
     }
     return candidate as unknown as RetentionService;
   };
+  const analyticsService = (
+    request: Request,
+    response: Response,
+  ): AnalyticsService => {
+    const candidate = createService(request, response);
+    if (!("getAnalyticsDashboard" in candidate)) {
+      throw new AppError(
+        503,
+        "activation_required",
+        "The analytics and intelligence service is not connected.",
+      );
+    }
+    return candidate as unknown as AnalyticsService;
+  };
 
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -437,6 +486,242 @@ export function createApp(options: AppOptions): express.Express {
   app.get("/api/health/configuration", (_request, response) => {
     data(response, getConfigurationReport(options.getEnv()));
   });
+
+  app.get("/api/analytics/dashboard", async (request, response) => {
+    const query = analyticsRangeQuerySchema.parse(request.query);
+    data(
+      response,
+      await analyticsService(request, response).getAnalyticsDashboard(query),
+    );
+  });
+
+  app.get("/api/analytics/export", async (request, response) => {
+    const query = analyticsRangeQuerySchema
+      .extend({
+        widget: analyticsWidget.optional(),
+        widgetId: analyticsWidget.optional(),
+      })
+      .refine((value) => Boolean(value.widgetId ?? value.widget), {
+        message: "widgetId is required.",
+        path: ["widgetId"],
+      })
+      .parse(request.query);
+    const result = await analyticsService(
+      request,
+      response,
+    ).exportAnalyticsWidget(query.widgetId ?? query.widget ?? "", query);
+    response
+      .status(200)
+      .set({
+        "Content-Disposition": `attachment; filename="${result.filename}"`,
+        "Content-Type": "text/csv; charset=utf-8",
+      })
+      .send(result.contents);
+  });
+
+  app.get("/api/analytics/layout", async (request, response) => {
+    data(
+      response,
+      await analyticsService(request, response).getAnalyticsLayout(),
+    );
+  });
+
+  app.patch("/api/analytics/layout", async (request, response) => {
+    const input = parseBody(analyticsLayoutSchema, request);
+    data(
+      response,
+      await analyticsService(request, response).saveAnalyticsLayout(input),
+    );
+  });
+
+  app.get("/api/analytics/reports", async (request, response) => {
+    data(
+      response,
+      await analyticsService(
+        request,
+        response,
+      ).listScheduledAnalyticsReports(),
+    );
+  });
+
+  app.post("/api/analytics/reports", async (request, response) => {
+    const input = parseBody(analyticsReportSchema, request);
+    data(
+      response,
+      await analyticsService(
+        request,
+        response,
+      ).upsertScheduledAnalyticsReport(input),
+      201,
+    );
+  });
+
+  app.patch("/api/analytics/reports/:id", async (request, response) => {
+    const input = parseBody(analyticsReportSchema.partial(), request);
+    if (!Object.keys(input).length) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "Choose at least one report schedule field to update.",
+      );
+    }
+    data(
+      response,
+      await analyticsService(
+        request,
+        response,
+      ).updateScheduledAnalyticsReport(uuid.parse(request.params.id), input),
+    );
+  });
+
+  app.post("/api/analytics/events", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        eventData: z
+          .record(
+            z.string(),
+            z.union([z.string(), z.number(), z.boolean(), z.null()]),
+          )
+          .optional(),
+        eventType: z.string().trim().min(2).max(80),
+        idempotencyKey: z.string().trim().min(16).max(200),
+        memberId: uuid.optional(),
+      }),
+      request,
+    );
+    data(
+      response,
+      await analyticsService(request, response).recordAnalyticsEvent(input),
+      202,
+    );
+  });
+
+  app.get("/api/ml/operations", async (request, response) => {
+    data(
+      response,
+      await analyticsService(request, response).getMlOperations(),
+    );
+  });
+
+  app.get("/api/churn-intelligence", async (request, response) => {
+    const query = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+        offset: z.coerce.number().int().min(0).default(0),
+        riskLevel: z.enum(["low", "medium", "high"]).optional(),
+        search: z.string().trim().max(120).optional(),
+      })
+      .parse(request.query);
+    data(
+      response,
+      await analyticsService(request, response).getChurnIntelligence(query),
+    );
+  });
+
+  app.patch(
+    "/api/churn-intelligence/alerts/:id",
+    async (request, response) => {
+      parseBody(
+        z.object({ status: z.literal("acknowledged") }),
+        request,
+      );
+      data(
+        response,
+        await analyticsService(
+          request,
+          response,
+        ).acknowledgeHighRiskAlert(uuid.parse(request.params.id)),
+      );
+    },
+  );
+
+  app.get(
+    "/api/members/:id/churn-intelligence",
+    async (request, response) => {
+      data(
+        response,
+        await analyticsService(
+          request,
+          response,
+        ).getMemberChurnIntelligence(uuid.parse(request.params.id)),
+      );
+    },
+  );
+
+  app.get("/api/benchmarks", async (request, response) => {
+    data(
+      response,
+      await analyticsService(request, response).getBenchmarkComparison(),
+    );
+  });
+
+  app.patch("/api/benchmarks/preferences", async (request, response) => {
+    const input = parseBody(
+      z.object({
+        optedIn: z.boolean(),
+        quarterlyReportEnabled: z.boolean(),
+      }),
+      request,
+    );
+    data(
+      response,
+      await analyticsService(request, response).setBenchmarkOptIn(input),
+    );
+  });
+
+  app.get("/api/compliance/dashboard", async (request, response) => {
+    const query = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+        offset: z.coerce.number().int().min(0).default(0),
+        releaseId: uuid.optional(),
+        status: z
+          .enum(["compliant", "non_compliant", "unknown"])
+          .optional(),
+      })
+      .parse(request.query);
+    data(
+      response,
+      await analyticsService(request, response).listComplianceChecks(query),
+    );
+  });
+
+  app.get("/api/compliance/checks/:id", async (request, response) => {
+    data(
+      response,
+      await analyticsService(request, response).getComplianceCheck(
+        uuid.parse(request.params.id),
+      ),
+    );
+  });
+
+  app.post(
+    "/api/compliance/shipments/:shipmentId/check",
+    async (request, response) => {
+      data(
+        response,
+        await analyticsService(
+          request,
+          response,
+        ).runShipmentComplianceCheck(uuid.parse(request.params.shipmentId)),
+        201,
+      );
+    },
+  );
+
+  app.post(
+    "/api/compliance/releases/:releaseId/check",
+    async (request, response) => {
+      data(
+        response,
+        await analyticsService(
+          request,
+          response,
+        ).runReleaseComplianceChecks(uuid.parse(request.params.releaseId)),
+        201,
+      );
+    },
+  );
 
   app.post("/api/auth/staff/signup", async (request, response) => {
     const input = parseBody(signupSchema, request);

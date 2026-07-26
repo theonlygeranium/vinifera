@@ -14,9 +14,9 @@ This document records the most recent verified stable state of the project and p
 | **Verified by** | Codex production build QA |
 | **What was verified** | Successful CI plus live `200` responses for landing, original `/app/` prototype, and guide; Pages rollback packaging prevents the unactivated Worker application from replacing the public baseline |
 
-The Phase 1 and Phase 2 Worker source is a release candidate, not the
-custom-domain stable baseline, until hosted Supabase, Stripe test-mode, and
-EasyPost verification passes.
+The Phase 1–4 Worker source is a release candidate, not the custom-domain
+stable baseline, until hosted Supabase plus Stripe, EasyPost, Resend, and
+ShipCompliant test/sandbox verification passes.
 
 ---
 
@@ -50,7 +50,9 @@ Then update the table above with the new tag, SHA, date, and what was verified.
 ## Known Issues at Current Baseline
 
 - The public baseline is a visual prototype, not the data-connected Worker application.
-- Phase 1 and Phase 2 provider connections remain intentionally fail-closed pending hosted activation evidence.
+- Phase 1–4 provider connections remain intentionally fail-closed pending
+  hosted activation evidence; the ML production gate also requires sufficient
+  real outcomes and a completed shadow comparison.
 - The workflow illustration for step 4 ("Ship & Track") renders as a shipping box with arrow rather than a delivery truck — minor visual discrepancy, not a functional issue
 - Playwright WebKit ≠ real Safari iOS — ~30% of iOS-specific behaviors not reproducible. For production sign-off, test on a real iOS device or BrowserStack
 

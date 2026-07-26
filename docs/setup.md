@@ -167,6 +167,47 @@ reclaims bounded outbox work. See
 `docs/runbooks/phase-3-resend-activation.md` for DNS, webhook, trigger, and
 rollback proof.
 
+## Phase 4 analytics, ML, benchmarks, and compliance
+
+Phase 4 analytics are derived from tenant-scoped operational facts. Empty
+production history produces an explicit empty state; the browser never
+substitutes fixture metrics. The scheduled Worker jobs refresh daily
+analytics and feature snapshots, score active members with the current
+eligible model or the Phase 3 rules fallback, queue scheduled analytics
+reports, and refreshes privacy-thresholded benchmark aggregates.
+
+The deterministic L2 logistic trainer runs against immutable
+`production_history` snapshots. A candidate remains in shadow/A/B mode unless
+all database-enforced gates pass: at least 500 members and 50 observed
+cancellations, temporal holdout ROC AUC of at least 0.82, performance above the
+rules baseline, production provenance, and a completed 30-day A/B comparison.
+Synthetic fixtures validate the trainer only and can never be promoted.
+
+ShipCompliant is wired behind a fail-closed OAuth adapter. Obtain the exact
+sandbox origin, paths, contract version, account, and license values during
+Sovos onboarding before enabling it:
+
+```text
+COMPLIANCE_PROVIDER=shipcompliant
+COMPLIANCE_SIMULATOR_ENABLED=false
+SHIPCOMPLIANT_BASE_URL
+SHIPCOMPLIANT_TOKEN_PATH
+SHIPCOMPLIANT_CHECK_PATH
+SHIPCOMPLIANT_CONTRACT_VERSION
+SHIPCOMPLIANT_API_KEY
+SHIPCOMPLIANT_API_SECRET
+SHIPCOMPLIANT_ACCOUNT_ID
+SHIPCOMPLIANT_LICENSE_ID
+```
+
+Only an exact `compliant` response with a provider response identifier permits
+label generation. The operational check runs after a successful charge and
+immediately before label generation. `unknown`, timeouts, incomplete responses,
+missing configuration, and `non_compliant` all block the label. The
+deterministic compliance simulator is accepted only in an explicitly enabled
+test runtime. See `docs/runbooks/phase-4-shipcompliant-activation.md` for
+sandbox, mapping, label-block, tax, and rollback evidence.
+
 ## Build and verify
 
 ```bash
@@ -177,6 +218,7 @@ npm run build
 npm run build:worker
 npm run qa:db:phase2
 npm run qa:db:phase3
+npm run qa:db:phase4
 npm run qa:e2e
 ```
 
