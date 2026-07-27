@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { httpServerHandler } from "cloudflare:node";
 import { createApp } from "./app";
 import { withSecurityHeaders } from "./lib/security";
+import { initSentry, Sentry } from "./lib/sentry";
 import { runAnalyticsSchedule } from "./services/analytics";
 import { runCoreClubSchedule } from "./services/orders";
 import { reconcileSubscriptionAccess } from "./services/production-foundation";
@@ -96,7 +97,7 @@ async function serveStaticAsset(
   return fetchStaticAsset(request, workerEnv.ASSETS);
 }
 
-export default {
+const worker = {
   async fetch(
     request: Request,
     workerEnv: Env,
@@ -200,3 +201,20 @@ export default {
     });
   },
 } satisfies ExportedHandler<Env, IntegrationWakeMessage>;
+
+function optionalStringBinding(
+  workerEnv: Env,
+  bindingName: string,
+): string | undefined {
+  const value: unknown = Reflect.get(workerEnv, bindingName);
+  return typeof value === "string" ? value : undefined;
+}
+
+export default Sentry.withSentry<Env, IntegrationWakeMessage>(
+  (workerEnv) =>
+    initSentry(
+      optionalStringBinding(workerEnv, "SENTRY_DSN"),
+      workerEnv.APP_ENV ?? "development",
+    ),
+  worker,
+);

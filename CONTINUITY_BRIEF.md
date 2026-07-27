@@ -146,16 +146,76 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 - BS-03 decomposes the two service monoliths into member, club, order,
   analytics, Stripe, EasyPost, communications, webhook, and shared
   provider-runtime modules. `core-club.ts` and `integrations.ts` are now
-  re-export-only compatibility barrels, and internal non-route consumers use
-  direct domain imports. This extraction changes no runtime logic, provider
-  activation, deployment configuration, or static production surface; BS-02
-  must merge before the BS-03 pull request is eligible to merge.
+  re-export-only compatibility barrels, and internal runtime consumers plus
+  the system association route use direct domain imports. The integration
+  preserves the complete 129-route BS-02 manifest, BS-04 Sentry/rate-limit
+  middleware boundaries, and BS-06 mobile-bootstrap organization/brand
+  predicates. This extraction changes no provider activation, deployment
+  configuration, or static production surface. The integrated branch passes
+  the direct-push policy 9/9, dependency audit 0, generated Worker type check,
+  TypeScript, Vitest 378/378, database gates 92/231/199/158/494, Vite and Pages
+  builds, default/staging/production Worker dry runs, Playwright/axe 145/145,
+  mobile identity, mobile-release controls 7/7, and a non-routable compile-only
+  Capacitor web bundle plus Android sync. This Mac has no Java runtime, so
+  Android lint/assemble remains CI evidence rather than a local claim.
+- BS-06 audits every database-calling function in `server/services/` against
+  the final 21-migration tenancy model. It adds explicit organization and brand
+  predicates to all mobile offline-bootstrap reads, a focused cross-brand
+  query assertion, CODEOWNERS, a PR template, governance and Greptile guidance,
+  and current architecture documentation with all 20 activation gates still
+  pending. The branch is integrated with the direct-push guard and BS-02/BS-04
+  route and observability baseline. The integrated branch passes the direct-push
+  policy 9/9, dependency audit 0, Worker type generation, TypeScript, Vitest
+  378/378, database gates 92/231/199/158/494, Vite and Pages rollback builds,
+  development/staging/production Worker dry runs, and Playwright/axe 145/145.
+  No provider, hosted database, Worker, or production activation state changed.
+- BS-02 decomposes all 129 Express registrations from the monolithic
+  `server/app.ts` into domain-scoped `server/routes/` modules. The 82-line app
+  entry point now retains only global middleware and ordered route mounting.
+  BS-04 rate limits execute before every public/raw-webhook and protected route,
+  and the centralized BS-04 error handler is the final middleware after the
+  `/api` 404 boundary. Mechanical route/schema/handler comparison and the full
+  credential-independent verification suite pass with no route, deployment, or
+  provider activation behavior change. As of 2026-07-27, the current integrated
+  BS-02 review branch passed the direct-push policy 9/9, dependency audit 0,
+  generated Worker binding check, TypeScript, Vitest 377/377, database gates
+  92/231/199/158/494, Vite and Pages rollback builds,
+  development/staging/production Worker dry runs, and Playwright/axe 145/145.
+- The BS-02 review follow-up adds the route-decomposition ADR and closes
+  route-boundary findings for release consistency, partial template defaults,
+  email normalization, callback redirects, raw webhook bodies, explicit
+  loyalty validation, shared UUID schemas, order-sensitive mounts, and bounded
+  multipart CSV framing. Cloudflare client-address headers are trusted only in
+  staging/production for route audit fields and rate-limit actor keys; direct
+  development/test requests use the socket address. The multipart path remains
+  pre-buffered and Cloudflare Worker-compatible; no unproved Node stream
+  middleware was added.
+- Direct-push governance now supplies the required
+  `Block direct push to main` context on pull requests and verifies each
+  resulting `main` push against GitHub's associated-pull-request evidence. It
+  requires the exact recorded merge result for a closed PR targeting `main`,
+  supports merge, squash, and rebase strategies, and rejects forced updates,
+  conventional-commit heuristics, missing evidence, and API errors. Branch
+  protection remains the pre-push enforcement boundary. Associated-PR lookup
+  follows up to ten validated same-origin pages and retries missing index
+  evidence twice over 20 seconds before failing closed.
 - BS-01 repository hygiene migrates Greptile review policy from the legacy
   root JSON file to scoped `.greptile/` configuration and rules, removes the
   generated Worker declaration from version control while regenerating it
   before CI verification/typecheck, and records the Phase 5 closure evidence
   plus all 20 still-pending activation gates. These changes do not alter
   runtime routes, provider activation, or the static production baseline.
+- BS-04 adds a credential-independent error-observability and API-abuse
+  boundary: optional PII-minimized Sentry capture at the Worker entry point, a
+  centralized request-correlated Express error handler registered last, and
+  native Cloudflare rate limits scoped by normalized route plus tenant and
+  hashed actor. Sentry remains inactive without its Worker secret; the static
+  production baseline remains unchanged.
+  Its pre-BS-02 historical local verification passed audit 0, generated Worker
+  types, TypeScript,
+  367/367 Vitest tests, Vite and Pages builds, development/staging/production
+  Worker dry runs, and 145/145 Playwright/axe cases including 375-pixel and
+  touch-target coverage.
 - The BS-01 review follow-up makes fresh-checkout local validation
   self-generating, restores public browser bootstrap for the existing member
   authentication endpoints without weakening protected-route enforcement, and
@@ -198,7 +258,8 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   expansion. Treat the first Price as created-or-unknown. Service connections
   are deferred, so no retry was attempted; reconcile the fixed lookup key only
   when activation is explicitly resumed.
-- The current credential-independent architecture gate passes: dependency
+- The historical pre-BS-01/BS-02 credential-independent architecture gate
+  passed: dependency
   audit 0, generated Worker types and TypeScript green, Vitest 354/354,
   database gates 92/231/199/158/494, and Playwright 145/145 with zero axe
   violations and 360/375/412/430/768/1440 Phase 5 coverage. The single-worker

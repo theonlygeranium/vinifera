@@ -39,8 +39,10 @@ integration-runtime.ts ──► comms.ts ────────────�
 ```
 
 The final public class names remain `ProductionCoreClubService` and
-`ProductionIntegrationService`. Original import paths remain compatibility
-barrels until the route-layer transition is merged.
+`ProductionIntegrationService`. The original `core-club.ts` and
+`integrations.ts` import paths remain re-export-only compatibility barrels.
+After the BS-02 route transition merged, runtime consumers and the system
+association route moved to their direct extracted-domain imports.
 
 ## `core-club.ts` exported symbols
 
@@ -195,7 +197,7 @@ service itself does not add a post-RPC filter; BS-03 preserves that behavior.
 | `refreshMobileSession(input)` | `webhooks.ts` | mobile response helper | Supabase | UUID; RPC contract |
 | `logoutMobileSession(input)` | `webhooks.ts` | None | Supabase | Hashed token RPC |
 | `getMobileAppPolicy(input)` | `webhooks.ts` | None | Mobile config | Configuration-required |
-| `getMobileBootstrap()` | `webhooks.ts` | member auth/client | Supabase | Scoped |
+| `getMobileBootstrap()` | `webhooks.ts` | member auth/client | Supabase | Explicit organization + brand scope on member, shipment, and loyalty reads (BS-06) |
 | `registerMobileDevice(input)` | `comms.ts` | member auth, credential storage | Supabase, encrypted push token | Member/brand bound |
 | `unregisterMobileDevice(deviceFingerprint)` | `comms.ts` | member auth | Supabase | Member/organization scoped |
 
@@ -221,3 +223,13 @@ For each destination:
    extracted database operation demonstrably lacks both organization and brand
    context; do not change the query.
 7. Run `npm run typecheck` after integration, then the full BS-03 suite.
+
+## Integrated transition status
+
+The extraction is integrated with the BS-02 route layer, BS-04 observability
+and rate-limit boundary, and BS-06 tenancy hardening. `core-club.ts` and
+`integrations.ts` contain only compatibility exports; production runtime and
+route code imports the extracted owner directly. The only intentional
+post-extraction service-body change is BS-06's five
+`getMobileBootstrap()` organization/brand predicates in `webhooks.ts`, backed
+by the focused cross-organization and same-organization/cross-brand test.

@@ -1,0 +1,3 @@
+# Routes review ownership to the repository owner.
+# Branch protection does not currently require CODEOWNERS approval.
+* @theonlygeranium

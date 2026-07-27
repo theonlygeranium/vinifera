@@ -38,6 +38,28 @@ baseline; it is not evidence that the Worker application is live.
 
 The name comes from *Vitis vinifera*, the Latin species name for the primary wine grape vine. It signals domain knowledge to winery operators and reads as a premium brand word — without the overused "wine" prefix that defines most platform names in this market.
 
+## Project status
+
+v0.5.0: architecturally complete, operationally dormant pending 20 activation
+gates. See [`CONTINUITY_BRIEF.md`](./CONTINUITY_BRIEF.md).
+
+## Local development
+
+Use the current local and Worker commands documented under
+[Build & Deploy](#build--deploy). There is no standalone local quickstart in
+the repository today.
+
+## Agent workflow
+
+All agent changes use pull requests, CI, and Greptile review as documented in
+[`docs/agent-workflow.md`](./docs/agent-workflow.md).
+
+## Architecture
+
+The current Pages rollback baseline, Worker/Supabase topology, tenant model,
+provider guards, and 20 pending activation gates are documented in
+[`docs/architecture.md`](./docs/architecture.md).
+
 ## Current live baseline
 
 | Page | URL | Description |
@@ -81,7 +103,7 @@ The prototype demonstrates thirteen functional areas across an administration po
 | **Compliance** | ShipCompliant OAuth adapter | Every label requires an exact compliant decision; missing credentials and unknown responses fail closed |
 | **Scale integrations** | Server-side provider adapters + encrypted credential envelopes | Winery credentials never enter browser-readable configuration |
 | **Mobile** | Capacitor 8 | One React source with native secure storage, push, camera, network, and deep-link adapters |
-| **Observability** | Cloudflare Worker logs | Runtime failures are visible at the hosting layer; external APM remains a later activation decision |
+| **Observability** | Structured Worker logs + optional Sentry | Correlated safe errors are logged locally; Sentry capture activates only when its server-side DSN secret is configured |
 | **Auth** | Supabase Auth | JWT sessions, magic-link for members, password/OAuth for staff |
 
 ## Build & Deploy
@@ -156,6 +178,7 @@ serve the React application instead.
 | Phase 3 retention | Lease-owned activation-safe email, rules scoring, immutable cancel-flow, tenant-scoped commands, snapshot-keyset loyalty, brand-local jobs, and 199 database assertions pass locally |
 | Phase 4 intelligence | Current-stack architecture passes 158 database assertions: brand-local real-fact analytics, source-qualified and actor-audited ML lifecycle, all-brand benchmark authorization, and fail-closed compliance/label binding; hosted real-data, model, cohort, and provider evidence remain gated |
 | Phase 5 scale | Version 0.5.0 source architecture is complete for connectors, multi-brand isolation, white label, and native shells; the Phase 5 QA report records architecture evidence and deferred hosted checks |
+| API resilience | Centralized safe error capture and native per-route/per-tenant rate limiting pass focused, unit, Worker dry-run, and browser/axe regression gates; Sentry remains secret-gated |
 | Release controls | Read-only readiness, Stripe test-catalog bootstrap, staging target guards, native hosted pgTAP, production Worker/Pages rollback control, and signed internal-store workflows are source-complete; credential-bound execution remains gated |
 | Provider activation | Pending hosted Supabase, Stripe/provider test and live accounts, custom-domain DNS/certificates, APNs/FCM, signing, physical devices, and store tracks |
 | Public deployment | Pages continues serving the verified prototype until the Worker activation runbooks pass |

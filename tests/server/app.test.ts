@@ -170,12 +170,19 @@ function testApp(
   envOverrides: Partial<WorkerEnv> = {},
 ) {
   const createService: FoundationServiceFactory = () => foundation;
+  const allowRateLimit: RateLimit = {
+    limit: async () => ({ success: true }),
+  };
   return createApp({
     createService,
     getEnv: () => ({
+      ADMIN_RATE_LIMITER: allowRateLimit,
       ALLOWED_ORIGINS: "https://vinifera.test",
+      API_RATE_LIMITER: allowRateLimit,
       APP_ENV: "test",
       APP_ORIGIN: "https://vinifera.test",
+      AUTH_RATE_LIMITER: allowRateLimit,
+      WEBHOOK_RATE_LIMITER: allowRateLimit,
       ...envOverrides,
     }),
   });
@@ -215,7 +222,7 @@ describe("Phase 1 API", () => {
     const response = await request(testApp(foundation))
       .post("/api/staff/invitations")
       .set("Origin", "https://vinifera.test")
-      .send({ email: "INVITED@EXAMPLE.COM", role: "manager" });
+      .send({ email: " INVITED@EXAMPLE.COM ", role: "manager" });
 
     expect(response.status).toBe(201);
     expect(response.body.data).toEqual({
@@ -511,6 +518,38 @@ describe("Phase 1 API", () => {
     expect(response.text).not.toContain("unknown@example.com");
   });
 
+  it("trusts edge client addresses only in deployed environments", async () => {
+    const requestMemberMagicLink = vi.fn().mockResolvedValue(undefined);
+    const foundation = service({ requestMemberMagicLink });
+    const submit = (appEnvironment: WorkerEnv["APP_ENV"], address: string) =>
+      request(testApp(foundation, { APP_ENV: appEnvironment }))
+        .post("/api/auth/member/magic-link")
+        .set("CF-Connecting-IP", address)
+        .set(
+          "X-Forwarded-For",
+          `198.51.100.${address.endsWith("10") ? "10" : "11"}`,
+        )
+        .set("Origin", "https://vinifera.test")
+        .send({ email: "member@example.com" });
+
+    await submit("development", "192.0.2.10").expect(200);
+    await submit("test", "192.0.2.11").expect(200);
+    await submit("staging", "192.0.2.12").expect(200);
+    await submit("production", "192.0.2.13").expect(200);
+
+    const addresses = requestMemberMagicLink.mock.calls.map(
+      ([input]) => input.ipAddress,
+    );
+    const normalizeLoopback = (address: string) =>
+      address === "::1" ? "127.0.0.1" : address.replace(/^::ffff:/, "");
+    expect(addresses.slice(0, 2).map(normalizeLoopback)).toEqual([
+      "127.0.0.1",
+      "127.0.0.1",
+    ]);
+    expect(addresses[2]).toBe("192.0.2.12");
+    expect(addresses[3]).toBe("192.0.2.13");
+  });
+
   it("requires and forwards signed state on the member auth callback", async () => {
     const exchangeAuthCode = vi
       .fn()
@@ -536,6 +575,28 @@ describe("Phase 1 API", () => {
     expect(exchangeAuthCode).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects authority-style staff callback redirects", async () => {
+    const exchangeAuthCode = vi.fn().mockResolvedValue({ destination: "/app" });
+    const foundation = service({ exchangeAuthCode });
+
+    for (const next of [
+      null,
+      "//attacker.example",
+      "/\\attacker.example",
+      "/\u0000/attacker.example",
+      "/\r/attacker.example",
+      "/\n/attacker.example",
+      "/\t/attacker.example",
+    ]) {
+      const response = await request(testApp(foundation))
+        .get("/api/auth/staff/callback")
+        .query({ code: "pkce-code", next });
+
+      expect(response.status).toBe(303);
+      expect(response.headers.location).toBe("/app");
+    }
+  });
+
   it("preserves the raw Stripe body for signature verification", async () => {
     const handleStripeWebhook = vi.fn().mockResolvedValue({ duplicate: false });
     const foundation = service({ handleStripeWebhook });
@@ -549,6 +610,45 @@ describe("Phase 1 API", () => {
     expect(response.status).toBe(200);
     expect(Buffer.isBuffer(handleStripeWebhook.mock.calls[0]?.[0])).toBe(true);
     expect(handleStripeWebhook.mock.calls[0]?.[0].toString()).toBe(payload);
+  });
+
+  it("rejects non-JSON webhook bodies before provider dispatch", async () => {
+    const handleStripeWebhook = vi.fn();
+    const handleKlaviyoWebhook = vi.fn();
+    const handleResendWebhook = vi.fn();
+    const foundation = service({
+      handleKlaviyoWebhook,
+      handleResendWebhook,
+      handleStripeWebhook,
+      listEmailTemplates: vi.fn().mockResolvedValue([]),
+      listIntegrations: vi.fn().mockResolvedValue([]),
+    });
+
+    await request(testApp(foundation))
+      .post("/api/billing/webhook")
+      .set("Content-Type", "text/plain")
+      .set("stripe-signature", "t=1,v1=test")
+      .send("not-json")
+      .expect(400);
+    await request(testApp(foundation))
+      .post(
+        "/api/webhooks/klaviyo/30000000-0000-4000-8000-000000000001",
+      )
+      .set("Content-Type", "text/plain")
+      .send("not-json")
+      .expect(400);
+    await request(testApp(foundation))
+      .post("/api/webhooks/resend")
+      .set("Content-Type", "text/plain")
+      .set("svix-id", "msg_123")
+      .set("svix-signature", "v1,test")
+      .set("svix-timestamp", "1785042000")
+      .send("not-json")
+      .expect(400);
+
+    expect(handleStripeWebhook).not.toHaveBeenCalled();
+    expect(handleKlaviyoWebhook).not.toHaveBeenCalled();
+    expect(handleResendWebhook).not.toHaveBeenCalled();
   });
 
   it("uses the stable error envelope for provider activation gates", async () => {
@@ -654,6 +754,60 @@ describe("Phase 2 core club API", () => {
     );
   });
 
+  it("preserves explicit null member aliases in create and partial update inputs", async () => {
+    const commandId = "81000000-0000-4000-8000-000000000002";
+    const memberId = "30000000-0000-4000-8000-000000000001";
+    const createMember = vi.fn().mockResolvedValue({ id: memberId });
+    const updateMember = vi.fn().mockResolvedValue({ id: memberId });
+    const foundation = service({ createMember, updateMember });
+    const aliasValues = {
+      address: {
+        city: "Napa",
+        country: "US",
+        line1: "1 Wine Way",
+        postalCode: "94558",
+        state: "CA",
+      },
+      clubTierId: null,
+      shippingAddress: null,
+      tierId: "30000000-0000-4000-8000-000000000002",
+    };
+
+    await request(testApp(foundation))
+      .post("/api/members")
+      .set("Idempotency-Key", commandId)
+      .set("Origin", "https://vinifera.test")
+      .send({
+        ...aliasValues,
+        email: "member@example.com",
+        firstName: "Avery",
+        lastName: "Vine",
+      })
+      .expect(201);
+    await request(testApp(foundation))
+      .patch(`/api/members/${memberId}`)
+      .set("Idempotency-Key", commandId)
+      .set("Origin", "https://vinifera.test")
+      .send(aliasValues)
+      .expect(200);
+
+    expect(createMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clubTierId: null,
+        shippingAddress: null,
+      }),
+      commandId,
+    );
+    expect(updateMember).toHaveBeenCalledWith(
+      memberId,
+      {
+        clubTierId: null,
+        shippingAddress: null,
+      },
+      commandId,
+    );
+  });
+
   it("creates a scheduled release atomically from the fixed frontend payload", async () => {
     const commandId = "81000000-0000-4000-8000-000000000003";
     const createRelease = vi
@@ -695,6 +849,72 @@ describe("Phase 2 core club API", () => {
       }),
       commandId,
       "scheduled",
+    );
+  });
+
+  it("rejects inconsistent tiers and unnamed wines before release creation", async () => {
+    const commandId = "81000000-0000-4000-8000-000000000003";
+    const createRelease = vi.fn();
+    const updateRelease = vi.fn();
+    const foundation = service({ createRelease, updateRelease });
+    const release = {
+      embargoDate: "2026-09-01",
+      name: "Fall 2026",
+      processingDate: "2026-09-15",
+      tierIds: ["30000000-0000-4000-8000-000000000001"],
+      tiers: [
+        {
+          priceCents: 12500,
+          tierId: "30000000-0000-4000-8000-000000000002",
+        },
+      ],
+      wines: [{ name: "Estate Cabernet", quantity: 2 }],
+    };
+
+    await request(testApp(foundation))
+      .post("/api/releases")
+      .set("Idempotency-Key", commandId)
+      .set("Origin", "https://vinifera.test")
+      .send(release)
+      .expect(400);
+    await request(testApp(foundation))
+      .post("/api/releases")
+      .set("Idempotency-Key", commandId)
+      .set("Origin", "https://vinifera.test")
+      .send({
+        ...release,
+        tierIds: ["30000000-0000-4000-8000-000000000002"],
+        wines: [{ quantity: 2 }],
+      })
+      .expect(400);
+    await request(testApp(foundation))
+      .patch("/api/releases/40000000-0000-4000-8000-000000000001")
+      .set("Idempotency-Key", commandId)
+      .set("Origin", "https://vinifera.test")
+      .send(release)
+      .expect(400);
+
+    expect(createRelease).not.toHaveBeenCalled();
+    expect(updateRelease).not.toHaveBeenCalled();
+  });
+
+  it("passes only supplied fields to release updates", async () => {
+    const commandId = "81000000-0000-4000-8000-000000000003";
+    const releaseId = "40000000-0000-4000-8000-000000000001";
+    const updateRelease = vi.fn().mockResolvedValue({ id: releaseId });
+    const foundation = service({ updateRelease });
+
+    await request(testApp(foundation))
+      .patch(`/api/releases/${releaseId}`)
+      .set("Idempotency-Key", commandId)
+      .set("Origin", "https://vinifera.test")
+      .send({ name: "Renamed release" })
+      .expect(200);
+
+    expect(updateRelease).toHaveBeenCalledWith(
+      releaseId,
+      { name: "Renamed release" },
+      commandId,
     );
   });
 
@@ -779,6 +999,66 @@ describe("Phase 2 core club API", () => {
         format: "commerce7",
       }),
     );
+  });
+
+  it("keeps delimiter-like CSV bytes and rejects malformed multipart framing", async () => {
+    const previewMemberImport = vi.fn().mockResolvedValue({
+      columns: ["Customer Email", "Note"],
+      rows: [],
+      source: "commerce7",
+      suggestedMapping: {},
+      uploadToken:
+        "00000000-0000-4000-8000-000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      validation: { errors: [], invalidCount: 0, validCount: 1 },
+    });
+    const boundary = "ViniferaBoundary";
+    const csv =
+      `Customer Email,Note\r\navery@example.com,before--${boundary}after\r\n`;
+    const body = Buffer.from(
+      `--${boundary}\r\n` +
+        'Content-Disposition: form-data; name="source"\r\n\r\n' +
+        `commerce7\r\n--${boundary}\r\n` +
+        'Content-Disposition: form-data; name="file"; filename="commerce7.csv"\r\n' +
+        "Content-Type: text/csv\r\n\r\n" +
+        `${csv}\r\n--${boundary}--\r\n`,
+    );
+    const foundation = service({ previewMemberImport });
+
+    await request(testApp(foundation))
+      .post("/api/members/import/preview")
+      .set("Content-Type", `multipart/form-data; boundary=${boundary}`)
+      .set("Origin", "https://vinifera.test")
+      .send(body)
+      .expect(201);
+    expect(previewMemberImport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contents: expect.stringContaining(`before--${boundary}after`),
+      }),
+    );
+
+    const malformed = Buffer.from(
+      `--${boundary}\nContent-Disposition: form-data; name="source"\r\n\r\ncommerce7`,
+    );
+    await request(testApp(foundation))
+      .post("/api/members/import/preview")
+      .set("Content-Type", `multipart/form-data; boundary=${boundary}`)
+      .set("Origin", "https://vinifera.test")
+      .send(malformed)
+      .expect(400);
+
+    const malformedClosing = Buffer.from(
+      `--${boundary}\r\n` +
+        'Content-Disposition: form-data; name="source"\r\n\r\n' +
+        `commerce7\r\n--${boundary}--junk`,
+    );
+    await request(testApp(foundation))
+      .post("/api/members/import/preview")
+      .set("Content-Type", `multipart/form-data; boundary=${boundary}`)
+      .set("Origin", "https://vinifera.test")
+      .send(malformedClosing)
+      .expect(400);
+
+    expect(previewMemberImport).toHaveBeenCalledTimes(1);
   });
 
   it("reports shipping activation names without exposing credential values", async () => {
