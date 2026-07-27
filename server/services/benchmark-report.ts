@@ -1,3 +1,4 @@
+import { encodeCsvCell } from "../lib/csv";
 import { AppError } from "../lib/errors";
 
 export const BENCHMARK_MINIMUM_COHORT = 10;
@@ -55,12 +56,6 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function csvCell(value: unknown): string {
-  let text = String(value ?? "");
-  if (/^[=+\-@]/.test(text)) text = `'${text}`;
-  return `"${text.replaceAll('"', '""')}"`;
 }
 
 function formatMetricValue(value: number, unit: BenchmarkReportMetric["unit"]): string {
@@ -324,7 +319,7 @@ export function createBenchmarkReportArtifact(
     "Anonymized cohort band",
   ];
   const csv = `\uFEFF${[
-    csvHeaders.map(csvCell).join(","),
+    csvHeaders.map(encodeCsvCell).join(","),
     ...rows.map((row) =>
       [
         row.label,
@@ -335,7 +330,7 @@ export function createBenchmarkReportArtifact(
         row.percentile,
         row.sampleCountBand,
       ]
-        .map(csvCell)
+        .map(encodeCsvCell)
         .join(","),
     ),
   ].join("\r\n")}\r\n`;

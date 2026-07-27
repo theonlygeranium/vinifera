@@ -65,7 +65,8 @@ SHIPCOMPLIANT_ACCOUNT_ID
 SHIPCOMPLIANT_LICENSE_ID
 ```
 
-The adapter requires HTTPS, an explicit contract version, and an explicit check
+The adapter requires HTTPS, an explicit contract version, an explicit check
+path, and the exact vendor-approved OAuth token path. There is no default token
 path. Credentials alone cannot activate a guessed contract. No value may be
 Vite-prefixed or returned by a configuration endpoint.
 
@@ -88,6 +89,11 @@ From the staging Worker:
    rules version, checked timestamp, and the tax result required by the active
    contract;
 6. verify timeouts and unrecognized payloads map to `unknown`.
+
+The token request and decision request share one 1.8-second request budget.
+Verify a slow token response cannot receive a fresh full decision timeout.
+Verify both requests reject redirects and the cached token is reused across
+multiple checks until its expiry safety window.
 
 Never log access tokens or full recipient/provider payloads.
 

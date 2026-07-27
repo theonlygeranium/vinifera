@@ -4358,9 +4358,16 @@ select:focus-visible {
   stroke-linejoin: round;
 }
 
-.analytics-chart-line--gold,
-.analytics-chart-line--blush {
+.analytics-chart-line--gold {
   stroke-dasharray: 7 4;
+}
+
+.analytics-chart-line--green {
+  stroke-dasharray: 2 3;
+}
+
+.analytics-chart-line--blush {
+  stroke-dasharray: 12 4 2 4;
 }
 
 .analytics-chart-axis {

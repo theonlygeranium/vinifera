@@ -334,7 +334,7 @@ export function ChurnIntelligencePage() {
                         <small>
                           {item.source === "ml" ? "ML score" : "Rules fallback"}
                           {item.confidenceBandLow != null && item.confidenceBandHigh != null
-                            ? ` · ${item.confidenceBandLow}–${item.confidenceBandHigh}% score band`
+                            ? ` · ${item.confidenceBandLow}–${item.confidenceBandHigh}% calibrated uncertainty band`
                             : ""}
                         </small>
                       </div>

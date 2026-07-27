@@ -74,6 +74,71 @@ Hash the ordered snapshot identity and retain that hash with the candidate.
 If the thresholds are not met, continue collecting history and serve Phase 3
 rules-based scores. Do not lower a database gate to manufacture readiness.
 
+### Record operator-attested source coverage
+
+Configure `ML_PLATFORM_ACTOR_USER_ID` with the UUID of a dedicated active
+platform super-admin before scheduled training is enabled. With no actor,
+training pauses in `trainingActivationRequired`; it does not create an
+unattributed run. A ready run also pauses before model registration until the
+exact dataset hash has qualified reconciliation evidence.
+
+Prepare a strict JSON evidence file with this shape:
+
+```json
+{
+  "trainingRunId": "00000000-0000-4000-8000-000000000000",
+  "datasetHash": "replace-with-the-lowercase-64-character-dataset-sha256",
+  "status": "qualified",
+  "sourceCoverage": {
+    "eligible_member_count": 500,
+    "reconciled_through": "2026-07-01",
+    "sources": {
+      "shipments": {"eligible_member_count": 500, "reconciled_member_count": 500},
+      "billing": {"eligible_member_count": 500, "reconciled_member_count": 500},
+      "email_delivery": {"eligible_member_count": 500, "reconciled_member_count": 500},
+      "portal_activity": {"eligible_member_count": 500, "reconciled_member_count": 500},
+      "loyalty": {"eligible_member_count": 500, "reconciled_member_count": 500},
+      "declines": {"eligible_member_count": 500, "reconciled_member_count": 500}
+    }
+  }
+}
+```
+
+The values above show the schema only. Never submit illustrative counts or
+identifiers. Use the immutable run ID and dataset hash returned by the hosted
+training snapshot, the run's exact eligible-member denominator, and
+independently reconciled counts. Every source must cover at least 95 percent,
+and `reconciled_through` must include the complete outcome horizon.
+
+Validate the file without network access:
+
+```bash
+ML_PLATFORM_ACTOR_USER_ID="<active-platform-super-admin-uuid>" \
+  npm run ops:phase4:qualify-ml -- \
+  --evidence "./private/phase-4-qualification.json" \
+  --dry-run
+```
+
+After peer review, connect the intended hosted Supabase project and record the
+attestation:
+
+```bash
+SUPABASE_URL="https://<project>.supabase.co" \
+SUPABASE_SERVICE_ROLE_KEY="<server-only-secret>" \
+ML_PLATFORM_ACTOR_USER_ID="<active-platform-super-admin-uuid>" \
+  npm run ops:phase4:qualify-ml -- \
+  --evidence "./private/phase-4-qualification.json"
+```
+
+`SUPABASE_SECRET_KEY` is also accepted when the project uses the newer secret
+key format. The command requires HTTPS outside localhost, rejects redirects,
+does not print the credential, calls only the service-only five-argument
+qualification RPC, and reports the database-derived evidence hash. The caller
+cannot choose that hash. Store the input and returned aggregate evidence in
+the restricted release record, then rerun training for the same idempotent
+snapshot. Do not commit the evidence file if it contains sensitive operational
+details.
+
 ## 4. Train and validate the candidate
 
 Train only through the versioned deterministic pipeline. Require:

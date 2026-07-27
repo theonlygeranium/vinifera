@@ -53,31 +53,42 @@ function ProviderBanner({
 }: {
   provider: ComplianceDashboard["provider"];
 }) {
+  const rulesEvidence = provider.rulesVersion
+    ? `Rules ${provider.rulesVersion}${
+        provider.lastRulesRefreshAt
+          ? ` recorded ${date(provider.lastRulesRefreshAt)}`
+          : ""
+      }.`
+    : provider.lastRulesRefreshAt
+      ? `Provider rules evidence recorded ${date(provider.lastRulesRefreshAt)}.`
+      : "Provider rules version and refresh timestamp are unavailable.";
   const content =
     provider.status === "active"
       ? {
           icon: <ShieldCheck aria-hidden="true" />,
           title: `${provider.name} checks are active`,
-          detail: provider.lastSuccessfulCheckAt
-            ? `Last successful provider check ${date(provider.lastSuccessfulCheckAt)}.`
-            : "Live post-charge destination and tax checks are available.",
+          detail: `${
+            provider.lastSuccessfulCheckAt
+              ? `Last successful provider check ${date(provider.lastSuccessfulCheckAt)}.`
+              : "Live post-charge destination and tax checks are available."
+          } ${rulesEvidence}`,
         }
       : provider.status === "configured"
         ? {
             icon: <PlugZap aria-hidden="true" />,
             title: `${provider.name} credentials are configured`,
-            detail: "Activation will be confirmed after the first successful post-charge provider check.",
+            detail: `Activation will be confirmed after the first successful post-charge provider check. ${rulesEvidence}`,
           }
       : provider.status === "degraded"
         ? {
             icon: <AlertTriangle aria-hidden="true" />,
             title: `${provider.name} is temporarily degraded`,
-            detail: "Unknown results remain fail-closed. Do not generate a label until a compliant response is recorded.",
+            detail: `Unknown results remain fail-closed. Do not generate a label until a compliant response is recorded. ${rulesEvidence}`,
           }
         : {
             icon: <PlugZap aria-hidden="true" />,
             title: `${provider.name} activation is pending`,
-            detail: "The production boundary is wired. Add API credentials to activate the post-charge destination and tax check.",
+            detail: `The production boundary is wired. Add API credentials to activate the post-charge destination and tax check. ${rulesEvidence}`,
           };
   return (
     <section

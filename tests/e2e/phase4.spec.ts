@@ -360,7 +360,9 @@ const complianceDashboard = {
   provider: {
     name: "ShipCompliant",
     status: "active",
+    lastSuccessfulCheckAt: "2026-07-26T15:30:00.000Z",
     lastRulesRefreshAt: "2026-07-26T15:30:00.000Z",
+    rulesVersion: "sc-rules-2026-q3",
   },
   summary: {
     totalChecks: 2,
@@ -411,6 +413,8 @@ interface CapturedRequest {
   search: string;
 }
 
+type Phase4ApiMode = "ready" | "empty" | "activation";
+
 function json(route: Route, data: unknown, status = 200) {
   return route.fulfill({
     body: JSON.stringify({ data }),
@@ -419,9 +423,23 @@ function json(route: Route, data: unknown, status = 200) {
   });
 }
 
+function activationRequired(route: Route) {
+  return route.fulfill({
+    body: JSON.stringify({
+      error: {
+        code: "INTEGRATION_NOT_CONFIGURED",
+        message: "The production boundary is ready for activation.",
+      },
+    }),
+    contentType: "application/json",
+    status: 503,
+  });
+}
+
 async function installMockApi(
   page: Page,
   capture: CapturedRequest[] = [],
+  mode: Phase4ApiMode = "ready",
 ) {
   let reports = [
     {
@@ -477,19 +495,38 @@ async function installMockApi(
       });
     }
     if (url.pathname === "/api/analytics/dashboard") {
+      if (mode === "activation") return activationRequired(route);
       const range = url.searchParams.get("range") ?? "30d";
+      const source =
+        mode === "empty"
+          ? {
+              ...analyticsDashboard,
+              engagement: { acquisition: [], trend: [] },
+              members: {
+                cohorts: [],
+                ltvByTier: [],
+                tenureDistribution: [],
+                trend: [],
+              },
+              revenue: { byTier: [], trend: [] },
+              shipments: { declineReasons: [], trend: [] },
+              summary: Object.fromEntries(
+                Object.keys(analyticsDashboard.summary).map((key) => [key, 0]),
+              ),
+            }
+          : analyticsDashboard;
       return json(route, {
-        ...analyticsDashboard,
+        ...source,
         range: {
           preset: range,
           from:
             range === "custom"
               ? url.searchParams.get("from")
-              : analyticsDashboard.range.from,
+              : source.range.from,
           to:
             range === "custom"
               ? url.searchParams.get("to")
-              : analyticsDashboard.range.to,
+              : source.range.to,
         },
       });
     }
@@ -532,14 +569,27 @@ async function installMockApi(
       return json(route, body);
     }
     if (url.pathname === "/api/churn-intelligence") {
+      if (mode === "activation") return activationRequired(route);
       const search = url.searchParams.get("search")?.toLowerCase();
       return json(route, {
         ...churn,
-        items: churn.items.filter(
-          (item) =>
-            !search ||
-            `${item.memberName} ${item.email}`.toLowerCase().includes(search),
-        ),
+        ...(mode === "empty"
+          ? {
+              abTest: null,
+              drift: null,
+              fallbackReason:
+                "Production outcomes are still accumulating for model validation.",
+              items: [],
+              mode: "rules_fallback",
+              model: null,
+            }
+          : {
+              items: churn.items.filter(
+                (item) =>
+                  !search ||
+                  `${item.memberName} ${item.email}`.toLowerCase().includes(search),
+              ),
+            }),
       });
     }
     if (
@@ -566,7 +616,11 @@ async function installMockApi(
       return json(route, churn.items[0]?.alert);
     }
     if (url.pathname === "/api/benchmarks" && method === "GET") {
-      return json(route, benchmarks);
+      if (mode === "activation") return activationRequired(route);
+      return json(
+        route,
+        mode === "empty" ? { ...benchmarks, metrics: [] } : benchmarks,
+      );
     }
     if (
       url.pathname === "/api/benchmarks/preferences" &&
@@ -591,12 +645,24 @@ async function installMockApi(
       return json(route, benchmarks);
     }
     if (url.pathname === "/api/compliance/dashboard") {
+      if (mode === "activation") return activationRequired(route);
       const status = url.searchParams.get("status");
-      const items = complianceDashboard.items.filter(
+      const items = (mode === "empty" ? [] : complianceDashboard.items).filter(
         (item) => !status || item.status === status,
       );
       return json(route, {
         ...complianceDashboard,
+        ...(mode === "empty"
+          ? {
+              summary: {
+                compliant: 0,
+                nonCompliant: 0,
+                taxEstimateCents: 0,
+                totalChecks: 0,
+                unknown: 0,
+              },
+            }
+          : {}),
         items,
         total: items.length,
       });
@@ -890,6 +956,61 @@ test.describe("Phase 4 analytics and intelligence surfaces", () => {
 });
 
 test.describe("Phase 4 functional workflows", () => {
+  test("all Phase 4 surfaces explain credential-gated activation without mock data", async ({
+    page,
+  }) => {
+    await installMockApi(page, [], "activation");
+    await page.setViewportSize({ width: 375, height: 812 });
+
+    for (const state of [
+      { path: "/app/analytics", title: "Analytics is ready to connect" },
+      { path: "/app/churn-watch", title: "ML intelligence is ready to connect" },
+      { path: "/app/benchmarks", title: "Peer benchmarking is ready to connect" },
+      { path: "/app/compliance", title: "ShipCompliant is ready to connect" },
+    ]) {
+      await page.goto(state.path);
+      await expect(page.getByRole("heading", { name: state.title })).toBeVisible();
+      await expect(
+        page.getByText(
+          "The screen and API boundary are ready. Add the required environment credentials later to activate live operations.",
+        ),
+      ).toBeVisible();
+      await assertA11y(page);
+      await assertNoHorizontalOverflow(page);
+    }
+  });
+
+  test("all Phase 4 surfaces render honest empty production guidance", async ({
+    page,
+  }) => {
+    await installMockApi(page, [], "empty");
+    await page.setViewportSize({ width: 375, height: 812 });
+
+    for (const state of [
+      {
+        path: "/app/analytics",
+        title: "No live observations exist for this date range yet.",
+      },
+      {
+        path: "/app/churn-watch",
+        title: "No members match this risk view",
+      },
+      {
+        path: "/app/benchmarks",
+        title: "Your cohort is still forming",
+      },
+      {
+        path: "/app/compliance",
+        title: "No compliance checks in this view",
+      },
+    ]) {
+      await page.goto(state.path);
+      await expect(page.getByText(state.title).first()).toBeVisible();
+      await assertA11y(page);
+      await assertNoHorizontalOverflow(page);
+    }
+  });
+
   test("analytics key controls support keyboard-only traversal and activation", async ({
     page,
   }) => {
@@ -981,6 +1102,13 @@ test.describe("Phase 4 functional workflows", () => {
     for (let index = 0; index < 5; index += 1) {
       await expect(charts.nth(index)).toBeVisible();
     }
+    const linePatterns = await page
+      .getByRole("img", { name: /Member growth/ })
+      .locator(".analytics-chart-line")
+      .evaluateAll((lines) =>
+        lines.map((line) => getComputedStyle(line).strokeDasharray),
+      );
+    expect(new Set(linePatterns).size).toBe(linePatterns.length);
     const measurement = await page.evaluate(
       () =>
         (
@@ -1147,7 +1275,9 @@ test.describe("Phase 4 functional workflows", () => {
     await expect(page.getByText("80.4%", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Rules 61")).toBeVisible();
     await expect(page.getByText("ML 73")).toBeVisible();
-    await expect(page.getByText(/68–78% score band/)).toBeVisible();
+    await expect(
+      page.getByText(/68–78% calibrated uncertainty band/),
+    ).toBeVisible();
     await expect(page.getByText("High-risk alert needs review")).toBeVisible();
     await page.getByRole("button", { name: "Acknowledge" }).click();
     await expect(page.getByText("High-risk alert acknowledged.")).toBeVisible();
@@ -1185,7 +1315,7 @@ test.describe("Phase 4 functional workflows", () => {
     await page.goto("/app/benchmarks");
 
     await expect(page.getByText("10-19 wineries").first()).toBeVisible();
-    await expect(page.getByText("72th percentile")).toBeVisible();
+    await expect(page.getByText("72nd percentile")).toBeVisible();
     await expect(page.getByText("QA Winery")).toHaveCount(0);
     await page.getByRole("button", { name: "Leave benchmark pool" }).click();
     await expect(
@@ -1216,6 +1346,7 @@ test.describe("Phase 4 functional workflows", () => {
         name: "ShipCompliant checks are active",
       }),
     ).toBeVisible();
+    await expect(page.getByText(/Rules sc-rules-2026-q3 recorded/)).toBeVisible();
     await expect(
       page.getByText(/after a successful charge, immediately before label generation/i),
     ).toBeVisible();

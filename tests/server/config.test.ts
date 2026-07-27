@@ -126,6 +126,17 @@ describe("hosted environment security boundaries", () => {
     });
   });
 
+  it("treats the vendor-approved ShipCompliant token path as required configuration", () => {
+    const report = getConfigurationReport({
+      COMPLIANCE_PROVIDER: "shipcompliant",
+    });
+
+    expect(report.compliance.configured).toBe(false);
+    expect(report.compliance.missing).toContain(
+      "SHIPCOMPLIANT_TOKEN_PATH",
+    );
+  });
+
   it("allows Avalara sandbox but rejects its production endpoint in staging", () => {
     expect(() =>
       assertAvalaraBaseUrlEnvironment(

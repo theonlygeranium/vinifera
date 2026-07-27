@@ -41,6 +41,21 @@ function metricValue(
   return value.toLocaleString();
 }
 
+function ordinal(value: number) {
+  const rounded = Math.round(value);
+  const remainder100 = Math.abs(rounded) % 100;
+  if (remainder100 >= 11 && remainder100 <= 13) return `${rounded}th`;
+  const suffix =
+    Math.abs(rounded) % 10 === 1
+      ? "st"
+      : Math.abs(rounded) % 10 === 2
+        ? "nd"
+        : Math.abs(rounded) % 10 === 3
+          ? "rd"
+          : "th";
+  return `${rounded}${suffix}`;
+}
+
 function PeerGroupSummary({ dashboard }: { dashboard: BenchmarksDashboard }) {
   const peers = dashboard.peerGroup;
   return (
@@ -199,7 +214,7 @@ export function BenchmarksPage() {
                         <strong>{metricValue(metric.organizationValue, metric.unit)}</strong>
                       </div>
                       {metric.percentile != null ? (
-                        <b>{Math.round(metric.percentile)}th percentile</b>
+                        <b>{ordinal(metric.percentile)} percentile</b>
                       ) : null}
                     </div>
                     <div

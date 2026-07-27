@@ -31,16 +31,33 @@ if (pgliteEntry === null) process.exit(0);
 
 const { PGlite } = await import(pathToFileURL(pgliteEntry).href);
 
-const migrations = [
+const pointInTimeMigrations = [
   "supabase/migrations/202607260001_phase_1_foundation.sql",
   "supabase/migrations/202607260002_phase_2_core_club_loop.sql",
   "supabase/migrations/202607260003_phase_3_retention_comms.sql",
   "supabase/migrations/202607260004_phase_4_analytics.sql",
 ];
-const tests = [
+const pointInTimeTests = [
   "supabase/tests/010_phase_4_schema.test.sql",
   "supabase/tests/011_phase_4_tenant_rls.test.sql",
   "supabase/tests/012_phase_4_analytics_ml_compliance.test.sql",
+];
+const currentStackMigrations = [
+  ...pointInTimeMigrations,
+  "supabase/migrations/202607260005_phase_5_scale_integrations.sql",
+  "supabase/migrations/202607260006_phase_5_permissions.sql",
+  "supabase/migrations/202607260007_stripe_runtime_retry_safety.sql",
+  "supabase/migrations/202607260008_phase_5_meta_attribution.sql",
+  "supabase/migrations/202607260009_credential_envelope_rotation.sql",
+  "supabase/migrations/202607260010_phase_5_tax_accounting_facts.sql",
+  "supabase/migrations/202607260011_provider_activation_runtime.sql",
+  "supabase/migrations/202607260012_custom_hostname_write_safety.sql",
+  "supabase/migrations/202607260013_phase_2_transactional_commands.sql",
+  "supabase/migrations/202607260014_phase_3_brand_retention_hardening.sql",
+  "supabase/migrations/202607260015_phase_4_analytics_current_stack_hardening.sql",
+];
+const currentStackTests = [
+  "supabase/tests/025_phase_4_current_stack_hardening.test.sql",
 ];
 
 async function readRepositoryFile(relativeFile) {
@@ -75,10 +92,10 @@ function assertionPlan(sql, testFile) {
   return planned;
 }
 
-async function createDatabase() {
+async function createDatabase(migrationFiles = pointInTimeMigrations) {
   const database = new PGlite();
   await database.exec(await phase3Bootstrap());
-  for (const migration of migrations) {
+  for (const migration of migrationFiles) {
     let sql = await readRepositoryFile(migration);
     sql = sql.replace(
       "create extension if not exists pgcrypto with schema extensions;",
@@ -406,10 +423,31 @@ async function runPerformanceGates() {
 }
 
 let totalAssertions = 0;
-for (const testFile of tests) {
+for (const testFile of pointInTimeTests) {
   let database;
   try {
     database = await createDatabase();
+    let sql = await readRepositoryFile(testFile);
+    const assertions = assertionPlan(sql, testFile);
+    sql = sql.replace(
+      "create extension if not exists pgtap with schema extensions;",
+      "",
+    );
+    await database.exec(sql);
+    totalAssertions += assertions;
+    console.log(`PASS ${testFile} (${assertions}/${assertions})`);
+  } catch (error) {
+    console.error(`FAIL ${testFile}`);
+    throw error;
+  } finally {
+    await database?.close();
+  }
+}
+
+for (const testFile of currentStackTests) {
+  let database;
+  try {
+    database = await createDatabase(currentStackMigrations);
     let sql = await readRepositoryFile(testFile);
     const assertions = assertionPlan(sql, testFile);
     sql = sql.replace(

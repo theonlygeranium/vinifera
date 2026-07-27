@@ -10,8 +10,12 @@ import type {
   WorkerEnv,
 } from "../types";
 
-const REQUEST_TIMEOUT_MS = 1_800;
+const REQUEST_DEADLINE_MS = 1_800;
 const TOKEN_EXPIRY_SKEW_MS = 60_000;
+const complianceProviderCache = new WeakMap<
+  object,
+  { fetcher: typeof fetch; provider: ComplianceProvider }
+>();
 
 export interface ComplianceCheckRequest {
   destination: PostalAddress;
@@ -200,6 +204,10 @@ function providerFailure(message: string): AppError {
   return new AppError(502, "upstream_error", message);
 }
 
+function remainingRequestBudget(deadlineAt: number): number {
+  return Math.max(1, Math.floor(deadlineAt - Date.now()));
+}
+
 function mapShipCompliantResponse(
   value: unknown,
   checkedAt = new Date(),
@@ -288,14 +296,32 @@ function mapShipCompliantResponse(
       taxEstimateCents,
     };
   }
-  if (status === "non_compliant" && !reason) {
+  if (
+    status === "non_compliant" &&
+    (!reason ||
+      !providerResponseId ||
+      taxEstimateCents === null ||
+      !evidence.rulesVersion)
+  ) {
     return {
       checkedAt: checkedAt.toISOString(),
       evidence,
       provider: "shipcompliant",
       providerResponseId,
-      reason: "ShipCompliant did not provide the required hold reason.",
+      reason:
+        "ShipCompliant returned an incomplete non-compliant decision.",
       status: "unknown",
+      taxEstimateCents,
+    };
+  }
+  if (status === "unknown" && !reason) {
+    return {
+      checkedAt: checkedAt.toISOString(),
+      evidence,
+      provider: "shipcompliant",
+      providerResponseId,
+      reason: "ShipCompliant could not provide a verified compliance decision.",
+      status,
       taxEstimateCents,
     };
   }
@@ -333,7 +359,7 @@ export class ShipCompliantProvider implements ComplianceProvider {
     );
   }
 
-  private async accessToken(): Promise<string> {
+  private async accessToken(deadlineAt: number): Promise<string> {
     if (
       this.token &&
       this.token.expiresAt - TOKEN_EXPIRY_SKEW_MS > Date.now()
@@ -356,7 +382,8 @@ export class ShipCompliantProvider implements ComplianceProvider {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         method: "POST",
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        redirect: "error",
+        signal: AbortSignal.timeout(remainingRequestBudget(deadlineAt)),
       });
     } catch {
       throw providerFailure("ShipCompliant authentication is unavailable.");
@@ -388,7 +415,11 @@ export class ShipCompliantProvider implements ComplianceProvider {
   async checkShipment(
     input: ComplianceCheckRequest,
   ): Promise<ComplianceCheckResult> {
-    const accessToken = await this.accessToken();
+    const deadlineAt = Date.now() + REQUEST_DEADLINE_MS;
+    const accessToken = await this.accessToken(deadlineAt);
+    if (Date.now() >= deadlineAt) {
+      throw providerFailure("ShipCompliant compliance verification timed out.");
+    }
     const checkUrl = absoluteEndpoint(
       this.configuration.baseUrl,
       this.configuration.checkPath,
@@ -436,7 +467,8 @@ export class ShipCompliantProvider implements ComplianceProvider {
             this.configuration.contractVersion,
         },
         method: "POST",
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        redirect: "error",
+        signal: AbortSignal.timeout(remainingRequestBudget(deadlineAt)),
       });
     } catch {
       throw providerFailure("ShipCompliant compliance verification timed out.");
@@ -497,14 +529,16 @@ export function createComplianceProvider(
   env: WorkerEnv,
   fetcher: typeof fetch = fetch,
 ): ComplianceProvider {
+  const cached = complianceProviderCache.get(env);
+  if (cached?.fetcher === fetcher) return cached.provider;
+  let provider: ComplianceProvider;
   if (
     env.COMPLIANCE_PROVIDER === "simulated" &&
     env.APP_ENV === "test" &&
     env.COMPLIANCE_SIMULATOR_ENABLED === "true"
   ) {
-    return new SimulatedComplianceProvider();
-  }
-  if (env.COMPLIANCE_PROVIDER !== "shipcompliant") {
+    provider = new SimulatedComplianceProvider();
+  } else if (env.COMPLIANCE_PROVIDER !== "shipcompliant") {
     throw new AppError(
       503,
       "activation_required",
@@ -512,9 +546,8 @@ export function createComplianceProvider(
         ? "The compliance simulator is available only when APP_ENV=test and COMPLIANCE_SIMULATOR_ENABLED=true."
         : "ShipCompliant must be activated before alcohol labels can be generated.",
     );
-  }
-  return new ShipCompliantProvider(
-    {
+  } else {
+    provider = new ShipCompliantProvider({
       accountId: requireConfigured(
         env.SHIPCOMPLIANT_ACCOUNT_ID,
         "SHIPCOMPLIANT_ACCOUNT_ID",
@@ -552,10 +585,14 @@ export function createComplianceProvider(
         "SHIPCOMPLIANT_LICENSE_ID",
       ),
       tokenPath: normalizedPath(
-        env.SHIPCOMPLIANT_TOKEN_PATH?.trim() || "/oauth/token",
+        requireConfigured(
+          env.SHIPCOMPLIANT_TOKEN_PATH,
+          "SHIPCOMPLIANT_TOKEN_PATH",
+        ),
         "SHIPCOMPLIANT_TOKEN_PATH",
       ),
-    },
-    fetcher,
-  );
+    }, fetcher);
+  }
+  complianceProviderCache.set(env, { fetcher, provider });
+  return provider;
 }

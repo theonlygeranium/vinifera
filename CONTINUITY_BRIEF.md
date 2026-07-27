@@ -173,13 +173,15 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   are deferred, so no retry was attempted; reconcile the fixed lookup key only
   when activation is explicitly resumed.
 - The current credential-independent architecture gate passes: dependency
-  audit 0, TypeScript green, Vitest 301/301, Phase 1 database 92/92, Phase 2
+  audit 0, TypeScript green, Vitest 323/323, Phase 1 database 92/92, Phase 2
   231/231, Phase 3 199/199 (138 point-in-time plus 61 current-stack
-  hardening), Phase 4 121/121, Phase 5 401/401, and Playwright 141/141 with
-  Phase 3 at 27/27, zero axe violations, and 375/768/1440 coverage. Phase 3
+  hardening), Phase 4 158/158, Phase 5 438/438, and Playwright 143/143 with
+  Phase 4 at 20/20, zero axe violations, and 375/768/1440 coverage. Phase 3
   scores 1,000 members in 155.11 ms and claims 100 emails in 7.48 ms; the
   single-worker 100-member roster renders in 943.50 ms, latest LCP is 436 ms,
-  and CLS is 0. Pages and default/production Worker dry-run builds pass, as do
+  and CLS is 0. Phase 4 scores 10,000 members in 13,846.77 ms, renders the
+  365-day analytics query in 58.40 ms, and renders five charts 24.20 ms after
+  the response. Pages and default Worker dry-run builds pass, as do
   production release 14/14, mobile release 7/7, Stripe catalog 16/16, mobile
   identity, and compile-only Capacitor Android/iOS sync.
 - Architecture commit `5d36471` passed GitHub Actions run
@@ -241,13 +243,15 @@ The code must remain fail-closed until these external connections are active:
 6. Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof.
 7. Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests.
 8. Verify a Resend sending domain, signed webhook, and at least two real staging triggers.
-9. Apply the Phase 4 migration to hosted Supabase and run native tenant/RPC
-   tests.
+9. Apply Phase 4 migration 15 to hosted Supabase and run the 37 current-stack
+   pgTAP assertions plus native tenant/RPC tests.
 10. Connect a winery with real Phase 2/3 operations and verify every analytics
     metric and CSV export against source records.
-11. Accumulate at least 500 labeled members and 50 cancellations, train on
-    production history, meet held-out AUC-ROC 0.82 without underperforming
-    rules, and complete the superior 30-day A/B gate before promotion.
+11. Configure a dedicated active `ML_PLATFORM_ACTOR_USER_ID`, accumulate at
+    least 500 labeled members and 50 cancellations, reconcile all six source
+    families, dry-run and execute `ops:phase4:qualify-ml`, train on production
+    history, meet held-out AUC-ROC 0.82 without underperforming rules, and
+    complete the superior 30-day A/B gate before actor-audited promotion.
 12. Opt an Estate/Reserve winery into a peer cohort with at least ten
     contributors and verify the quarterly report delivery.
 13. Obtain vendor-approved ShipCompliant sandbox access, set the server-only

@@ -67,6 +67,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
           "SHIPCOMPLIANT_CONTRACT_VERSION",
           "SHIPCOMPLIANT_ENDPOINT_MODE",
           "SHIPCOMPLIANT_LICENSE_ID",
+          "SHIPCOMPLIANT_TOKEN_PATH",
         ])
       : env.COMPLIANCE_PROVIDER === "simulated" &&
           env.APP_ENV === "test" &&

@@ -140,26 +140,39 @@ tenant operational facts
         └── ShipCompliant OAuth adapter ──> exact compliant permits label
 ```
 
-Analytics event payloads are allowlisted, size-bounded product metadata.
-Direct identifiers such as email, address, phone, name, and provider secrets
-are rejected. Dashboard layouts and schedules remain tenant- and staff-owned.
+Authoritative analytics events come only from trusted server domain workflows;
+the generic client-authored event endpoint is denied. Dashboard facts are
+brand-scoped, use each brand's local calendar, resolve all-time ranges from the
+earliest durable fact, and remain tenant- and staff-owned. CSV export guards
+formula-like input after leading control and whitespace characters.
 
 Model training stores immutable dataset and feature-contract provenance,
 coefficients, standardization parameters, temporal metrics, calibration,
 confusion matrix, and the rules baseline. Candidate registration never implies
 promotion. PostgreSQL refuses production activation unless volume, provenance,
 AUC, drift, and completed A/B-superiority gates all pass; the browser applies a
-second defensive fallback.
+second defensive fallback. Training creation, registration, and promotion are
+service-only and require a configured active platform automation actor. A
+ready snapshot pauses before registration until an operator attests at least
+95 percent source coverage across shipments, billing, email delivery, portal
+activity, loyalty, and declines. PostgreSQL derives the evidence hash and
+persists the actor responsible for promotion.
 
 Benchmark values are returned only after an opted-in cohort reaches ten
 wineries. Region/member-band dimensions are progressively coarsened until the
 threshold is satisfied; exact participant counts are exposed only as bands.
+Organization-wide benchmark reads and consent changes pass both BFF and
+database checks for an active all-brand actor, so a restricted-brand employee
+cannot inherit service-role visibility.
 
 Shipment labels no longer rely on the Phase 2 whitelist when the Phase 4 path
 is active. After a successful charge, every label attempt performs or reuses a
 current provider decision immediately before label purchase. Only `compliant`
 proceeds; `unknown`, `non_compliant`, incomplete, timed-out, or unconfigured
 responses block fulfillment and persist an auditable hold.
+The provider token/check sequence rejects redirects, shares one bounded
+deadline, requires an explicit vendor-approved token path, and binds every
+EasyPost attempt to live ShipCompliant evidence for the same shipment.
 
 ---
 

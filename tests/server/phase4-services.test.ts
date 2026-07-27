@@ -19,6 +19,8 @@ import {
   resolveAnalyticsRange,
   runScheduledMlTrainingIfNeeded,
   sanitizeAnalyticsEventData,
+  shouldRunMlScoringAfterLifecycle,
+  validateProductionMlTrainingRun,
 } from "../../server/services/analytics";
 import {
   benchmarkSuppressionGuidance,
@@ -37,6 +39,8 @@ import {
 } from "../../server/provider-targets";
 import {
   CHURN_FEATURE_NAMES,
+  decodeMlTrainingDatasetRow,
+  selectDecisionThreshold,
   trainTemporalLogisticModel,
   type MlTrainingExample,
 } from "../../server/services/ml-training";
@@ -438,20 +442,95 @@ describe("Phase 4 analytics boundaries", () => {
         abTest: {
           endedAt: "2026-07-26T00:00:00.000Z",
           mlSuperior: true,
+          modelVersionId: "model-1",
           startedAt: "2026-06-25T00:00:00.000Z",
           status: "completed",
         },
-        drift: { status: "stable" },
+        drift: {
+          lastCheckedAt: "2026-07-26",
+          modelVersionId: "model-1",
+          score: 0.064,
+          status: "stable",
+        },
         mode: "ml",
         model: {
           cancellationCount: 80,
           dataSource: "production_history",
           deploymentStatus: "production",
+          id: "model-1",
           metrics: { aucRoc: 0.85 },
           trainingDataSize: 700,
         },
-      }),
+      }, new Date("2026-07-26T18:00:00.000Z")),
     ).toMatchObject({ mode: "ml" });
+  });
+
+  it("falls back when drift evidence is stale or belongs to another model", () => {
+    const payload = {
+      abTest: {
+        endedAt: "2026-07-01T00:00:00.000Z",
+        mlSuperior: true,
+        modelVersionId: "model-1",
+        startedAt: "2026-06-01T00:00:00.000Z",
+        status: "completed",
+      },
+      mode: "ml",
+      model: {
+        cancellationCount: 80,
+        dataSource: "production_history",
+        deploymentStatus: "production",
+        id: "model-1",
+        metrics: { aucRoc: 0.85 },
+        trainingDataSize: 700,
+      },
+      items: [
+        {
+          effectiveScore: 81,
+          effectiveSource: "ml",
+          mlScore: 81,
+          riskLevel: "medium",
+          rulesScore: 42,
+        },
+      ],
+    };
+    const stale = enforceModelGuardrails(
+      {
+        ...payload,
+        drift: {
+          lastCheckedAt: "2026-07-10",
+          modelVersionId: "model-1",
+          score: 0.064,
+          status: "stable",
+        },
+      },
+      new Date("2026-07-26T18:00:00.000Z"),
+    );
+    expect(stale).toMatchObject({
+      items: [
+        {
+          effectiveScore: 42,
+          effectiveSource: "rules",
+          mlScore: 81,
+          rulesScore: 42,
+          source: "rules",
+        },
+      ],
+      mode: "rules_fallback",
+    });
+    expect(
+      enforceModelGuardrails(
+        {
+          ...payload,
+          drift: {
+            lastCheckedAt: "2026-07-26",
+            modelVersionId: "model-2",
+            score: 0.064,
+            status: "stable",
+          },
+        },
+        new Date("2026-07-26T18:00:00.000Z"),
+      ),
+    ).toMatchObject({ mode: "rules_fallback" });
   });
 
   it("normalizes the persisted ML operations contract and maps degraded drift", () => {
@@ -461,11 +540,13 @@ describe("Phase 4 analytics boundaries", () => {
         id: "experiment-1",
         ml_auc: 0.85,
         ml_superior: true,
+        model_version_id: "model-1",
         rules_auc: 0.7,
         started_at: "2026-06-01T00:00:00.000Z",
         status: "completed",
       },
       latest_drift: {
+        model_version_id: "model-1",
         population_stability_index: 0.24,
         retraining_required: true,
         snapshot_date: "2026-07-26",
@@ -499,6 +580,79 @@ describe("Phase 4 analytics boundaries", () => {
       mode: "rules_fallback",
       fallbackReason: expect.stringMatching(/drift/i),
     });
+  });
+
+  it("does not normalize absent drift evidence as stable", () => {
+    expect(
+      normalizeMlOperationsDto({
+        production_model: {
+          id: "model-1",
+        },
+      }),
+    ).toMatchObject({
+      drift: {
+        lastCheckedAt: null,
+        modelVersionId: null,
+        status: "warning",
+      },
+    });
+  });
+
+  it("separates production validation from a replacement shadow experiment", () => {
+    const operations = normalizeMlOperationsDto({
+      ab_test_experiment: {
+        id: "experiment-2",
+        model_version_id: "model-2",
+        planned_end_at: "2026-08-25T00:00:00.000Z",
+        started_at: "2026-07-26T00:00:00.000Z",
+        status: "running",
+      },
+      ab_test_model: {
+        deployment_status: "ab_test",
+        id: "model-2",
+      },
+      production_drift: {
+        model_version_id: "model-1",
+        population_stability_index: 0.05,
+        retraining_required: false,
+        snapshot_date: "2026-07-26",
+        status: "stable",
+      },
+      production_experiment: {
+        completed_at: "2026-07-01T00:00:00.000Z",
+        id: "experiment-1",
+        ml_auc: 0.85,
+        ml_superior: true,
+        model_version_id: "model-1",
+        rules_auc: 0.72,
+        started_at: "2026-06-01T00:00:00.000Z",
+        status: "completed",
+      },
+      production_model: {
+        cancellation_count: 80,
+        deployment_status: "production",
+        id: "model-1",
+        metrics: { auc_roc: 0.85 },
+        training_data_size: 700,
+        training_source: "production_history",
+      },
+    });
+    expect(operations).toMatchObject({
+      abTest: {
+        modelVersionId: "model-2",
+        status: "running",
+      },
+      productionValidation: {
+        modelVersionId: "model-1",
+        status: "completed",
+      },
+    });
+    expect(
+      enforceModelGuardrails(
+        operations,
+        new Date("2026-07-26T18:00:00.000Z"),
+      ),
+    ).toMatchObject({ mode: "ml" });
   });
 
   it("preserves all DB churn rows and maps five feature contributions", () => {
@@ -635,6 +789,58 @@ describe("Phase 4 analytics boundaries", () => {
     expect(left).toBe(right);
   });
 
+  it("fails closed when persisted training provenance drifts from the request", () => {
+    const run = {
+      actual_training_ratio: 0.8,
+      cancellation_count: 80,
+      cross_validation_folds: 5,
+      feature_schema_version: "vinifera-churn-v1",
+      holdout_end: "2026-04-27",
+      holdout_row_count: 120,
+      holdout_start: "2026-01-27",
+      member_count: 600,
+      source: "production_history",
+      split_strategy: "temporal_80_20_member_disjoint",
+      status: "ready",
+      temporal_split: true,
+      training_cutoff: "2026-01-26",
+      training_row_count: 480,
+    };
+    expect(
+      validateProductionMlTrainingRun(run, {
+        holdoutEnd: "2026-04-27",
+        holdoutStart: "2026-01-27",
+        trainingCutoff: "2026-01-26",
+      }),
+    ).toMatchObject({
+      cancellationCount: 80,
+      holdoutRowCount: 120,
+      memberCount: 600,
+      status: "ready",
+      trainingRowCount: 480,
+    });
+    expect(() =>
+      validateProductionMlTrainingRun(
+        { ...run, source: "synthetic_fixture" },
+        {
+          holdoutEnd: "2026-04-27",
+          holdoutStart: "2026-01-27",
+          trainingCutoff: "2026-01-26",
+        },
+      ),
+    ).toThrow(/provenance/i);
+    expect(() =>
+      validateProductionMlTrainingRun(
+        { ...run, member_count: 601 },
+        {
+          holdoutEnd: "2026-04-27",
+          holdoutStart: "2026-01-27",
+          trainingCutoff: "2026-01-26",
+        },
+      ),
+    ).toThrow(/provenance/i);
+  });
+
   it("triggers one training path for monthly plus one-shot drift signals", async () => {
     let calls = 0;
     await expect(
@@ -660,6 +866,21 @@ describe("Phase 4 analytics boundaries", () => {
       }),
     ).resolves.toBe(false);
     expect(calls).toBe(1);
+  });
+
+  it("conservatively suppresses the full score batch on aggregate drift", () => {
+    expect(
+      shouldRunMlScoringAfterLifecycle({
+        retrainingModelIds: ["model-1"],
+        retrainingRequired: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRunMlScoringAfterLifecycle({
+        retrainingModelIds: [],
+        retrainingRequired: false,
+      }),
+    ).toBe(true);
   });
 
   it("maps the DB raw analytics shape into the canonical browser contract", () => {
@@ -1103,6 +1324,8 @@ describe("Phase 4 deterministic ML trainer", () => {
     expect(result.featureMedians.average_shipment_value_cents).toEqual(
       expect.any(Number),
     );
+    expect(result.decisionThreshold).toBeGreaterThanOrEqual(0.05);
+    expect(result.decisionThreshold).toBeLessThanOrEqual(0.95);
     expect(result.holdout.rulesBaseline.aucRoc).toBe(0.5);
     expect(result.eligibility.eligibleForExperiment).toBe(false);
     expect(result.eligibility.eligibleForPromotion).toBe(false);
@@ -1132,6 +1355,9 @@ describe("Phase 4 deterministic ML trainer", () => {
         outcome,
         rulesProbability: 0.3,
         split,
+        temporalOrderAt: new Date(
+          Date.UTC(2020, 0, 1 + index),
+        ).toISOString(),
       };
     });
     const shuffled = [...rows.slice(360), ...rows.slice(0, 360)];
@@ -1156,5 +1382,61 @@ describe("Phase 4 deterministic ML trainer", () => {
       100,
       100,
     ]);
+    expect(result.eligibility.eligibleForExperiment).toBe(true);
+  });
+
+  it("selects a deterministic training-only decision threshold", () => {
+    const labels = [0, 0, 1, 1];
+    const probabilities = [0.05, 0.15, 0.35, 0.45];
+    expect(selectDecisionThreshold(labels, probabilities)).toBe(0.35);
+    expect(selectDecisionThreshold(labels, probabilities)).toBe(0.35);
+  });
+
+  it("rejects malformed persisted feature values instead of imputing corruption", () => {
+    expect(() =>
+      decodeMlTrainingDatasetRow({
+        churned_within_90_days: false,
+        features: {
+          average_shipment_value_cents: "12500",
+        },
+        fold: 0,
+        member_id: "member-1",
+        observed_at: "2025-01-01T00:00:00.000Z",
+        row_id: "row-1",
+        rules_probability: 0.2,
+        split: "train",
+        temporal_order_at: "2022-01-01T00:00:00.000Z",
+      }),
+    ).toThrow(/not a finite number/i);
+  });
+
+  it("fails closed when assigned observations overlap the temporal holdout", () => {
+    const rows: MlTrainingExample[] = Array.from({ length: 36 }, (_, index) => {
+      const split = index < 30 ? "train" : "holdout";
+      const fold =
+        split === "holdout"
+          ? null
+          : Math.min(5, Math.floor(index / 5)) as 0 | 1 | 2 | 3 | 4 | 5;
+      return {
+        features: Object.fromEntries(
+          CHURN_FEATURE_NAMES.map((feature) => [feature, index]),
+        ),
+        fold,
+        memberId: `overlap-${index}`,
+        observedAt:
+          split === "train"
+            ? "2025-06-01T00:00:00.000Z"
+            : "2025-05-01T00:00:00.000Z",
+        outcome: (index % 2) as 0 | 1,
+        rulesProbability: 0.5,
+        split,
+        temporalOrderAt: new Date(
+          Date.UTC(2020, 0, 1 + index),
+        ).toISOString(),
+      };
+    });
+    expect(() =>
+      trainTemporalLogisticModel(rows, "production_history"),
+    ).toThrow(/strictly precede holdout/i);
   });
 });

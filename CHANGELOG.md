@@ -10,6 +10,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added the Phase 4 final-stack hardening migration and 37 current-stack
+  assertions: brand-local operational analytics, true all-time ranges,
+  refund-net LTV, de-duplicated engagement, all-brand benchmark authorization,
+  qualified temporal ML provenance, concurrent shadow scoring, actor-audited
+  promotion, and ShipCompliant-to-EasyPost evidence binding.
+- Added the no-network/connected `ops:phase4:qualify-ml` operator command. It
+  validates the six-source 95 percent reconciliation contract, requires an
+  active platform automation actor, calls only the guarded five-argument RPC,
+  and leaves the immutable evidence hash to PostgreSQL.
+- Added shared CSV formula-injection hardening, calibrated churn uncertainty
+  language, non-color chart differentiation, truthful compliance-rules
+  evidence, and refreshed Phase 4 visual captures at 375, 768, and 1440.
 - Added the Phase 3 final-stack retention hardening migration: brand-scoped
   defaults and time zones, same-brand composite integrity, lease-token email
   completion, a durable provider-event inbox, command result fingerprints,
@@ -78,6 +90,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Recorded the Phase 4 credential-independent gate: audit 0, TypeScript green,
+  Vitest 323/323, database gates 92/231/199/158/438, Playwright 143/143
+  (Phase 4 20/20) with zero axe violations, 13,846.77 ms 10,000-member
+  scoring, 58.40 ms 365-day analytics, 24.20 ms chart rendering, Pages
+  rollback validation, Worker dry run, and compile-only Android/iOS sync.
+- Made ML creation, registration, and promotion service-only; a missing active
+  actor, source qualification, completed experiment metric, or fresh stable
+  drift record now fails closed. Client-authored analytics events are denied,
+  and organization-wide benchmark access requires an active all-brand actor at
+  both service and database boundaries.
+- Required an explicit vendor-approved ShipCompliant token path, shared the
+  OAuth/check timeout budget, rejected redirects, preserved the token cache,
+  and added CSP/COOP/HSTS to the Pages rollback header contract.
 - Replaced composition-dependent email batch idempotency with one stable
   provider key per outbox row and bounded delivery concurrency of eight.
 - Isolated email enqueue/delivery from daily churn, loyalty, cancellation, and

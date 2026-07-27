@@ -188,7 +188,11 @@ describe("Phase 4 API normalizers", () => {
       quarterlyReport: {},
     });
     const compliance = normalizeComplianceDashboard({
-      provider: { name: "ShipCompliant" },
+      provider: {
+        lastRulesRefreshAt: "2026-07-01T12:00:00.000Z",
+        name: "ShipCompliant",
+        rulesVersion: "sc-rules-2026-q3",
+      },
       summary: { unknown: "3" },
       items: [{
         id: "check-1",
@@ -204,6 +208,11 @@ describe("Phase 4 API normalizers", () => {
       minimumPeerCount: 10,
     });
     expect(compliance.provider.status).toBe("activation_required");
+    expect(compliance.provider).toMatchObject({
+      lastRulesRefreshAt: "2026-07-01T12:00:00.000Z",
+      lastSuccessfulCheckAt: null,
+      rulesVersion: "sc-rules-2026-q3",
+    });
     expect(compliance.summary.unknown).toBe(3);
     expect(compliance.items[0]?.status).toBe("unknown");
   });

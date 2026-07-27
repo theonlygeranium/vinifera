@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Request, Response } from "express";
 import { getConfigurationReport } from "../config";
+import { encodeCsvRows } from "../lib/csv";
 import { AppError, requireConfigured } from "../lib/errors";
 import {
   ANALYTICS_EVENT_TYPES,
@@ -19,8 +20,8 @@ import {
   type BenchmarkReportMetric,
 } from "./benchmark-report";
 import {
+  decodeMlTrainingDatasetRow,
   trainTemporalLogisticModel,
-  type MlTrainingExample,
 } from "./ml-training";
 import { ProductionRetentionService } from "./retention";
 
@@ -73,17 +74,6 @@ interface DueBenchmarkReport {
   sample_count_band?: string | null;
   schedule_id: string;
   staff_user_id: string;
-}
-
-interface MlTrainingDatasetRow {
-  churned_within_90_days: boolean;
-  fold?: number | null;
-  features: Record<string, unknown>;
-  member_id?: string;
-  observed_at: string;
-  row_id: string;
-  rules_probability: number;
-  split?: string | null;
 }
 
 function createAdminClient(env: WorkerEnv): SupabaseClient {
@@ -390,6 +380,7 @@ async function enqueueBenchmarkReports(
       const { data: comparison, error: comparisonError } = await admin.rpc(
         "get_peer_benchmark",
         {
+          p_actor_user_id: due.staff_user_id,
           p_organization_id: due.organization_id,
           p_period: due.period,
         },
@@ -508,6 +499,81 @@ function calibrationLine(
   };
 }
 
+interface ProductionMlTrainingRunEvidence {
+  cancellationCount: number;
+  holdoutRowCount: number;
+  memberCount: number;
+  status: "insufficient_data" | "ready";
+  trainingRowCount: number;
+}
+
+export function validateProductionMlTrainingRun(
+  run: Record<string, unknown>,
+  expected: {
+    holdoutEnd: string;
+    holdoutStart: string;
+    trainingCutoff: string;
+  },
+): ProductionMlTrainingRunEvidence {
+  const value = (snake: string, camel: string): unknown =>
+    run[snake] ?? run[camel];
+  const status = String(run.status ?? "");
+  const source = String(run.source ?? "");
+  const memberCount = Number(value("member_count", "memberCount"));
+  const cancellationCount = Number(
+    value("cancellation_count", "cancellationCount"),
+  );
+  const trainingRowCount = Number(
+    value("training_row_count", "trainingRowCount"),
+  );
+  const holdoutRowCount = Number(
+    value("holdout_row_count", "holdoutRowCount"),
+  );
+  const actualTrainingRatio = Number(
+    value("actual_training_ratio", "actualTrainingRatio"),
+  );
+  const countsAreValid = [
+    memberCount,
+    cancellationCount,
+    trainingRowCount,
+    holdoutRowCount,
+  ].every((count) => Number.isInteger(count) && count >= 0);
+  const readyEvidenceIsValid =
+    status !== "ready" ||
+    (memberCount >= 500 &&
+      cancellationCount >= 50 &&
+      cancellationCount <= memberCount &&
+      trainingRowCount + holdoutRowCount === memberCount &&
+      actualTrainingRatio >= 0.79 &&
+      actualTrainingRatio <= 0.81);
+  if (
+    source !== "production_history" ||
+    (status !== "ready" && status !== "insufficient_data") ||
+    value("training_cutoff", "trainingCutoff") !== expected.trainingCutoff ||
+    value("holdout_start", "holdoutStart") !== expected.holdoutStart ||
+    value("holdout_end", "holdoutEnd") !== expected.holdoutEnd ||
+    value("feature_schema_version", "featureSchemaVersion") !==
+      "vinifera-churn-v1" ||
+    value("split_strategy", "splitStrategy") !==
+      "temporal_80_20_member_disjoint" ||
+    value("temporal_split", "temporalSplit") !== true ||
+    Number(value("cross_validation_folds", "crossValidationFolds")) !== 5 ||
+    !countsAreValid ||
+    !readyEvidenceIsValid
+  ) {
+    throw databaseError(
+      "The ML training run provenance did not match the requested production snapshot.",
+    );
+  }
+  return {
+    cancellationCount,
+    holdoutRowCount,
+    memberCount,
+    status: status as ProductionMlTrainingRunEvidence["status"],
+    trainingRowCount,
+  };
+}
+
 export async function runProductionMlTraining(
   env: WorkerEnv,
   input: { actorUserId?: string | null; asOf?: Date } = {},
@@ -524,10 +590,34 @@ export async function runProductionMlTraining(
   const holdoutEnd = isoDateOffset(asOf, -90);
   const holdoutStart = isoDateOffset(asOf, -180);
   const trainingCutoff = isoDateOffset(asOf, -181);
+  const configuredActorUserId =
+    input.actorUserId ?? env.ML_PLATFORM_ACTOR_USER_ID;
+  if (!configuredActorUserId) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "ML_PLATFORM_ACTOR_USER_ID must identify an active platform super-admin before ML training can run.",
+    );
+  }
+  const { data: activeActor, error: activeActorError } = await admin
+    .from("platform_users")
+    .select("id")
+    .eq("role", "super_admin")
+    .eq("active", true)
+    .eq("id", configuredActorUserId)
+    .maybeSingle();
+  const actorUserId = String(activeActor?.id ?? "");
+  if (activeActorError || !actorUserId) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "An active platform super-admin must be configured for ML training attribution.",
+    );
+  }
   const { data: runData, error: runError } = await admin.rpc(
     "create_ml_training_run",
     {
-      p_actor_user_id: input.actorUserId ?? null,
+      p_actor_user_id: actorUserId,
       p_holdout_end: holdoutEnd,
       p_holdout_start: holdoutStart,
       p_source: "production_history",
@@ -540,7 +630,44 @@ export async function runProductionMlTraining(
   if (!trainingRunId) {
     throw databaseError("The ML training run identifier is unavailable.");
   }
-  if (run?.status === "insufficient_data") {
+  const runEvidence = validateProductionMlTrainingRun(run ?? {}, {
+    holdoutEnd,
+    holdoutStart,
+    trainingCutoff,
+  });
+  if (runEvidence.status === "insufficient_data") {
+    return {
+      experimentId: null,
+      modelId: null,
+      registered: false,
+      trainingRunId,
+    };
+  }
+  const datasetHash =
+    typeof run?.dataset_hash === "string"
+      ? run.dataset_hash
+      : typeof run?.datasetHash === "string"
+        ? run.datasetHash
+        : null;
+  if (!datasetHash || !/^[a-f0-9]{64}$/.test(datasetHash)) {
+    throw databaseError("The immutable ML dataset hash is unavailable.");
+  }
+  const { data: qualificationData, error: qualificationError } =
+    await admin.rpc("get_ml_training_source_qualification", {
+      p_training_run_id: trainingRunId,
+    });
+  if (qualificationError) {
+    throw databaseError(
+      "The ML source reconciliation status could not be loaded.",
+    );
+  }
+  const qualification = toPublicRecord(
+    rpcRow(qualificationData) ?? qualificationData,
+  );
+  if (
+    qualification.status !== "qualified" ||
+    qualification.datasetHash !== datasetHash
+  ) {
     return {
       experimentId: null,
       modelId: null,
@@ -553,36 +680,17 @@ export async function runProductionMlTraining(
     { p_training_run_id: trainingRunId },
   );
   if (datasetError) throw databaseError("The immutable ML training data could not be loaded.");
-  const dataset = (datasetData ?? []) as MlTrainingDatasetRow[];
-  const examples: MlTrainingExample[] = dataset.map((row) => ({
-    fold:
-      row.fold === null || row.fold === undefined
-        ? null
-        : (row.fold as 0 | 1 | 2 | 3 | 4 | 5),
-    features: Object.fromEntries(
-      Object.entries(row.features ?? {})
-        .filter((entry): entry is [string, number] =>
-          typeof entry[1] === "number" && Number.isFinite(entry[1]),
-        ),
-    ),
-    memberId: row.member_id ?? row.row_id,
-    observedAt: row.observed_at,
-    outcome: row.churned_within_90_days ? 1 : 0,
-    rulesProbability: Number(row.rules_probability),
-    split:
-      row.split === "train" || row.split === "holdout"
-        ? row.split
-        : undefined,
-  }));
+  const examples = (datasetData ?? []).map(decodeMlTrainingDatasetRow);
   const result = trainTemporalLogisticModel(examples, "production_history");
-  const datasetHash =
-    typeof run?.dataset_hash === "string"
-      ? run.dataset_hash
-      : typeof run?.datasetHash === "string"
-        ? run.datasetHash
-        : null;
-  if (!datasetHash || !/^[a-f0-9]{64}$/.test(datasetHash)) {
-    throw databaseError("The immutable ML dataset hash is unavailable.");
+  if (
+    result.provenance.memberCount !== runEvidence.memberCount ||
+    result.provenance.cancellationCount !== runEvidence.cancellationCount ||
+    result.provenance.trainingCount !== runEvidence.trainingRowCount ||
+    result.provenance.holdoutCount !== runEvidence.holdoutRowCount
+  ) {
+    throw databaseError(
+      "The immutable ML dataset counts did not match the training run provenance.",
+    );
   }
   const artifactHash = await mlArtifactHash({
     dataset: {
@@ -633,7 +741,7 @@ export async function runProductionMlTraining(
   const { data: modelData, error: modelError } = await admin.rpc(
     "register_ml_model_version",
     {
-      p_actor_user_id: input.actorUserId ?? null,
+      p_actor_user_id: actorUserId,
       p_algorithm: "logistic_regression_l2",
       p_artifact_hash: artifactHash,
       p_coefficients: result.coefficients,
@@ -648,6 +756,7 @@ export async function runProductionMlTraining(
         iterations: 800,
         learning_rate: 0.08,
         regularization: 0.02,
+        selected_decision_threshold: result.decisionThreshold,
         split_strategy: "temporal_80_20_member_disjoint",
       },
       p_intercept: result.intercept,
@@ -659,6 +768,7 @@ export async function runProductionMlTraining(
         calibration_slope: calibration.slope,
         cv_auc_mean: mean(foldAucs),
         cv_auc_stddev: populationStandardDeviation(foldAucs),
+        decision_threshold: result.decisionThreshold,
         f1: result.holdout.metrics.f1,
         false_negative: confusion.falseNegative,
         false_positive: confusion.falsePositive,
@@ -689,7 +799,7 @@ export async function runProductionMlTraining(
     const { data: experimentData, error: experimentError } = await admin.rpc(
       "start_eligible_ml_experiment",
       {
-        p_actor_user_id: input.actorUserId ?? null,
+        p_actor_user_id: actorUserId,
         p_model_version_id: modelId,
       },
     );
@@ -710,6 +820,69 @@ export async function runProductionMlTraining(
   };
 }
 
+export async function recordMlTrainingSourceQualification(
+  env: WorkerEnv,
+  input: {
+    actorUserId?: string;
+    datasetHash: string;
+    sourceCoverage: Record<string, unknown>;
+    status: "qualified" | "rejected";
+    trainingRunId: string;
+  },
+): Promise<Record<string, unknown>> {
+  const actorUserId =
+    input.actorUserId ?? env.ML_PLATFORM_ACTOR_USER_ID;
+  if (!actorUserId) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "ML_PLATFORM_ACTOR_USER_ID must identify the platform super-admin attesting the source reconciliation.",
+    );
+  }
+  assertUuid(actorUserId, "ML platform actor");
+  assertUuid(input.trainingRunId, "ML training run");
+  if (
+    !/^[a-f0-9]{64}$/.test(input.datasetHash)
+  ) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "The ML dataset hash must be a lowercase SHA-256 value.",
+    );
+  }
+  const admin = createAdminClient(env);
+  const { data: actor, error: actorError } = await admin
+    .from("platform_users")
+    .select("id")
+    .eq("id", actorUserId)
+    .eq("role", "super_admin")
+    .eq("active", true)
+    .maybeSingle();
+  if (actorError || !actor) {
+    throw new AppError(
+      403,
+      "forbidden",
+      "An active platform super-admin must attest ML source reconciliation.",
+    );
+  }
+  const { data, error } = await admin.rpc(
+    "record_ml_training_source_qualification",
+    {
+      p_actor_user_id: actorUserId,
+      p_dataset_hash: input.datasetHash,
+      p_source_coverage: input.sourceCoverage,
+      p_status: input.status,
+      p_training_run_id: input.trainingRunId,
+    },
+  );
+  if (error) {
+    throw databaseError(
+      "The ML source reconciliation evidence could not be recorded.",
+    );
+  }
+  return toPublicRecord(rpcRow(data) ?? data);
+}
+
 export async function runScheduledMlTrainingIfNeeded(input: {
   lifecycle: Record<string, unknown>;
   monthly: boolean;
@@ -723,6 +896,15 @@ export async function runScheduledMlTrainingIfNeeded(input: {
   }
   await input.train();
   return true;
+}
+
+export function shouldRunMlScoringAfterLifecycle(
+  lifecycle: Record<string, unknown>,
+): boolean {
+  // The current lifecycle result reports aggregate breach state. Suppressing
+  // the whole batch is intentionally conservative until model-specific
+  // eligibility is returned by the scoring RPC.
+  return lifecycle.retrainingRequired !== true;
 }
 
 function startOfUtcDate(value: Date): Date {
@@ -795,28 +977,6 @@ export function resolveAnalyticsRange(
   const from = new Date(today);
   from.setUTCDate(from.getUTCDate() - daysByRange[preset] + 1);
   return { from: dateOnly(from), preset, to: dateOnly(today) };
-}
-
-function csvCell(value: unknown): string {
-  let text =
-    value === null || value === undefined
-      ? ""
-      : typeof value === "object"
-        ? JSON.stringify(value)
-        : String(value);
-  if (/^[=+\-@]/.test(text)) text = `'${text}`;
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
-function csvForRows(rows: Array<Record<string, unknown>>): string {
-  const headers = Array.from(
-    new Set(rows.flatMap((row) => Object.keys(row))),
-  );
-  if (!headers.length) return "\uFEFF";
-  return `\uFEFF${[
-    headers.map(csvCell).join(","),
-    ...rows.map((row) => headers.map((key) => csvCell(row[key])).join(",")),
-  ].join("\r\n")}\r\n`;
 }
 
 function nestedRows(
@@ -902,6 +1062,7 @@ export function sanitizeAnalyticsEventData(
 
 export function enforceModelGuardrails(
   payload: Record<string, unknown>,
+  asOf = new Date(),
 ): Record<string, unknown> {
   const mode = payload.mode;
   if (mode !== "ml") return payload;
@@ -915,7 +1076,10 @@ export function enforceModelGuardrails(
       : null;
   const auc = Number(metrics?.aucRoc ?? metrics?.auc_roc ?? 0);
   const experiment =
-    payload.abTest && typeof payload.abTest === "object"
+    payload.productionValidation &&
+    typeof payload.productionValidation === "object"
+      ? (payload.productionValidation as Record<string, unknown>)
+      : payload.abTest && typeof payload.abTest === "object"
       ? (payload.abTest as Record<string, unknown>)
       : payload.ab_test && typeof payload.ab_test === "object"
         ? (payload.ab_test as Record<string, unknown>)
@@ -963,11 +1127,58 @@ export function enforceModelGuardrails(
     experiment?.status === "completed" &&
     experimentDays >= 30 &&
     experimentSuperior;
+  const modelId = String(model?.id ?? "");
+  const experimentModelId = String(
+    experiment?.modelVersionId ?? experiment?.model_version_id ?? "",
+  );
+  const driftModelId = String(
+    drift?.modelVersionId ?? drift?.model_version_id ?? "",
+  );
+  const driftScore = Number(
+    drift?.score ??
+      drift?.populationStabilityIndex ??
+      drift?.population_stability_index,
+  );
+  const driftCheckedAt = Date.parse(
+    String(
+      drift?.lastCheckedAt ??
+        drift?.last_checked_at ??
+        drift?.snapshotDate ??
+        drift?.snapshot_date ??
+        "",
+    ),
+  );
+  const asOfDate = Date.UTC(
+    asOf.getUTCFullYear(),
+    asOf.getUTCMonth(),
+    asOf.getUTCDate(),
+  );
+  const driftDate = Number.isFinite(driftCheckedAt)
+    ? new Date(driftCheckedAt)
+    : null;
+  const driftAgeDays = driftDate
+    ? (asOfDate -
+        Date.UTC(
+          driftDate.getUTCFullYear(),
+          driftDate.getUTCMonth(),
+          driftDate.getUTCDate(),
+        )) /
+      (24 * 60 * 60 * 1_000)
+    : Number.POSITIVE_INFINITY;
   const driftStable =
-    drift?.status === "stable" ||
-    drift?.degradationDetected === false ||
-    drift?.degradation_detected === false;
+    drift?.status === "stable" &&
+    drift?.retrainingRequired !== true &&
+    drift?.retraining_required !== true &&
+    drift?.degradationDetected !== true &&
+    drift?.degradation_detected !== true &&
+    Number.isFinite(driftScore) &&
+    driftScore < 0.2 &&
+    driftAgeDays >= 0 &&
+    driftAgeDays <= 7;
   const productionReady =
+    Boolean(modelId) &&
+    experimentModelId === modelId &&
+    driftModelId === modelId &&
     deploymentStatus === "production" &&
     source === "production_history" &&
     memberCount >= 500 &&
@@ -977,10 +1188,41 @@ export function enforceModelGuardrails(
     experimentComplete &&
     driftStable;
   if (productionReady) return payload;
+  const rulesFallback = (value: unknown): Record<string, unknown> => {
+    const row =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+    const rulesScore =
+      row.rulesScore ??
+      row.rules_score ??
+      row.effectiveScore ??
+      row.effective_score ??
+      row.score ??
+      0;
+    const numericRulesScore = Number(rulesScore);
+    const riskLevel =
+      Number.isFinite(numericRulesScore) && numericRulesScore <= 30
+        ? "low"
+        : Number.isFinite(numericRulesScore) && numericRulesScore <= 60
+          ? "medium"
+          : "high";
+    return {
+      ...row,
+      effectiveScore: rulesScore,
+      effectiveSource: "rules",
+      fallbackActive: true,
+      riskLevel,
+      source: "rules",
+    };
+  };
   return {
-    ...payload,
+    ...rulesFallback(payload),
     fallbackReason:
       "The candidate has not met every production gate: production-history provenance, data minimums, 0.82 temporal holdout AUC, a superior completed 30-day A/B test, active promotion, and stable drift.",
+    ...(Array.isArray(payload.items)
+      ? { items: payload.items.map(rulesFallback) }
+      : {}),
     mode: "rules_fallback",
   };
 }
@@ -1416,43 +1658,83 @@ export function normalizeMlOperationsDto(
   const payload = toPublicRecord(rpcRow(value) ?? value);
   const productionModel = objectValue(payload.productionModel);
   const abTestModel = objectValue(payload.abTestModel);
-  const experiment = objectValue(payload.experiment);
-  const latestDrift = objectValue(payload.latestDrift);
   const hasProductionModel = Boolean(productionModel.id);
   const hasAbTestModel = Boolean(abTestModel.id);
-  const completedAt = experiment.completedAt;
-  const mlAuc = numeric(experiment.mlAuc, Number.NaN);
-  const rulesAuc = numeric(experiment.rulesAuc, Number.NaN);
-  const retrainingRequired = latestDrift.retrainingRequired === true;
+  const legacyExperiment = objectValue(payload.experiment);
+  const productionExperiment = objectValue(payload.productionExperiment);
+  const abTestExperiment = objectValue(payload.abTestExperiment);
+  const displayedExperiment = hasAbTestModel
+    ? Object.keys(abTestExperiment).length
+      ? abTestExperiment
+      : legacyExperiment
+    : Object.keys(productionExperiment).length
+      ? productionExperiment
+      : legacyExperiment;
+  const validationExperiment = hasProductionModel
+    ? Object.keys(productionExperiment).length
+      ? productionExperiment
+      : legacyExperiment
+    : {};
+  const legacyDrift = objectValue(payload.latestDrift);
+  const productionDrift = objectValue(payload.productionDrift);
+  const abTestDrift = objectValue(payload.abTestDrift);
+  const effectiveDrift = hasProductionModel
+    ? Object.keys(productionDrift).length
+      ? productionDrift
+      : legacyDrift
+    : Object.keys(abTestDrift).length
+      ? abTestDrift
+      : legacyDrift;
+  const normalizeExperiment = (
+    experiment: Record<string, unknown>,
+  ): Record<string, unknown> | null => {
+    if (!Object.keys(experiment).length) return null;
+    const completedAt = experiment.completedAt;
+    const mlAuc = numeric(experiment.mlAuc, Number.NaN);
+    const rulesAuc = numeric(experiment.rulesAuc, Number.NaN);
+    return {
+      endedAt: completedAt ?? experiment.plannedEndAt ?? null,
+      mlAuc: Number.isFinite(mlAuc) ? mlAuc : null,
+      mlSuperior:
+        experiment.status === "completed" &&
+        experiment.mlSuperior === true &&
+        Number.isFinite(mlAuc) &&
+        Number.isFinite(rulesAuc) &&
+        mlAuc > rulesAuc,
+      rulesAuc: Number.isFinite(rulesAuc) ? rulesAuc : null,
+      startedAt: experiment.startedAt ?? null,
+      status: experiment.status ?? "scheduled",
+      modelVersionId: experiment.modelVersionId ?? null,
+      ...(experiment.id ? { id: experiment.id } : {}),
+    };
+  };
+  const normalizedDisplayedExperiment = normalizeExperiment(
+    displayedExperiment,
+  );
+  const normalizedValidationExperiment = normalizeExperiment(
+    validationExperiment,
+  );
+  const retrainingRequired = effectiveDrift.retrainingRequired === true;
   const stability = numeric(
-    latestDrift.populationStabilityIndex,
+    effectiveDrift.populationStabilityIndex,
     Number.NaN,
   );
+  const hasDriftEvidence = Boolean(
+    effectiveDrift.modelVersionId && effectiveDrift.snapshotDate,
+  );
   const driftStatus =
-    retrainingRequired || latestDrift.status === "degraded"
+    retrainingRequired || effectiveDrift.status === "degraded"
       ? "retraining"
-      : latestDrift.status === "warning" ||
+      : !hasDriftEvidence ||
+          effectiveDrift.status === "warning" ||
           (Number.isFinite(stability) && stability >= 0.2)
         ? "warning"
         : "stable";
   return {
-    abTest: hasAbTestModel || experiment.id
-      ? {
-          endedAt: completedAt ?? experiment.plannedEndAt ?? null,
-          mlAuc: Number.isFinite(mlAuc) ? mlAuc : null,
-          mlSuperior:
-            experiment.status === "completed" &&
-            Number.isFinite(mlAuc) &&
-            Number.isFinite(rulesAuc) &&
-            mlAuc > rulesAuc,
-          rulesAuc: Number.isFinite(rulesAuc) ? rulesAuc : null,
-          startedAt: experiment.startedAt ?? null,
-          status: experiment.status ?? "scheduled",
-          ...(experiment.id ? { id: experiment.id } : {}),
-        }
-      : null,
+    abTest: normalizedDisplayedExperiment,
     drift: {
-      lastCheckedAt: latestDrift.snapshotDate ?? null,
+      lastCheckedAt: effectiveDrift.snapshotDate ?? null,
+      modelVersionId: effectiveDrift.modelVersionId ?? null,
       score: Number.isFinite(stability) ? stability : null,
       status: driftStatus,
     },
@@ -1470,6 +1752,7 @@ export function normalizeMlOperationsDto(
       : hasAbTestModel
         ? abTestModel
         : null,
+    productionValidation: normalizedValidationExperiment,
   };
 }
 
@@ -1540,22 +1823,67 @@ export class ProductionAnalyticsService
     return data ? toPublicRecord(data) : null;
   }
 
+  private async requireAllBrandBenchmarkAccess(
+    principal: StaffPrincipal,
+  ): Promise<void> {
+    if (principal.user.role === "super_admin") {
+      const { data: platformUser, error: platformError } = await this.admin
+        .from("platform_users")
+        .select("id")
+        .eq("id", principal.user.id)
+        .eq("active", true)
+        .maybeSingle();
+      if (!platformError && platformUser) return;
+      throw new AppError(
+        403,
+        "forbidden",
+        "Active platform administrator authorization is required.",
+      );
+    }
+    const organizationId = this.organizationId(principal);
+    const [staffResult, accessResult] = await Promise.all([
+      this.admin
+        .from("staff_users")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("id", principal.user.id)
+        .eq("status", "active")
+        .maybeSingle(),
+      this.admin
+        .from("organization_staff_access")
+        .select("scope")
+        .eq("organization_id", organizationId)
+        .eq("staff_user_id", principal.user.id)
+        .maybeSingle(),
+    ]);
+    if (
+      staffResult.error ||
+      accessResult.error ||
+      !staffResult.data ||
+      accessResult.data?.scope !== "all_brands"
+    ) {
+      throw new AppError(
+        403,
+        "forbidden",
+        "All-brand benchmark access is not available.",
+      );
+    }
+  }
+
   async getAnalyticsDashboard(input: {
     from?: string;
     range: AnalyticsRange;
     to?: string;
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff();
-    await this.assertLegacySingleBrandScope(principal, "Analytics dashboard");
+    const brandId = await this.activeBrandId(principal);
     const range = resolveAnalyticsRange(input.range, input);
-    const from =
-      range.from ??
-      isoDateOffset(new Date(`${range.to}T00:00:00.000Z`), -3_660);
     const [payload, layout] = await Promise.all([
       this.callRpc(
-        "get_analytics_dashboard",
+        "get_brand_analytics_dashboard",
         {
-          p_from: from,
+          p_brand_id: brandId,
+          p_from: range.from,
           p_organization_id: this.organizationId(principal),
           p_to: range.to,
         },
@@ -1589,7 +1917,7 @@ export class ProductionAnalyticsService
       requestKey: `export:${widget}:${range.from ?? "all"}:${range.to}`,
     });
     return {
-      contents: csvForRows(exportRows(widget, dashboard)),
+      contents: encodeCsvRows(exportRows(widget, dashboard)),
       filename: `vinifera-${widget}-${range.to}.csv`,
     };
   }
@@ -1608,7 +1936,7 @@ export class ProductionAnalyticsService
     }>;
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff();
-    await this.assertLegacySingleBrandScope(principal, "Analytics layouts");
+    const brandId = await this.activeBrandId(principal);
     const widgetIds = input.widgets.map((widget) => widget.id);
     if (
       widgetIds.length !== new Set(widgetIds).size ||
@@ -1629,6 +1957,7 @@ export class ProductionAnalyticsService
     const payload = await this.callRpc(
       "save_analytics_dashboard_layout",
       {
+        p_brand_id: brandId,
         p_organization_id: this.organizationId(principal),
         p_staff_user_id: principal.user.id,
         p_layout: input.widgets.map((widget) => ({
@@ -1675,10 +2004,7 @@ export class ProductionAnalyticsService
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
-    await this.assertLegacySingleBrandScope(
-      principal,
-      "Scheduled analytics reports",
-    );
+    const brandId = await this.activeBrandId(principal);
     const recipientEmail = input.recipientEmail
       .trim()
       .toLocaleLowerCase("en-US");
@@ -1707,6 +2033,7 @@ export class ProductionAnalyticsService
       {
         p_day_of_month: input.frequency === "monthly" ? 1 : null,
         p_day_of_week: input.frequency === "weekly" ? 1 : null,
+        p_brand_id: brandId,
         p_enabled: input.enabled,
         p_frequency: input.frequency,
         p_organization_id: organizationId,
@@ -1783,35 +2110,12 @@ export class ProductionAnalyticsService
     idempotencyKey: string;
     memberId?: string;
   }): Promise<{ accepted: boolean }> {
-    const principal = await this.requireStaff();
-    const brandId = await this.activeBrandId(principal);
-    if (!ANALYTICS_EVENT_TYPES.has(input.eventType)) {
-      throw new AppError(
-        400,
-        "invalid_request",
-        "The analytics event type is not in the supported taxonomy.",
-      );
-    }
-    if (input.memberId) assertUuid(input.memberId, "Member");
-    await this.callRpc(
-      "record_analytics_event",
-      {
-        p_brand_id: brandId,
-        p_event_data: sanitizeAnalyticsEventData(input.eventData),
-        p_event_type: input.eventType,
-        p_idempotency_key: await analyticsEventIdempotencyKey({
-          actorUserId: principal.user.id,
-          eventType: input.eventType,
-          organizationId: this.organizationId(principal),
-          requestKey: input.idempotencyKey,
-        }),
-        p_member_id: input.memberId ?? null,
-        p_occurred_at: new Date().toISOString(),
-        p_organization_id: this.organizationId(principal),
-      },
-      "The analytics event could not be recorded.",
+    void input;
+    throw new AppError(
+      403,
+      "forbidden",
+      "Client-authored analytics events are disabled. Analytics facts are recorded only by trusted server-side domain workflows.",
     );
-    return { accepted: true };
   }
 
   async acknowledgeHighRiskAlert(
@@ -1904,24 +2208,35 @@ export class ProductionAnalyticsService
     assertUuid(memberId, "Member");
     const principal = await this.requireStaff();
     const brandId = await this.activeBrandId(principal);
-    const payload = await this.callRpc(
-      "get_member_churn_intelligence",
-      {
-        p_brand_id: brandId,
-        p_member_id: memberId,
-        p_organization_id: this.organizationId(principal),
-      },
-      "Member churn intelligence could not be loaded.",
-    );
+    const [payload, operationsPayload] = await Promise.all([
+      this.callRpc(
+        "get_member_churn_intelligence",
+        {
+          p_brand_id: brandId,
+          p_member_id: memberId,
+          p_organization_id: this.organizationId(principal),
+        },
+        "Member churn intelligence could not be loaded.",
+      ),
+      this.callRpc(
+        "get_ml_operations_status",
+        {},
+        "ML operations status could not be loaded.",
+      ),
+    ]);
     const row = rpcRow(payload);
     if (!row) throw new AppError(404, "not_found", "Member not found.");
     return normalizeMemberChurnDto(
-      enforceModelGuardrails(toPublicRecord(row)),
+      enforceModelGuardrails({
+        ...normalizeMlOperationsDto(operationsPayload),
+        ...toPublicRecord(row),
+      }),
     );
   }
 
   async getBenchmarkComparison(): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff();
+    await this.requireAllBrandBenchmarkAccess(principal);
     const planTier = principal.organization?.planTier;
     if (planTier !== "estate" && planTier !== "reserve") {
       await this.recordDomainAnalyticsEvent(principal, {
@@ -1937,7 +2252,6 @@ export class ProductionAnalyticsService
       };
     }
     const organizationId = this.organizationId(principal);
-    const brandId = await this.activeBrandId(principal);
     const currentQuarter = new Date();
     currentQuarter.setUTCDate(1);
     currentQuarter.setUTCHours(0, 0, 0, 0);
@@ -1948,7 +2262,11 @@ export class ProductionAnalyticsService
     const [payload, preferenceResult, reportResult] = await Promise.all([
       this.callRpc(
         "get_benchmark_comparison",
-        { p_organization_id: organizationId, p_period: period },
+        {
+          p_actor_user_id: principal.user.id,
+          p_organization_id: organizationId,
+          p_period: period,
+        },
         "The benchmark comparison could not be loaded.",
       ),
       this.admin
@@ -1960,7 +2278,6 @@ export class ProductionAnalyticsService
         .from("analytics_report_schedules")
         .select("enabled,last_enqueued_at,next_report_at")
         .eq("organization_id", organizationId)
-        .eq("brand_id", brandId)
         .eq("staff_user_id", principal.user.id)
         .eq("report_type", "benchmark")
         .maybeSingle(),
@@ -1996,10 +2313,7 @@ export class ProductionAnalyticsService
     quarterlyReportEnabled: boolean;
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff(["owner", "admin"]);
-    await this.assertLegacySingleBrandScope(
-      principal,
-      "Benchmark report scheduling",
-    );
+    await this.requireAllBrandBenchmarkAccess(principal);
     const planTier = principal.organization?.planTier;
     if (planTier !== "estate" && planTier !== "reserve") {
       throw new AppError(
@@ -2009,7 +2323,7 @@ export class ProductionAnalyticsService
       );
     }
     const payload = await this.callRpc(
-      "set_benchmark_preferences",
+      "set_orgwide_benchmark_preferences",
       {
         p_actor_user_id: principal.user.id,
         p_opted_in: input.optedIn,
@@ -2109,10 +2423,8 @@ export class ProductionAnalyticsService
         lastSuccessfulCheckAt:
           provider.lastSuccessfulCheckAt ?? null,
         lastRulesRefreshAt:
-          provider.lastRulesRefreshAt ??
-          provider.lastRulesVersionAt ??
-          provider.lastSuccessfulCheckAt ??
-          null,
+          provider.lastRulesRefreshAt ?? null,
+        lastRulesVersionAt: provider.lastRulesVersionAt ?? null,
         name:
           this.env.COMPLIANCE_PROVIDER === "simulated"
             ? "Test simulator"
@@ -2225,6 +2537,7 @@ export async function runAnalyticsSchedule(
 ): Promise<{
   benchmarkReportsQueued: number;
   benchmarkSnapshots: number;
+  brandSnapshots: number;
   featureSnapshots: number;
   lifecycle: Record<string, unknown>;
   predictions: number;
@@ -2235,6 +2548,7 @@ export async function runAnalyticsSchedule(
   let featureSnapshots = 0;
   let predictions = 0;
   let benchmarkSnapshots = 0;
+  let brandSnapshots = 0;
   let lifecycleResult: Record<string, unknown> = {};
   const nightly =
     asOf.getUTCHours() === NIGHTLY_ANALYTICS_UTC_HOUR;
@@ -2266,7 +2580,7 @@ export async function runAnalyticsSchedule(
       ...(nightly
         ? [
             {
-              name: "ordered nightly analytics refresh",
+              name: "ordered nightly analytics, drift, and scoring refresh",
               run: async () => {
                 const { error: snapshotError } = await admin.rpc(
                   "refresh_analytics_snapshots",
@@ -2280,6 +2594,21 @@ export async function runAnalyticsSchedule(
                     "Daily analytics snapshot refresh failed.",
                   );
                 }
+                const completedMetricDate = dateOnly(
+                  new Date(asOf.getTime() - 24 * 60 * 60 * 1_000),
+                );
+                const { data: brandSnapshotData, error: brandSnapshotError } =
+                  await admin.rpc("refresh_brand_analytics_snapshots", {
+                    p_brand_id: null,
+                    p_metric_date: completedMetricDate,
+                    p_organization_id: null,
+                  });
+                if (brandSnapshotError) {
+                  throw databaseError(
+                    "Daily brand analytics snapshot refresh failed.",
+                  );
+                }
+                brandSnapshots = Number(brandSnapshotData ?? 0);
                 const { data: featureData, error: featureError } =
                   await admin.rpc("refresh_ml_feature_store", {
                     p_organization_id: null,
@@ -2289,6 +2618,21 @@ export async function runAnalyticsSchedule(
                   throw databaseError("Churn feature refresh failed.");
                 }
                 featureSnapshots = Number(featureData ?? 0);
+                const { data: lifecycleData, error: lifecycleError } =
+                  await admin.rpc(
+                    "run_ml_lifecycle",
+                    { p_as_of: asOf.toISOString() },
+                  );
+                if (lifecycleError) {
+                  throw databaseError("The ML lifecycle run failed.");
+                }
+                lifecycleResult = toPublicRecord(
+                  rpcRow(lifecycleData) ?? lifecycleData,
+                );
+                if (!shouldRunMlScoringAfterLifecycle(lifecycleResult)) {
+                  predictions = 0;
+                  return;
+                }
                 const { data: predictionData, error: predictionError } =
                   await admin.rpc("score_ml_churn_batch", {
                     p_organization_id: null,
@@ -2335,23 +2679,6 @@ export async function runAnalyticsSchedule(
           benchmarkReportsQueued = await enqueueBenchmarkReports(admin, asOf);
         },
       },
-      ...(nightly
-        ? [
-            {
-              name: "ML experiment evaluation, promotion, and drift",
-              run: async () => {
-                const { data, error } = await admin.rpc(
-                  "run_ml_lifecycle",
-                  { p_as_of: asOf.toISOString() },
-                );
-                if (error) {
-                  throw databaseError("The ML lifecycle run failed.");
-                }
-                lifecycleResult = toPublicRecord(rpcRow(data) ?? data);
-              },
-            },
-          ]
-        : []),
     ],
     failures,
   );
@@ -2367,7 +2694,17 @@ export async function runAnalyticsSchedule(
                 lifecycle: lifecycleResult,
                 monthly,
                 train: async () => {
-                  await runProductionMlTraining(env, { asOf });
+                  if (!env.ML_PLATFORM_ACTOR_USER_ID) {
+                    lifecycleResult = {
+                      ...lifecycleResult,
+                      trainingActivationRequired: true,
+                    };
+                    return;
+                  }
+                  await runProductionMlTraining(env, {
+                    actorUserId: env.ML_PLATFORM_ACTOR_USER_ID,
+                    asOf,
+                  });
                 },
               });
             },
@@ -2387,6 +2724,7 @@ export async function runAnalyticsSchedule(
   return {
     benchmarkReportsQueued,
     benchmarkSnapshots,
+    brandSnapshots,
     featureSnapshots,
     lifecycle: lifecycleResult,
     predictions,

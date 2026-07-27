@@ -225,6 +225,8 @@ export interface ComplianceDashboard {
     name: string;
     status: "active" | "configured" | "activation_required" | "degraded";
     lastSuccessfulCheckAt?: string | null;
+    lastRulesRefreshAt?: string | null;
+    rulesVersion?: string | null;
   };
   summary: {
     totalChecks: number;
@@ -836,7 +838,13 @@ export function normalizeComplianceDashboard(
           ? provider.status
           : "activation_required",
       lastSuccessfulCheckAt: optionalString(
-        provider.lastSuccessfulCheckAt ?? provider.lastRulesRefreshAt,
+        provider.lastSuccessfulCheckAt,
+      ),
+      lastRulesRefreshAt: optionalString(
+        provider.lastRulesRefreshAt ?? provider.lastRulesVersionAt,
+      ),
+      rulesVersion: optionalString(
+        provider.rulesVersion ?? provider.lastRulesVersion,
       ),
     },
     summary: {

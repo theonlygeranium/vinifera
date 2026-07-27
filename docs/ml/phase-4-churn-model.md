@@ -27,7 +27,10 @@ L2-regularized logistic regression with:
 - training-only median imputation;
 - training-only standardization;
 - temporal 80/20 holdout;
-- five expanding-window validation folds;
+- five expanding temporal-cohort validation folds;
+- a decision threshold selected only from out-of-fold training predictions,
+  maximizing F1 with balanced accuracy and proximity to 0.5 as deterministic
+  tie-breakers;
 - probability calibration assessment and an explicitly stored decision
   threshold;
 - coefficient-based signed feature contributions;
@@ -36,6 +39,11 @@ L2-regularized logistic regression with:
 The initial choice favors portability, interpretability, and deterministic
 Worker batch inference. A future tree model must exceed the same leakage,
 holdout, explainability, latency, and promotion gates.
+
+The selected decision threshold is used for held-out accuracy, precision,
+recall, F1, and confusion-matrix reporting. It is distinct from the operational
+high-risk alert threshold, which remains a separately versioned product-policy
+setting.
 
 ## Feature contract
 
@@ -54,28 +62,60 @@ after that cutoff and target-window outcomes are excluded from training input.
 Direct identifiers, email addresses, free-form notes, and provider payloads are
 not model features.
 
+The production decoder rejects non-finite, non-numeric, unknown-version, or
+malformed persisted features rather than silently treating corruption as
+missing data. Legitimately absent values use training-only median imputation.
+Because the persisted feature vector always contains every versioned key, key
+presence is not treated as proof of underlying event-source coverage. Hosted
+activation must separately report source denominators and observation coverage
+for shipment, portal, email, loyalty, tier, and decline signals.
+
 ## Labels and split
 
 - Positive outcome: membership cancellation inside the prediction horizon.
 - Negative outcome: retained through the complete horizon.
 - Censored members without a complete horizon are excluded from supervised
   training.
-- The most recent 20 percent by cutoff date is held out.
-- Cross-validation uses expanding time windows; random folds are prohibited.
+- Eligible distinct members are ordered by persisted membership join date and
+  member ID. The oldest 80 percent form the training cohort and the newest 20
+  percent form the member-disjoint holdout cohort.
+- Training members use their latest eligible feature snapshot on or before the
+  training cutoff. Holdout members use their latest eligible snapshot inside
+  the later holdout window. Every selected snapshot must have a complete
+  90-day outcome horizon.
+- Assigned datasets carry a separate temporal-cohort ordering timestamp and
+  feature observation timestamp. Training observations must strictly precede
+  holdout observations.
+- Cross-validation uses contiguous cohorts 0 through 5. Each of the five
+  validation cohorts is evaluated only after its earlier expanding cohorts;
+  random folds are prohibited.
 
 ## Promotion gate
 
 A model version remains `candidate` unless:
 
-1. at least 500 labeled members and 50 positive outcomes exist;
-2. held-out AUC-ROC is at least 0.82;
-3. precision, recall, F1, accuracy, calibration, and confusion matrix are
+1. an active platform automation actor owns the immutable production-history
+   run;
+2. operator-attested source coverage reconciles at least 95 percent of the
+   shared member denominator across shipments, billing, email delivery, portal
+   activity, loyalty, and declines through the full outcome horizon;
+3. at least 500 labeled members and 50 positive outcomes exist;
+4. held-out AUC-ROC is at least 0.82;
+5. precision, recall, F1, accuracy, calibration, and confusion matrix are
    recorded;
-4. it does not underperform the rules baseline on the same held-out set;
-5. leakage and feature-contract checks pass;
-6. no already-active model is replaced without an audited service action.
+6. it does not underperform the rules baseline on the same held-out set;
+7. all five temporal validation folds have both outcome classes and a defined
+   AUC;
+8. leakage and feature-contract checks pass;
+9. no already-active model is replaced without an audited service action.
 
 No synthetic metric can satisfy this gate.
+
+The qualification command is an operator seam, not an evidence generator.
+PostgreSQL derives its evidence hash from the run, dataset, status, and coverage
+document. Model registration and promotion remain service-only, and the
+promoted version records the active platform actor. Missing experiments,
+metrics, drift evidence, source qualification, or actor identity fail closed.
 
 ## Deployment and fallback
 
@@ -87,6 +127,10 @@ creates one idempotent alert with an auditable acknowledgment path.
 
 The UI and API return the Phase 3 rules score when no eligible active model
 exists, prediction freshness expires, or drift/quality policy disables ML.
+Experiment and drift evidence must identify the same active model, and the
+latest stable drift snapshot must be no more than seven UTC calendar days old.
+When fallback activates, every member's effective source and score are
+rewritten to rules; the ML score remains visible only as comparison evidence.
 
 ## Drift
 
@@ -94,6 +138,17 @@ Population Stability Index compares current input distributions with the
 training baseline. A policy breach marks the model `retraining_required` and
 alerts platform operations. Retraining creates a new candidate; it never
 mutates or automatically promotes an existing version.
+
+The nightly order is feature refresh, lifecycle/drift evaluation, then scoring.
+A detected retraining requirement suppresses that scoring pass so a newly
+degraded model cannot update effective scores or emit fresh ML alerts before
+fallback takes effect.
+
+The current lifecycle result exposes aggregate drift state, so suppression is
+conservatively batch-wide. Rules remain authoritative during that pass. A
+future model-specific scheduler response may continue a healthy candidate's
+shadow predictions while suppressing only the degraded production model, but
+it must not infer that distinction from aggregate state.
 
 ## Known limitations
 

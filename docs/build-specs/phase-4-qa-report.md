@@ -35,16 +35,19 @@ convert any of those hosted gates into a pass.
 | --- | --- | --- |
 | Production dependency audit | `npm audit --omit=dev --audit-level=moderate` | PASS — 0 vulnerabilities |
 | TypeScript | `npm run typecheck` | PASS |
-| Full unit/service suite | `npm test` | PASS — 71/71 across 5 files |
-| Focused Phase 4 unit/service suite | `npx vitest run tests/client/phase4-normalizers.test.ts tests/server/phase4-services.test.ts` | PASS — 25/25 |
+| Full unit/service suite | `npm test` | PASS — 323/323 across 27 files |
+| Focused Phase 4 unit/service suite | Phase 4 normalizer, service, CSV-security, and qualification-command tests | PASS — 50/50 across 4 files |
 | Client production build | `npm run build` | PASS |
-| Worker packaging | `npm run build:worker` | PASS — 3,051.30 KiB upload / 646.87 KiB gzip dry run |
+| Worker packaging | `npm run build:worker` | PASS — 3,439.03 KiB upload / 722.33 KiB gzip dry run |
 | Browser secret-binding scan | `rg` against `dist/assets` for server-only binding names | PASS — no matches |
-| Full browser regression | `CI=1 npm run qa:e2e` | PASS — 94/94 across Phases 1–4 using the two-worker CI configuration; Phase 4 contributed 18/18 and five charts were visible 24.80ms after dashboard response end |
-| Phase 4 embedded database | `npm run qa:db:phase4` | PASS — schema 46/46, tenant RLS 25/25, functional analytics/ML/compliance 50/50; 121/121 total |
-| Hosted root | `curl` against `https://vinifera.edstratumlabs.ai/` | HTTP 200 from the existing static Pages site |
-| Hosted application | `curl` against `/app/` | HTTP 200 static prototype HTML, 189,835 bytes |
-| Hosted API | `curl` against `/api/health` | HTTP 200 `text/html`, 89,647 bytes; not the Worker JSON health contract |
+| Full browser regression | `CI=1 npm run qa:e2e` | PASS — 143/143; Phase 4 contributed 20/20 and five charts were visible 24.20ms after dashboard response end |
+| Phase 4 embedded database | `npm run qa:db:phase4` | PASS — schema 46/46, tenant RLS 25/25, functional 50/50, current-stack hardening 37/37; 158/158 total |
+| Later-stack database regression | `npm run qa:db:phase5` | PASS — 438/438 with migration 15 and Phase 4 hardening included |
+| Pages rollback build | `npm run build:pages` plus artifact comparison | PASS — the original prototype is retained exactly |
+| Native preparation | mobile identity, compile-only web bundle, Android/iOS Capacitor sync | PASS — no runtime/provider activation claimed |
+| Hosted root | read-only fetch against `https://vinifera.edstratumlabs.ai/` | HTTP 200 from the existing static Pages site |
+| Hosted application | read-only fetch against `/app/` | HTTP 200 static prototype HTML, 189,835 bytes |
+| Hosted API | read-only fetch against `/api/health` | HTTP 200 `text/html`, 89,676 bytes; not the Worker JSON health contract |
 
 The browser suite uses deterministic API fixtures. Its passing values and
 screenshots are not production analytics, model, benchmark, or legal-compliance
@@ -79,6 +82,10 @@ evidence.
   explainability, high-risk alert creation, and alert acknowledgment paths.
 - [x] The scheduled architecture refreshes features and predictions nightly,
   evaluates lifecycle/drift nightly, and attempts candidate training monthly.
+- [x] Missing ML automation identity or source qualification pauses training
+  without weakening rules fallback. The operator command validates evidence
+  offline, PostgreSQL derives its hash, and creation/registration/promotion
+  remain service-only and actor-audited.
 - [x] Promotion requires production-history provenance, at least 500 labeled
   members, at least 50 cancellations, held-out AUC-ROC of 0.82, superiority to
   rules over a completed 30-day comparison, explicit promotion, and stable
@@ -97,6 +104,9 @@ evidence.
 - [x] Estate/Reserve entitlement, explicit opt-in/opt-out, coarsened groups,
   minimum cohort size of ten, suppression guidance, percentile output, and
   deterministic quarterly PDF/HTML/text/CSV generation are locally tested.
+- [x] Organization-wide reads and consent changes require an active all-brand
+  actor at both the BFF and database boundaries; restricted-brand staff are
+  denied even though the BFF uses service credentials.
 - [x] Suppressed cohorts return no peer metric values or small exact peer
   counts.
 - [ ] No hosted Estate/Reserve winery and ten-contributor peer cohort has been
@@ -108,6 +118,9 @@ evidence.
 - [x] The adapter validates HTTPS configuration, performs OAuth
   client-credentials caching, maps complete provider evidence, and converts
   malformed, unknown, timeout, and provider failures into fail-closed outcomes.
+- [x] The OAuth and decision calls share one bounded deadline, reject
+  redirects, reuse one provider instance/token cache, and require an explicit
+  vendor-approved token path.
 - [x] The deterministic simulator is allowed only when `APP_ENV=test` and the
   explicit simulator flag is enabled.
 - [x] The operational compliance check runs after a successful charge and
@@ -153,10 +166,10 @@ evidence.
 - [x] The deterministic browser harness passes LCP below 2.5 seconds and CLS
   below 0.1 on all four surfaces at all three breakpoints.
 - [x] An in-page MutationObserver/requestAnimationFrame probe measured all five
-  analytics charts visibly rendered 24.80ms after the dashboard resource
-  response ended in the full parallel run, below the 500ms gate.
-- [x] The embedded database gate measured 10,000-member scoring at 13,668.44ms
-  against the 300,000ms ceiling and the 365-day dashboard at 53.01ms against
+  analytics charts visibly rendered 24.20ms after the dashboard resource
+  response ended in the full regression run, below the 500ms gate.
+- [x] The embedded database gate measured 10,000-member scoring at 13,846.77ms
+  against the 300,000ms ceiling and the 365-day dashboard at 58.40ms against
   the 2,000ms ceiling.
 - [ ] Real ShipCompliant latency below two seconds has not been measured.
 - [ ] Hosted/mobile QA against real data remains pending.
@@ -176,22 +189,28 @@ reproducible capture command.
 
 ## Security gate
 
-- [x] Analytics event types are allowlisted, payload size is bounded, and
-  identifying/free-form keys are rejected by service tests.
+- [x] Client-authored analytics events are denied. Trusted server workflows
+  use a fixed event taxonomy and minimized payloads.
 - [x] Model artifacts, training rows, raw benchmark contributions, and provider
   credentials have no client API contract and remain server/database concerns.
 - [x] ShipCompliant configuration is server-only and cannot be Vite-prefixed.
 - [x] The built browser assets contain none of the server-secret binding names
   `SHIPCOMPLIANT_API_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`,
   `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, or `EASYPOST_API_KEY`.
+- [x] Worker browser QA proves restrictive response headers. The Pages rollback
+  artifact declares CSP, COOP, HSTS, frame, MIME, referrer, and permissions
+  policies.
 - [x] Benchmark output is suppressed below ten contributors.
 - [x] The Phase 4 schema suite passes 46/46, including forced-RLS and privilege
   declarations.
-- [x] The complete embedded tenant-isolation and functional RPC suites pass
-  25/25 and 50/50 respectively.
+- [x] The embedded tenant-isolation, functional RPC, and final-stack hardening
+  suites pass 25/25, 50/50, and 37/37. The catalog audit finds no
+  `SECURITY DEFINER` function without an empty search path.
 - [ ] Hosted two-tenant RLS, CSV tenant isolation, service/super-admin training
   access, and compliance-ledger access remain unverified.
 - [ ] Hosted secret/configuration inspection remains pending.
+- [ ] The new Pages CSP/COOP header contract requires post-push hosted
+  verification.
 
 ## Specification divergences made explicit
 

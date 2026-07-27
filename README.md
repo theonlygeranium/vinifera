@@ -154,7 +154,7 @@ serve the React application instead.
 | Phase 1 foundation | Architecture, API, browser, Worker, and embedded PostgreSQL gates pass |
 | Phase 2 core club | 231 database assertions plus service and browser regression gates pass locally |
 | Phase 3 retention | Lease-owned activation-safe email, rules scoring, immutable cancel-flow, tenant-scoped commands, snapshot-keyset loyalty, brand-local jobs, and 199 database assertions pass locally |
-| Phase 4 intelligence | Local architecture release gate passes: analytics, ML lifecycle, benchmark privacy, compliance, database, service, browser, accessibility, and performance checks are green; hosted real-data, model, cohort, and provider evidence remain gated |
+| Phase 4 intelligence | Current-stack architecture passes 158 database assertions: brand-local real-fact analytics, source-qualified and actor-audited ML lifecycle, all-brand benchmark authorization, and fail-closed compliance/label binding; hosted real-data, model, cohort, and provider evidence remain gated |
 | Phase 5 scale | Version 0.5.0 source architecture is complete for connectors, multi-brand isolation, white label, and native shells; the Phase 5 QA report records architecture evidence and deferred hosted checks |
 | Release controls | Read-only readiness, Stripe test-catalog bootstrap, staging target guards, native hosted pgTAP, production Worker/Pages rollback control, and signed internal-store workflows are source-complete; credential-bound execution remains gated |
 | Provider activation | Pending hosted Supabase, Stripe/provider test and live accounts, custom-domain DNS/certificates, APNs/FCM, signing, physical devices, and store tracks |
@@ -186,6 +186,7 @@ vinifera/
 │   ├── verify-phase3-db.mjs # Retention database, RLS, RPC, and scale QA
 │   ├── verify-phase4-db.mjs # Analytics, ML, benchmark, compliance, and scale QA
 │   ├── verify-phase5-db.mjs # Brand, connector, mobile-token, RLS, and scale QA
+│   ├── qualify-phase4-ml.mjs # Dry-run/connected operator source attestation
 │   ├── verify-mobile-identity.mjs # Cross-platform ID, version, deep-link, and privacy drift gate
 │   ├── generate-mobile-assets.mjs # Deterministic iOS/Android branded asset generator
 │   └── prepare-capacitor.mjs # Native entrypoint and restrictive CSP preparation

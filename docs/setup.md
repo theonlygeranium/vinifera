@@ -246,6 +246,24 @@ cancellations, temporal holdout ROC AUC of at least 0.82, performance above the
 rules baseline, production provenance, and a completed 30-day A/B comparison.
 Synthetic fixtures validate the trainer only and can never be promoted.
 
+Set `ML_PLATFORM_ACTOR_USER_ID` only to a dedicated active platform
+super-admin UUID. Without it, scheduled training reports an activation state
+and leaves Phase 3 rules scoring active. A ready production snapshot must also
+receive operator-attested source reconciliation before model registration.
+Validate that evidence without a provider call:
+
+```bash
+ML_PLATFORM_ACTOR_USER_ID="<active-platform-super-admin-uuid>" \
+  npm run ops:phase4:qualify-ml -- \
+  --evidence "./private/phase-4-qualification.json" \
+  --dry-run
+```
+
+The connected form additionally requires `SUPABASE_URL` and either
+`SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_SECRET_KEY`. See
+`docs/runbooks/phase-4-data-ml-benchmark-activation.md` for the evidence schema,
+the 95 percent per-source coverage contract, review, execution, and rollback.
+
 ShipCompliant is wired behind a fail-closed OAuth adapter. Obtain the exact
 sandbox origin, paths, contract version, account, and license values during
 Sovos onboarding before enabling it:
@@ -415,8 +433,8 @@ npm run build:mobile:android
 ```
 
 The current credential-independent architecture gate passes TypeScript,
-301/301 Vitest tests, Phase 1 92/92, Phase 2 231/231, Phase 3 199/199, Phase 4
-121/121, Phase 5 401/401 embedded PostgreSQL/pgTAP assertions, and 141/141
+323/323 Vitest tests, Phase 1 92/92, Phase 2 231/231, Phase 3 199/199, Phase 4
+158/158, Phase 5 438/438 embedded PostgreSQL/pgTAP assertions, and 143/143
 Playwright tests with zero axe violations. Pages, Worker, and production Worker
 dry-run builds pass. The focused release controls pass 14/14, mobile-release
 controls 7/7, Stripe catalog controls 16/16, and mobile identity passes. These

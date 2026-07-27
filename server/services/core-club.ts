@@ -25,6 +25,7 @@ import {
   analyticsEventIdempotencyKey,
   runFailureIsolatedAnalyticsWrite,
 } from "../lib/analytics-events";
+import { encodeCsvCell } from "../lib/csv";
 import { AppError, requireConfigured } from "../lib/errors";
 import { assertEasyPostTarget } from "../provider-targets";
 import {
@@ -1566,12 +1567,6 @@ function validateCsvMember(member: NormalizedCsvMember): CsvValidationError | nu
         rowNumber: member.rowNumber,
       }
     : null;
-}
-
-function escapeCsvCell(value: unknown): string {
-  let text = value == null ? "" : String(value);
-  if (/^[=+\-@]/.test(text)) text = `'${text}`;
-  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 function getAddress(value: unknown): PostalAddress | null {
@@ -3303,7 +3298,7 @@ export class ProductionCoreClubService implements CoreClubService {
       "Postal Code",
       "Country",
     ];
-    const lines = [headers.map(escapeCsvCell).join(",")];
+    const lines = [headers.map(encodeCsvCell).join(",")];
     for (const member of result.items) {
       const address = (member.address ?? {}) as Record<string, unknown>;
       const tier = member.tier as Record<string, unknown> | undefined;
@@ -3322,7 +3317,7 @@ export class ProductionCoreClubService implements CoreClubService {
           address.postalCode,
           address.country,
         ]
-          .map(escapeCsvCell)
+          .map(encodeCsvCell)
           .join(","),
       );
     }

@@ -95,6 +95,7 @@ export interface WorkerEnv {
   MOBILE_IOS_LATEST_VERSION?: string;
   MOBILE_IOS_MINIMUM_VERSION?: string;
   MOBILE_IOS_STORE_URL?: string;
+  ML_PLATFORM_ACTOR_USER_ID?: string;
   RATE_LIMIT_PEPPER?: string;
   MEMBER_BRAND_CONTEXT_SECRET?: string;
   EASYPOST_API_KEY?: string;

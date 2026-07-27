@@ -10,6 +10,7 @@ export interface MlTrainingExample {
   outcome: 0 | 1;
   rulesProbability: number;
   split?: "holdout" | "train";
+  temporalOrderAt?: string;
 }
 
 export interface BinaryMetrics {
@@ -37,6 +38,7 @@ export interface TemporalLogisticTrainingResult {
   algorithm: "deterministic_l2_logistic_regression";
   coefficients: Record<string, number>;
   dataSource: MlDataSource;
+  decisionThreshold: number;
   eligibility: {
     eligibleForExperiment: boolean;
     eligibleForPromotion: false;
@@ -112,8 +114,118 @@ export const CHURN_FEATURE_NAMES = [
   "total_lifetime_spend_cents",
 ] as const;
 
+function upstreamDatasetError(message: string): AppError {
+  return new AppError(500, "upstream_error", message);
+}
+
+export function decodeMlTrainingDatasetRow(
+  value: unknown,
+): MlTrainingExample {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw upstreamDatasetError("The ML training dataset row is malformed.");
+  }
+  const row = value as Record<string, unknown>;
+  const featuresValue = row.features;
+  if (
+    !featuresValue ||
+    typeof featuresValue !== "object" ||
+    Array.isArray(featuresValue)
+  ) {
+    throw upstreamDatasetError(
+      "The ML training dataset feature vector is malformed.",
+    );
+  }
+  const features: Record<string, number> = {};
+  for (const [feature, featureValue] of Object.entries(featuresValue)) {
+    if (!(CHURN_FEATURE_NAMES as readonly string[]).includes(feature)) {
+      throw upstreamDatasetError(
+        `The ML training feature ${feature} is outside vinifera-churn-v1.`,
+      );
+    }
+    if (featureValue === null) continue;
+    if (typeof featureValue !== "number" || !Number.isFinite(featureValue)) {
+      throw upstreamDatasetError(
+        `The ML training feature ${feature} is not a finite number.`,
+      );
+    }
+    features[feature] = featureValue;
+  }
+  const memberId =
+    typeof row.member_id === "string" && row.member_id
+      ? row.member_id
+      : typeof row.row_id === "string" && row.row_id
+        ? row.row_id
+        : null;
+  const observedAt =
+    typeof row.observed_at === "string" ? row.observed_at : null;
+  const temporalOrderAt =
+    typeof row.temporal_order_at === "string"
+      ? row.temporal_order_at
+      : null;
+  const split =
+    row.split === "train" || row.split === "holdout" ? row.split : null;
+  const fold =
+    row.fold === null || row.fold === undefined
+      ? null
+      : typeof row.fold === "number" &&
+          Number.isInteger(row.fold) &&
+          row.fold >= 0 &&
+          row.fold <= FOLD_COUNT
+        ? (row.fold as 0 | 1 | 2 | 3 | 4 | 5)
+        : undefined;
+  const rulesProbability = row.rules_probability;
+  if (
+    !memberId ||
+    !observedAt ||
+    !temporalOrderAt ||
+    !split ||
+    fold === undefined ||
+    (split === "holdout" && fold !== null) ||
+    (split === "train" && fold === null) ||
+    typeof row.churned_within_90_days !== "boolean" ||
+    typeof rulesProbability !== "number" ||
+    !Number.isFinite(rulesProbability) ||
+    rulesProbability < 0 ||
+    rulesProbability > 1
+  ) {
+    throw upstreamDatasetError(
+      "The ML training dataset provenance is malformed.",
+    );
+  }
+  if (
+    !Number.isFinite(Date.parse(observedAt)) ||
+    !Number.isFinite(Date.parse(temporalOrderAt))
+  ) {
+    throw upstreamDatasetError(
+      "The ML training dataset timestamps are malformed.",
+    );
+  }
+  return {
+    features,
+    fold,
+    memberId,
+    observedAt,
+    outcome: row.churned_within_90_days ? 1 : 0,
+    rulesProbability,
+    split,
+    temporalOrderAt,
+  };
+}
+
 function round(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+function parseTimestamp(value: string, label: string): number {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      `${label} must be a valid ISO timestamp.`,
+    );
+  }
+  return timestamp;
 }
 
 function sigmoid(value: number): number {
@@ -398,6 +510,78 @@ export function evaluateBinaryPredictions(
   };
 }
 
+export function selectDecisionThreshold(
+  labels: number[],
+  probabilities: number[],
+): number {
+  if (!labels.length || labels.length !== probabilities.length) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "Threshold labels and probabilities must have equal non-zero length.",
+    );
+  }
+  const sortedProbabilities = [...new Set(probabilities)]
+    .filter(
+      (probability) =>
+        Number.isFinite(probability) && probability >= 0 && probability <= 1,
+    )
+    .sort((left, right) => left - right);
+  if (sortedProbabilities.length !== probabilities.length) {
+    for (const probability of probabilities) {
+      if (
+        !Number.isFinite(probability) ||
+        probability < 0 ||
+        probability > 1
+      ) {
+        throw new AppError(
+          400,
+          "invalid_request",
+          "Threshold probabilities must be between 0 and 1.",
+        );
+      }
+    }
+  }
+  const candidates = [
+    0.5,
+    ...sortedProbabilities,
+    ...sortedProbabilities.slice(0, -1).map(
+      (probability, index) =>
+        (probability + (sortedProbabilities[index + 1] ?? probability)) / 2,
+    ),
+  ].filter((threshold) => threshold >= 0.05 && threshold <= 0.95);
+  let bestThreshold = 0.5;
+  let bestF1 = -1;
+  let bestBalancedAccuracy = -1;
+  for (const threshold of candidates) {
+    const metrics = evaluateBinaryPredictions(
+      labels,
+      probabilities,
+      threshold,
+    );
+    const { falseNegative, falsePositive, trueNegative, truePositive } =
+      metrics.confusionMatrix;
+    const sensitivity =
+      truePositive / Math.max(1, truePositive + falseNegative);
+    const specificity =
+      trueNegative / Math.max(1, trueNegative + falsePositive);
+    const balancedAccuracy = (sensitivity + specificity) / 2;
+    if (
+      metrics.f1 > bestF1 + EPSILON ||
+      (Math.abs(metrics.f1 - bestF1) <= EPSILON &&
+        balancedAccuracy > bestBalancedAccuracy + EPSILON) ||
+      (Math.abs(metrics.f1 - bestF1) <= EPSILON &&
+        Math.abs(balancedAccuracy - bestBalancedAccuracy) <= EPSILON &&
+        Math.abs(threshold - 0.5) < Math.abs(bestThreshold - 0.5))
+    ) {
+      bestF1 = metrics.f1;
+      bestBalancedAccuracy = balancedAccuracy;
+      bestThreshold = threshold;
+    }
+  }
+  return round(bestThreshold);
+}
+
 function rulesProbabilities(rows: MlTrainingExample[]): number[] {
   return rows.map((row) => {
     const probability =
@@ -435,12 +619,26 @@ function sortedTrainingRows(rows: MlTrainingExample[]): MlTrainingExample[] {
         );
       }
       memberIds.add(row.memberId);
-      const timestamp = Date.parse(row.observedAt);
-      if (!Number.isFinite(timestamp)) {
+      parseTimestamp(row.observedAt, "ML observation timestamp");
+      if (hasAssignedSplit && !row.temporalOrderAt) {
         throw new AppError(
           400,
           "invalid_request",
-          "ML training timestamps must be valid ISO dates.",
+          "Assigned ML rows require an explicit temporal cohort timestamp.",
+        );
+      }
+      parseTimestamp(
+        row.temporalOrderAt ?? row.observedAt,
+        "ML temporal cohort timestamp",
+      );
+      if (
+        Date.parse(row.temporalOrderAt ?? row.observedAt) >
+        Date.parse(row.observedAt)
+      ) {
+        throw new AppError(
+          400,
+          "invalid_request",
+          "ML temporal cohort timestamps cannot follow feature observations.",
         );
       }
       if (row.outcome !== 0 && row.outcome !== 1) {
@@ -480,9 +678,85 @@ function sortedTrainingRows(rows: MlTrainingExample[]): MlTrainingExample[] {
     })
     .sort(
       (left, right) =>
+        Date.parse(left.temporalOrderAt ?? left.observedAt) -
+          Date.parse(right.temporalOrderAt ?? right.observedAt) ||
         Date.parse(left.observedAt) - Date.parse(right.observedAt) ||
         left.memberId.localeCompare(right.memberId),
     );
+}
+
+function requireAssignedTemporalProvenance(
+  trainingRows: MlTrainingExample[],
+  holdoutRows: MlTrainingExample[],
+): void {
+  const latestTrainingObservation = Math.max(
+    ...trainingRows.map((row) => Date.parse(row.observedAt)),
+  );
+  const earliestHoldoutObservation = Math.min(
+    ...holdoutRows.map((row) => Date.parse(row.observedAt)),
+  );
+  if (latestTrainingObservation >= earliestHoldoutObservation) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "Assigned ML training observations must strictly precede holdout observations.",
+    );
+  }
+  const latestTrainingCohort = Math.max(
+    ...trainingRows.map((row) =>
+      Date.parse(row.temporalOrderAt ?? row.observedAt),
+    ),
+  );
+  const earliestHoldoutCohort = Math.min(
+    ...holdoutRows.map((row) =>
+      Date.parse(row.temporalOrderAt ?? row.observedAt),
+    ),
+  );
+  if (latestTrainingCohort > earliestHoldoutCohort) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "Assigned ML holdout cohorts must not precede training cohorts.",
+    );
+  }
+  const assignedFolds = new Set(trainingRows.map((row) => Number(row.fold)));
+  if (
+    assignedFolds.size !== FOLD_COUNT + 1 ||
+    !Array.from({ length: FOLD_COUNT + 1 }, (_, fold) => fold).every((fold) =>
+      assignedFolds.has(fold),
+    )
+  ) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "Assigned ML provenance requires contiguous temporal cohorts 0 through 5.",
+    );
+  }
+  for (let validationFold = 1; validationFold <= FOLD_COUNT; validationFold += 1) {
+    const earlier = trainingRows.filter(
+      (row) => Number(row.fold) < validationFold,
+    );
+    const validation = trainingRows.filter(
+      (row) => Number(row.fold) === validationFold,
+    );
+    const latestEarlierCohort = Math.max(
+      ...earlier.map((row) =>
+        Date.parse(row.temporalOrderAt ?? row.observedAt),
+      ),
+    );
+    const earliestValidationCohort = Math.min(
+      ...validation.map((row) =>
+        Date.parse(row.temporalOrderAt ?? row.observedAt),
+      ),
+    );
+    if (latestEarlierCohort > earliestValidationCohort) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "Assigned ML folds must preserve expanding temporal-cohort order.",
+      );
+    }
+  }
 }
 
 export function trainTemporalLogisticModel(
@@ -509,6 +783,9 @@ export function trainTemporalLogisticModel(
       "ML provenance must include non-empty training and holdout partitions.",
     );
   }
+  if (hasAssignedSplit) {
+    requireAssignedTemporalProvenance(trainingRows, holdoutRows);
+  }
   const trainingNullable = trainingRows.map((row) =>
     rawFeatureVector(row, featureNames),
   );
@@ -526,16 +803,16 @@ export function trainTemporalLogisticModel(
     trainingRows.map((row) => row.outcome),
   );
   const holdoutLabels = holdoutRows.map((row) => row.outcome);
-  const holdoutMetrics = evaluateBinaryPredictions(
-    holdoutLabels,
-    predict(model, holdoutMatrix),
-  );
-  const rulesBaseline = evaluateBinaryPredictions(
-    holdoutLabels,
-    rulesProbabilities(holdoutRows),
-  );
+  const holdoutProbabilities = predict(model, holdoutMatrix);
 
-  const folds: TemporalLogisticTrainingResult["folds"] = [];
+  const foldEvaluations: Array<{
+    probabilities: number[];
+    trainingEndAt: string;
+    trainingSize: number;
+    validationEndAt: string;
+    validationLabels: number[];
+    validationSize: number;
+  }> = [];
   const blockSize = Math.max(
     1,
     Math.floor(trainingRows.length / (FOLD_COUNT + 1)),
@@ -578,17 +855,46 @@ export function trainTemporalLogisticModel(
         )
         .map((row) => normalize(row, foldParameters)),
     );
-    folds.push({
-      metrics: evaluateBinaryPredictions(
-        foldValidation.map((row) => row.outcome),
-        probabilities,
-      ),
+    foldEvaluations.push({
+      probabilities,
       trainingEndAt: foldTraining.at(-1)?.observedAt ?? "",
       trainingSize: foldTraining.length,
       validationEndAt: foldValidation.at(-1)?.observedAt ?? "",
+      validationLabels: foldValidation.map((row) => row.outcome),
       validationSize: foldValidation.length,
     });
   }
+  const outOfFoldLabels = foldEvaluations.flatMap(
+    (fold) => fold.validationLabels,
+  );
+  const outOfFoldProbabilities = foldEvaluations.flatMap(
+    (fold) => fold.probabilities,
+  );
+  const decisionThreshold = outOfFoldLabels.length
+    ? selectDecisionThreshold(outOfFoldLabels, outOfFoldProbabilities)
+    : 0.5;
+  const folds: TemporalLogisticTrainingResult["folds"] = foldEvaluations.map(
+    (fold) => ({
+      metrics: evaluateBinaryPredictions(
+        fold.validationLabels,
+        fold.probabilities,
+        decisionThreshold,
+      ),
+      trainingEndAt: fold.trainingEndAt,
+      trainingSize: fold.trainingSize,
+      validationEndAt: fold.validationEndAt,
+      validationSize: fold.validationSize,
+    }),
+  );
+  const holdoutMetrics = evaluateBinaryPredictions(
+    holdoutLabels,
+    holdoutProbabilities,
+    decisionThreshold,
+  );
+  const rulesBaseline = evaluateBinaryPredictions(
+    holdoutLabels,
+    rulesProbabilities(holdoutRows),
+  );
   const cancellationCount = rows.reduce(
     (sum, row) => sum + row.outcome,
     0,
@@ -600,6 +906,12 @@ export function trainTemporalLogisticModel(
   if (rows.length < 500) reasons.push("At least 500 members are required.");
   if (cancellationCount < 50) {
     reasons.push("At least 50 observed cancellations are required.");
+  }
+  if (
+    folds.length !== FOLD_COUNT ||
+    folds.some((fold) => fold.metrics.aucRoc === null)
+  ) {
+    reasons.push("Exactly five evaluable temporal validation folds are required.");
   }
   if (
     holdoutMetrics.aucRoc === null ||
@@ -623,6 +935,7 @@ export function trainTemporalLogisticModel(
       ]),
     ),
     dataSource,
+    decisionThreshold,
     eligibility: {
       eligibleForExperiment: reasons.length === 0,
       eligibleForPromotion: false,
