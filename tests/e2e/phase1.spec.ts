@@ -40,6 +40,40 @@ const memberSession = {
   },
 };
 
+const emptyOrganizationOverview = {
+  activeMembers: 0,
+  brandCount: 0,
+  brands: [],
+  monthlyRecurringRevenueCents: 0,
+  shipmentsThisPeriod: 0,
+};
+
+async function mockStaffWorkspace(
+  page: Page,
+  session: unknown = staffSession,
+) {
+  await page.route("**/api/auth/staff/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: session }),
+    }),
+  );
+  await page.route("**/api/brands", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: { canViewAllBrands: false, items: [] },
+      }),
+    }),
+  );
+  await page.route("**/api/organization/overview", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ data: emptyOrganizationOverview }),
+    }),
+  );
+}
+
 async function assertNoHorizontalOverflow(page: Page) {
   const metrics = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
@@ -158,12 +192,7 @@ test.describe("Phase 1 public authentication surfaces", () => {
     page,
   }) => {
     let signupBody: Record<string, unknown> | undefined;
-    await page.route("**/api/auth/staff/session", (route) =>
-      route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ data: staffSession }),
-      }),
-    );
+    await mockStaffWorkspace(page);
     await page.route("**/api/auth/staff/signup", async (route) => {
       signupBody = route.request().postDataJSON() as Record<string, unknown>;
       await route.fulfill({
@@ -204,12 +233,7 @@ test.describe("Phase 1 public authentication surfaces", () => {
   test("staff signup reports Customer reconciliation without discarding the workspace", async ({
     page,
   }) => {
-    await page.route("**/api/auth/staff/session", (route) =>
-      route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ data: staffSession }),
-      }),
-    );
+    await mockStaffWorkspace(page);
     await page.route("**/api/auth/staff/signup", (route) =>
       route.fulfill({
         status: 201,
@@ -275,12 +299,7 @@ test.describe("Phase 1 public authentication surfaces", () => {
 
   test("session-backed password reset works without a query token", async ({ page }) => {
     let resetBody: Record<string, unknown> | undefined;
-    await page.route("**/api/auth/staff/session", (route) =>
-      route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ data: staffSession }),
-      }),
-    );
+    await mockStaffWorkspace(page);
     await page.route("**/api/auth/staff/reset-password", async (route) => {
       resetBody = route.request().postDataJSON() as Record<string, unknown>;
       await route.fulfill({
@@ -301,12 +320,7 @@ test.describe("Phase 1 public authentication surfaces", () => {
 
   test("session-backed staff invitation works without a query token", async ({ page }) => {
     let inviteBody: Record<string, unknown> | undefined;
-    await page.route("**/api/auth/staff/session", (route) =>
-      route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ data: staffSession }),
-      }),
-    );
+    await mockStaffWorkspace(page);
     await page.route("**/api/auth/staff/accept-invite", async (route) => {
       inviteBody = route.request().postDataJSON() as Record<string, unknown>;
       await route.fulfill({
@@ -380,12 +394,7 @@ test.describe("Phase 1 authenticated shells", () => {
   test("staff empty dashboard matches the prototype shell and mobile drawer works", async ({
     page,
   }, testInfo) => {
-    await page.route("**/api/auth/staff/session", (route) =>
-      route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ data: staffSession }),
-      }),
-    );
+    await mockStaffWorkspace(page);
 
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/app");
@@ -425,12 +434,7 @@ test.describe("Phase 1 authenticated shells", () => {
         subscriptionStatus: "past_due",
       },
     };
-    await page.route("**/api/auth/staff/session", (route) =>
-      route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ data: restrictedSession }),
-      }),
-    );
+    await mockStaffWorkspace(page, restrictedSession);
 
     await page.goto("/app");
     await expect(

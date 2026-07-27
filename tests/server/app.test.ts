@@ -455,6 +455,40 @@ describe("Phase 1 API", () => {
     expect(member.body.data.user.role).toBeUndefined();
   });
 
+  it("allows browser member authentication to bootstrap without existing credentials", async () => {
+    const foundation = service();
+    const productionEnv = {
+      APP_ENV: "production" as const,
+      SUPABASE_ANON_KEY: "sb_publishable_test",
+      SUPABASE_SERVICE_ROLE_KEY: "sb_secret_test",
+      SUPABASE_URL: "https://test.supabase.co",
+    };
+    const session = await request(testApp(foundation, productionEnv)).get(
+      "/api/auth/member/session",
+    );
+    const magicLink = await request(testApp(foundation, productionEnv))
+      .post("/api/auth/member/magic-link")
+      .set("Origin", "https://vinifera.test")
+      .send({ email: "MEMBER@EXAMPLE.COM" });
+
+    expect(session.status).toBe(200);
+    expect(magicLink.status).toBe(200);
+    expect(foundation.requestMemberMagicLink).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "member@example.com" }),
+    );
+  });
+
+  it("rejects anonymous protected requests before they reach a service", async () => {
+    const listMembers = vi.fn().mockResolvedValue({ items: [], total: 0 });
+    const response = await request(
+      testApp(service({ listMembers }), { APP_ENV: "production" }),
+    ).get("/api/members");
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("unauthorized");
+    expect(listMembers).not.toHaveBeenCalled();
+  });
+
   it("fails closed without noisy session errors when providers await activation", async () => {
     const response = await request(testApp()).get("/api/auth/staff/session");
 

@@ -443,8 +443,14 @@ npm run build:mobile:web
 npm run build:mobile:android
 ```
 
+`npm run typecheck` regenerates the ignored `worker-configuration.d.ts`
+declaration before invoking TypeScript. `npm run lint` uses the same path, and
+`npm run check` generates first, verifies the generated declaration is current,
+then runs the remaining test and build gates. This keeps validation reproducible
+from a fresh checkout while leaving the generated artifact untracked.
+
 The current credential-independent architecture gate passes generated Worker
-types, TypeScript, 352/352 Vitest tests, Phase 1 92/92, Phase 2 231/231, Phase
+types, TypeScript, 354/354 Vitest tests, Phase 1 92/92, Phase 2 231/231, Phase
 3 199/199, Phase 4 158/158, Phase 5 494/494 embedded PostgreSQL/pgTAP
 assertions, and 145/145 Playwright tests with zero axe violations. Pages plus
 development, staging, and production Worker dry-run builds pass. The focused

@@ -148,6 +148,11 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   before CI verification/typecheck, and records the Phase 5 closure evidence
   plus all 20 still-pending activation gates. These changes do not alter
   runtime routes, provider activation, or the static production baseline.
+- The BS-01 review follow-up makes fresh-checkout local validation
+  self-generating, restores public browser bootstrap for the existing member
+  authentication endpoints without weakening protected-route enforcement, and
+  aligns the Phase 1–2 browser fixtures with the current brand/overview
+  contracts.
 - Phase 1–4 local architecture gates and the 94-test browser regression were
   recorded as passing in their phase QA reports.
 - Version 0.5.0 aligns the package, Android, and iOS source release and contains
@@ -186,7 +191,7 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   are deferred, so no retry was attempted; reconcile the fixed lookup key only
   when activation is explicitly resumed.
 - The current credential-independent architecture gate passes: dependency
-  audit 0, generated Worker types and TypeScript green, Vitest 352/352,
+  audit 0, generated Worker types and TypeScript green, Vitest 354/354,
   database gates 92/231/199/158/494, and Playwright 145/145 with zero axe
   violations and 360/375/412/430/768/1440 Phase 5 coverage. The single-worker
   100-member roster renders in 444.6 ms, Phase 5 LCP is 416 ms, CLS is 0, and
