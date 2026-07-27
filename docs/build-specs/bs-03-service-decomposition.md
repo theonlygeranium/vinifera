@@ -1,1 +1,180 @@
-IyBCUy0wMyDigJQgU2VydmljZSBMYXllciBEZWNvbXBvc2l0aW9uIChgY29yZS1jbHViLnRzYCArIGBpbnRlZ3JhdGlvbnMudHNgKQoKKipXYXZlOioqIDEgKHN0YXJ0IGFmdGVyIEJTLTAxIG1lcmdlczsgcnVucyBjb25jdXJyZW50bHkgd2l0aCBCUy0wMiwgQlMtMDQpCioqQnJhbmNoOioqIGByZWZhY3Rvci9zZXJ2aWNlLWxheWVyLWRlY29tcG9zaXRpb25gCioqRXN0aW1hdGVkIGR1cmF0aW9uOioqIDTigJM2IGhvdXJzCioqUGFyYWxsZWwtc2FmZToqKiBZZXMg4oCUIG5vIGZpbGUgb3ZlcmxhcCB3aXRoIEJTLTAyIG9yIEJTLTA0CioqU3Bhd25zIHN1YmFnZW50czoqKiBSZXF1aXJlZCDigJQgb25lIHN1YmFnZW50IHBlciBzZXJ2aWNlIGRvbWFpbgoqKkJsb2NrczoqKiBGdWxsIHBhcmFsbGVsIFNwcmludCAyIHdvcmsgKGV2ZXJ5IGZ1dHVyZSBmZWF0dXJlIHRvdWNoZXMgYSBzZXJ2aWNlIGZpbGUpCgotLS0KCiMjIE1hbmRhdG9yeSBwcmUtdGFzayByZWFkaW5nCgoxLiBgQUdFTlRTLm1kYAoyLiBgQ09OVElOVUlUWV9CUklFRi5tZGAKMy4gYGRvY3MvYWdlbnQtd29ya2Zsb3cubWRgCjQuIGBkb2NzL2NvZGViYXNlLWFzc2Vzc21lbnQtMjAyNi0wNy0yNy5tZGAgwqczICgiQ3JpdGljYWwgcmlza3MiKSDigJQgc3BlY2lmaWNhbGx5IHRoZSAyMDcgS0IgYGNvcmUtY2x1Yi50c2AgYW5kIDIwNiBLQiBgaW50ZWdyYXRpb25zLnRzYCBlbnRyaWVzCjUuIEFsbCBgLmdyZXB0aWxlL3J1bGVzLm1kYCBmaWxlcyAoY29tbWl0dGVkIGJ5IEJTLTAxKSDigJQgcnVsZXMgMiwgNCwgNiwgYW5kIDggZGlyZWN0bHkgZ292ZXJuIHNlcnZpY2UgbGF5ZXIgc3RydWN0dXJlCgotLS0KCiMjIENvbnRleHQ6IHRoZSBwcm9ibGVtCgpgY29yZS1jbHViLnRzYCAoMjA3IEtCKSBhbmQgYGludGVncmF0aW9ucy50c2AgKDIwNiBLQikgYXJlIHRoZSB0d28gbGFyZ2VzdCBmaWxlcyBpbiB0aGUgcmVwb3NpdG9yeS4gRXZlcnkgQ29kZXggYWdlbnQgdGhhdCBuZWVkcyB0byBhZGQsIGZpeCwgb3IgZXh0ZW5kIGJ1c2luZXNzIGxvZ2ljIGlzIGZvcmNlZCB0byB0b3VjaCBvbmUgb2YgdGhlc2UgZmlsZXMsIGNyZWF0aW5nIGEgbmVhci1jZXJ0YWluIG1lcmdlIGNvbmZsaWN0IGluIGFueSBwYXJhbGxlbC1hZ2VudCBzY2VuYXJpby4gVGhlIGRlY29tcG9zaXRpb24gc3RyYXRlZ3kgaXMgcHVyZWx5IGFkZGl0aXZlOiBleHRyYWN0IGludG8gbmV3IGZpbGVzLCByZS1leHBvcnQgZnJvbSB0aGUgb3JpZ2luYWwgZm9yIGJhY2t3YXJkIGNvbXBhdGliaWxpdHksIGFuZCByZW1vdmUgdGhlIGJhY2t3YXJkLWNvbXBhdCByZS1leHBvcnRzIG9ubHkgYWZ0ZXIgYWxsIGltcG9ydHMgaGF2ZSBiZWVuIHVwZGF0ZWQuCgpUaGlzIGlzIHRoZSBoaWdoZXN0LXJpc2sgc3RydWN0dXJhbCBjaGFuZ2UgaW4gdGhlIGVudGlyZSBzcHJpbnQuIFRoZSBhZ2VudCBtdXN0IHRyZWF0IGNvcnJlY3RuZXNzIGFzIHRoZSBvbmx5IG1ldHJpYyDigJQgbm8gbG9naWMgY2hhbmdlcywgbm8gbmV3IGZlYXR1cmVzLCBubyAid2hpbGUgSSdtIGhlcmUiIGltcHJvdmVtZW50cy4gRXh0cmFjdC1vbmx5LgoKLS0tCgojIyBTdWJhZ2VudCBzdHJhdGVneQoKKipQcmltYXJ5IGFnZW50IHJvbGU6KiogYXVkaXQgYm90aCBmaWxlcywgcHJvZHVjZSB0aGUgZGVjb21wb3NpdGlvbiBtYW5pZmVzdCwgY3JlYXRlIHRoZSBkaXJlY3Rvcnkgc2tlbGV0b24sIHRoZW4gZGlzcGF0Y2ggc3ViYWdlbnRzLgoKKipDb29yZGluYXRpb24gcHJvdG9jb2w6KioKLSBFYWNoIHN1YmFnZW50IG93bnMgZXhhY3RseSBvbmUgb3V0cHV0IGZpbGUKLSBObyBzdWJhZ2VudCBzaG91bGQgbW9kaWZ5IGBjb3JlLWNsdWIudHNgIG9yIGBpbnRlZ3JhdGlvbnMudHNgIGRpcmVjdGx5Ci0gVGhlIHByaW1hcnkgYWdlbnQgcGVyZm9ybXMgdGhlIGZpbmFsIHN0ZXA6IGFkZCBiYXJyZWwgcmUtZXhwb3J0cyB0byB0aGUgb3JpZ2luYWxzIGFuZCB1cGRhdGUgYWxsIGltcG9ydCBwYXRocwoKfCBTdWJhZ2VudCB8IEV4dHJhY3RzIGZyb20gfCBPdXRwdXQgZmlsZSB8IEJyYW5jaCBzdWZmaXggfAp8LS0tLS0tLS0tLXwtLS0tLS0tLS0tLS0tLXwtLS0tLS0tLS0tLS0tfC0tLS0tLS0tLS0tLS0tLXwKfCBTdWItQSB8IGBjb3JlLWNsdWIudHNgIOKAlCBtZW1iZXIgbGlmZWN5Y2xlIGZ1bmN0aW9ucyB8IGBzZXJ2ZXIvc2VydmljZXMvbWVtYmVycy50c2AgfCBgc3ZjLW1lbWJlcnNgIHwKfCBTdWItQiB8IGBjb3JlLWNsdWIudHNgIOKAlCBjbHViL3RpZXIgbWFuYWdlbWVudCB8IGBzZXJ2ZXIvc2VydmljZXMvY2x1YnMudHNgIHwgYHN2Yy1jbHVic2AgfAp8IFN1Yi1DIHwgYGNvcmUtY2x1Yi50c2Ag4oCUIG9yZGVyIHByb2Nlc3NpbmcgbG9naWMgfCBgc2VydmVyL3NlcnZpY2VzL29yZGVycy50c2AgfCBgc3ZjLW9yZGVyc2AgfAp8IFN1Yi1EIHwgYGNvcmUtY2x1Yi50c2Ag4oCUIGFuYWx5dGljcy9NTCBzdHVicyB8IGBzZXJ2ZXIvc2VydmljZXMvYW5hbHl0aWNzLnRzYCB8IGBzdmMtYW5hbHl0aWNzYCB8CnwgU3ViLUUgfCBgaW50ZWdyYXRpb25zLnRzYCDigJQgU3RyaXBlIGZ1bmN0aW9ucyB8IGBzZXJ2ZXIvc2VydmljZXMvc3RyaXBlLnRzYCB8IGBzdmMtc3RyaXBlYCB8CnwgU3ViLUYgfCBgaW50ZWdyYXRpb25zLnRzYCDigJQgRWFzeVBvc3QgZnVuY3Rpb25zIHwgYHNlcnZlci9zZXJ2aWNlcy9lYXN5cG9zdC50c2AgfCBgc3ZjLWVhc3lwb3N0YCB8CnwgU3ViLUcgfCBgaW50ZWdyYXRpb25zLnRzYCDigJQgUmVzZW5kL0tsYXZpeW8gZnVuY3Rpb25zIHwgYHNlcnZlci9zZXJ2aWNlcy9jb21tcy50c2AgfCBgc3ZjLWNvbW1zYCB8CnwgU3ViLUggfCBgaW50ZWdyYXRpb25zLnRzYCDigJQgY29ubmVjdG9yL3dlYmhvb2sgaGFuZGxpbmcgfCBgc2VydmVyL3NlcnZpY2VzL3dlYmhvb2tzLnRzYCB8IGBzdmMtd2ViaG9va3NgIHwKCi0tLQoKIyMgVGFzayAxOiBQcm9kdWNlIHRoZSBkZWNvbXBvc2l0aW9uIG1hbmlmZXN0CgpSZWFkIGBzZXJ2ZXIvc2VydmljZXMvY29yZS1jbHViLnRzYCBhbmQgYHNlcnZlci9zZXJ2aWNlcy9pbnRlZ3JhdGlvbnMudHNgIGluIGZ1bGwuIFByb2R1Y2UgYGRvY3MvYnVpbGQtc3BlY3Mvc2VydmljZS1tYW5pZmVzdC5tZGAgd2l0aDoKCkZvciBldmVyeSBleHBvcnRlZCBmdW5jdGlvbjoKLSBGdW5jdGlvbiBuYW1lIGFuZCBzaWduYXR1cmUKLSBEZXN0aW5hdGlvbiBmaWxlICh3aGljaCBzdWJhZ2VudCB0YXJnZXQgZG9lcyBpdCBiZWxvbmcgdG8pCi0gSW50ZXJuYWwgZGVwZW5kZW5jaWVzICh3aGljaCBvdGhlciBmdW5jdGlvbnMgaXQgY2FsbHMgd2l0aGluIHRoZSBzYW1lIGZpbGUpCi0gRXh0ZXJuYWwgZGVwZW5kZW5jaWVzIChTdXBhYmFzZSwgU3RyaXBlIFNESywgRWFzeVBvc3QgU0RLLCBldGMuKQotIEFueSBhY3RpdmF0aW9uIGd1YXJkIHByZXNlbnQgb3IgYWJzZW50IChmbGFncyB2aW9sYXRpb24gb2YgUnVsZSA2IGZyb20gYC5ncmVwdGlsZS9ydWxlcy5tZGApCgpHcm91cCBmdW5jdGlvbnMgYnkgZXh0cmFjdGlvbiBjb2hlc2lvbiwgbm90IHB1cmVseSBieSBkb21haW4gbGFiZWwg4oCUIGlmIGEgZnVuY3Rpb24gaW4gdGhlICJtZW1iZXJzIiBsb2dpY2FsIGRvbWFpbiBjYWxscyB0aHJlZSAib3JkZXJzIiBmdW5jdGlvbnMsIHRoZSBtYW5pZmVzdCBzaG91bGQgZmxhZyB0aGUgY291cGxpbmcgYW5kIHN1Z2dlc3Qgd2hpY2ggZGlyZWN0aW9uIHRoZSBkZXBlbmRlbmN5IHNob3VsZCBmbG93LgoKQ29tbWl0IGBkb2NzL2J1aWxkLXNwZWNzL3NlcnZpY2UtbWFuaWZlc3QubWRgIGFuZCBgZG9jcy9idWlsZC1zcGVjcy9yb3V0ZS1tYW5pZmVzdC5tZGAgdG9nZXRoZXIgKipiZWZvcmUgZGlzcGF0Y2gqKi4KCi0tLQoKIyMgVGFzayAyOiBDcmVhdGUgdGhlIGBzZXJ2ZXIvc2VydmljZXMvYCBkaXJlY3Rvcnkgc3RydWN0dXJlCgpDcmVhdGUgdGhlIHNrZWxldG9uIG9mIG5ldyBzZXJ2aWNlIGZpbGVzIChlbXB0eSBleHBvcnRzIG9ubHksIG5vIGxvZ2ljIHlldCk6CgpgYGAKc2VydmVyL3NlcnZpY2VzLwogIG1lbWJlcnMudHMgICAgICDihpAgZXh0cmFjdGVkIGZyb20gY29yZS1jbHViLnRzCiAgY2x1YnMudHMgICAgICAgIOKGkCBleHRyYWN0ZWQgZnJvbSBjb3JlLWNsdWIudHMKICBvcmRlcnMudHMgICAgICAg4oaQIGV4dHJhY3RlZCBmcm9tIGNvcmUtY2x1Yi50cwogIGFuYWx5dGljcy50cyAgICDihpAgZXh0cmFjdGVkIGZyb20gY29yZS1jbHViLnRzIChNTCBzdHVicykKICBzdHJpcGUudHMgICAgICAg4oaQIGV4dHJhY3RlZCBmcm9tIGludGVncmF0aW9ucy50cwogIGVhc3lwb3N0LnRzICAgICDihpAgZXh0cmFjdGVkIGZyb20gaW50ZWdyYXRpb25zLnRzCiAgY29tbXMudHMgICAgICAgIOKGkCBleHRyYWN0ZWQgZnJvbSBpbnRlZ3JhdGlvbnMudHMgKFJlc2VuZCArIEtsYXZpeW8pCiAgd2ViaG9va3MudHMgICAgIOKGkCBleHRyYWN0ZWQgZnJvbSBpbnRlZ3JhdGlvbnMudHMKICBpbmRleC50cyAgICAgICAg4oaQIGJhcnJlbCBleHBvcnQgZm9yIGFsbCBzZXJ2aWNlcwpgYGAKCkNvbW1pdCB0aGUgc2tlbGV0b24gYmVmb3JlIGRpc3BhdGNoaW5nIHN1YmFnZW50cy4gQW4gZW1wdHkgZmlsZSBwcmV2ZW50cyBzdWJhZ2VudHMgZnJvbSBjcmVhdGluZyBjb25mbGljdGluZyBzdHJ1Y3R1cmVzLgoKLS0tCgojIyBUYXNrIDM6IFN1YmFnZW50IGV4dHJhY3Rpb24gcHJvdG9jb2wKCkVhY2ggc3ViYWdlbnQgbXVzdCBmb2xsb3cgdGhpcyBleGFjdCBwcm90b2NvbDoKCioqU3RlcCAxOioqIFJlYWQgdGhlIHNlcnZpY2UgbWFuaWZlc3QgZm9yIHRoZWlyIGFzc2lnbmVkIGZ1bmN0aW9ucy4KCioqU3RlcCAyOioqIENvcHkgdGhlIGlkZW50aWZpZWQgZnVuY3Rpb25zIHZlcmJhdGltIGludG8gdGhlIHRhcmdldCBmaWxlLiBEbyBub3QgcGFyYXBocmFzZSwgc2ltcGxpZnksIG9yIHJlZmFjdG9yLiBBIGNvbW1lbnQgaXMgYWNjZXB0YWJsZTsgYSByZXdyaXRlIGlzIG5vdC4KCioqU3RlcCAzOioqIFJlc29sdmUgaW1wb3J0cy4gVGhlIHRhcmdldCBmaWxlIG5lZWRzIGl0cyBvd24gaW1wb3J0IGJsb2NrLiBEZXJpdmUgaXQgZnJvbSB0aGUgc291cmNlIGZpbGUncyBpbXBvcnRzLCBrZWVwaW5nIG9ubHkgd2hhdCB0aGUgZXh0cmFjdGVkIGZ1bmN0aW9ucyBhY3R1YWxseSB1c2UuCgoqKlN0ZXAgNDoqKiBJZiBhbnkgZXh0cmFjdGVkIGZ1bmN0aW9uIHZpb2xhdGVzIGAuZ3JlcHRpbGUvcnVsZXMubWRgIFJ1bGUgOCAobWlzc2luZyB0ZW5hbnQgaXNvbGF0aW9uKSwgYWRkIGEgY29tbWVudCBgLy8gVE9ETyhCUy0wOCk6IGFkZCBicmFuZF9pZCBzY29waW5nIOKAlCBzZWUgcnVsZSA4YCBidXQgZG8gbm90IGZpeCBpdCBub3cuIFRoZSBmaXggYmVsb25ncyB0byBCUy0wNi4KCioqU3RlcCA1OioqIEV4cG9ydCBhbGwgZXh0cmFjdGVkIGZ1bmN0aW9ucy4KCioqU3RlcCA2OioqIFJ1biBgbnBtIHJ1biB0eXBlY2hlY2tgLiBaZXJvIG5ldyB0eXBlIGVycm9ycyBhcmUgYWNjZXB0ZWQuCgoqKlN0ZXAgNzoqKiBPcGVuIGEgUFIgd2l0aCB0aGUgYnJhbmNoIHN1ZmZpeCBmcm9tIHRoZSBzdWJhZ2VudCB0YWJsZS4KCi0tLQoKIyMgVGFzayA0OiBQcmltYXJ5IGFnZW50IOKAlCBhZGQgYmFja3dhcmQtY29tcGF0aWJsZSByZS1leHBvcnRzCgpBZnRlciBhbGwgc3ViYWdlbnQgUFJzIGFyZSBtZXJnZWQsIHVwZGF0ZSBgY29yZS1jbHViLnRzYCBhbmQgYGludGVncmF0aW9ucy50c2AgdG8gcmUtZXhwb3J0IGZyb20gdGhlIG5ldyBmaWxlczoKCmBgYHR5cGVzY3JpcHQKLy8gY29yZS1jbHViLnRzIChhZnRlciBleHRyYWN0aW9uKQpleHBvcnQgeyBjcmVhdGVNZW1iZXIsIHVwZGF0ZU1lbWJlciwgZGVhY3RpdmF0ZU1lbWJlciB9IGZyb20gJy4vbWVtYmVycycKZXhwb3J0IHsgY3JlYXRlQ2x1YiwgdXBkYXRlVGllciB9IGZyb20gJy4vY2x1YnMnCi8vIC4uLiBldGMKYGBgCgpUaGlzIHByZXNlcnZlcyBhbGwgZXhpc3RpbmcgaW1wb3J0IHBhdGhzIHdoaWxlIHRoZSBjb2RlYmFzZSB0cmFuc2l0aW9ucy4gRXhpc3RpbmcgdGVzdHMgdGhhdCBpbXBvcnQgZGlyZWN0bHkgZnJvbSBgY29yZS1jbHViLnRzYCBjb250aW51ZSB0byBwYXNzIHdpdGhvdXQgbW9kaWZpY2F0aW9uLgoKLS0tCgojIyBUYXNrIDU6IFVwZGF0ZSBkaXJlY3QgaW1wb3J0cyBpbiBgc2VydmVyL3JvdXRlcy9gIChjb29yZGluYXRlIHdpdGggQlMtMDIpCgpPbmNlIEJTLTAyIGlzIG1lcmdlZDoKLSBTY2FuIGFsbCByb3V0ZSBmaWxlcyBmb3IgaW1wb3J0cyBmcm9tIGBjb3JlLWNsdWIudHNgIG9yIGBpbnRlZ3JhdGlvbnMudHNgCi0gUmVwbGFjZSB3aXRoIGRpcmVjdCBpbXBvcnRzIGZyb20gdGhlIG5ldyBzZXJ2aWNlIGZpbGVzCi0gUmVtb3ZlIHRoZSBiYWNrd2FyZC1jb21wYXQgcmUtZXhwb3J0cyBmcm9tIGBjb3JlLWNsdWIudHNgIGFuZCBgaW50ZWdyYXRpb25zLnRzYCBvbmx5IGFmdGVyIHRoaXMgc3RlcCBpcyBjb21wbGV0ZQoKLS0tCgojIyBUYXNrIDY6IFJ1biB0aGUgZnVsbCB0ZXN0IHN1aXRlCgpgYGBiYXNoCm5wbSBydW4gdGVzdDp1bml0Cm5wbSBydW4gdGVzdDplMmUKbnBtIHJ1biB0eXBlY2hlY2sKbnBtIHJ1biBidWlsZApgYGAKCkFsbCAzNTIgVml0ZXN0IHRlc3RzLCAxNDUgUGxheXdyaWdodCB0ZXN0cywgemVybyBheGUgdmlvbGF0aW9ucywgYW5kIGNsZWFuIGJ1aWxkIGFyZSByZXF1aXJlZC4gVGhpcyBpcyBhIHB1cmUgc3RydWN0dXJhbCByZWZhY3RvciDigJQgYW55IHRlc3QgZmFpbHVyZSBpZGVudGlmaWVzIGEgcHJldmlvdXNseSBoaWRkZW4gY291cGxpbmcgb3IgYnJva2VuIGltcG9ydCBwYXRoLCBub3QgYSB0ZXN0IHRvIGJlIHNraXBwZWQuCgotLS0KCiMjIENIQU5HRUxPRyBlbnRyeQoKYGBgbWFya2Rvd24KIyMjIFJlZmFjdG9yZWQKLSBEZWNvbXBvc2VkIGBjb3JlLWNsdWIudHNgICgyMDcgS0IpIGludG8gZG9tYWluLXNjb3BlZCBzZXJ2aWNlIGZpbGVzOiBgbWVtYmVycy50c2AsIGBjbHVicy50c2AsIGBvcmRlcnMudHNgLCBgYW5hbHl0aWNzLnRzYAotIERlY29tcG9zZWQgYGludGVncmF0aW9ucy50c2AgKDIwNiBLQikgaW50byBpbnRlZ3JhdGlvbi1zY29wZWQgc2VydmljZSBmaWxlczogYHN0cmlwZS50c2AsIGBlYXN5cG9zdC50c2AsIGBjb21tcy50c2AsIGB3ZWJob29rcy50c2AKLSBBZGRlZCBiYXJyZWwgcmUtZXhwb3J0cyB0byBvcmlnaW5hbHMgZm9yIGJhY2t3YXJkIGNvbXBhdGliaWxpdHkgZHVyaW5nIHRyYW5zaXRpb24KLSBDcmVhdGVkIGBzZXJ2ZXIvc2VydmljZXMvaW5kZXgudHNgIGJhcnJlbCBleHBvcnQKLSBQcm9kdWNlZCBgZG9jcy9idWlsZC1zcGVjcy9zZXJ2aWNlLW1hbmlmZXN0Lm1kYCBkb2N1bWVudGluZyBhbGwgZXh0cmFjdGVkIGZ1bmN0aW9ucyBhbmQgdGhlaXIgZGVwZW5kZW5jeSBncmFwaApgYGAKCi0tLQoKIyMgQWNjZXB0YW5jZSBjcml0ZXJpYQoKLSBbIF0gRWlnaHQgbmV3IHNlcnZpY2UgZmlsZXMgZXhpc3QgdW5kZXIgYHNlcnZlci9zZXJ2aWNlcy9gCi0gWyBdIGBzZXJ2ZXIvc2VydmljZXMvaW5kZXgudHNgIGJhcnJlbC1leHBvcnRzIGFsbCBzZXJ2aWNlIGZ1bmN0aW9ucwotIFsgXSBgY29yZS1jbHViLnRzYCBhbmQgYGludGVncmF0aW9ucy50c2AgY29udGFpbiBvbmx5IHJlLWV4cG9ydCBzdGF0ZW1lbnRzIChubyBidXNpbmVzcyBsb2dpYykKLSBbIF0gYG5wbSBydW4gdHlwZWNoZWNrYCBwYXNzZXMgd2l0aCB6ZXJvIG5ldyBlcnJvcnMKLSBbIF0gYG5wbSBydW4gdGVzdDp1bml0YCBwYXNzZXMgKDM1Mi8zNTIpCi0gWyBdIGBucG0gcnVuIHRlc3Q6ZTJlYCBwYXNzZXMgKDE0NS8xNDUpCi0gWyBdIGBncmVwIC1yICJpbXBvcnQuKmNvcmUtY2x1YiIgc2VydmVyL3JvdXRlcy9gIHJldHVybnMgemVybyByZXN1bHRzCi0gWyBdIGBncmVwIC1yICJpbXBvcnQuKmludGVncmF0aW9ucyIgc2VydmVyL3JvdXRlcy9gIHJldHVybnMgemVybyByZXN1bHRzCi0gWyBdIGBkb2NzL2J1aWxkLXNwZWNzL3NlcnZpY2UtbWFuaWZlc3QubWRgIGNvbW1pdHRlZAotIFsgXSBgQ0hBTkdFTE9HLm1kYCB1cGRhdGVkCgotLS0KCiMjIEdyZXB0aWxlIHdvcmtmbG93CgpBZnRlciB0aGUgaW50ZWdyYXRpb24gUFIgaXMgb3BlbjoKMS4gQ29tbWVudCBgQGdyZXB0aWxlYWkgY2hlY2sgZm9yIGFueSBidXNpbmVzcyBsb2dpYyByZW1haW5pbmcgaW4gY29yZS1jbHViLnRzIG9yIGludGVncmF0aW9ucy50c2AKMi4gQ29tbWVudCBgQGdyZXB0aWxlYWkgdmVyaWZ5IG5vIGNpcmN1bGFyIGltcG9ydHMgd2VyZSBpbnRyb2R1Y2VkIGJldHdlZW4gdGhlIG5ldyBzZXJ2aWNlIGZpbGVzYAozLiBBZGRyZXNzIGFsbCBmaW5kaW5ncyDigJQgR3JlcHRpbGUgaGFzIGZ1bGwgY29kZWJhc2UgZ3JhcGggY29udGV4dCBhbmQgd2lsbCBkZXRlY3QgY3Jvc3MtZmlsZSBjb3VwbGluZyB0aGF0IHN0YXRpYyBhbmFseXNpcyBtaXNzZXM=
+# BS-03 — Service Layer Decomposition (`core-club.ts` + `integrations.ts`)
+
+**Wave:** 1 (start after BS-01 merges; runs concurrently with BS-02, BS-04)
+**Branch:** `refactor/service-layer-decomposition`
+**Estimated duration:** 4–6 hours
+**Parallel-safe:** Yes — no file overlap with BS-02 or BS-04
+**Spawns subagents:** Required — one subagent per service domain
+**Blocks:** Full parallel Sprint 2 work (every future feature touches a service file)
+
+---
+
+## Mandatory pre-task reading
+
+1. `AGENTS.md`
+2. `CONTINUITY_BRIEF.md`
+3. `docs/agent-workflow.md`
+4. `docs/codebase-assessment-2026-07-27.md` §3 ("Critical risks") — specifically the 207 KB `core-club.ts` and 206 KB `integrations.ts` entries
+5. All `.greptile/rules.md` files (committed by BS-01) — rules 2, 4, 6, and 8 directly govern service layer structure
+
+---
+
+## Context: the problem
+
+`core-club.ts` (207 KB) and `integrations.ts` (206 KB) are the two largest files in the repository. Every Codex agent that needs to add, fix, or extend business logic is forced to touch one of these files, creating a near-certain merge conflict in any parallel-agent scenario. The decomposition strategy is purely additive: extract into new files, re-export from the original for backward compatibility, and remove the backward-compat re-exports only after all imports have been updated.
+
+This is the highest-risk structural change in the entire sprint. The agent must treat correctness as the only metric — no logic changes, no new features, no "while I'm here" improvements. Extract-only.
+
+---
+
+## Subagent strategy
+
+**Primary agent role:** audit both files, produce the decomposition manifest, create the directory skeleton, then dispatch subagents.
+
+**Coordination protocol:**
+- Each subagent owns exactly one output file
+- No subagent should modify `core-club.ts` or `integrations.ts` directly
+- The primary agent performs the final step: add barrel re-exports to the originals and update all import paths
+
+| Subagent | Extracts from | Output file | Branch suffix |
+|----------|--------------|-------------|---------------|
+| Sub-A | `core-club.ts` — member lifecycle functions | `server/services/members.ts` | `svc-members` |
+| Sub-B | `core-club.ts` — club/tier management | `server/services/clubs.ts` | `svc-clubs` |
+| Sub-C | `core-club.ts` — order processing logic | `server/services/orders.ts` | `svc-orders` |
+| Sub-D | `core-club.ts` — analytics/ML stubs | `server/services/analytics.ts` | `svc-analytics` |
+| Sub-E | `integrations.ts` — Stripe functions | `server/services/stripe.ts` | `svc-stripe` |
+| Sub-F | `integrations.ts` — EasyPost functions | `server/services/easypost.ts` | `svc-easypost` |
+| Sub-G | `integrations.ts` — Resend/Klaviyo functions | `server/services/comms.ts` | `svc-comms` |
+| Sub-H | `integrations.ts` — connector/webhook handling | `server/services/webhooks.ts` | `svc-webhooks` |
+
+---
+
+## Task 1: Produce the decomposition manifest
+
+Read `server/services/core-club.ts` and `server/services/integrations.ts` in full. Produce `docs/build-specs/service-manifest.md` with:
+
+For every exported function:
+- Function name and signature
+- Destination file (which subagent target does it belong to)
+- Internal dependencies (which other functions it calls within the same file)
+- External dependencies (Supabase, Stripe SDK, EasyPost SDK, etc.)
+- Any activation guard present or absent (flags violation of Rule 6 from `.greptile/rules.md`)
+
+Group functions by extraction cohesion, not purely by domain label — if a function in the "members" logical domain calls three "orders" functions, the manifest should flag the coupling and suggest which direction the dependency should flow.
+
+Commit `docs/build-specs/service-manifest.md` and `docs/build-specs/route-manifest.md` together **before dispatch**.
+
+---
+
+## Task 2: Create the `server/services/` directory structure
+
+Create the skeleton of new service files (empty exports only, no logic yet):
+
+```
+server/services/
+  members.ts      ← extracted from core-club.ts
+  clubs.ts        ← extracted from core-club.ts
+  orders.ts       ← extracted from core-club.ts
+  analytics.ts    ← extracted from core-club.ts (ML stubs)
+  stripe.ts       ← extracted from integrations.ts
+  easypost.ts     ← extracted from integrations.ts
+  comms.ts        ← extracted from integrations.ts (Resend + Klaviyo)
+  webhooks.ts     ← extracted from integrations.ts
+  index.ts        ← barrel export for all services
+```
+
+Commit the skeleton before dispatching subagents. An empty file prevents subagents from creating conflicting structures.
+
+---
+
+## Task 3: Subagent extraction protocol
+
+Each subagent must follow this exact protocol:
+
+**Step 1:** Read the service manifest for their assigned functions.
+
+**Step 2:** Copy the identified functions verbatim into the target file. Do not paraphrase, simplify, or refactor. A comment is acceptable; a rewrite is not.
+
+**Step 3:** Resolve imports. The target file needs its own import block. Derive it from the source file's imports, keeping only what the extracted functions actually use.
+
+**Step 4:** If any extracted function violates `.greptile/rules.md` Rule 8 (missing tenant isolation), add a comment `// TODO(BS-08): add brand_id scoping — see rule 8` but do not fix it now. The fix belongs to BS-06.
+
+**Step 5:** Export all extracted functions.
+
+**Step 6:** Run `npm run typecheck`. Zero new type errors are accepted.
+
+**Step 7:** Open a PR with the branch suffix from the subagent table.
+
+---
+
+## Task 4: Primary agent — add backward-compatible re-exports
+
+After all subagent PRs are merged, update `core-club.ts` and `integrations.ts` to re-export from the new files:
+
+```typescript
+// core-club.ts (after extraction)
+export { createMember, updateMember, deactivateMember } from './members'
+export { createClub, updateTier } from './clubs'
+// ... etc
+```
+
+This preserves all existing import paths while the codebase transitions. Existing tests that import directly from `core-club.ts` continue to pass without modification.
+
+---
+
+## Task 5: Update direct imports in `server/routes/` (coordinate with BS-02)
+
+Once BS-02 is merged:
+- Scan all route files for imports from `core-club.ts` or `integrations.ts`
+- Replace with direct imports from the new service files
+- Remove the backward-compat re-exports from `core-club.ts` and `integrations.ts` only after this step is complete
+
+---
+
+## Task 6: Run the full test suite
+
+```bash
+npm run test:unit
+npm run test:e2e
+npm run typecheck
+npm run build
+```
+
+All 352 Vitest tests, 145 Playwright tests, zero axe violations, and clean build are required. This is a pure structural refactor — any test failure identifies a previously hidden coupling or broken import path, not a test to be skipped.
+
+---
+
+## CHANGELOG entry
+
+```markdown
+### Refactored
+- Decomposed `core-club.ts` (207 KB) into domain-scoped service files: `members.ts`, `clubs.ts`, `orders.ts`, `analytics.ts`
+- Decomposed `integrations.ts` (206 KB) into integration-scoped service files: `stripe.ts`, `easypost.ts`, `comms.ts`, `webhooks.ts`
+- Added barrel re-exports to originals for backward compatibility during transition
+- Created `server/services/index.ts` barrel export
+- Produced `docs/build-specs/service-manifest.md` documenting all extracted functions and their dependency graph
+```
+
+---
+
+## Acceptance criteria
+
+- [ ] Eight new service files exist under `server/services/`
+- [ ] `server/services/index.ts` barrel-exports all service functions
+- [ ] `core-club.ts` and `integrations.ts` contain only re-export statements (no business logic)
+- [ ] `npm run typecheck` passes with zero new errors
+- [ ] `npm run test:unit` passes (352/352)
+- [ ] `npm run test:e2e` passes (145/145)
+- [ ] `grep -r "import.*core-club" server/routes/` returns zero results
+- [ ] `grep -r "import.*integrations" server/routes/` returns zero results
+- [ ] `docs/build-specs/service-manifest.md` committed
+- [ ] `CHANGELOG.md` updated
+
+---
+
+## Greptile workflow
+
+After the integration PR is open:
+1. Comment `@greptileai check for any business logic remaining in core-club.ts or integrations.ts`
+2. Comment `@greptileai verify no circular imports were introduced between the new service files`
+3. Address all findings — Greptile has full codebase graph context and will detect cross-file coupling that static analysis misses
