@@ -1,8 +1,8 @@
 # BS-03 Service Decomposition Manifest
 
-**Source revision:** `30fe29e`  
+**Source revision:** `30fe29e`
 **Audited files:** `server/services/core-club.ts` (6,166 lines) and
-`server/services/integrations.ts` (6,324 lines)  
+`server/services/integrations.ts` (6,324 lines)
 **Constraint:** Extraction only. Function and method bodies, names, parameters,
 return types, ordering, activation behavior, and error behavior must remain
 unchanged.

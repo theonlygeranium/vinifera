@@ -1,6 +1,6 @@
 # BS-03 Route-to-Service Manifest
 
-**Source revision:** `30fe29e`  
+**Source revision:** `30fe29e`
 **Purpose:** Record current consumers of `CoreClubService` and
 `IntegrationService` before service extraction. BS-02 owns the complete route
 decomposition; this companion manifest limits itself to BS-03 import and

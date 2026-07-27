@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added the BS-03 `server/services/` extraction skeleton for members, clubs,
+  orders, Stripe, EasyPost, communications, webhooks, and the service barrel;
+  the pre-existing analytics module remains intact.
 - Added the BS-03 service and route-consumer manifests, documenting every
   exported function, public service method, cross-domain dependency,
   provider-activation guard, and tenant-scoping boundary before extraction.
