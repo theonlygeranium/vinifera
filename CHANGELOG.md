@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added the BS-03 service and route-consumer manifests, documenting every
+  exported function, public service method, cross-domain dependency,
+  provider-activation guard, and tenant-scoping boundary before extraction.
 - `.greptile/rules.md`: 10 architectural boundary rules encoding vinifera's service, security, and tenancy patterns
 - `.greptile/files.json`: Greptile context files for every PR review
 - `docs/build-specs/phase-5-qa-report.md`: Phase 5 closure evidence with all 20 activation gates listed as pending
