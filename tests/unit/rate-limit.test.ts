@@ -34,7 +34,7 @@ describe("Cloudflare API rate limiting middleware", () => {
     vi.restoreAllMocks();
   });
 
-  it("checks normalized per-route tenant and actor keys", async () => {
+  it("checks fixed-width per-route host and actor keys", async () => {
     const limit = vi.fn<RateLimit["limit"]>().mockResolvedValue({
       success: true,
     });
@@ -50,20 +50,43 @@ describe("Cloudflare API rate limiting middleware", () => {
       windowMs: 60_000,
     });
 
-    const response = await request(testApp(env, middleware))
+    const app = testApp(env, middleware);
+    const first = await request(app)
       .get("/api/members/10000000-0000-4000-8000-000000000001")
       .set("CF-Connecting-IP", "192.0.2.10")
+      .set("Host", "brand-a.vinifera.test")
+      .set("X-Forwarded-Host", "attacker-a.invalid")
       .set("X-Vinifera-Brand-Id", "20000000-0000-4000-8000-000000000002");
+    const sameRoute = await request(app)
+      .get("/api/members/30000000-0000-4000-8000-000000000003")
+      .set("CF-Connecting-IP", "192.0.2.10")
+      .set("Host", "brand-a.vinifera.test")
+      .set("X-Forwarded-Host", "attacker-b.invalid")
+      .set("X-Vinifera-Brand-Id", "40000000-0000-4000-8000-000000000004");
+    const otherHost = await request(app)
+      .get("/api/members/50000000-0000-4000-8000-000000000005")
+      .set("CF-Connecting-IP", "192.0.2.10")
+      .set("Host", "brand-b.vinifera.test")
+      .set("X-Vinifera-Brand-Id", "60000000-0000-4000-8000-000000000006");
 
-    expect(response.status).toBe(200);
-    expect(limit).toHaveBeenCalledTimes(2);
-    expect(limit.mock.calls[0]?.[0].key).toContain(
-      "api:/api/members/:id:tenant:brand:20000000-0000-4000-8000-000000000002",
+    expect([first.status, sameRoute.status, otherHost.status]).toEqual([
+      200,
+      200,
+      200,
+    ]);
+    expect(limit).toHaveBeenCalledTimes(6);
+
+    const keys = limit.mock.calls.map(([options]) => options.key);
+    expect(keys).toEqual(
+      keys.map((key) => expect.stringMatching(/^[a-f0-9]{64}$/)),
     );
-    expect(limit.mock.calls[1]?.[0].key).toMatch(
-      /^api:\/api\/members\/:id:actor:[a-f0-9]{64}$/,
+    expect(keys[0]).toBe(keys[2]);
+    expect(keys[1]).toBe(keys[3]);
+    expect(keys[0]).not.toBe(keys[4]);
+    expect(keys[1]).toBe(keys[5]);
+    expect(keys.join(" ")).not.toMatch(
+      /192\.0\.2\.10|vinifera\.test|attacker|20000000|\/api\/members/,
     );
-    expect(limit.mock.calls[1]?.[0].key).not.toContain("192.0.2.10");
   });
 
   it("returns the stable 429 envelope and retry window", async () => {

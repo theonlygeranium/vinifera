@@ -45,22 +45,17 @@ function normalizedRoute(path: string): string {
 }
 
 function tenantScope(request: Request): string {
-  const brandId = request.get("x-vinifera-brand-id")?.trim();
-  if (brandId && UUID_PATTERN.test(brandId)) {
-    return `brand:${brandId.toLowerCase()}`;
-  }
+  const host = request.get("host")?.trim().toLowerCase();
+  if (!host) return "unknown";
 
-  const hostname = request.hostname.trim().toLowerCase();
-  return hostname ? `host:${hostname}` : "host:unknown";
+  try {
+    return new URL(`https://${host}`).hostname;
+  } catch {
+    return "unknown";
+  }
 }
 
 function actorSource(request: Request): string {
-  const authorization = request.get("authorization");
-  if (authorization) return `authorization:${authorization}`;
-
-  const cookie = request.get("cookie");
-  if (cookie) return `cookie:${cookie}`;
-
   const connectingIp = request.get("cf-connecting-ip");
   if (connectingIp) return `ip:${connectingIp}`;
 
@@ -93,11 +88,10 @@ async function rateLimitKeys(
   routeGroup: RateLimiterConfig["routeGroup"],
 ): Promise<string[]> {
   const route = normalizedRoute(requestPath(request));
-  const actor = await sha256(actorSource(request));
-  return [
-    `${routeGroup}:${route}:tenant:${tenantScope(request)}`,
-    `${routeGroup}:${route}:actor:${actor}`,
-  ];
+  return Promise.all([
+    sha256(`${routeGroup}:${route}:tenant:${tenantScope(request)}`),
+    sha256(`${routeGroup}:${route}:actor:${actorSource(request)}`),
+  ]);
 }
 
 export function createRateLimiter(

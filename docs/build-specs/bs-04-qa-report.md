@@ -35,8 +35,11 @@ registered before `createApp` returns.
   query strings, default user information, database query data, generative-AI
   inputs and outputs, and stack-frame variables. Its final event hook removes
   exception and log messages while retaining error types and stack locations.
-- Authorization, cookie, and IP material is SHA-256 hashed before use as a
-  rate-limit or error-correlation identifier.
+- Rate-limit host and connecting-IP material is SHA-256 hashed before use.
+  Error correlation hashes authenticated authorization or cookie material.
+- Rate-limit tenant budgets use the edge-routed `Host` header rather than a
+  client-selected brand header, and every complete composite key is a
+  fixed-width SHA-256 value within Cloudflare's 64-byte maximum.
 - Error responses do not include stack traces or unknown exception messages.
 - Missing production rate-limit bindings fail closed.
 
@@ -67,10 +70,20 @@ member magic-link database limiter remains in place.
 | Changed-file credential-pattern scan | Passed; no real provider credential pattern found |
 | `git diff --check` | Passed |
 
+The review follow-up also verifies that client-selected brand UUIDs and
+forwarded-host headers do not change the tenant budget, route UUIDs normalize
+to the same key, edge-routed host changes select a different tenant budget,
+connecting-IP identity remains stable across hosts, all emitted keys are
+exactly 64 hexadecimal characters, and the Worker secret lookup narrows an
+implicit `any` result to explicit `unknown`.
+
 The browser suite covered 360, 375, 412, 430, 768, and 1440 pixel Phase 5
 viewports as well as the Phase 1–4 responsive/accessibility gates. The 375
 pixel mobile requirement and 44-by-44-pixel touch-target gate passed. BS-04
 does not change a visual surface.
+
+The post-review browser rerun used dedicated local port 8794 to avoid the
+concurrent BS-02 worktree's default port and passed 145/145 in 3.5 minutes.
 
 ## Deployment impact and remaining activation
 

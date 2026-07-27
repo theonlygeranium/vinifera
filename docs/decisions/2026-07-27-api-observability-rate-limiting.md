@@ -32,10 +32,12 @@ external credential.
 4. Use four Cloudflare native Rate Limiting bindings for auth, general API,
    webhook, and admin traffic. The supported 60-second window is used for all
    four policies: 20, 100, 500, and 30 requests respectively.
-5. Scope each counter by normalized route plus tenant and also by normalized
-   route plus a SHA-256 actor fingerprint. Valid brand UUIDs identify tenants;
-   the request host is the fallback. Authorization, cookie, and IP material is
-   hashed before it becomes a counter key.
+5. Scope each counter by normalized route plus the edge-routed `Host` header
+   and also by normalized route plus the Cloudflare connecting IP. Do not trust
+   the client-selected brand or forwarded-host headers, authorization string,
+   or cookie for this pre-authentication security control. Hash each complete
+   composite key to a fixed 64-character SHA-256 value before it reaches
+   Cloudflare.
 6. Fail closed with `503 configuration_error` when a runtime binding is
    missing outside the test environment. Unit tests may omit bindings to keep
    existing route fixtures isolated.
@@ -54,6 +56,10 @@ external credential.
 - General API middleware explicitly skips the specialized auth, admin, and
   webhook prefixes so their selected policies are not unintentionally
   overridden by the 100-per-minute API policy.
+- Custom winery hostnames receive separate host budgets. Requests on the shared
+  canonical hostname share a platform-host budget and retain their independent
+  hashed actor budgets; authenticated authorization remains the authority for
+  brand access.
 - Worker deployments must retain the four rate-limit bindings in every named
   environment. The static Pages production baseline is unaffected until the
   Worker activation gate is approved.

@@ -99,10 +99,14 @@ Four native Cloudflare Rate Limiting bindings protect the API:
 | webhook routes | 500/minute | `WEBHOOK_RATE_LIMITER` |
 | `/api/admin/*` | 30/minute | `ADMIN_RATE_LIMITER` |
 
-Each request checks a normalized route/tenant key and a normalized route/actor
-key. Actor inputs are hashed before they enter Cloudflare's counter. The
-general API policy skips the specialized prefixes. Outside tests, a missing
-binding returns `503 configuration_error`.
+Each request checks a normalized route/host key and a normalized route/IP key.
+The edge-routed `Host` header—not client-selected brand or forwarded-host
+headers—defines the tenant budget. The Cloudflare connecting IP defines the
+actor budget; unverified authorization and cookie values cannot rotate it.
+Each complete composite is SHA-256 hashed into Cloudflare's 64-byte key limit,
+so route, host, and IP inputs do not enter the counter in raw form. The general
+API policy skips the specialized prefixes. Outside tests, a missing binding
+returns `503 configuration_error`.
 
 Cloudflare's native service currently supports only 10-second or 60-second
 periods, and counters are per Cloudflare location with eventual consistency.

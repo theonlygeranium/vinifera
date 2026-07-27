@@ -58,10 +58,13 @@ exception and log messages while retaining error types and stack locations.
 
 Cloudflare native Rate Limiting bindings enforce 20/minute for auth,
 100/minute for the general API, 500/minute for webhooks, and 30/minute for
-admin routes. Each request consumes both a normalized route/tenant counter and
-a normalized route/hashed-actor counter. The service is an eventually
-consistent, per-location abuse control; durable authorization, billing quotas,
-and the longer-window member magic-link policy remain in PostgreSQL.
+admin routes. Each request consumes both a normalized route/edge-routed-host
+counter and a normalized route/connecting-IP counter. Complete composites are
+SHA-256 hashed into fixed-width Cloudflare keys; client-selected brand,
+forwarded-host, authorization, and cookie values are not trusted for the
+pre-authentication security budget. The service is an eventually consistent,
+per-location abuse control; durable authorization, billing quotas, and the
+longer-window member magic-link policy remain in PostgreSQL.
 
 ### Pages
 

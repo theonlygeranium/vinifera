@@ -136,6 +136,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Review follow-up hashes complete rate-limit composites into Cloudflare's
+  64-byte key maximum, derives tenant budgets from the edge-routed host instead
+  of client-selected brand or forwarded-host headers, uses the Cloudflare
+  connecting IP instead of rotatable authorization/cookie input for the actor
+  budget, and narrows the reflective Worker secret lookup to explicit
+  `unknown`.
 - Registered specialized rate limits before API handlers and the centralized
   error handler last. Wrangler development, staging, and production
   environments now declare the four native rate-limit bindings. This changes

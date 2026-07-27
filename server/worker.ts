@@ -206,7 +206,7 @@ function optionalStringBinding(
   workerEnv: Env,
   bindingName: string,
 ): string | undefined {
-  const value = Reflect.get(workerEnv, bindingName);
+  const value: unknown = Reflect.get(workerEnv, bindingName);
   return typeof value === "string" ? value : undefined;
 }
 
