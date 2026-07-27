@@ -918,6 +918,62 @@ describe("Phase 2 core club API", () => {
     );
   });
 
+  it("rejects incomplete or ambiguous release patches and preserves omitted wine prices", async () => {
+    const commandId = "81000000-0000-4000-8000-000000000013";
+    const releaseId = "40000000-0000-4000-8000-000000000001";
+    const tierId = "30000000-0000-4000-8000-000000000001";
+    const wineId = "41000000-0000-4000-8000-000000000001";
+    const updateRelease = vi.fn().mockResolvedValue({ id: releaseId });
+    const app = testApp(service({ updateRelease }));
+    const patch = (body: Record<string, unknown>) =>
+      request(app)
+        .patch(`/api/releases/${releaseId}`)
+        .set("Idempotency-Key", commandId)
+        .set("Origin", "https://vinifera.test")
+        .send(body);
+
+    await patch({}).expect(400);
+    await patch({ status: "scheduled" }).expect(400);
+    await patch({ tierIds: [tierId] }).expect(400);
+    await patch({
+      tierPrices: [{ priceCents: 12_500, tierId }],
+    }).expect(400);
+    await patch({
+      tiers: [{ priceCents: 12_500, tierId }],
+    }).expect(400);
+    await patch({
+      tierIds: [tierId],
+      tierPrices: [{ priceCents: 12_500, tierId }],
+      tiers: [{ priceCents: 12_500, tierId }],
+    }).expect(400);
+
+    expect(updateRelease).not.toHaveBeenCalled();
+
+    await patch({
+      tierIds: [tierId],
+      tierPrices: [{ priceCents: 12_500, tierId }],
+      wines: [{ id: wineId, quantity: 2, wineName: "Estate Cabernet" }],
+    }).expect(200);
+
+    expect(updateRelease).toHaveBeenCalledWith(
+      releaseId,
+      {
+        tierIds: [tierId],
+        tierPrices: [{ priceCents: 12_500, tierId }],
+        wines: [{ id: wineId, quantity: 2, wineName: "Estate Cabernet" }],
+      },
+      commandId,
+    );
+    const updateInput = updateRelease.mock.calls[0]?.[1];
+    expect(Object.values(updateInput)).not.toContain(undefined);
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        updateInput.wines[0],
+        "priceCents",
+      ),
+    ).toBe(false);
+  });
+
   it("schedules an existing draft through the transactional command route", async () => {
     const releaseId = "40000000-0000-4000-8000-000000000002";
     const commandId = "81000000-0000-4000-8000-000000000004";

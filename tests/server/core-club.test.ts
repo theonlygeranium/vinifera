@@ -276,6 +276,185 @@ class CoreClubServiceHarness extends ProductionCoreClubService {
   ): Promise<void> {}
 }
 
+describe("Phase 2 release update integrity", () => {
+  const commandId = "80000000-0000-4000-8000-000000000030";
+  const firstWineId = "41000000-0000-4000-8000-000000000001";
+  const secondWineId = "41000000-0000-4000-8000-000000000002";
+
+  function releaseAdmin() {
+    const release = {
+      brand_id: brandId,
+      description: "Fall allocation",
+      embargo_date: "2026-09-01",
+      id: releaseId,
+      name: "Fall 2026",
+      organization_id: organizationId,
+      processing_date: "2026-09-15",
+      release_tiers: [
+        {
+          id: "42000000-0000-4000-8000-000000000001",
+          price_cents: 12_500,
+          tier_id: "40000000-0000-4000-8000-000000000001",
+          tier_name: "Founders Circle",
+        },
+      ],
+      release_wines: [
+        {
+          id: firstWineId,
+          release_tier_items: [
+            { quantity: 2, unit_price_cents: 3_400 },
+          ],
+          wine_name: "Estate Cabernet",
+        },
+        {
+          id: secondWineId,
+          release_tier_items: [
+            { quantity: 1, unit_price_cents: 5_600 },
+          ],
+          wine_name: "Library Merlot",
+        },
+      ],
+      shipments: [],
+      status: "draft",
+    };
+    const builder = {
+      eq: vi.fn(() => builder),
+      limit: vi.fn(() => builder),
+      maybeSingle: vi.fn().mockResolvedValue({ data: release, error: null }),
+      select: vi.fn(() => builder),
+    };
+    return {
+      from: vi.fn().mockReturnValue(builder),
+      rpc: vi.fn().mockResolvedValue({
+        data: { entityId: releaseId, replayed: false },
+        error: null,
+      }),
+    };
+  }
+
+  it("preserves stable wine IDs and reaches the RPC on an exact retry", async () => {
+    const admin = releaseAdmin();
+    admin.rpc
+      .mockResolvedValueOnce({
+        data: { entityId: releaseId, replayed: false },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { entityId: releaseId, replayed: true },
+        error: null,
+      });
+    const service = new CoreClubServiceHarness(
+      admin as unknown as SupabaseClient,
+    );
+    const patch = {
+      wines: [
+        {
+          id: secondWineId,
+          quantity: 3,
+          wineName: "Renamed Library Merlot",
+        },
+        {
+          id: firstWineId,
+          priceCents: 0,
+          quantity: 4,
+          wineName: "Estate Cabernet",
+        },
+      ],
+    };
+
+    await service.updateRelease(releaseId, patch, commandId);
+    await service.updateRelease(releaseId, patch, commandId);
+
+    const expectedCall = [
+      "apply_release_command",
+      expect.objectContaining({
+        p_payload: expect.objectContaining({
+          wines: [
+            {
+              price_cents: 5_600,
+              quantity: 3,
+              wine_id: secondWineId,
+              wine_name: "Renamed Library Merlot",
+            },
+            {
+              price_cents: 0,
+              quantity: 4,
+              wine_id: firstWineId,
+              wine_name: "Estate Cabernet",
+            },
+          ],
+        }),
+      }),
+    ] as const;
+    expect(admin.rpc).toHaveBeenCalledTimes(2);
+    expect(admin.rpc).toHaveBeenNthCalledWith(1, ...expectedCall);
+    expect(admin.rpc).toHaveBeenNthCalledWith(2, ...expectedCall);
+    expect(admin.rpc.mock.calls[1]).toStrictEqual(admin.rpc.mock.calls[0]);
+  });
+
+  it("rejects a new or unknown wine without a price before the RPC", async () => {
+    const admin = releaseAdmin();
+
+    await expect(
+      new CoreClubServiceHarness(
+        admin as unknown as SupabaseClient,
+      ).updateRelease(
+        releaseId,
+        {
+          wines: [
+            {
+              id: "41000000-0000-4000-8000-000000000099",
+              quantity: 1,
+              wineName: "Unknown Wine",
+            },
+          ],
+        },
+        commandId,
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid_request",
+      status: 400,
+    });
+    expect(admin.rpc).not.toHaveBeenCalled();
+  });
+
+  it("treats an unknown wine with an explicit price as new", async () => {
+    const admin = releaseAdmin();
+
+    await new CoreClubServiceHarness(
+      admin as unknown as SupabaseClient,
+    ).updateRelease(
+      releaseId,
+      {
+        wines: [
+          {
+            id: "41000000-0000-4000-8000-000000000099",
+            priceCents: 7_500,
+            quantity: 1,
+            wineName: "New Wine",
+          },
+        ],
+      },
+      commandId,
+    );
+
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "apply_release_command",
+      expect.objectContaining({
+        p_payload: expect.objectContaining({
+          wines: [
+            {
+              price_cents: 7_500,
+              quantity: 1,
+              wine_name: "New Wine",
+            },
+          ],
+        }),
+      }),
+    );
+  });
+});
+
 describe("Phase 2 member detail history", () => {
   it("loads bounded Phase 2 history without joining shipments into the member row", async () => {
     const calls: Array<{

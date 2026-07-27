@@ -34,18 +34,27 @@ Do not put secrets in Vite-prefixed variables. The frontend intentionally has no
 
 ## Local environment
 
-Copy the template only when activating provider-backed behavior:
+Start from the minimal Worker template:
 
 ```bash
-cp .env.example .dev.vars
+cp .dev.vars.example .dev.vars
 chmod 600 .dev.vars
 ```
 
-`.dev.vars`, `.env`, and `.env.*` are ignored. Never commit them or paste their values into logs.
+Then merge only the values needed for the local capability you are activating:
 
-The repository also includes `.dev.vars.example`, a minimal Worker-oriented
-template. Keep `SENTRY_DSN` empty or replace only the local ignored copy with a
-real value; never commit the DSN.
+1. Open `.env.example` as the comprehensive variable inventory and the ignored
+   `.dev.vars` copy side by side.
+2. Copy each required assignment into `.dev.vars`, remove its leading comment
+   marker when present, and replace the placeholder only in `.dev.vars`.
+3. If the key already exists in `.dev.vars`, edit that one assignment instead
+   of adding a duplicate.
+4. Keep `SENTRY_DSN=` empty unless a real local project DSN is available.
+
+Do not copy `.env.example` over `.dev.vars`, append the entire inventory, or
+edit either tracked example with local values. Local `.dev.vars`, `.env`, and
+`.env.*` files are ignored; the documented `.env.example` exception remains
+tracked. Never commit local environment files or paste their values into logs.
 
 Required Phase 1 runtime values:
 
@@ -76,11 +85,17 @@ curl http://localhost:8787/api/health/configuration
 
 The Worker entry point is wrapped with `@sentry/cloudflare`, but the SDK is
 initialized only when the server-only `SENTRY_DSN` binding exists. Configure it
-as a Wrangler secret or in the Cloudflare dashboard for each environment:
+separately for each named Wrangler environment (or in the matching Cloudflare
+dashboard environment):
 
 ```bash
-npx wrangler secret put SENTRY_DSN
+npx wrangler secret put SENTRY_DSN --env staging
+npx wrangler secret put SENTRY_DSN --env production
 ```
+
+Run both commands when both environments are being activated. Local
+development reads only the ignored `.dev.vars`; do not use an unscoped
+`wrangler secret put` command as a substitute for the two named secrets.
 
 Do not store the DSN in `wrangler.jsonc`, `.env.example`, logs, issue text, or
 screenshots. Sentry is configured to exclude cookies, bodies, query strings,
@@ -496,8 +511,8 @@ then runs the remaining test and build gates. This keeps validation reproducible
 from a fresh checkout while leaving the generated artifact untracked.
 
 The current credential-independent architecture gate passes generated Worker
-types, TypeScript, 354/354 Vitest tests, Phase 1 92/92, Phase 2 231/231, Phase
-3 199/199, Phase 4 158/158, Phase 5 494/494 embedded PostgreSQL/pgTAP
+types, TypeScript, 382/382 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+3 199/199, Phase 4 158/158, Phase 5 513/513 embedded PostgreSQL/pgTAP
 assertions, and 145/145 Playwright tests with zero axe violations. Pages plus
 development, staging, and production Worker dry-run builds pass. The focused
 release controls pass 14/14, mobile-release controls 7/7, Stripe catalog

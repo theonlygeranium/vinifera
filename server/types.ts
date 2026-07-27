@@ -270,6 +270,13 @@ export interface ReleaseWineInput {
   wineName: string;
 }
 
+export interface ReleaseWinePatchInput {
+  id?: string;
+  priceCents?: number;
+  quantity: number;
+  wineName: string;
+}
+
 export interface ReleaseInput {
   description?: string | null;
   embargoDate: string;
@@ -279,6 +286,10 @@ export interface ReleaseInput {
   tierPrices: Array<{ priceCents: number; tierId: string }>;
   wines: ReleaseWineInput[];
 }
+
+export type ReleasePatchInput = Partial<Omit<ReleaseInput, "wines">> & {
+  wines?: ReleaseWinePatchInput[];
+};
 
 export interface CsvMapping {
   city?: string;
@@ -432,7 +443,7 @@ export interface CoreClubService {
   ): Promise<Record<string, unknown>>;
   updateRelease(
     releaseId: string,
-    input: Partial<ReleaseInput>,
+    input: ReleasePatchInput,
     commandId: string,
   ): Promise<Record<string, unknown>>;
   validateShippingAddress(

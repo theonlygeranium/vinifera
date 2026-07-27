@@ -1,6 +1,6 @@
 # Sentry
 # Use a project DSN only in the untracked .dev.vars file.
-SENTRY_DSN=https://your-key@o0.ingest.sentry.io/your-project
+SENTRY_DSN=
 
 # Local Worker environment
 APP_ENV=development

@@ -41,6 +41,10 @@ export function createPublicRetentionRouter(
   const router = Router();
 
   router.get("/api/communications/unsubscribe", async (request, response) => {
+    response.set({
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+    });
     const token = z.string().min(32).max(4_096).parse(request.query.token);
     await verifyUnsubscribeToken(options.getEnv(), token);
     const action = `/api/communications/unsubscribe?token=${encodeURIComponent(
@@ -56,6 +60,10 @@ export function createPublicRetentionRouter(
   });
 
   router.post("/api/communications/unsubscribe", async (request, response) => {
+    response.set({
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+    });
     const token = z.string().min(32).max(4_096).parse(request.query.token);
     await retentionService(request, response).applyUnsubscribe(token);
     data(response, {

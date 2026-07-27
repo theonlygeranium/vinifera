@@ -142,6 +142,20 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- The review-hardening branch closes the remaining aggregate-integrity,
+  unsubscribe-privacy, direct-push timeout, checkout-credential, and setup
+  documentation findings without changing provider activation. Release PATCH
+  retries now preserve validated existing `release_wines.id` values through
+  forward migration `202607260022_release_wine_identity_replay.sql`, allowing
+  an exact lost-response retry to reach the durable command replay while
+  rejecting create-time, duplicate, cross-brand, cross-release, or otherwise
+  foreign wine IDs. The current branch passes the direct-push policy 12/12,
+  dependency audit 0, generated Worker bindings, TypeScript, Vitest 382/382,
+  database gates 92/250/199/158/513, focused production/mobile/catalog
+  controls 14/7/16, mobile identity, Vite and Pages rollback builds,
+  development/staging/production Worker dry runs, and Playwright/axe 145/145.
+  Hosted Supabase native pgcrypto/pgTAP verification and all provider-backed
+  activation evidence remain pending by design.
 - BS-06 audits every database-calling function in `server/services/` against
   the final 21-migration tenancy model. It adds explicit organization and brand
   predicates to all mobile offline-bootstrap reads, a focused cross-brand
