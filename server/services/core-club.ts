@@ -27,6 +27,7 @@ import {
 } from "../lib/analytics-events";
 import { encodeCsvCell } from "../lib/csv";
 import { AppError, requireConfigured } from "../lib/errors";
+import { assertUuid, camelKey, sha256 } from "../lib/utils";
 import { assertEasyPostTarget } from "../provider-targets";
 import {
   readMemberBrandContextCookie,
@@ -425,12 +426,6 @@ function commandResult(value: unknown): Record<string, unknown> {
   return candidate as Record<string, unknown>;
 }
 
-function camelKey(value: string): string {
-  return value.replace(/_([a-z])/g, (_match, character: string) =>
-    character.toUpperCase(),
-  );
-}
-
 function toPublicValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(toPublicValue);
   if (!value || typeof value !== "object") return value;
@@ -802,16 +797,6 @@ function toPublicShipment(value: unknown): Record<string, unknown> {
   };
 }
 
-function assertUuid(value: string, entity: string): void {
-  if (
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      value,
-    )
-  ) {
-    throw new AppError(400, "invalid_request", `${entity} id is invalid.`);
-  }
-}
-
 function addressToDatabase(address: PostalAddress | null | undefined):
   | Record<string, string | null>
   | null
@@ -917,11 +902,6 @@ export function assessLegacyShippingWhitelist(
         : `The legacy Phase 2 whitelist did not include ${address.state.toUpperCase()}.`
       : "The legacy Phase 2 whitelist covered only United States destinations.",
   };
-}
-
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Buffer.from(digest).toString("hex");
 }
 
 function deterministicDigits(hash: string, length: number): string {

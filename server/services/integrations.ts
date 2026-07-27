@@ -6,6 +6,7 @@ import {
   assertQuickBooksRedirectUri,
 } from "../config";
 import { AppError, requireConfigured } from "../lib/errors";
+import { assertUuid, camelKey, sha256 } from "../lib/utils";
 import type {
   IntegrationService,
   IntegrationType,
@@ -305,23 +306,11 @@ function databaseError(message: string): AppError {
   return new AppError(500, "upstream_error", message);
 }
 
-function assertUuid(value: string, label: string): void {
-  if (!UUID.test(value)) {
-    throw new AppError(400, "invalid_request", `${label} is invalid.`);
-  }
-}
-
 function rpcRow(value: unknown): Record<string, unknown> | null {
   const row = Array.isArray(value) ? value[0] : value;
   return row && typeof row === "object"
     ? (row as Record<string, unknown>)
     : null;
-}
-
-function camelKey(value: string): string {
-  return value.replace(/_([a-z])/g, (_, character: string) =>
-    character.toUpperCase(),
-  );
 }
 
 function toPublicValue(value: unknown): unknown {
@@ -485,14 +474,6 @@ export function providerMappingsFromSyncConfig(
     fieldMappings: [],
     listMappings: [],
   };
-}
-
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    Uint8Array.from(new TextEncoder().encode(value)),
-  );
-  return Buffer.from(digest).toString("hex");
 }
 
 function hexToRgb(value: string): [number, number, number] {

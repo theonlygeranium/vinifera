@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { getConfigurationReport } from "../config";
 import { encodeCsvRows } from "../lib/csv";
 import { AppError, requireConfigured } from "../lib/errors";
+import { assertUuid, camelKey, numeric, sha256 } from "../lib/utils";
 import {
   ANALYTICS_EVENT_TYPES,
   analyticsEventIdempotencyKey,
@@ -97,22 +98,6 @@ function databaseError(message: string): AppError {
   return new AppError(500, "upstream_error", message);
 }
 
-function assertUuid(value: string, label: string): void {
-  if (
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      value,
-    )
-  ) {
-    throw new AppError(400, "invalid_request", `${label} is invalid.`);
-  }
-}
-
-function camelKey(value: string): string {
-  return value.replace(/_([a-z])/g, (_, character: string) =>
-    character.toUpperCase(),
-  );
-}
-
 function toPublicValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(toPublicValue);
   if (!value || typeof value !== "object") return value;
@@ -141,14 +126,6 @@ function rpcRow(value: unknown): Record<string, unknown> | null {
   return candidate && typeof candidate === "object"
     ? (candidate as Record<string, unknown>)
     : null;
-}
-
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return Buffer.from(digest).toString("hex");
 }
 
 function canonicalizeArtifactValue(value: unknown): unknown {
@@ -1252,11 +1229,6 @@ function objectRows(value: unknown): Array<Record<string, unknown>> {
           Boolean(row) && typeof row === "object" && !Array.isArray(row),
       )
     : [];
-}
-
-function numeric(value: unknown, fallback = 0): number {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
 }
 
 function ratio(numerator: unknown, denominator: unknown): number {

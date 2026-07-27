@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Request, Response } from "express";
 import { AppError, requireConfigured } from "../lib/errors";
+import { assertUuid, camelKey, sha256 } from "../lib/utils";
 import { getConfigurationReport } from "../config";
 import type {
   CancelFlowOutcome,
@@ -114,22 +115,6 @@ function createAdminClient(env: WorkerEnv): SupabaseClient {
 
 function databaseError(message: string): AppError {
   return new AppError(500, "upstream_error", message);
-}
-
-function assertUuid(value: string, label: string): void {
-  if (
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      value,
-    )
-  ) {
-    throw new AppError(400, "invalid_request", `${label} is invalid.`);
-  }
-}
-
-function camelKey(value: string): string {
-  return value.replace(/_([a-z])/g, (_, character: string) =>
-    character.toUpperCase(),
-  );
 }
 
 function toPublicValue(value: unknown): unknown {
@@ -410,14 +395,6 @@ function toArrayBuffer(value: Uint8Array): ArrayBuffer {
     value.byteOffset,
     value.byteOffset + value.byteLength,
   ) as ArrayBuffer;
-}
-
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return Buffer.from(digest).toString("hex");
 }
 
 function canonicalizeCommandValue(value: unknown): unknown {

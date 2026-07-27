@@ -254,8 +254,18 @@ export function normalizeMemberCancelFlow(value: unknown): MemberCancelFlow {
         ];
       })
     : [];
-  const swapOptions = Array.isArray(source.swapOptions)
-    ? (source.swapOptions as ReleaseWine[])
+  const swapOptions: ReleaseWine[] = Array.isArray(source.swapOptions)
+    ? source.swapOptions.flatMap((candidate) => {
+        if (!isRecord(candidate)) return [];
+        return [
+          {
+            id: stringValue(candidate.id) || undefined,
+            name: stringValue(candidate.name),
+            quantity: numberValue(candidate.quantity),
+            priceCents: numberValue(candidate.priceCents) || undefined,
+          },
+        ];
+      })
     : [];
   return {
     attemptId: stringValue(source.attemptId) || undefined,
