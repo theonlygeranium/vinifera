@@ -10,6 +10,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Refactored
 
+- **What changed:** Integrated the verified review-hardening `main` baseline
+  into BS-03 and transplanted its release-wine identity/replay update from the
+  retired service monolith into `server/services/orders.ts`, while keeping
+  `core-club.ts` re-export-only. **Why:** BS-03 must preserve the review fixes
+  without reversing the behavior-preserving service decomposition.
+  **Deployment impact:** The pending forward release-identity migration and
+  hardened route/guard behavior are preserved; no provider, hosted database,
+  Worker, Pages, secret, or activation mutation is performed by this
+  integration. **Verification:** Direct-push policy, dependency audit,
+  generated Worker bindings, TypeScript, Vitest, all embedded database phases,
+  Pages and Worker builds/dry runs, Playwright/axe, and structural service
+  audits are rerun on the integrated head before publication.
 - Decomposed `core-club.ts` into domain-scoped member, club, order, Stripe,
   and EasyPost services while preserving its prior public API through re-exports.
 - Decomposed `integrations.ts` into communications and webhook services, with
@@ -36,6 +48,116 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Updated the preserved BS-02 route manifest to include BS-04's path-specific
   rate-limit layer in registration order, and added an explicit BS-03 change
   record to the compatibility-barrel Greptile guidance.
+- **What changed:** Direct-router retention coverage now proves malformed-token
+  POST responses retain `no-store` and `no-referrer` before the service is
+  invoked, and the agent workflow records the reason, operational impact, and
+  focused verification for bounded GitHub evidence requests. **Why:** Final
+  exact-head CodeRabbit review identified an unproved unsubscribe error path
+  and incomplete local workflow rationale. **Deployment impact:** Test and
+  workflow documentation only; the already-implemented POST headers, guard,
+  application, database, Pages, providers, secrets, and activation state are
+  unchanged. **Verification:** Retention HTTP contracts 31/31, direct-push
+  policy 12/12, TypeScript, `git diff --check`, and fresh exact-head review.
+- **What changed:** The release command RPC now scopes allowed payload fields by
+  operation: only create accepts `initial_status`, update accepts aggregate
+  fields without create-only state, and schedule requires an empty payload.
+  pgTAP proves rejected surplus fields leave no command result. **Why:** Hosted
+  CodeRabbit found that the shared allowlist could silently ignore fields on
+  update or schedule. **Deployment impact:** The stricter contract ships in the
+  pending release-identity migration; no new migration, Pages, provider,
+  secret, or activation change is introduced. **Verification:** Phase 2 and
+  Phase 5 current-stack pgTAP, `git diff --check`, and fresh exact-head reviews.
+- **What changed:** Both the GET confirmation and POST mutation responses for
+  token-bearing unsubscribe URLs now set route-owned `Cache-Control: no-store`
+  and `Referrer-Policy: no-referrer` headers before token handling; direct-router
+  tests cover the POST response without relying on global middleware. The
+  Phase 2 ADR now states the required forward-migration deployment impact, and
+  setup guidance distinguishes ignored local environment files from the
+  tracked `.env.example` exception. **Why:** Hosted Greptile and unresolved
+  CodeRabbit threads identified the POST privacy gap and two documentation
+  ambiguities. **Deployment impact:** Worker response headers change on the
+  unsubscribe POST; the existing pending release-identity migration remains
+  required, with no additional migration, Pages, provider, secret, or
+  activation change. **Verification:** Focused retention HTTP contracts,
+  TypeScript, `git diff --check`, and fresh exact-head reviews.
+- **What changed:** The forward release-identity command migration now rejects
+  JSON `null` required scalars, tier prices, wine quantities, and wine prices
+  before mutation, with pgTAP proving that rejected commands leave no replay
+  record. **Why:** Authenticated CodeRabbit review found that a direct
+  service-role caller could otherwise bypass SQL three-valued comparisons and
+  surface a low-level not-null constraint error. **Deployment impact:** The
+  validation ships within pending migration
+  `202607260022_release_wine_identity_replay.sql`; no additional migration,
+  Pages, provider, secret, or activation change is introduced.
+  **Verification:** Phase 2 and Phase 5 current-stack pgTAP, `git diff --check`,
+  and a fresh authenticated CodeRabbit review on the committed head.
+- **What changed:** Draft release updates now carry each validated existing
+  release-wine UUID into the transactional command, and a forward-only database
+  migration preserves those UUIDs while rebuilding the aggregate. The command
+  rejects IDs during create, duplicate IDs, and IDs outside the exact
+  organization/brand/release boundary; new explicitly priced wines still
+  receive database-generated IDs. **Why:** An exact idempotent retry after a
+  lost PATCH response could previously carry the pre-update wine ID, fail
+  service reconciliation after the first rebuild replaced that ID, and never
+  reach the database command ledger's stored replay. **Deployment impact:** The
+  Worker RPC payload adds optional `wine_id`, and Supabase must apply migration
+  `202607260022_release_wine_identity_replay.sql`; Pages, providers, secrets,
+  and activation state are unchanged. **Verification:** Stateful service retry
+  tests, Phase 2 command-ledger pgTAP identity/tenant/mismatch assertions,
+  TypeScript, 382/382 Vitest tests, database gates
+  92/250/199/158/513, all Pages and Worker dry-run builds, and 145/145
+  Playwright/axe checks. Authenticated CodeRabbit review is rerun on the
+  committed head before merge.
+- **What changed:** Review follow-up keeps both the GitHub response and its JSON
+  body parsing inside the direct-push guard's per-request timeout, aligns the
+  guard ADR with the ten-page implementation limit, and proves an invalid
+  unsubscribe token cannot invoke the mutation service. **Why:** A response
+  body can stall after headers arrive, and the security regression should
+  explicitly cover the non-mutation boundary. Timeout tests also assert that
+  every request receives the configured 25 ms deterministic test deadline.
+  **Deployment impact:** Guard availability and test/documentation evidence
+  only; application routes, database state, Pages, providers, and activation
+  remain unchanged. **Verification:** direct-push policy tests (12/12),
+  focused retention tests, TypeScript, and authenticated CodeRabbit review.
+- **What changed:** Local setup now begins from `.dev.vars.example`, gives an
+  exact selective merge sequence from the comprehensive `.env.example`
+  inventory, keeps the tracked Sentry placeholder blank, and requires separate
+  environment-scoped Sentry secret commands for staging and production.
+  **Why:** The previous copy command contradicted the minimal Worker template
+  and the unscoped secret command could target the wrong Worker environment.
+  **Deployment impact:** Documentation and tracked local template only; no
+  secret is created, no hosted environment is mutated, and runtime behavior is
+  unchanged until an operator follows the activation steps. **Verification:**
+  setup/template review, `git diff --check`, and the full
+  credential-independent repository gate recorded in the continuity brief.
+- **What changed:** The direct-push guard now gives every GitHub
+  associated-pull-request request a five-second `AbortController` deadline,
+  treats request timeouts as bounded evidence attempts with the existing
+  ten-second backoff, and fails closed after three timeouts. Two deterministic
+  policy tests cover timeout recovery and exhaustion, and checkout no longer
+  persists its GitHub credential. **Why:** An indefinitely pending GitHub
+  request could consume the entire workflow without a policy result, while
+  persisted checkout credentials exceeded this read-only job's needs.
+  **Deployment impact:** GitHub Actions enforcement only; application,
+  database, Worker, Pages, and provider behavior are unchanged.
+  **Verification:** `node --test
+  .github/scripts/direct-push-guard.policy.mjs` (11 tests) and
+  `git diff --check`.
+- **What changed:** Release PATCH requests now reject empty bodies, direct
+  status changes, ambiguous tier aliases, and unpaired tier IDs/prices; omit
+  absent nested fields; and reconcile an omitted existing-wine price only by
+  its stable wine ID before rebuilding the release aggregate. New or unknown
+  wines still require an explicit price, while an explicit zero remains zero.
+  The token-bearing unsubscribe confirmation route now owns
+  `Cache-Control: no-store` and `Referrer-Policy: no-referrer` before token
+  parsing and verification. **Why:** Review identified silent aggregate
+  rewrites, undefined tier inputs, destructive zero-price defaults, and
+  route-local privacy headers that depended on global middleware.
+  **Deployment impact:** Worker API request validation and response headers
+  change; no database migration, provider activation, Pages route, or static
+  asset changes are required. **Verification:** `npm run typecheck` and
+  `npx vitest run tests/server/app.test.ts tests/server/core-club.test.ts
+  tests/server/retention.test.ts` (106 tests).
 - Hardened extracted route boundaries after review: release tier/price sets and
   wine names now fail closed when inconsistent, partial email-template updates
   no longer inject `enabled: true`, padded emails normalize before validation,

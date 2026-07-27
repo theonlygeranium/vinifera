@@ -12,7 +12,7 @@ the original paths as re-export-only compatibility barrels so downstream test
 imports remain stable. The change reduces service-layer merge conflicts without
 changing provider activation, deployment configuration, or the static
 production surface. Verification covers named-export parity, direct runtime
-imports, import-cycle detection, TypeScript, 378/378 Vitest tests, and the full
+imports, import-cycle detection, TypeScript, 382/382 Vitest tests, and the full
 credential-independent build/QA matrix. The combined release record is in
 [`CHANGELOG.md`](../CHANGELOG.md) and [`CONTINUITY_BRIEF.md`](../CONTINUITY_BRIEF.md).
 

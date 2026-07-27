@@ -152,12 +152,26 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   middleware boundaries, and BS-06 mobile-bootstrap organization/brand
   predicates. This extraction changes no provider activation, deployment
   configuration, or static production surface. The integrated branch passes
-  the direct-push policy 9/9, dependency audit 0, generated Worker type check,
-  TypeScript, Vitest 378/378, database gates 92/231/199/158/494, Vite and Pages
+  the direct-push policy 12/12, dependency audit 0, generated Worker type check,
+  TypeScript, Vitest 382/382, database gates 92/250/199/158/513, Vite and Pages
   builds, default/staging/production Worker dry runs, Playwright/axe 145/145,
   mobile identity, mobile-release controls 7/7, and a non-routable compile-only
   Capacitor web bundle plus Android sync. This Mac has no Java runtime, so
   Android lint/assemble remains CI evidence rather than a local claim.
+- The review-hardening branch closes the remaining aggregate-integrity,
+  unsubscribe-privacy, direct-push timeout, checkout-credential, and setup
+  documentation findings without changing provider activation. Release PATCH
+  retries now preserve validated existing `release_wines.id` values through
+  forward migration `202607260022_release_wine_identity_replay.sql`, allowing
+  an exact lost-response retry to reach the durable command replay while
+  rejecting create-time, duplicate, cross-brand, cross-release, or otherwise
+  foreign wine IDs. The current branch passes the direct-push policy 12/12,
+  dependency audit 0, generated Worker bindings, TypeScript, Vitest 382/382,
+  database gates 92/250/199/158/513, focused production/mobile/catalog
+  controls 14/7/16, mobile identity, Vite and Pages rollback builds,
+  development/staging/production Worker dry runs, and Playwright/axe 145/145.
+  Hosted Supabase native pgcrypto/pgTAP verification and all provider-backed
+  activation evidence remain pending by design.
 - BS-06 audits every database-calling function in `server/services/` against
   the final 21-migration tenancy model. It adds explicit organization and brand
   predicates to all mobile offline-bootstrap reads, a focused cross-brand

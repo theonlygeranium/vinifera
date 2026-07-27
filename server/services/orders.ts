@@ -6,6 +6,7 @@ import type {
   CoreClubService,
   PostalAddress,
   ReleaseInput,
+  ReleasePatchInput,
   ReleaseStatus,
   ShipmentStatus,
   StaffPrincipal,
@@ -538,7 +539,7 @@ export class ProductionCoreClubService
 
   async updateRelease(
     releaseId: string,
-    input: Partial<ReleaseInput>,
+    input: ReleasePatchInput,
     commandId: string,
   ): Promise<Record<string, unknown>> {
     assertUuid(releaseId, "Release");
@@ -547,7 +548,52 @@ export class ProductionCoreClubService
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
     const current = await this.getRelease(releaseId);
-    const completeInput: ReleaseInput = {
+    const currentWines =
+      (current.wines as Array<Record<string, unknown>> | undefined) ?? [];
+    const currentWinePrices = new Map(
+      currentWines
+        .filter((wine) => typeof wine.id === "string")
+        .map((wine) => [String(wine.id), Number(wine.priceCents)]),
+    );
+    const completeWines = input.wines
+      ? input.wines.map((wine) => {
+          const existingWineId =
+            wine.id !== undefined && currentWinePrices.has(wine.id)
+              ? wine.id
+              : undefined;
+          if (wine.priceCents !== undefined) {
+            return {
+              ...(existingWineId ? { id: existingWineId } : {}),
+              priceCents: wine.priceCents,
+              quantity: wine.quantity,
+              wineName: wine.wineName,
+            };
+          }
+          const storedPrice =
+            existingWineId === undefined
+              ? undefined
+              : currentWinePrices.get(existingWineId);
+          if (storedPrice === undefined) {
+            throw new AppError(
+              400,
+              "invalid_request",
+              "Each new or unknown wine needs an explicit price.",
+            );
+          }
+          return {
+            id: existingWineId,
+            priceCents: storedPrice,
+            quantity: wine.quantity,
+            wineName: wine.wineName,
+          };
+        })
+      : currentWines.map((row) => ({
+          ...(typeof row.id === "string" ? { id: row.id } : {}),
+          priceCents: Number(row.priceCents),
+          quantity: Number(row.quantity),
+          wineName: String(row.name),
+        }));
+    const completeInput = {
       description:
         Object.prototype.hasOwnProperty.call(input, "description")
           ? input.description ?? null
@@ -575,15 +621,7 @@ export class ProductionCoreClubService
             tierId: String(row.id),
           }),
         )),
-      wines:
-        input.wines ??
-        (((current.wines as Array<Record<string, unknown>> | undefined) ?? []).map(
-          (row) => ({
-            priceCents: Number(row.priceCents),
-            quantity: Number(row.quantity),
-            wineName: String(row.name),
-          }),
-        )),
+      wines: completeWines,
     };
     const { data, error } = await this.admin.rpc("apply_release_command", {
       p_actor_user_id: principal.user.id,
@@ -601,6 +639,7 @@ export class ProductionCoreClubService
           tier_id: tier.tierId,
         })),
         wines: completeInput.wines.map((wine) => ({
+          ...("id" in wine && wine.id ? { wine_id: wine.id } : {}),
           price_cents: wine.priceCents,
           quantity: wine.quantity,
           wine_name: wine.wineName,

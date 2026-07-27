@@ -49,6 +49,7 @@ const phase2CurrentStackMigrations = [
   "supabase/migrations/202607260011_provider_activation_runtime.sql",
   "supabase/migrations/202607260012_custom_hostname_write_safety.sql",
   "supabase/migrations/202607260013_phase_2_transactional_commands.sql",
+  "supabase/migrations/202607260022_release_wine_identity_replay.sql",
 ];
 const migrations =
   targetPhase === 1

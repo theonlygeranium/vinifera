@@ -28,6 +28,11 @@ unchanged.
   `integration-runtime.ts`, preventing a `comms.ts` ↔ `webhooks.ts` import
   cycle without changing their bodies or exposing them through the public
   service barrel.
+- Final integration with verified `main` revision `c534703` preserves that
+  revision's reviewed release-wine identity/replay change in the extracted
+  owner, `orders.ts`. That post-extraction behavior change is attributable to
+  the merged review-hardening baseline, not to the BS-03 decomposition;
+  `core-club.ts` remains re-export-only.
 
 ## Intended dependency direction
 

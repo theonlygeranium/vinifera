@@ -49,6 +49,7 @@ const migrations = [
   "supabase/migrations/202607260015_phase_4_analytics_current_stack_hardening.sql",
   "supabase/migrations/202607260016_phase_5_backend_completion.sql",
   "supabase/migrations/202607260017_custom_hostname_delete_safety.sql",
+  "supabase/migrations/202607260022_release_wine_identity_replay.sql",
 ];
 const tests = [
   "supabase/tests/013_phase_5_schema.test.sql",
