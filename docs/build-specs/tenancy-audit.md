@@ -2,9 +2,26 @@
 
 **Audit date:** 2026-07-27
 
-**Audit base:** `origin/main` at `30fe29e`
+**Audit starting point:** `origin/main` at `30fe29e`
+
+**Audited implementation head:** `38782710f2c57b2053718e2480dad69a3337147a`
+after integrating `origin/main` at
+`72abbd0673e14cf63a4c85a9149da1ec23e21632`. The subsequent review follow-up
+changes only governance, audit, changelog, and test-fixture evidence; it does
+not alter `server/services/`.
 
 **Scope:** Every database-calling function in `server/services/*.ts`
+
+## Evidence boundary
+
+Schema evidence comes from the 21 migration files committed under
+`supabase/migrations/`, through
+`202607260021_p3_missing_indexes.sql`, at the audited implementation head. It
+does not come from inspection of a deployed Supabase schema. Local embedded
+database gates validate the repository migration model, but activation gate 9
+— applying Phase 4 migration 15 to hosted Supabase and running the 37
+current-stack pgTAP assertions plus native tenant/RPC tests — remains
+**pending and unverified**.
 
 ## Method
 

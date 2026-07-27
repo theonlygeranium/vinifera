@@ -160,22 +160,62 @@ afterEach(() => {
 describe("mobile bootstrap tenant isolation", () => {
   it("scopes every offline snapshot query to the authenticated organization and brand", async () => {
     const brandId = "30000000-0000-4000-8000-000000000003";
-    const otherBrandId = "30000000-0000-4000-8000-000000000099";
+    const sameOrganizationOtherBrandId =
+      "30000000-0000-4000-8000-000000000098";
+    const otherOrganizationBrandId =
+      "30000000-0000-4000-8000-000000000099";
     const memberId = "40000000-0000-4000-8000-000000000004";
-    const otherMemberId = "40000000-0000-4000-8000-000000000099";
+    const otherOrganizationMemberId =
+      "40000000-0000-4000-8000-000000000099";
     const filters: Array<{ column: string; table: string; value: unknown }> = [];
+    // Matching member IDs make each adversarial row observable if either
+    // explicit tenant predicate is removed from a bootstrap query.
     const rows: Record<string, Array<Record<string, unknown>>> = {
       loyalty_ledger: [
         {
-          brand_id: otherBrandId,
-          description: "Other tenant points",
+          brand_id: sameOrganizationOtherBrandId,
+          description: "Sibling brand points",
+          id: "50000000-0000-4000-8000-000000000098",
+          member_id: memberId,
+          organization_id: organizationId,
+          points: 998,
+        },
+        {
+          brand_id: otherOrganizationBrandId,
+          description: "Other organization points",
           id: "50000000-0000-4000-8000-000000000099",
-          member_id: otherMemberId,
+          member_id: otherOrganizationMemberId,
           organization_id: "10000000-0000-4000-8000-000000000099",
           points: 999,
         },
       ],
       members: [
+        {
+          brand_id: sameOrganizationOtherBrandId,
+          brands: {
+            id: sameOrganizationOtherBrandId,
+            logo_url: null,
+            name: "Sibling Brand",
+            primary_color: "#111111",
+          },
+          first_name: "Sibling",
+          id: memberId,
+          last_name: "Brand",
+          organization_id: organizationId,
+        },
+        {
+          brand_id: otherOrganizationBrandId,
+          brands: {
+            id: otherOrganizationBrandId,
+            logo_url: null,
+            name: "Other Organization",
+            primary_color: "#222222",
+          },
+          first_name: "Other",
+          id: memberId,
+          last_name: "Organization",
+          organization_id: "10000000-0000-4000-8000-000000000099",
+        },
         {
           brand_id: brandId,
           brands: {
@@ -192,12 +232,21 @@ describe("mobile bootstrap tenant isolation", () => {
       ],
       shipments: [
         {
-          brand_id: otherBrandId,
+          brand_id: sameOrganizationOtherBrandId,
+          charge_amount_cents: 998_00,
+          id: "60000000-0000-4000-8000-000000000098",
+          member_id: memberId,
+          organization_id: organizationId,
+          releases: { name: "Sibling brand release" },
+          status: "charged",
+        },
+        {
+          brand_id: otherOrganizationBrandId,
           charge_amount_cents: 999_00,
           id: "60000000-0000-4000-8000-000000000099",
-          member_id: otherMemberId,
+          member_id: otherOrganizationMemberId,
           organization_id: "10000000-0000-4000-8000-000000000099",
-          releases: { name: "Other tenant release" },
+          releases: { name: "Other organization release" },
           status: "charged",
         },
       ],
@@ -280,8 +329,13 @@ describe("mobile bootstrap tenant isolation", () => {
         value: brandId,
       });
     }
-    expect(JSON.stringify(bootstrap)).not.toContain(otherBrandId);
-    expect(JSON.stringify(bootstrap)).not.toContain(otherMemberId);
+    expect(JSON.stringify(bootstrap)).not.toContain(
+      sameOrganizationOtherBrandId,
+    );
+    expect(JSON.stringify(bootstrap)).not.toContain(otherOrganizationBrandId);
+    expect(JSON.stringify(bootstrap)).not.toContain(
+      otherOrganizationMemberId,
+    );
   });
 });
 

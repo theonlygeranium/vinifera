@@ -46,13 +46,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Added architecture context for the current Pages/Worker/Supabase topology,
   explicit tenant boundary, service request path, provider activation status,
-  all 20 pending gates, and the canonical file-ownership table.
+  all 20 pending gates, and the canonical file-ownership table so automated
+  reviewers receive current system context.
 - Added repository-wide CODEOWNERS, a pull-request template aligned with the
   actual test commands, governance risk notes, Greptile learning guidance, and
-  an exhaustive service-layer tenancy audit.
+  an exhaustive service-layer tenancy audit to route ownership and make the
+  remaining self-review risk explicit without claiming enforced approval.
 - Added a focused mobile-bootstrap isolation test that requires member,
   shipment, and loyalty queries to use the authenticated organization and
-  brand.
+  brand, closing the confirmed Rule 8 defense-in-depth gap.
 - Added the route-layer decomposition ADR documenting domain router
   boundaries, the public/protected/fallback mount-order contract, and the
   request-scoped `RouteContext` service-selector pattern.
@@ -185,12 +187,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- BS-06 review follow-up clarifies that CODEOWNERS routes review but is not
+  currently branch-protection enforced, expands the pull-request checklist to
+  cover dependency, database, and package gates, pins the tenancy audit to its
+  exact code and repository-migration evidence, and strengthens the isolation
+  fixture with same-organization/wrong-brand rows while retaining
+  cross-organization rows. This improves review evidence only and changes no
+  runtime or deployment state. Verify with TypeScript, the focused Phase 5
+  integration test, and the full 378-test suite.
 - Integrated BS-06 with the repaired direct-push guard and completed BS-02/
   BS-04 route and observability baseline from `main`. Architecture and
   governance documentation now match the extracted route tree and current
   protected-branch controls while preserving the mobile-bootstrap tenant
   predicates and cross-brand regression. This merge changes no provider,
-  hosted-database, Worker, or production activation state.
+  hosted-database, Worker, or production activation state. Verify with the
+  exact integrated evidence recorded in `CONTINUITY_BRIEF.md`.
 - Updated README developer context with the current v0.5.0 status, existing
   local development commands, agent workflow, and architecture links.
 - Integrated the repaired direct-push guard from `main` into the BS-04 branch
