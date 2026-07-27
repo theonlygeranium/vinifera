@@ -35,6 +35,7 @@
     "qa:stripe-catalog": "vitest run tests/scripts/stripe-test-catalog.test.mjs",
     "qa:worker-types": "wrangler types --check",
     "test": "vitest run",
+    "test:unit": "vitest run",
     "test:watch": "vitest",
     "typecheck": "npm run cf-typegen && tsc --noEmit"
   },
@@ -48,6 +49,7 @@
     "@capacitor/ios": "8.4.2",
     "@capacitor/network": "8.0.1",
     "@capacitor/push-notifications": "8.1.2",
+    "@sentry/cloudflare": "10.68.0",
     "@supabase/ssr": "0.12.3",
     "@supabase/supabase-js": "2.110.8",
     "cors": "2.8.6",

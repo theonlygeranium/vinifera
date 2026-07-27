@@ -10,6 +10,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added `@sentry/cloudflare` at the Worker entry boundary, gated on the
+  server-only `SENTRY_DSN` secret and configured to exclude request PII,
+  bodies, query strings, database query data, stack-frame variables, and
+  exception/log messages.
+- Added `server/lib/error-handler.ts` with request-correlated structured logs,
+  safe Zod/auth/authz/not-found/unknown mappings, a consistent JSON envelope,
+  and Sentry capture for 5xx exceptions.
+- Added `server/lib/rate-limit.ts` and four native Cloudflare Rate Limiting
+  bindings for auth, general API, webhook, and admin routes. Policies consume
+  both normalized route/tenant and route/hashed-actor counters and fail closed
+  when a production binding is unavailable.
+- Added `.dev.vars.example`, focused Sentry/error/rate-limit unit tests, the
+  observability and rate-limiting ADR, and a BS-04 QA report recording audit 0,
+  aggregate checks, TypeScript and generated bindings, 367/367 Vitest tests,
+  Vite/Pages and all Worker dry runs, 145/145 Playwright/axe cases, and a clean
+  changed-file credential scan.
 - `.greptile/rules.md`: 10 architectural boundary rules encoding vinifera's service, security, and tenancy patterns
 - `.greptile/files.json`: Greptile context files for every PR review
 - `docs/build-specs/phase-5-qa-report.md`: Phase 5 closure evidence with all 20 activation gates listed as pending
@@ -120,6 +136,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Integrated the repaired direct-push guard from `main` into the BS-04 branch
+  while preserving the observability and rate-limit implementation. This merge
+  changes no runtime route or activation state; verify with the guard policy
+  tests and the complete BS-04 quality suite before merge.
+- Review follow-up hashes complete rate-limit composites into Cloudflare's
+  64-byte key maximum, derives tenant budgets from the edge-routed host instead
+  of client-selected brand or forwarded-host headers, uses the Cloudflare
+  connecting IP instead of rotatable authorization/cookie input for the actor
+  budget, and narrows the reflective Worker secret lookup to explicit
+  `unknown`.
+- Registered specialized rate limits before API handlers and the centralized
+  error handler last. Wrangler development, staging, and production
+  environments now declare the four native rate-limit bindings. This changes
+  Worker build/runtime configuration but does not deploy the Worker, activate
+  Sentry, change static Pages routing, or contact a provider. Verify with
+  Worker type generation, TypeScript, unit/browser tests, dependency audit,
+  Vite/Pages and Worker builds, secret scanning, and middleware-order review.
+  Existing API fixtures now inject deterministic allow-only rate-limit
+  bindings so production-mode route assertions continue exercising their
+  intended auth and activation behavior.
 - Reworked the direct-push guard to produce its required check on pull
   requests and to verify `main` updates using the exact merge result returned
   by GitHub's associated-pull-request API. Conventional commit messages no

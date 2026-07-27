@@ -170,12 +170,19 @@ function testApp(
   envOverrides: Partial<WorkerEnv> = {},
 ) {
   const createService: FoundationServiceFactory = () => foundation;
+  const allowRateLimit: RateLimit = {
+    limit: async () => ({ success: true }),
+  };
   return createApp({
     createService,
     getEnv: () => ({
+      ADMIN_RATE_LIMITER: allowRateLimit,
       ALLOWED_ORIGINS: "https://vinifera.test",
+      API_RATE_LIMITER: allowRateLimit,
       APP_ENV: "test",
       APP_ORIGIN: "https://vinifera.test",
+      AUTH_RATE_LIMITER: allowRateLimit,
+      WEBHOOK_RATE_LIMITER: allowRateLimit,
       ...envOverrides,
     }),
   });
