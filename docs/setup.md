@@ -43,6 +43,10 @@ chmod 600 .dev.vars
 
 `.dev.vars`, `.env`, and `.env.*` are ignored. Never commit them or paste their values into logs.
 
+The repository also includes `.dev.vars.example`, a minimal Worker-oriented
+template. Keep `SENTRY_DSN` empty or replace only the local ignored copy with a
+real value; never commit the DSN.
+
 Required Phase 1 runtime values:
 
 ```text
@@ -67,6 +71,48 @@ Missing provider values are an explicit activation state. The API health report 
 ```bash
 curl http://localhost:8787/api/health/configuration
 ```
+
+## API observability and rate limiting
+
+The Worker entry point is wrapped with `@sentry/cloudflare`, but the SDK is
+initialized only when the server-only `SENTRY_DSN` binding exists. Configure it
+as a Wrangler secret or in the Cloudflare dashboard for each environment:
+
+```bash
+npx wrangler secret put SENTRY_DSN
+```
+
+Do not store the DSN in `wrangler.jsonc`, `.env.example`, logs, issue text, or
+screenshots. Sentry is configured to exclude cookies, bodies, query strings,
+default user information, database query data, generative-AI payloads, and
+stack-frame variables. Its final event hook also removes exception and log
+messages while preserving error types and stack-frame locations. The central
+error handler captures only 5xx errors and adds a request ID, method, route,
+status, machine code, and optional opaque actor identifier.
+
+Four native Cloudflare Rate Limiting bindings protect the API:
+
+| Route group | Limit | Wrangler binding |
+|---|---:|---|
+| `/api/auth/*` | 20/minute | `AUTH_RATE_LIMITER` |
+| general `/api/*` | 100/minute | `API_RATE_LIMITER` |
+| webhook routes | 500/minute | `WEBHOOK_RATE_LIMITER` |
+| `/api/admin/*` | 30/minute | `ADMIN_RATE_LIMITER` |
+
+Each request checks a normalized route/host key and a normalized route/IP key.
+The edge-routed `Host` header—not client-selected brand or forwarded-host
+headers—defines the tenant budget. The Cloudflare connecting IP defines the
+actor budget; unverified authorization and cookie values cannot rotate it.
+Each complete composite is SHA-256 hashed into Cloudflare's 64-byte key limit,
+so route, host, and IP inputs do not enter the counter in raw form. The general
+API policy skips the specialized prefixes. Outside tests, a missing binding
+returns `503 configuration_error`.
+
+Cloudflare's native service currently supports only 10-second or 60-second
+periods, and counters are per Cloudflare location with eventual consistency.
+Treat these policies as abuse controls, not billing or exact global quotas.
+The database-backed member magic-link limiter remains the durable longer-window
+control.
 
 `LIVE_BILLING_ENABLED` defaults off. A live Stripe secret without that separate
 authority cannot create or confirm charges, process release billing, retry

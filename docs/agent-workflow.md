@@ -91,10 +91,34 @@ Task:
 ## Checklist before merging any PR
 
 - [ ] Greptile Review check is green (or all comments addressed)
+- [ ] `Block direct push to main` check passes on the pull request
 - [ ] `Type, test, build, and package` CI check passes
 - [ ] Cloudflare Pages preview deploy succeeded
 - [ ] PR description explains what changed and why
 - [ ] No secrets, API keys, or credentials in the diff
+
+---
+
+## Direct-push enforcement
+
+The `Block direct push to main` job runs in two modes:
+
+- On every pull request targeting `main`, it runs its focused policy tests and
+  supplies the required branch-protection check.
+- After every push to `main`, it queries GitHub's associated-pull-request API
+  for the pushed commit. It passes only when the pushed SHA is the recorded
+  merge result of a closed, merged pull request targeting this repository's
+  `main` branch. This supports GitHub merge commits, squash merges, and rebase
+  merges without trusting commit-message text. The verifier follows at most
+  ten same-origin API pages and makes up to three evidence checks over 20
+  seconds to absorb normal GitHub indexing delay; it still fails closed if
+  exact evidence never appears.
+
+The push-side run is a fail-closed audit after Git has already updated the
+branch. Branch protection must require pull requests, require the
+`Block direct push to main` check, and disallow administrator bypass to prevent
+the update before it occurs. Do not treat a green post-push workflow by itself
+as branch-protection evidence.
 
 ---
 

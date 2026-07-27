@@ -58,7 +58,9 @@ export type IntegrationType =
   | "quickbooks";
 
 export interface WorkerEnv {
+  ADMIN_RATE_LIMITER?: RateLimit;
   ALLOWED_ORIGINS?: string;
+  API_RATE_LIMITER?: RateLimit;
   APNS_BUNDLE_ID?: string;
   APNS_ENVIRONMENT?: "production" | "sandbox";
   APNS_KEY_ID?: string;
@@ -68,6 +70,7 @@ export interface WorkerEnv {
   APP_ORIGIN?: string;
   ASSETS?: Fetcher;
   AUTH_EMAIL_ENABLED?: "true" | "false";
+  AUTH_RATE_LIMITER?: RateLimit;
   COMPLIANCE_PROVIDER?: "shipcompliant" | "simulated";
   COMPLIANCE_SIMULATOR_ENABLED?: "true" | "false";
   GOOGLE_OAUTH_ENABLED?: "true" | "false";
@@ -113,6 +116,7 @@ export interface WorkerEnv {
   RESEND_FROM?: string;
   RESEND_SENDING_DOMAIN?: string;
   RESEND_WEBHOOK_SECRET?: string;
+  SENTRY_DSN?: string;
   SHIPCOMPLIANT_ACCOUNT_ID?: string;
   SHIPCOMPLIANT_API_KEY?: string;
   SHIPCOMPLIANT_API_SECRET?: string;
@@ -137,6 +141,7 @@ export interface WorkerEnv {
   SUPABASE_SERVICE_ROLE_KEY?: string;
   SUPABASE_URL?: string;
   UNSUBSCRIBE_SIGNING_SECRET?: string;
+  WEBHOOK_RATE_LIMITER?: RateLimit;
 }
 
 export interface StaffPrincipal {

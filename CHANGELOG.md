@@ -8,6 +8,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored
+
+- Extracted all 129 Express route registrations from `server/app.ts` into
+  domain-scoped modules under `server/routes/`, preserving the original route
+  paths, middleware order, schemas, service calls, and response behavior.
+- Reduced `server/app.ts` to the 82-line global middleware and route-mounting
+  entry point, with `server/routes/index.ts` owning the ordered public,
+  protected, fallback, and error-handler mounts.
+- Integrated the BS-02 route mounts with BS-04 observability and rate
+  limiting: all rate-limit middleware runs before public/raw-webhook and
+  protected handlers, while the shared BS-04 error handler remains last after
+  the `/api` 404 boundary.
+
+### Fixed
+
+- Hardened extracted route boundaries after review: release tier/price sets and
+  wine names now fail closed when inconsistent, partial email-template updates
+  no longer inject `enabled: true`, padded emails normalize before validation,
+  and staff callback redirects reject control-character and backslash authority
+  forms.
+- Preserve explicit `null` canonical member aliases over legacy alias values
+  and keep member/release PATCH service inputs genuinely partial.
+- Require actual raw `Buffer` bodies before webhook provider dispatch, provide
+  an explicit non-zero loyalty-adjustment error, reuse the shared UUID schema,
+  and document the order-sensitive intelligence/member mounts.
+- Trust Cloudflare's edge-managed client-address header only in staging and
+  production; direct local/test requests now use Express's socket-derived
+  address for audit fields and rate-limit actor keys.
+- Hardened the Worker-compatible multipart CSV parser with bounded MIME
+  boundaries, exact CRLF/header framing, bounded field counts, and line-framed
+  delimiter recognition. Focused API regressions cover malformed bodies and
+  delimiter-like bytes inside CSV content without introducing a Node stream
+  middleware dependency.
+
 ### Added
 
 - Added architecture context for the current Pages/Worker/Supabase topology,
@@ -19,6 +53,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added a focused mobile-bootstrap isolation test that requires member,
   shipment, and loyalty queries to use the authenticated organization and
   brand.
+- Added the route-layer decomposition ADR documenting domain router
+  boundaries, the public/protected/fallback mount-order contract, and the
+  request-scoped `RouteContext` service-selector pattern.
+- Added the BS-02 route manifest covering all 129 Express route registrations,
+  middleware chains, inline-logic flags, direct-database-access audit, and
+  domain extraction ownership before route code is moved.
+- Added `@sentry/cloudflare` at the Worker entry boundary, gated on the
+  server-only `SENTRY_DSN` secret and configured to exclude request PII,
+  bodies, query strings, database query data, stack-frame variables, and
+  exception/log messages.
+- Added `server/lib/error-handler.ts` with request-correlated structured logs,
+  safe Zod/auth/authz/not-found/unknown mappings, a consistent JSON envelope,
+  and Sentry capture for 5xx exceptions.
+- Added `server/lib/rate-limit.ts` and four native Cloudflare Rate Limiting
+  bindings for auth, general API, webhook, and admin routes. Policies consume
+  both normalized route/tenant and route/hashed-actor counters and fail closed
+  when a production binding is unavailable.
+- Added `.dev.vars.example`, focused Sentry/error/rate-limit unit tests, the
+  observability and rate-limiting ADR, and a BS-04 QA report recording audit 0,
+  aggregate checks, TypeScript and generated bindings, 367/367 Vitest tests,
+  Vite/Pages and all Worker dry runs, 145/145 Playwright/axe cases, and a clean
+  changed-file credential scan.
 - `.greptile/rules.md`: 10 architectural boundary rules encoding vinifera's service, security, and tenancy patterns
 - `.greptile/files.json`: Greptile context files for every PR review
 - `docs/build-specs/phase-5-qa-report.md`: Phase 5 closure evidence with all 20 activation gates listed as pending
@@ -129,8 +185,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Updated README developer context with the current v0.5.0 status, the pending
-  BS-05 local quickstart, agent workflow, and architecture links.
+- Integrated BS-06 with the repaired direct-push guard and completed BS-02/
+  BS-04 route and observability baseline from `main`. Architecture and
+  governance documentation now match the extracted route tree and current
+  protected-branch controls while preserving the mobile-bootstrap tenant
+  predicates and cross-brand regression. This merge changes no provider,
+  hosted-database, Worker, or production activation state.
+- Updated README developer context with the current v0.5.0 status, existing
+  local development commands, agent workflow, and architecture links.
+- Integrated the repaired direct-push guard from `main` into the BS-04 branch
+  while preserving the observability and rate-limit implementation. This merge
+  changes no runtime route or activation state; verify with the guard policy
+  tests and the complete BS-04 quality suite before merge.
+- Review follow-up hashes complete rate-limit composites into Cloudflare's
+  64-byte key maximum, derives tenant budgets from the edge-routed host instead
+  of client-selected brand or forwarded-host headers, uses the Cloudflare
+  connecting IP instead of rotatable authorization/cookie input for the actor
+  budget, and narrows the reflective Worker secret lookup to explicit
+  `unknown`.
+- Registered specialized rate limits before API handlers and the centralized
+  error handler last. Wrangler development, staging, and production
+  environments now declare the four native rate-limit bindings. This changes
+  Worker build/runtime configuration but does not deploy the Worker, activate
+  Sentry, change static Pages routing, or contact a provider. Verify with
+  Worker type generation, TypeScript, unit/browser tests, dependency audit,
+  Vite/Pages and Worker builds, secret scanning, and middleware-order review.
+  Existing API fixtures now inject deterministic allow-only rate-limit
+  bindings so production-mode route assertions continue exercising their
+  intended auth and activation behavior.
+- Reworked the direct-push guard to produce its required check on pull
+  requests and to verify `main` updates using the exact merge result returned
+  by GitHub's associated-pull-request API. Conventional commit messages no
+  longer bypass the guard; merge, squash, and rebase strategies remain
+  supported, and focused policy tests fail closed on forced pushes, missing
+  evidence, or API errors. Associated-PR lookup follows bounded, validated
+  same-origin pagination and retries routine indexing delay twice before its
+  final rejection.
 - Local `typecheck`, `lint`, and aggregate `check` commands now regenerate the
   ignored Worker binding declaration before TypeScript reads it, so a fresh
   checkout no longer depends on a previously generated local file.

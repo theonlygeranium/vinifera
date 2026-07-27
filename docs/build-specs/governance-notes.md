@@ -6,9 +6,11 @@
 ## Current controls
 
 GitHub API inspection confirms that `main` is protected, administrators are
-subject to the protection rule, and the required status checks are Type/test/
-build/package and Greptile. The rule currently requires zero approving reviews
-and does not require a CODEOWNERS review.
+subject to the protection rule, and strict required-status checking is enabled.
+The required checks are `Type, test, build, and package`, `Greptile Review`,
+and `Block direct push to main`. The rule currently requires zero approving
+reviews, does not require a CODEOWNERS review, and does not dismiss stale
+approvals.
 
 The `staging`, `production`, and `mobile-release` GitHub environments each name
 `@theonlygeranium` as the only required reviewer. GitHub's
