@@ -230,6 +230,15 @@ async function installMockApi(
         ],
       });
     }
+    if (path === "/api/organization/overview" && method === "GET") {
+      return json(route, {
+        activeMembers: 0,
+        brandCount: 1,
+        brands: [],
+        monthlyRecurringRevenueCents: 0,
+        shipmentsThisPeriod: 0,
+      });
+    }
     if (path === "/api/club-tiers" && method === "GET") return json(route, [tier]);
     if (path === "/api/club-tiers" && method === "POST") return json(route, tier, 201);
     if (path === "/api/members" && method === "GET") {

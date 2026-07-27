@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `.greptile/rules.md`: 10 architectural boundary rules encoding vinifera's service, security, and tenancy patterns
+- `.greptile/files.json`: Greptile context files for every PR review
+- `docs/build-specs/phase-5-qa-report.md`: Phase 5 closure evidence with all 20 activation gates listed as pending
 - Added tenant-free Cloudflare Queue wake signals with PostgreSQL-authoritative
   claiming, duplicate-safe consumers, independent immediate-continuation and
   delayed-retry scheduling, hourly recovery, isolated environment bindings,
@@ -117,6 +120,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Local `typecheck`, `lint`, and aggregate `check` commands now regenerate the
+  ignored Worker binding declaration before TypeScript reads it, so a fresh
+  checkout no longer depends on a previously generated local file.
+- Migrated Greptile configuration from `greptile.json` to `.greptile/` folder format with per-directory overrides for `server/services/`, `supabase/migrations/`, and `tests/`
+- Removed committed generated artifact `worker-configuration.d.ts` (552 KB); CI now generates it pre-typecheck
+- This repository-hygiene change does not alter runtime routes, build output,
+  provider activation, or the static production baseline. Validate it with
+  JSON parsing, Git tracking checks, Worker type generation/verification,
+  TypeScript typecheck, and a Worker dry-run build.
 - Aggregated organization-wide analytics from raw per-brand numerators and
   denominators, including email, loyalty, shipment-value, and shipping-cost
   rates, instead of weighting unrelated percentages.
@@ -267,6 +279,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Restored unauthenticated browser bootstrap for the existing member
+  magic-link, callback, session, and logout routes while keeping protected APIs
+  behind the production credential-presence gate.
+- Updated Phase 1 authenticated-shell mocks for the fail-closed brand catalog
+  and corrected the Phase 2 performance fixture's organization-overview shape,
+  preventing setup errors from being misreported as browser regressions.
 - Prevented an indeterminate custom-hostname deletion from being replayed
   blindly, prevented a provider-adjusted Avalara temporary quote from
   conflicting with its stable provider transaction code, and preserved each

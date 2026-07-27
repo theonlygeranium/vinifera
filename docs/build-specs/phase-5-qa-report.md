@@ -517,6 +517,59 @@ an exposed envelope key. Brand-column migrations are forward-only after
 backfill; restore a verified database backup rather than dropping populated
 Phase 5 tables in place.
 
+## Pending items (not yet passed)
+
+The following activation gates remain pending. They are reproduced verbatim
+from `CONTINUITY_BRIEF.md`; none is converted into a pass by this report.
+
+1. Add staging-environment Supabase management credentials, then set the
+   exact project hash and repository variable
+   `STAGING_SUPABASE_MIGRATION_ENABLED=true` to apply `supabase/migrations/`
+   and run `supabase test db --linked`.
+2. Give the staging Cloudflare token Workers Scripts edit permission and set
+   the exact account hash plus repository variable
+   `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` only for the isolated
+   `vinifera-staging` Worker.
+3. Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP.
+4. When service activation is explicitly resumed, reconcile the
+   created-or-unknown Stripe test Price from run `30218801133`, then
+   bootstrap/verify the four recurring Prices without a blind retry, register
+   `/api/billing/webhook`, and add its signing secret.
+5. Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled.
+6. Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof.
+7. Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests.
+8. Verify a Resend sending domain, signed webhook, and at least two real staging triggers.
+9. Apply Phase 4 migration 15 to hosted Supabase and run the 37 current-stack
+   pgTAP assertions plus native tenant/RPC tests.
+10. Connect a winery with real Phase 2/3 operations and verify every analytics
+    metric and CSV export against source records.
+11. Configure a dedicated active `ML_PLATFORM_ACTOR_USER_ID`, accumulate at
+    least 500 labeled members and 50 cancellations, reconcile all six source
+    families, dry-run and execute `ops:phase4:qualify-ml`, train on production
+    history, meet held-out AUC-ROC 0.82 without underperforming rules, and
+    complete the superior 30-day A/B gate before actor-audited promotion.
+12. Opt an Estate/Reserve winery into a peer cohort with at least ten
+    contributors and verify the quarterly report delivery.
+13. Obtain vendor-approved ShipCompliant sandbox access, set the server-only
+    credential and contract bindings, and prove compliant, non-compliant,
+    unknown, timeout, tax, fingerprint invalidation, and label recovery cases.
+14. Provision the integration credential keyring, then validate winery-specific
+    Klaviyo, Avalara, and Meta envelopes and the QuickBooks application OAuth
+    plus encrypted per-connection token lifecycle.
+15. Create two production-like brands and prove database plus service-role
+    cross-brand isolation, shared/independent billing, and hostname-derived
+    member context.
+16. Add one winery custom hostname, complete DNS ownership and certificate
+    activation, and verify sibling/unknown hosts cannot select its brand.
+17. Configure APNs and FCM, Apple/Google signing, privacy/store metadata, and
+    prove magic links, secure storage, biometrics, push, camera, offline restore,
+    and relock on physical devices.
+18. Install signed builds from TestFlight and the Play internal track.
+19. Replace Stripe test keys with approved live keys only under human
+    supervision and run one controlled charge/refund.
+20. Move the production custom domain only after every hosted exit criterion is
+    evidenced.
+
 ## Deferred activation checklist
 
 - [ ] Apply all migrations and native pgcrypto/pgTAP checks to hosted Supabase.
