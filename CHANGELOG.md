@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added the BS-02 route manifest covering all 129 Express route registrations,
+  middleware chains, inline-logic flags, direct-database-access audit, and
+  domain extraction ownership before route code is moved.
 - `.greptile/rules.md`: 10 architectural boundary rules encoding vinifera's service, security, and tenancy patterns
 - `.greptile/files.json`: Greptile context files for every PR review
 - `docs/build-specs/phase-5-qa-report.md`: Phase 5 closure evidence with all 20 activation gates listed as pending
