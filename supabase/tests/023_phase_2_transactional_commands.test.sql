@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
-select plan(71);
+select plan(76);
 
 insert into auth.users (id, email)
 values ('c1000000-0000-4000-8000-000000000001', 'phase2-command-owner@example.test');
@@ -832,6 +832,100 @@ select ok(
     where command_id = 'c3600000-0000-4000-8000-000000000005'
   ),
   'rejected release create leaves no aggregate or command result'
+);
+
+select throws_ok(
+  $$
+    select public.apply_release_command(
+      'c2000000-0000-4000-8000-000000000001',
+      (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+      'c1000000-0000-4000-8000-000000000001',
+      'c3600000-0000-4000-8000-000000000006',
+      'update',
+      (select (result ->> 'entityId')::uuid from release_identity_create_result),
+      (
+        select jsonb_set(payload, '{name}', 'null'::jsonb)
+        from release_identity_update_payload
+      )
+    )
+  $$,
+  '22023',
+  'The release aggregate payload is incomplete.',
+  'release update rejects a JSON null required scalar'
+);
+
+select throws_ok(
+  $$
+    select public.apply_release_command(
+      'c2000000-0000-4000-8000-000000000001',
+      (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+      'c1000000-0000-4000-8000-000000000001',
+      'c3600000-0000-4000-8000-000000000007',
+      'update',
+      (select (result ->> 'entityId')::uuid from release_identity_create_result),
+      (
+        select jsonb_set(payload, '{tiers,0,price_cents}', 'null'::jsonb)
+        from release_identity_update_payload
+      )
+    )
+  $$,
+  'P0002',
+  'One or more release tiers were not found in this brand.',
+  'release update rejects a JSON null tier price'
+);
+
+select throws_ok(
+  $$
+    select public.apply_release_command(
+      'c2000000-0000-4000-8000-000000000001',
+      (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+      'c1000000-0000-4000-8000-000000000001',
+      'c3600000-0000-4000-8000-000000000008',
+      'update',
+      (select (result ->> 'entityId')::uuid from release_identity_create_result),
+      (
+        select jsonb_set(payload, '{wines,0,quantity}', 'null'::jsonb)
+        from release_identity_update_payload
+      )
+    )
+  $$,
+  '22023',
+  'One or more release wines are invalid.',
+  'release update rejects a JSON null wine quantity'
+);
+
+select throws_ok(
+  $$
+    select public.apply_release_command(
+      'c2000000-0000-4000-8000-000000000001',
+      (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+      'c1000000-0000-4000-8000-000000000001',
+      'c3600000-0000-4000-8000-000000000009',
+      'update',
+      (select (result ->> 'entityId')::uuid from release_identity_create_result),
+      (
+        select jsonb_set(payload, '{wines,0,price_cents}', 'null'::jsonb)
+        from release_identity_update_payload
+      )
+    )
+  $$,
+  '22023',
+  'One or more release wines are invalid.',
+  'release update rejects a JSON null wine price'
+);
+
+select ok(
+  not exists (
+    select 1
+    from private.core_club_command_results
+    where command_id in (
+      'c3600000-0000-4000-8000-000000000006',
+      'c3600000-0000-4000-8000-000000000007',
+      'c3600000-0000-4000-8000-000000000008',
+      'c3600000-0000-4000-8000-000000000009'
+    )
+  ),
+  'null-valued release commands leave no durable replay result'
 );
 
 select throws_ok(

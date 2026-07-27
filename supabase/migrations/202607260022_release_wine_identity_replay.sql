@@ -74,8 +74,11 @@ begin
   if v_operation in ('create', 'update') then
     if not (
       p_payload ? 'name'
+      and jsonb_typeof(p_payload -> 'name') = 'string'
       and p_payload ? 'processing_date'
+      and jsonb_typeof(p_payload -> 'processing_date') = 'string'
       and p_payload ? 'embargo_date'
+      and jsonb_typeof(p_payload -> 'embargo_date') = 'string'
       and p_payload ? 'tiers'
       and p_payload ? 'wines'
       and jsonb_typeof(p_payload -> 'tiers') = 'array'
@@ -101,6 +104,7 @@ begin
       from jsonb_to_recordset(p_payload -> 'tiers')
         as tier(tier_id uuid, price_cents integer)
       where tier.tier_id is null
+        or tier.price_cents is null
         or tier.price_cents <= 0
         or not exists (
           select 1
@@ -125,7 +129,9 @@ begin
           price_cents integer
         )
       where char_length(btrim(coalesce(wine.wine_name, ''))) not between 1 and 200
+        or wine.quantity is null
         or wine.quantity not between 1 and 120
+        or wine.price_cents is null
         or wine.price_cents < 0
     ) then
       raise exception using

@@ -50,6 +50,9 @@ equivalent after a lost response, so the command ledger can return its stored
 result without weakening fingerprint validation. New or unknown wines require
 an explicit nonnegative price, including an explicit zero when that is
 intended, and receive a new database-generated ID.
+Malformed direct RPC payloads, including JSON `null` for required scalar,
+tier-price, quantity, or wine-price fields, fail with the command contract's
+controlled validation errors before any aggregate mutation is attempted.
 
 Staff commands carry UUID idempotency keys and canonical SHA-256 request
 fingerprints. PostgreSQL records the command, business mutation, audit row,

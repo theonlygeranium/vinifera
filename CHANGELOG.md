@@ -23,6 +23,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** The forward release-identity command migration now rejects
+  JSON `null` required scalars, tier prices, wine quantities, and wine prices
+  before mutation, with pgTAP proving that rejected commands leave no replay
+  record. **Why:** Authenticated CodeRabbit review found that a direct
+  service-role caller could otherwise bypass SQL three-valued comparisons and
+  surface a low-level not-null constraint error. **Deployment impact:** The
+  validation ships within pending migration
+  `202607260022_release_wine_identity_replay.sql`; no additional migration,
+  Pages, provider, secret, or activation change is introduced.
+  **Verification:** Phase 2 and Phase 5 current-stack pgTAP, `git diff --check`,
+  and a fresh authenticated CodeRabbit review on the committed head.
 - **What changed:** Draft release updates now carry each validated existing
   release-wine UUID into the transactional command, and a forward-only database
   migration preserves those UUIDs while rebuilding the aggregate. The command
@@ -37,7 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and activation state are unchanged. **Verification:** Stateful service retry
   tests, Phase 2 command-ledger pgTAP identity/tenant/mismatch assertions,
   TypeScript, 382/382 Vitest tests, database gates
-  92/241/199/158/504, all Pages and Worker dry-run builds, and 145/145
+  92/246/199/158/509, all Pages and Worker dry-run builds, and 145/145
   Playwright/axe checks. Authenticated CodeRabbit review is rerun on the
   committed head before merge.
 - **What changed:** Review follow-up keeps both the GitHub response and its JSON
