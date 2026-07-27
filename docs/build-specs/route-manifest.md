@@ -222,6 +222,35 @@ HTTP response shaping only. Response status selection, redirects, CSV response
 headers, and configuration fail-closed checks are transport concerns and are
 not classified as business logic.
 
+## Post-extraction review follow-up
+
+The extraction commit moved the audited handlers unchanged. The subsequent
+owner-authorized review pass hardened the route boundary without changing any
+registration or middleware chain in this manifest:
+
+- Release create/update normalization rejects mismatched tier/price sets and
+  unnamed wine lines before service dispatch; member and release PATCH routes
+  send only supplied fields, and canonical member aliases preserve explicit
+  `null` values.
+- Partial email-template updates do not apply the create-time `enabled`
+  default, and shared email validation trims before format validation.
+- Staff callback redirects reject control-character and backslash authority
+  forms without rewriting them into an accepted path, and webhook handlers
+  reject non-buffer raw bodies with a structured 400 response before provider
+  dispatch.
+- Audit fields and rate-limit actor keys trust Cloudflare's edge-managed
+  `CF-Connecting-IP` value only when `APP_ENV` is `staging` or `production`.
+  Development and test requests use Express's direct socket address so callers
+  cannot choose their own identity by supplying that header.
+- The existing CSV multipart parser remains in the
+  `POST /api/members/import/preview` handler and retains its `TODO(BS-03)`.
+  It now validates bounded MIME boundary syntax, CRLF/header framing, terminal
+  boundaries, and field counts, and ignores delimiter-like bytes that are not
+  valid boundary lines. A Node stream-oriented `multer`/`busboy` dependency was
+  not added to the Cloudflare Worker request adapter without runtime evidence.
+- The `GET /api/auth/member/session` projection retains its `TODO(BS-03)` and
+  remains tracked in the inline-logic table above.
+
 ## Direct database access audit
 
 `server/app.ts` has no direct Supabase import, no `createClient` call, and no

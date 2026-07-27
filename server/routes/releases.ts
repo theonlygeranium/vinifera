@@ -40,13 +40,32 @@ const releaseSchema = z.object({
 function asReleaseInput(input: z.infer<typeof releaseSchema>): ReleaseInput {
   const tiers = input.tierPrices ?? input.tiers ?? [];
   const tierIds = input.tierIds ?? tiers.map((tier) => tier.tierId);
-  if (!tiers.length || new Set(tierIds).size !== tierIds.length) {
+  const tierPriceIds = tiers.map((tier) => tier.tierId);
+  const tierPriceIdSet = new Set(tierPriceIds);
+  if (
+    !tiers.length ||
+    new Set(tierIds).size !== tierIds.length ||
+    tierPriceIdSet.size !== tierPriceIds.length ||
+    tierIds.length !== tierPriceIds.length ||
+    tierIds.some((tierId) => !tierPriceIdSet.has(tierId))
+  ) {
     throw new AppError(
       400,
       "invalid_request",
       "Choose each participating tier once and set its release price.",
     );
   }
+  const wines = input.wines.map((wine) => {
+    const wineName = wine.wineName ?? wine.name;
+    if (!wineName) {
+      throw new AppError(400, "invalid_request", "Every wine needs a name.");
+    }
+    return {
+      priceCents: wine.priceCents ?? 0,
+      quantity: wine.quantity,
+      wineName,
+    };
+  });
   return {
     description: input.description,
     embargoDate: input.embargoDate,
@@ -54,11 +73,7 @@ function asReleaseInput(input: z.infer<typeof releaseSchema>): ReleaseInput {
     processingDate: input.processingDate,
     tierIds,
     tierPrices: tiers,
-    wines: input.wines.map((wine) => ({
-      priceCents: wine.priceCents ?? 0,
-      quantity: wine.quantity,
-      wineName: wine.wineName ?? wine.name ?? "",
-    })),
+    wines,
   };
 }
 
@@ -104,28 +119,55 @@ export default function createReleasesRouter(
     // TODO(BS-03): move logic to service layer
     const releaseId = uuid.parse(request.params.id);
     const raw = parseBody(releaseSchema.partial(), request);
+    const tiers = raw.tierPrices ?? raw.tiers;
+    const tierIds = raw.tierIds ?? tiers?.map((tier) => tier.tierId);
+    if (tierIds && new Set(tierIds).size !== tierIds.length) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "Choose each participating tier once and set its release price.",
+      );
+    }
+    if (tiers && tierIds) {
+      const tierPriceIds = tiers.map((tier) => tier.tierId);
+      const tierPriceIdSet = new Set(tierPriceIds);
+      if (
+        tierPriceIdSet.size !== tierPriceIds.length ||
+        tierIds.length !== tierPriceIds.length ||
+        tierIds.some((tierId) => !tierPriceIdSet.has(tierId))
+      ) {
+        throw new AppError(
+          400,
+          "invalid_request",
+          "Choose each participating tier once and set its release price.",
+        );
+      }
+    }
+    const wines = raw.wines?.map((wine) => {
+      const wineName = wine.wineName ?? wine.name;
+      if (!wineName) {
+        throw new AppError(400, "invalid_request", "Every wine needs a name.");
+      }
+      return {
+        priceCents: wine.priceCents ?? 0,
+        quantity: wine.quantity,
+        wineName,
+      };
+    });
     const input: Partial<ReleaseInput> = {
-      description: raw.description,
-      embargoDate: raw.embargoDate,
-      name: raw.name,
-      processingDate: raw.processingDate,
-      ...(raw.tiers || raw.tierPrices || raw.tierIds
+      ...("description" in raw ? { description: raw.description } : {}),
+      ...("embargoDate" in raw ? { embargoDate: raw.embargoDate } : {}),
+      ...("name" in raw ? { name: raw.name } : {}),
+      ...("processingDate" in raw
+        ? { processingDate: raw.processingDate }
+        : {}),
+      ...(tiers || tierIds
         ? {
-            tierIds:
-              raw.tierIds ??
-              (raw.tierPrices ?? raw.tiers ?? []).map((tier) => tier.tierId),
-            tierPrices: raw.tierPrices ?? raw.tiers,
+            tierIds,
+            tierPrices: tiers,
           }
         : {}),
-      ...(raw.wines
-        ? {
-            wines: raw.wines.map((wine) => ({
-              priceCents: wine.priceCents ?? 0,
-              quantity: wine.quantity,
-              wineName: wine.wineName ?? wine.name ?? "",
-            })),
-          }
-        : {}),
+      ...(wines ? { wines } : {}),
     };
     data(
       response,

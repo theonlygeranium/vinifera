@@ -30,6 +30,9 @@ const emailTemplateSchema = z.object({
   subject: z.string().trim().min(1).max(200),
   triggerType: emailTrigger,
 });
+const emailTemplatePatchSchema = emailTemplateSchema
+  .extend({ enabled: z.boolean().optional() })
+  .partial();
 
 export function createPublicRetentionRouter(
   context: RouteContext,
@@ -87,7 +90,7 @@ export default function createRetentionRouter(
   });
 
   router.patch("/api/email/templates/:id", async (request, response) => {
-    const input = parseBody(emailTemplateSchema.partial(), request);
+    const input = parseBody(emailTemplatePatchSchema, request);
     if (!Object.keys(input).length) {
       throw new AppError(
         400,
@@ -352,7 +355,14 @@ export default function createRetentionRouter(
   router.post("/api/loyalty/members/:id/adjust", async (request, response) => {
     const input = parseBody(
       z.object({
-        points: z.number().int().min(-100_000).max(100_000).refine(Boolean),
+        points: z
+          .number()
+          .int()
+          .min(-100_000)
+          .max(100_000)
+          .refine((points) => points !== 0, {
+            message: "Point adjustment cannot be zero.",
+          }),
         reason: z.string().trim().min(3).max(500),
       }),
       request,

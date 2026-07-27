@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { IntegrationType } from "../types";
 import {
   data,
   email,
@@ -99,7 +98,7 @@ export default function createIntegrationsRouter(
   });
 
   router.post("/api/integrations/:type/connect", async (request, response) => {
-    const type = integrationType.parse(request.params.type) as IntegrationType;
+    const type = integrationType.parse(request.params.type);
     data(
       response,
       await integrationService(request, response).connectIntegration(
@@ -111,7 +110,7 @@ export default function createIntegrationsRouter(
   });
 
   router.patch("/api/integrations/:type", async (request, response) => {
-    const type = integrationType.parse(request.params.type) as IntegrationType;
+    const type = integrationType.parse(request.params.type);
     data(
       response,
       await integrationService(request, response).updateIntegration(
@@ -123,7 +122,7 @@ export default function createIntegrationsRouter(
 
   router.delete("/api/integrations/:type", async (request, response) => {
     await integrationService(request, response).disconnectIntegration(
-      integrationType.parse(request.params.type) as IntegrationType,
+      integrationType.parse(request.params.type),
     );
     response.status(204).end();
   });
@@ -132,7 +131,7 @@ export default function createIntegrationsRouter(
     data(
       response,
       await integrationService(request, response).queueIntegrationSync(
-        integrationType.parse(request.params.type) as IntegrationType,
+        integrationType.parse(request.params.type),
       ),
       202,
     );
@@ -145,7 +144,7 @@ export default function createIntegrationsRouter(
     data(
       response,
       await integrationService(request, response).listIntegrationLogs(
-        integrationType.parse(request.params.type) as IntegrationType,
+        integrationType.parse(request.params.type),
         query.limit,
       ),
     );

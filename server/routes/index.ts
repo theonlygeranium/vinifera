@@ -36,6 +36,8 @@ export function mountRoutes(
   app: Express,
   context: RouteContext,
 ): void {
+  // Order is significant: intelligence routes must precede members routes so
+  // /api/members/:id/churn-* cannot be shadowed by member detail handlers.
   app.use(createSystemRouter(context));
   app.use(createIntegrationsRouter(context));
   app.use(createMobileRouter(context));

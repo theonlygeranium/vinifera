@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
+import { getClientAddress } from "../lib/client-address";
 import {
   data,
   email,
-  getClientAddress,
   mobileAuthRedirectUri,
   parseBody,
   uuid,
@@ -40,7 +40,7 @@ export function createMobileCallbackRouter(
 
 export default function createMobileRouter(context: RouteContext): Router {
   const router = Router();
-  const { integrationService } = context;
+  const { integrationService, options } = context;
 
   router.get("/api/mobile/app-policy", async (request, response) => {
     const query = z
@@ -72,7 +72,7 @@ export default function createMobileRouter(context: RouteContext): Router {
     );
     await integrationService(request, response).requestMobileMagicLink({
       ...input,
-      ipAddress: getClientAddress(request),
+      ipAddress: getClientAddress(request, options.getEnv()),
     });
     data(response, {
       message: "If this membership exists, a secure sign-in link is on its way.",

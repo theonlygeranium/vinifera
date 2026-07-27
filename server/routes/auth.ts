@@ -1,14 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
 import { getConfigurationReport } from "../config";
+import { getClientAddress } from "../lib/client-address";
 import {
   data,
   email,
-  getClientAddress,
   parseBody,
   password,
   planTier,
   safeRedirectPath,
+  uuid,
   type RouteContext,
 } from "./shared";
 
@@ -24,14 +25,14 @@ const emailSchema = z.object({ email });
 const passwordSchema = z.object({ password });
 const inviteAcceptSchema = z.object({
   fullName: z.string().trim().min(2).max(120).optional(),
-  inviteToken: z.string().uuid().optional(),
+  inviteToken: uuid.optional(),
   password,
 });
 const invitationSchema = z.object({
   email,
   role: z.enum(["admin", "manager", "staff"]),
 });
-const memberMagicLinkSchema = z.object({ brandId: z.uuid().optional(), email });
+const memberMagicLinkSchema = z.object({ brandId: uuid.optional(), email });
 
 export default function createAuthRouter(context: RouteContext): Router {
   const router = Router();
@@ -114,7 +115,7 @@ export default function createAuthRouter(context: RouteContext): Router {
     const input = parseBody(memberMagicLinkSchema, request);
     await createService(request, response).requestMemberMagicLink({
       ...input,
-      ipAddress: getClientAddress(request),
+      ipAddress: getClientAddress(request, options.getEnv()),
     });
     data(response, {
       message: "If this membership exists, a secure sign-in link is on its way.",
@@ -148,7 +149,7 @@ export default function createAuthRouter(context: RouteContext): Router {
       return;
     }
     const principal = await createService(request, response).getMemberSession();
-    // TODO(BS-03): move logic to service layer
+    // TODO(BS-03): move the session projection tracked by the route manifest.
     const publicPrincipal = principal
       ? {
           ...principal,

@@ -29,22 +29,38 @@ const memberSchema = z.object({
 });
 const memberPatchSchema = memberSchema.partial();
 
+interface MemberAliases {
+  address?: PostalAddress | null;
+  clubTierId?: string | null;
+  shippingAddress?: PostalAddress | null;
+  tierId?: string | null;
+}
+
+function aliasedClubTierId(input: MemberAliases): string | null | undefined {
+  return "clubTierId" in input ? input.clubTierId : input.tierId;
+}
+
+function aliasedShippingAddress(
+  input: MemberAliases,
+): PostalAddress | null | undefined {
+  return "shippingAddress" in input
+    ? input.shippingAddress
+    : input.address;
+}
+
 function asMemberInput(
   input: z.infer<typeof memberSchema>,
 ): MemberInput {
   return {
     birthday: input.birthday,
-    clubTierId: input.clubTierId ?? input.tierId,
+    clubTierId: aliasedClubTierId(input),
     email: input.email,
     firstName: input.firstName,
     joinDate: input.joinDate,
     lastName: input.lastName,
     phone: input.phone,
     referredByMemberId: input.referredByMemberId,
-    shippingAddress: (input.shippingAddress ?? input.address) as
-      | PostalAddress
-      | null
-      | undefined,
+    shippingAddress: aliasedShippingAddress(input),
     status: input.status,
   };
 }
@@ -56,45 +72,118 @@ interface MultipartPart {
   value: Buffer;
 }
 
+const CRLF = Buffer.from("\r\n");
+const HEADER_SEPARATOR = Buffer.from("\r\n\r\n");
+const MAX_MULTIPART_PARTS = 20;
+const MAX_MULTIPART_HEADER_BYTES = 16_384;
+
+function hasValidMultipartBoundarySuffix(
+  body: Buffer,
+  suffixStart: number,
+): boolean {
+  const suffix = body.subarray(suffixStart, suffixStart + 2);
+  if (suffix.equals(CRLF)) return true;
+  if (suffix.toString("ascii") !== "--") return false;
+
+  const closingEnd = suffixStart + 2;
+  return (
+    closingEnd === body.length ||
+    body.subarray(closingEnd, closingEnd + 2).equals(CRLF)
+  );
+}
+
+function findNextMultipartBoundary(
+  body: Buffer,
+  marker: Buffer,
+  from: number,
+): number {
+  let candidate = body.indexOf(marker, from);
+  while (candidate >= 0) {
+    const suffixStart = candidate + marker.length;
+    if (hasValidMultipartBoundarySuffix(body, suffixStart)) {
+      return candidate;
+    }
+    candidate = body.indexOf(marker, candidate + 1);
+  }
+  return -1;
+}
+
 function parseMultipartForm(request: Request): MultipartPart[] {
   if (!Buffer.isBuffer(request.body)) {
     throw new AppError(400, "invalid_request", "A CSV file is required.");
   }
   const contentType = request.get("content-type") ?? "";
-  const boundary = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i)?.slice(1).find(Boolean);
-  if (!boundary || boundary.length > 200) {
+  const boundaryMatch = contentType.match(
+    /boundary=(?:"([^"]+)"|([^;\s]+))/i,
+  );
+  const boundary = (boundaryMatch?.[1] ?? boundaryMatch?.[2])?.trim();
+  if (
+    !boundary ||
+    boundary.length > 70 ||
+    !/^[0-9A-Za-z'()+_,./:=?-]+$/.test(boundary)
+  ) {
     throw new AppError(400, "invalid_request", "The multipart boundary is invalid.");
   }
   const delimiter = Buffer.from(`--${boundary}`);
+  const framedDelimiter = Buffer.from(`\r\n--${boundary}`);
   const parts: MultipartPart[] = [];
-  let cursor = request.body.indexOf(delimiter);
-  while (cursor >= 0) {
+  let cursor = 0;
+  if (!request.body.subarray(0, delimiter.length).equals(delimiter)) {
+    throw new AppError(400, "invalid_request", "The multipart body is malformed.");
+  }
+
+  while (cursor < request.body.length) {
     const start = cursor + delimiter.length;
-    if (request.body.subarray(start, start + 2).toString() === "--") break;
+    const delimiterSuffix = request.body.subarray(start, start + 2);
+    if (delimiterSuffix.toString("ascii") === "--") {
+      if (!hasValidMultipartBoundarySuffix(request.body, start)) {
+        throw new AppError(400, "invalid_request", "The multipart body is malformed.");
+      }
+      return parts;
+    }
+    if (!delimiterSuffix.equals(CRLF)) {
+      throw new AppError(400, "invalid_request", "The multipart body is malformed.");
+    }
+    if (parts.length >= MAX_MULTIPART_PARTS) {
+      throw new AppError(400, "invalid_request", "The multipart body has too many fields.");
+    }
     const headerStart = start + 2;
-    const headerEnd = request.body.indexOf(Buffer.from("\r\n\r\n"), headerStart);
-    if (headerEnd < 0) break;
+    const headerEnd = request.body.indexOf(HEADER_SEPARATOR, headerStart);
+    if (
+      headerEnd < 0 ||
+      headerEnd - headerStart > MAX_MULTIPART_HEADER_BYTES
+    ) {
+      throw new AppError(400, "invalid_request", "A multipart header is invalid.");
+    }
     const headers = request.body.subarray(headerStart, headerEnd).toString("utf8");
     const disposition = headers.match(
-      /content-disposition:\s*form-data;\s*name="([^"]+)"(?:;\s*filename="([^"]*)")?/i,
-    );
-    if (!disposition?.[1]) {
+      /^content-disposition:\s*form-data;([^\r\n]+)$/im,
+    )?.[1];
+    const name = disposition?.match(/(?:^|;)\s*name="([^"]+)"/i)?.[1];
+    const filename = disposition?.match(/(?:^|;)\s*filename="([^"]*)"/i)?.[1];
+    if (!name) {
       throw new AppError(400, "invalid_request", "A multipart field is invalid.");
     }
     const valueStart = headerEnd + 4;
-    const next = request.body.indexOf(delimiter, valueStart);
-    if (next < 0) break;
-    const valueEnd = Math.max(valueStart, next - 2);
+    const next = findNextMultipartBoundary(
+      request.body,
+      framedDelimiter,
+      valueStart,
+    );
+    if (next < 0) {
+      throw new AppError(400, "invalid_request", "The multipart body is incomplete.");
+    }
     const partType = headers.match(/content-type:\s*([^\r\n]+)/i)?.[1]?.trim();
     parts.push({
       contentType: partType,
-      filename: disposition[2],
-      name: disposition[1],
-      value: request.body.subarray(valueStart, valueEnd),
+      filename,
+      name,
+      value: request.body.subarray(valueStart, next),
     });
-    cursor = next;
+    cursor = next + 2;
   }
-  return parts;
+
+  throw new AppError(400, "invalid_request", "The multipart body is incomplete.");
 }
 
 export default function createMembersRouter(context: RouteContext): Router {
@@ -263,23 +352,23 @@ export default function createMembersRouter(context: RouteContext): Router {
       return;
     }
     const input: Partial<MemberInput> = {
-      birthday: raw.birthday,
-      ...(raw.address !== undefined || raw.shippingAddress !== undefined
+      ...("birthday" in raw ? { birthday: raw.birthday } : {}),
+      ...("address" in raw || "shippingAddress" in raw
         ? {
-            shippingAddress: (raw.shippingAddress ?? raw.address) as
-              | PostalAddress
-              | null,
+            shippingAddress: aliasedShippingAddress(raw),
           }
         : {}),
-      ...(raw.clubTierId !== undefined || raw.tierId !== undefined
-        ? { clubTierId: raw.clubTierId ?? raw.tierId }
+      ...("clubTierId" in raw || "tierId" in raw
+        ? { clubTierId: aliasedClubTierId(raw) }
         : {}),
-      email: raw.email,
-      firstName: raw.firstName,
-      joinDate: raw.joinDate,
-      lastName: raw.lastName,
-      phone: raw.phone,
-      referredByMemberId: raw.referredByMemberId,
+      ...("email" in raw ? { email: raw.email } : {}),
+      ...("firstName" in raw ? { firstName: raw.firstName } : {}),
+      ...("joinDate" in raw ? { joinDate: raw.joinDate } : {}),
+      ...("lastName" in raw ? { lastName: raw.lastName } : {}),
+      ...("phone" in raw ? { phone: raw.phone } : {}),
+      ...("referredByMemberId" in raw
+        ? { referredByMemberId: raw.referredByMemberId }
+        : {}),
     };
     data(
       response,

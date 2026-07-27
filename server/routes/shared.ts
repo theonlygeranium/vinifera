@@ -13,9 +13,11 @@ import type {
 } from "../types";
 
 export const email = z
-  .email()
+  .string()
+  .trim()
+  .toLowerCase()
   .max(254)
-  .transform((value) => value.trim().toLowerCase());
+  .pipe(z.email());
 export const password = z
   .string()
   .min(12, "Use at least 12 characters.")
@@ -47,7 +49,7 @@ export const addressSchema = z.object({
   postalCode: z.string().trim().min(3).max(24),
   state: z.string().trim().min(2).max(80),
 });
-export const billingPortalSchema = z.object({ attemptId: z.uuid() });
+export const billingPortalSchema = z.object({ attemptId: uuid });
 
 export interface AppOptions {
   createService?: FoundationServiceFactory;
@@ -180,17 +182,14 @@ export function data<T>(response: Response, payload: T, status = 200): void {
   response.status(status).json({ data: payload });
 }
 
-export function getClientAddress(request: Request): string {
-  const connectingIp = request.get("cf-connecting-ip");
-  if (connectingIp) return connectingIp;
-  return request.ip || "unknown";
-}
-
 export function safeRedirectPath(candidate: unknown, fallback: string): string {
+  if (typeof candidate !== "string") return fallback;
+  if (/[\u0000-\u001f\u007f]/.test(candidate)) return fallback;
+
   if (
-    typeof candidate === "string" &&
     candidate.startsWith("/") &&
-    !candidate.startsWith("//")
+    candidate[1] !== "/" &&
+    candidate[1] !== "\\"
   ) {
     return candidate;
   }

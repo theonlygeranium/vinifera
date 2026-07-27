@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Refactored
 
-- Extracted all 129 Express route handlers from `server/app.ts` into
+- Extracted all 129 Express route registrations from `server/app.ts` into
   domain-scoped modules under `server/routes/`, preserving the original route
   paths, middleware order, schemas, service calls, and response behavior.
 - Reduced `server/app.ts` to the 82-line global middleware and route-mounting
@@ -20,6 +20,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   limiting: all rate-limit middleware runs before public/raw-webhook and
   protected handlers, while the shared BS-04 error handler remains last after
   the `/api` 404 boundary.
+
+### Fixed
+
+- Hardened extracted route boundaries after review: release tier/price sets and
+  wine names now fail closed when inconsistent, partial email-template updates
+  no longer inject `enabled: true`, padded emails normalize before validation,
+  and staff callback redirects reject control-character and backslash authority
+  forms.
+- Preserve explicit `null` canonical member aliases over legacy alias values
+  and keep member/release PATCH service inputs genuinely partial.
+- Require actual raw `Buffer` bodies before webhook provider dispatch, provide
+  an explicit non-zero loyalty-adjustment error, reuse the shared UUID schema,
+  and document the order-sensitive intelligence/member mounts.
+- Trust Cloudflare's edge-managed client-address header only in staging and
+  production; direct local/test requests now use Express's socket-derived
+  address for audit fields and rate-limit actor keys.
+- Hardened the Worker-compatible multipart CSV parser with bounded MIME
+  boundaries, exact CRLF/header framing, bounded field counts, and line-framed
+  delimiter recognition. Focused API regressions cover malformed bodies and
+  delimiter-like bytes inside CSV content without introducing a Node stream
+  middleware dependency.
 
 ### Added
 

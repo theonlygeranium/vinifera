@@ -6,10 +6,11 @@ import {
   data,
   parseBody,
   planTier,
+  uuid,
   type RouteContext,
 } from "./shared";
 
-const billingSchema = z.object({ attemptId: z.uuid(), planTier });
+const billingSchema = z.object({ attemptId: uuid, planTier });
 
 export default function createBillingRouter(context: RouteContext): Router {
   const router = Router();

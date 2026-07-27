@@ -1,6 +1,17 @@
-import express, { Router } from "express";
+import express, { Router, type Request } from "express";
 import { AppError } from "../lib/errors";
 import { data, uuid, type RouteContext } from "./shared";
+
+function rawWebhookBody(request: Request): Buffer {
+  if (!Buffer.isBuffer(request.body)) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "A raw JSON webhook body is required.",
+    );
+  }
+  return request.body;
+}
 
 export default function createWebhooksRouter(
   context: RouteContext,
@@ -16,8 +27,9 @@ export default function createWebhooksRouter(
       if (!signature) {
         throw new AppError(400, "invalid_request", "The Stripe signature is missing.");
       }
+      const body = rawWebhookBody(request);
       const result = await createService(request, response).handleStripeWebhook(
-        request.body as Buffer,
+        body,
         signature,
       );
       data(response, { received: true, ...result });
@@ -28,12 +40,13 @@ export default function createWebhooksRouter(
     "/api/webhooks/klaviyo/:integrationId",
     express.raw({ limit: "5mb", type: "application/json" }),
     async (request, response) => {
+      const body = rawWebhookBody(request);
       const result = await integrationService(
         request,
         response,
       ).handleKlaviyoWebhook(
         uuid.parse(request.params.integrationId),
-        request.body as Buffer,
+        body,
         {
           signature: request.get("Klaviyo-Signature"),
           timestamp: request.get("Klaviyo-Timestamp"),
@@ -58,10 +71,11 @@ export default function createWebhooksRouter(
           "The Resend webhook signature headers are missing.",
         );
       }
+      const body = rawWebhookBody(request);
       const result = await retentionService(
         request,
         response,
-      ).handleResendWebhook(request.body as Buffer, {
+      ).handleResendWebhook(body, {
         id,
         signature,
         timestamp,
