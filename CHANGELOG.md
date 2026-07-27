@@ -120,6 +120,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Reworked the direct-push guard to produce its required check on pull
+  requests and to verify `main` updates using the exact merge result returned
+  by GitHub's associated-pull-request API. Conventional commit messages no
+  longer bypass the guard; merge, squash, and rebase strategies remain
+  supported, and focused policy tests fail closed on forced pushes, missing
+  evidence, or API errors.
 - Local `typecheck`, `lint`, and aggregate `check` commands now regenerate the
   ignored Worker binding declaration before TypeScript reads it, so a fresh
   checkout no longer depends on a previously generated local file.

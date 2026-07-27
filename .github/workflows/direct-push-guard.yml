@@ -1,52 +1,44 @@
 name: Direct Push Guard
 
-# Fires on every push to main.
-# PRs merging into main are NOT a direct push — they are excluded.
-# This workflow catches agents or humans who commit straight to main,
-# bypassing the PR + Greptile review gate.
+# The pull_request run supplies the required branch-protection context.
+# The push run audits the resulting main commit against GitHub's associated-PR
+# evidence. Actual pre-push prevention still comes from branch protection.
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   check-direct-push:
     name: Block direct push to main
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Detect direct push
+      - name: Check out guard source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.22.0
+
+      - name: Validate guard policy
+        if: github.event_name == 'pull_request'
+        run: node --test .github/scripts/direct-push-guard.policy.mjs
+
+      - name: Verify main was updated by a merged pull request
+        if: github.event_name == 'push'
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
-          BASE_REF: ${{ github.event.base_ref }}
-          HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
-        run: |
-          echo "Event: $GITHUB_EVENT_NAME"
-          echo "Head commit: $HEAD_COMMIT_MSG"
-
-          # Allow: PR merges, initial setup, and conventional commit prefixes
-          # (fix:, feat:, docs:, chore:, ci:, refactor:, test:, style:, perf:, build:, revert:)
-          # that are pushed directly by agents or maintainers.
-          if echo "$HEAD_COMMIT_MSG" | grep -qE '^(Merge pull request|Merge branch .* into main|chore: initial|chore: add Greptile|chore: trigger Greptile)'; then
-            echo "✅ Allowed merge/setup pattern detected. Passing."
-            exit 0
-          fi
-          if echo "$HEAD_COMMIT_MSG" | grep -qE '^(fix|feat|docs|chore|ci|refactor|test|style|perf|build|revert)(\(.+\))?!?: '; then
-            echo "✅ Conventional commit detected. Passing."
-            exit 0
-          fi
-
-          echo ""
-          echo "🚫 DIRECT PUSH TO MAIN DETECTED"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Commit: $HEAD_COMMIT_MSG"
-          echo ""
-          echo "All changes must go through a pull request so that:"
-          echo "  • Greptile can review the code before it reaches production"
-          echo "  • CI checks (type, test, build) can gate the deploy"
-          echo "  • The deploy pipeline only runs on reviewed, passing code"
-          echo ""
-          echo "To fix: create a branch, commit your changes there,"
-          echo "open a PR targeting main, and merge after Greptile + CI pass."
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          exit 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUSH_FORCED: ${{ github.event.forced }}
+          TARGET_BRANCH: main
+        run: node .github/scripts/direct-push-guard.mjs

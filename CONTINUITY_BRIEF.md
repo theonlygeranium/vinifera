@@ -142,6 +142,13 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- Direct-push governance now supplies the required
+  `Block direct push to main` context on pull requests and verifies each
+  resulting `main` push against GitHub's associated-pull-request evidence. It
+  requires the exact recorded merge result for a closed PR targeting `main`,
+  supports merge, squash, and rebase strategies, and rejects forced updates,
+  conventional-commit heuristics, missing evidence, and API errors. Branch
+  protection remains the pre-push enforcement boundary.
 - BS-01 repository hygiene migrates Greptile review policy from the legacy
   root JSON file to scoped `.greptile/` configuration and rules, removes the
   generated Worker declaration from version control while regenerating it
