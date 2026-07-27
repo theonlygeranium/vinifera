@@ -3,6 +3,40 @@
 **Last verified:** 2026-07-27
 **Risk:** Medium
 
+## Change record
+
+### What changed
+
+BS-06 adds repository-wide ownership routing in `.github/CODEOWNERS`, expands
+`.github/pull_request_template.md` to name the required verification evidence,
+and records the current branch-protection and deployment-environment controls
+below. It does not change those external GitHub settings.
+
+### Why
+
+The repository needs an honest distinction between assigning an owner and
+requiring an independent approval. Recording the current controls prevents
+CODEOWNERS or self-reviewable protected environments from being mistaken for a
+two-person security boundary.
+
+### Deployment impact
+
+None. These repository governance files do not change application runtime,
+routes, build output, hosted database state, provider activation, Worker
+deployment, Pages deployment, or protected-environment configuration.
+
+### Verification
+
+Read-only GitHub API inspection on 2026-07-27 confirmed that `main` uses strict
+required checks for `Type, test, build, and package`, `Greptile Review`, and
+`Block direct push to main`; applies protection to administrators; requires
+zero approvals; does not require CODEOWNERS review; and does not dismiss stale
+approvals. The same inspection confirmed that `staging`, `production`, and
+`mobile-release` each have only `@theonlygeranium` as reviewer with
+`prevent_self_review=false`. Repository inspection cross-checked these results
+against `.github/CODEOWNERS`, `.github/pull_request_template.md`,
+`docs/agent-workflow.md`, and this note.
+
 ## Current controls
 
 GitHub API inspection confirms that `main` is protected, administrators are

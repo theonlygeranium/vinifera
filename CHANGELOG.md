@@ -192,9 +192,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   cover dependency, database, and package gates, pins the tenancy audit to its
   exact code and repository-migration evidence, and strengthens the isolation
   fixture with same-organization/wrong-brand rows while retaining
-  cross-organization rows. This improves review evidence only and changes no
-  runtime or deployment state. Verify with TypeScript, the focused Phase 5
-  integration test, and the full 378-test suite.
+  cross-organization rows. The governance note now also records explicit
+  change, rationale, deployment-impact, and verification evidence for the
+  observed GitHub controls. This improves review evidence only and changes no
+  runtime or deployment state. Verify with read-only GitHub branch/environment
+  API inspection, the repository governance files, TypeScript, the focused
+  Phase 5 integration test, and the full 378-test suite.
 - Integrated BS-06 with the repaired direct-push guard and completed BS-02/
   BS-04 route and observability baseline from `main`. Architecture and
   governance documentation now match the extracted route tree and current
