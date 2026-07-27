@@ -1,1 +1,224 @@
-PGRpdiBhbGlnbj0iY2VudGVyIj4KCiMg8J+NhyBWaW5pZmVyYQoKIyMjIFdpbmUgQ2x1YiBNYW5hZ2VtZW50IEJ1aWx0IGZvciBXaGF0J3MgTmV4dAoKQSB3ZWItYmFzZWQgcGxhdGZvcm0gZm9yIHdpbmUgY2x1YiBvcGVyYXRpb25zIOKAlCBtZW1iZXIgbWFuYWdlbWVudCwgc2hpcG1lbnQgcHJvY2Vzc2luZywgQUkgY2h1cm4gcHJlZGljdGlvbiwgYW5kIGEgcGFzc3dvcmRsZXNzIG1lbWJlciBwb3J0YWwg4oCUIGRlc2lnbmVkIGZvciBzbWFsbCB0byBtaWQtc2l6ZSB3aW5lcmllcy4KClshW0xpdmUgU2l0ZV0oaHR0cHM6Ly9pbWcuc2hpZWxkcy5pby9iYWRnZS/wn4yQX0xpdmVfU2l0ZS12aW5pZmVyYS5lZHN0cmF0dW1sYWJzLmFpLTZCMUUzMD9zdHlsZT1mb3ItdGhlLWJhZGdlKV0oaHR0cHM6Ly92aW5pZmVyYS5lZHN0cmF0dW1sYWJzLmFpLykKWyFbUHJvZHVjdGlvbiBCdWlsZF0oaHR0cHM6Ly9pbWcuc2hpZWxkcy5pby9iYWRnZS9Qcm9kdWN0aW9uX0J1aWxkLTAuNS4wX1BoYXNlXzUtQzk5OTNBP3N0eWxlPWZvci10aGUtYmFkZ2UpXSguL2RvY3MvYnVpbGQtc3BlY3MvcGhhc2UtNS1zY2FsZS1pbnRlZ3JhdGlvbnMubWQpClshW0ludmVzdG9yJ3MgR3VpZGVdKGh0dHBzOi8vaW1nLnNoaWVsZHMuaW8vYmFkZ2Uv8J+Tll9JbnZlc3RvcidzX0d1aWRlLUZ1bGxfU3RvcnktM0QwRTFCP3N0eWxlPWZvci10aGUtYmFkZ2UpXShodHRwczovL3ZpbmlmZXJhLmVkc3RyYXR1bWxhYnMuYWkvZ3VpZGUvKQoKWyFbV0NBRyAyLjEgQUFdKGh0dHBzOi8vaW1nLnNoaWVsZHMuaW8vYmFkZ2UvV0NBR18yLjFfQUEt4pyTXzBfVmlvbGF0aW9ucy1zdWNjZXNzP3N0eWxlPWZsYXQtc3F1YXJlKV0oaHR0cHM6Ly92aW5pZmVyYS5lZHN0cmF0dW1sYWJzLmFpLykKWyFbQ2xvdWRmbGFyZSBXb3JrZXJzXShodHRwczovL2ltZy5zaGllbGRzLmlvL2JhZGdlL1J1bnRpbWUtQ2xvdWRmbGFyZV9Xb3JrZXJzLUYzODAyMD9zdHlsZT1mbGF0LXNxdWFyZSZsb2dvPWNsb3VkZmxhcmUmbG9nb0NvbG9yPXdoaXRlKV0oaHR0cHM6Ly93b3JrZXJzLmNsb3VkZmxhcmUuY29tLykKWyFbTm9kZV0oaHR0cHM6Ly9pbWcuc2hpZWxkcy5pby9iYWRnZS9Ob2RlLTIyLTMzOTkzMz9zdHlsZT1mbGF0LXNxdWFyZSZsb2dvPW5vZGUuanMmbG9nb0NvbG9yPXdoaXRlKV0oaHR0cHM6Ly9ub2RlanMub3JnLykKCjwvZGl2PgoKLS0tCgojIyBPdmVydmlldwoKVmluaWZlcmEgMC41LjAgY29udGFpbnMgdGhlIGNvbXBsZXRlIFBoYXNlIDHigJM1IHNvdXJjZSBhcmNoaXRlY3R1cmU6IGEKUmVhY3QvVml0ZSBzdGFmZiBhcHBsaWNhdGlvbiBhbmQgbWVtYmVyIHBvcnRhbCwgYW4gRXhwcmVzcyBBUEkgb24gQ2xvdWRmbGFyZQpXb3JrZXJzLCBTdXBhYmFzZSBBdXRoL1Bvc3RncmVTUUwgd2l0aCBmb3JjZWQgdGVuYW50IGFuZCBicmFuZCBSTFMsIFN0cmlwZQpzdWJzY3JpcHRpb24gYW5kIHNoaXBtZW50IGJpbGxpbmcsIEVhc3lQb3N0IGZ1bGZpbGxtZW50LCBSZXNlbmQgdHJhbnNhY3Rpb25hbApkZWxpdmVyeSwgYW5hbHl0aWNzIGZyb20gb3BlcmF0aW9uYWwgZmFjdHMsIGdhdGVkIE1MIGNodXJuIGludGVsbGlnZW5jZSwKcHJpdmFjeS10aHJlc2hvbGRlZCBwZWVyIGJlbmNobWFya3MsIFNoaXBDb21wbGlhbnQgZnVsZmlsbG1lbnQgY29udHJvbHMsCm11bHRpLWJyYW5kIGFuZCB3aGl0ZS1sYWJlbCBvcGVyYXRpb24sIEtsYXZpeW8vUXVpY2tCb29rcy9BdmFsYXJhL01ldGEKY29ubmVjdG9ycywgYW5kIENhcGFjaXRvciBpT1MvQW5kcm9pZCBwcm9qZWN0cy4KClRoZSBzb3VyY2UgYXJjaGl0ZWN0dXJlIGlzIGNvbm5lY3Rpb24tcmVhZHkgYW5kIGZhaWxzIGNsb3NlZCB3aGVuIGNyZWRlbnRpYWxzIG9yCmNvbnRyb2wtcGxhbmUgc2V0dGluZ3MgYXJlIGFic2VudC4gSG9zdGVkIFN1cGFiYXNlIG1pZ3JhdGlvbiwgcHJvdmlkZXIgYWNjb3VudAp2YWxpZGF0aW9uLCB3aW5lcnkgRE5TLCBTdHJpcGUgbGl2ZS1tb2RlIGFwcHJvdmFsLCBzaWduZWQgcGh5c2ljYWwtZGV2aWNlCnRlc3RpbmcsIGFuZCBhcHAtc3RvcmUgZGlzdHJpYnV0aW9uIHJlbWFpbiBzZXBhcmF0ZSBhY3RpdmF0aW9uIHdvcmsuIFRoZSBwdWJsaWMKY3VzdG9tIGRvbWFpbiBjb250aW51ZXMgdG8gc2VydmUgdGhlIHZlcmlmaWVkIHN0YXRpYyBDbG91ZGZsYXJlIFBhZ2VzIHJvbGxiYWNrCmJhc2VsaW5lOyBpdCBpcyBub3QgZXZpZGVuY2UgdGhhdCB0aGUgV29ya2VyIGFwcGxpY2F0aW9uIGlzIGxpdmUuCgpUaGUgbmFtZSBjb21lcyBmcm9tICpWaXRpcyB2aW5pZmVyYSosIHRoZSBMYXRpbiBzcGVjaWVzIG5hbWUgZm9yIHRoZSBwcmltYXJ5IHdpbmUgZ3JhcGUgdmluZS4gSXQgc2lnbmFscyBkb21haW4ga25vd2xlZGdlIHRvIHdpbmVyeSBvcGVyYXRvcnMgYW5kIHJlYWRzIGFzIGEgcHJlbWl1bSBicmFuZCB3b3JkIOKAlCB3aXRob3V0IHRoZSBvdmVydXNlZCAid2luZSIgcHJlZml4IHRoYXQgZGVmaW5lcyBtb3N0IHBsYXRmb3JtIG5hbWVzIGluIHRoaXMgbWFya2V0LgoKIyMgQ3VycmVudCBsaXZlIGJhc2VsaW5lCgp8IFBhZ2UgfCBVUkwgfCBEZXNjcmlwdGlvbiB8CnwtLS0tLS18LS0tLS18LS0tLS0tLS0tLS0tLXwKfCAqKkxhbmRpbmcqKiB8IFt2aW5pZmVyYS5lZHN0cmF0dW1sYWJzLmFpXShodHRwczovL3ZpbmlmZXJhLmVkc3RyYXR1bWxhYnMuYWkvKSB8IE1hcmtldGluZyBzaXRlIHdpdGggaGVybyB2aW5leWFyZCBpbGx1c3RyYXRpb24sIGZlYXR1cmUgb3ZlcnZpZXcsIHByaWNpbmcsIGFuZCBhbmltYXRlZCBDVEEgfAp8ICoqQXBwIFByb3RvdHlwZSoqIHwgW3ZpbmlmZXJhLmVkc3RyYXR1bWxhYnMuYWkvYXBwL10oaHR0cHM6Ly92aW5pZmVyYS5lZHN0cmF0dW1sYWJzLmFpL2FwcC8pIHwgU3RhdGljIHZpc3VhbCBhbmQgcm9sbGJhY2sgYmFzZWxpbmUgcmV0YWluZWQgdW50aWwgdGhlIGNvbXBsZXRlIGhvc3RlZCBXb3JrZXIgYWN0aXZhdGlvbiBnYXRlIHBhc3NlcyB8CnwgKipJbnZlc3RvcidzIEd1aWRlKiogfCBbdmluaWZlcmEuZWRzdHJhdHVtbGFicy5haS9ndWlkZS9dKGh0dHBzOi8vdmluaWZlcmEuZWRzdHJhdHVtbGFicy5haS9ndWlkZS8pIHwgOC1wYXJ0IHBsYWluLWxhbmd1YWdlIGd1aWRlIGNvdmVyaW5nIHRoZSBwcm9ibGVtLCB0ZWNobm9sb2d5LCBidWlsZCBwbGFuLCBhbmQgYnVzaW5lc3MgY2FzZSB8CgojIyBGZWF0dXJlcwoKVGhlIHByb3RvdHlwZSBkZW1vbnN0cmF0ZXMgdGhpcnRlZW4gZnVuY3Rpb25hbCBhcmVhcyBhY3Jvc3MgYW4gYWRtaW5pc3RyYXRpb24gcG9ydGFsIGFuZCBhIG1lbWJlciBwb3J0YWw6Cgp8IEFyZWEgfCBXaGF0IEl0IERvZXMgfAp8LS0tLS0tfC0tLS0tLS0tLS0tLS18CnwgKipEYXNoYm9hcmQqKiB8IEtQSSB0aWxlcywgQUkgQ2h1cm4gV2F0Y2ggcGFuZWwgd2l0aCBwZXItbWVtYmVyIHJpc2sgc2NvcmVzLCByZXZlbnVlIGNoYXJ0LCBwYXltZW50IHJlY292ZXJ5IHF1ZXVlIHwKfCAqKk1lbWJlcnMgLyBDUk0qKiB8IFRlbmFudC1zY29wZWQgbWVtYmVyIHJlY29yZHMsIHRpZXIgYXNzaWdubWVudCwgc3RhdHVzIHRyYW5zaXRpb25zLCBiYXRjaCBhY3Rpb25zLCBleHBvcnQsIGFuZCBkdXJhYmxlIENTViBpbXBvcnQgfAp8ICoqU2hpcG1lbnRzKiogfCBTY2hlZHVsZWQgcmVsZWFzZSBwcm9jZXNzaW5nLCBTdHJpcGUgcGF5bWVudCBzdGF0dXMsIGRlY2xpbmUgcmVjb3ZlcnksIHJlZnVuZHMsIGFkZHJlc3MgdmFsaWRhdGlvbiwgYW5kIHJldHJ5IGxvZ2ljIHwKfCAqKkFuYWx5dGljcyoqIHwgT3BlcmF0aW9uYWwtZmFjdCByZXZlbnVlLCBtZW1iZXIsIGNvaG9ydCwgc2hpcG1lbnQsIGVuZ2FnZW1lbnQsIExUViwgYW5kIGFjcXVpc2l0aW9uIGludGVsbGlnZW5jZSB3aXRoIGNvbmZpZ3VyYWJsZSB3aWRnZXRzLCBDU1YsIGFuZCBzY2hlZHVsZWQgcmVwb3J0cyB8CnwgKipDbHViIFRpZXJzKiogfCBNdWx0aS10aWVyIGNvbmZpZ3VyYXRpb24gd2l0aCBwcmljaW5nLCBiaWxsaW5nIGludGVydmFsLCBib3R0bGVzLCBmcmVxdWVuY3ksIHVwZ3JhZGUgcGF0aHMsIGFuZCBpbW11dGFibGUgcmVsZWFzZSBzbmFwc2hvdHMgfAp8ICoqQWxsb2NhdGlvbnMqKiB8IEludml0ZS1vbmx5IGFsbG9jYXRpb24gbGlzdHMsIHBlci1tZW1iZXIgYm90dGxlIGxpbWl0cywgcmVsZWFzZSBlbWJhcmdvZXMsIHdhaXRsaXN0cyB8CnwgKipSZWxlYXNlIFNjaGVkdWxlKiogfCBDYWxlbmRhciB2aWV3IG9mIGFsbCBjbHViIHJlbGVhc2VzIHdpdGggcHJvY2Vzc2luZyBkYXRlcyBhbmQgbm90aWZpY2F0aW9uIHRpbWluZyB8CnwgKipGdWxmaWxsbWVudCoqIHwgRWFzeVBvc3QtcmVhZHkgYWR1bHQtc2lnbmF0dXJlIGxhYmVscywgcGljayBsaXN0cywgc2Nhbi10by1jb25maXJtIHBhY2tpbmcsIHRyYWNraW5nLCBhbmQgZGVsaXZlcnkgc3RhdGUgfAp8ICoqQ29tbXVuaWNhdGlvbnMqKiB8IEF1dG9tYXRlZCBlbWFpbCB0cmlnZ2VycyAocHJlLXNoaXBtZW50LCBkZWNsaW5lLCB3ZWxjb21lLCBiaXJ0aGRheSkgYW5kIGNhbXBhaWduIHNlbmRzIHwKfCAqKkxveWFsdHkqKiB8IFBvaW50cyBvbiBzaGlwbWVudHMsIGV2ZW50cywgYW5kIHJlZmVycmFscyDigJQgcmVkZWVtYWJsZSBhZ2FpbnN0IHVwY29taW5nIHNoaXBtZW50cyB8CnwgKipJbnRlZ3JhdGlvbnMqKiB8IEtsYXZpeW8gcHJvZmlsZS9ldmVudCBzeW5jLCBRdWlja0Jvb2tzIE9ubGluZSBhY2NvdW50aW5nLCBBdmFsYXJhIHRheCwgTWV0YSBDb252ZXJzaW9ucyBBUEksIFNoaXBDb21wbGlhbnQgY29tcGxpYW5jZSwgU3RyaXBlIGJpbGxpbmcsIEVhc3lQb3N0IHNoaXBwaW5nLCBhbmQgUmVzZW5kIGVtYWlsIHwKfCAqKkJyYW5kcyAmIFdoaXRlIExhYmVsKiogfCBCcmFuZC1zY29wZWQgc3RhZmYgYWNjZXNzLCBzaGFyZWQgb3IgaW5kZXBlbmRlbnQgYmlsbGluZywgY3VzdG9tIHRoZW1lcywgYW5kIENsb3VkZmxhcmUgZm9yIFNhYVMgaG9zdG5hbWUgbGlmZWN5Y2xlIHwKfCAqKk5hdGl2ZSBNb2JpbGUqKiB8IENhcGFjaXRvciBpT1MvQW5kcm9pZCBzaGVsbHMsIHNlY3VyZSBtb2JpbGUgbWFnaWMtbGluayBzZXNzaW9ucywgYmlvbWV0cmljcywgcHVzaCwgYmFyY29kZSBzY2FubmluZywgb2ZmbGluZSByZWFkLW9ubHkgc25hcHNob3RzLCBhbmQgc3RvcmUtZGlyZWN0ZWQgdXBkYXRlcyB8CnwgKipTZXR0aW5ncyAmIEF1ZGl0KiogfCBSb2xlLWJhc2VkIHBlcm1pc3Npb25zLCBiaWxsaW5nIGNvbmZpZywgQVBJIGtleSBtYW5hZ2VtZW50LCB0YW1wZXItZXZpZGVudCBhdWRpdCBsb2cgfAp8ICoqTWVtYmVyIFBvcnRhbCoqIHwgU2VsZi1zZXJ2aWNlOiBwcmV2aWV3IHNoaXBtZW50cywgdXBkYXRlIGFkZHJlc3MsIHN3YXAgYm90dGxlcywgcGF1c2UgbWVtYmVyc2hpcCDigJQgbWFnaWMtbGluayBsb2dpbiB8CgojIyBUZWNobm9sb2d5IFN0YWNrCgp8IExheWVyIHwgVGVjaG5vbG9neSB8IFdoeSB8CnwtLS0tLS0tfC0tLS0tLS0tLS0tfC0tLS0tfAp8ICoqSW50ZXJmYWNlKiogfCBSZWFjdCArIFRhaWx3aW5kIENTUyB8IEluZHVzdHJ5IHN0YW5kYXJkIGZvciBmYXN0LCByZXNwb25zaXZlIHdlYiBhcHBzIHwKfCAqKkRhdGFiYXNlKiogfCBTdXBhYmFzZSAoUG9zdGdyZVNRTCkgfCBSb3ctTGV2ZWwgU2VjdXJpdHkgZW5mb3JjZXMgdGVuYW50IGlzb2xhdGlvbiBhdCB0aGUgZGF0YWJhc2UgbGF5ZXIgfAp8ICoqUGF5bWVudHMqKiB8IFN0cmlwZSB8IEhhbmRsZXMgZGVjbGluZSBsb2dpYywgY2FyZCB1cGRhdGVzLCBmcmF1ZCBkZXRlY3Rpb24g4oCUIFZpbmlmZXJhIHN0b3JlcyBubyBjYXJkIGRhdGEgfAp8ICoqRW1haWwqKiB8IFJlc2VuZCB8IERLSU0vU1BGLWF1dGhlbnRpY2F0ZWQgdHJhbnNhY3Rpb25hbCBkZWxpdmVyeSB8CnwgKipSdW50aW1lKiogfCBDbG91ZGZsYXJlIFdvcmtlcnMgKyBTdGF0aWMgQXNzZXRzIHwgU2FtZS1vcmlnaW4gUmVhY3QgYXBwbGljYXRpb24gYW5kIEV4cHJlc3MgQVBJIHwKfCAqKlNoaXBwaW5nKiogfCBFYXN5UG9zdCBhZGFwdGVyIHwgQWRkcmVzcyB2ZXJpZmljYXRpb24sIHJhdGVzLCBhZHVsdC1zaWduYXR1cmUgbGFiZWxzLCBhbmQgdHJhY2tpbmc7IHRlc3QgY3JlZGVudGlhbHMgYWN0aXZhdGUgaXQgbGF0ZXIgfAp8ICoqQ29tcGxpYW5jZSoqIHwgU2hpcENvbXBsaWFudCBPQXV0aCBhZGFwdGVyIHwgRXZlcnkgbGFiZWwgcmVxdWlyZXMgYW4gZXhhY3QgY29tcGxpYW50IGRlY2lzaW9uOyBtaXNzaW5nIGNyZWRlbnRpYWxzIGFuZCB1bmtub3duIHJlc3BvbnNlcyBmYWlsIGNsb3NlZCB8CnwgKipTY2FsZSBpbnRlZ3JhdGlvbnMqKiB8IFNlcnZlci1zaWRlIHByb3ZpZGVyIGFkYXB0ZXJzICsgZW5jcnlwdGVkIGNyZWRlbnRpYWwgZW52ZWxvcGVzIHwgV2luZXJ5IGNyZWRlbnRpYWxzIG5ldmVyIGVudGVyIGJyb3dzZXItcmVhZGFibGUgY29uZmlndXJhdGlvbiB8CnwgKipNb2JpbGUqKiB8IENhcGFjaXRvciA4IHwgT25lIFJlYWN0IHNvdXJjZSB3aXRoIG5hdGl2ZSBzZWN1cmUgc3RvcmFnZSwgcHVzaCwgY2FtZXJhLCBuZXR3b3JrLCBhbmQgZGVlcC1saW5rIGFkYXB0ZXJzIHwKfCAqKk9ic2VydmFiaWxpdHkqKiB8IENsb3VkZmxhcmUgV29ya2VyIGxvZ3MgfCBSdW50aW1lIGZhaWx1cmVzIGFyZSB2aXNpYmxlIGF0IHRoZSBob3N0aW5nIGxheWVyOyBleHRlcm5hbCBBUE0gcmVtYWlucyBhIGxhdGVyIGFjdGl2YXRpb24gZGVjaXNpb24gfAp8ICoqQXV0aCoqIHwgU3VwYWJhc2UgQXV0aCB8IEpXVCBzZXNzaW9ucywgbWFnaWMtbGluayBmb3IgbWVtYmVycywgcGFzc3dvcmQvT0F1dGggZm9yIHN0YWZmIHwKCiMjIEJ1aWxkICYgRGVwbG95CgpgYGBiYXNoCiMgSW5zdGFsbCBsb2NrZWQgZGVwZW5kZW5jaWVzCm5wbSBjaQoKIyBCdWlsZCBmb3IgcHJvZHVjdGlvbiAob3V0cHV0cyB0byBkaXN0LykKbnBtIHJ1biBidWlsZAoKIyBWaXN1YWwgZGV2ZWxvcG1lbnQgc2VydmVyCm5wbSBydW4gZGV2CgojIEZ1bGwgV29ya2VyICsgQVBJIGRldmVsb3BtZW50IHNlcnZlcgpucG0gcnVuIGRldjp3b3JrZXIKCiMgRnVsbCBsb2NhbCB2ZXJpZmljYXRpb24KbnBtIHJ1biBjaGVjawpucG0gcnVuIHFhOm1vYmlsZS1yZWxlYXNlCm5wbSBydW4gcWE6cHJvZHVjdGlvbi1yZWxlYXNlCm5wbSBydW4gcWE6ZGI6cGhhc2UyCm5wbSBydW4gcWE6ZGI6cGhhc2UzCm5wbSBydW4gcWE6ZGI6cGhhc2U0Cm5wbSBydW4gcWE6ZGI6cGhhc2U1Cm5wbSBydW4gcWE6bW9iaWxlOmlkZW50aXR5Cm5wbSBydW4gcWE6ZTJlCgojIE5hdGl2ZSB3ZWIgYnVuZGxlIGFuZCBwcm9qZWN0IHN5bmNocm9uaXphdGlvbgpucG0gcnVuIGJ1aWxkOm1vYmlsZQpucG0gcnVuIGJ1aWxkOm1vYmlsZTphbmRyb2lkCm5wbSBydW4gYnVpbGQ6bW9iaWxlOmFuZHJvaWQ6cmVsZWFzZQpucG0gcnVuIGJ1aWxkOm1vYmlsZTppb3MKYGBgCgpUaGUgYnVpbGQgZW1pdHMgY29kZS1zcGxpdCBSZWFjdCBhc3NldHMsIHRoZW4gY29waWVzIGBpbmRleC5odG1sYCwgYGd1aWRlYCwgYW5kCmBwdWJsaWMvKmAgaW50byBgZGlzdC9gLiBXcmFuZ2xlciBwYWNrYWdlcyB0aG9zZSBhc3NldHMgd2l0aCB0aGUgRXhwcmVzcyBXb3JrZXIuCkdpdEh1Yi1ob3N0ZWQgQ0kgdXNlcyBOb2RlIDIyLjIyLjAsIHJ1bnMgdGhlIFBoYXNlIDLigJM1IGRhdGFiYXNlIGdhdGVzIGFuZCBicm93c2VyClFBLCBidWlsZHMgYW5kIGxpbnRzIEFuZHJvaWQgZGVidWcgcGx1cyBtaW5pZmllZCByZWxlYXNlIHNoZWxscywgY29uZGl0aW9uYWxseQphcHBsaWVzIG1pZ3JhdGlvbnMgd2l0aCBTdXBhYmFzZSBDTEkgMi4xMDkuMSBwbHVzIGxpbmtlZCBwZ1RBUC9STFMsIGFuZCBjYW4KZGVwbG95IGFuIGlzb2xhdGVkIGB2aW5pZmVyYS1zdGFnaW5nYCBXb3JrZXIgb25seSBhZnRlciBoYXNoZWQgdGFyZ2V0IGFwcHJvdmFsLgpBdmFpbGFibGUgcnVudGltZSBzZWNyZXRzIGFyZSBhdHRhY2hlZCBhdG9taWNhbGx5IHRvIHRoYXQgc3RhZ2luZyB2ZXJzaW9uLgpBIHByb3RlY3RlZCBtYW51YWwgY29udHJvbGxlciBjYW4gbGF0ZXIgYm9vdHN0cmFwIGFuZCB2ZXJzaW9uIHRoZSBwcm9kdWN0aW9uCldvcmtlciwgbW92ZSB0aGUgY3VzdG9tIGRvbWFpbiBvbmx5IGFmdGVyIHRoZSBmdWxsIGNvbmZpZ3VyYXRpb24gZ2F0ZSwgYW5kCnJlc3RvcmUgdGhlIHJldGFpbmVkIFBhZ2VzIGJhc2VsaW5lLiBBIHNlcGFyYXRlIHByb3RlY3RlZCB3b3JrZmxvdyBwcm9kdWNlcwpzaWduZWQgQW5kcm9pZC9pT1MgYXJ0aWZhY3RzIGFuZCBvcHRpb25hbGx5IHVwbG9hZHMgb25seSB0byBpbnRlcm5hbCB0cmFja3MuCkFsbCB0aHJlZSBwYXRocyBzaGlwIGZhaWwtY2xvc2VkIHVudGlsIHRoZWlyIHNjb3BlZCBjcmVkZW50aWFscywgdGFyZ2V0IGhhc2hlcywKYW5kIGNvbmZpcm1hdGlvbnMgZXhpc3QuCgojIyMgUm91dGluZwoKfCBSb3V0ZSB8IFNlcnZlZCBCeSB8IENvbnRlbnQtVHlwZSB8CnwtLS0tLS0tfC0tLS0tLS0tLS18LS0tLS0tLS0tLS0tLS0tfAp8IGAvYCB8IGBpbmRleC5odG1sYCAoc3RhdGljKSB8IGB0ZXh0L2h0bWxgIHwKfCBgL2FwcC8qYCB8IFJlYWN0IHN0YWZmIGFwcGxpY2F0aW9uIHwgYHRleHQvaHRtbGAgfAp8IGAvcG9ydGFsLypgIHwgUmVhY3QgbWVtYmVyIHBvcnRhbCB8IGB0ZXh0L2h0bWxgIHwKfCBgL2d1aWRlLypgIHwgYGd1aWRlYCAoZXh0ZW5zaW9ubGVzcywgdmlhIGBfcmVkaXJlY3RzYCkgfCBgdGV4dC9odG1sYCB8CnwgYC9hcGkvKmAgfCBFeHByZXNzIEJGRiB8IGBhcHBsaWNhdGlvbi9qc29uYCB8CnwgYC8ud2VsbC1rbm93bi8qYCB8IFdvcmtlci1nZW5lcmF0ZWQgbW9iaWxlIGFzc29jaWF0aW9uIGZpbGVzIHwgYGFwcGxpY2F0aW9uL2pzb25gIHwKClRoZSBvcmlnaW5hbCBleHRlbnNpb25sZXNzIGBhcHBgIGZpbGUgcmVtYWlucyB0aGUgdmlzdWFsIHNwZWNpZmljYXRpb24uIEl0IGlzCnNoaXBwZWQgb25seSBieSB0aGUgdGVtcG9yYXJ5IENsb3VkZmxhcmUgUGFnZXMgcm9sbGJhY2sgYnVpbGQ7IFdvcmtlciBidWlsZHMKc2VydmUgdGhlIFJlYWN0IGFwcGxpY2F0aW9uIGluc3RlYWQuCgojIyBRdWFsaXR5IHN0YXR1cwoKfCBNZXRyaWMgfCBSZXN1bHQgfAp8LS0tLS0tLS18LS0tLS0tLS18CnwgU3RhdGljIG1hcmtldGluZy9ndWlkZSBiYXNlbGluZSB8IFByZXZpb3VzbHkgdmVyaWZpZWQgZm9yIGFjY2Vzc2liaWxpdHkgYW5kIHJlc3BvbnNpdmUgbGF5b3V0OyByZXJ1biBhcyBhIHJlZ3Jlc3Npb24gZ2F0ZSB8CnwgUGhhc2UgMSBmb3VuZGF0aW9uIHwgQXJjaGl0ZWN0dXJlLCBBUEksIGJyb3dzZXIsIFdvcmtlciwgYW5kIGVtYmVkZGVkIFBvc3RncmVTUUwgZ2F0ZXMgcGFzcyB8CnwgUGhhc2UgMiBjb3JlIGNsdWIgfCAyMzEgZGF0YWJhc2UgYXNzZXJ0aW9ucyBwbHVzIHNlcnZpY2UgYW5kIGJyb3dzZXIgcmVncmVzc2lvbiBnYXRlcyBwYXNzIGxvY2FsbHkgfAp8IFBoYXNlIDMgcmV0ZW50aW9uIHwgTGVhc2Utb3duZWQgYWN0aXZhdGlvbi1zYWZlIGVtYWlsLCBydWxlcyBzY29yaW5nLCBpbW11dGFibGUgY2FuY2VsLWZsb3csIHRlbmFudC1zY29wZWQgY29tbWFuZHMsIHNuYXBzaG90LWtleXNldCBsb3lhbHR5LCBicmFuZC1sb2NhbCBqb2JzLCBhbmQgMTk5IGRhdGFiYXNlIGFzc2VydGlvbnMgcGFzcyBsb2NhbGx5IHwKfCBQaGFzZSA0IGludGVsbGlnZW5jZSB8IEN1cnJlbnQtc3RhY2sgYXJjaGl0ZWN0dXJlIHBhc3NlcyAxNTggZGF0YWJhc2UgYXNzZXJ0aW9uczogYnJhbmQtbG9jYWwgcmVhbC1mYWN0IGFuYWx5dGljcywgc291cmNlLXF1YWxpZmllZCBhbmQgYWN0b3ItYXVkaXRlZCBNTCBsaWZlY3ljbGUsIGFsbC1icmFuZCBiZW5jaG1hcmsgYXV0aG9yaXphdGlvbiwgYW5kIGZhaWwtY2xvc2VkIGNvbXBsaWFuY2UvbGFiZWwgYmluZGluZzsgaG9zdGVkIHJlYWwtZGF0YSwgbW9kZWwsIGNvaG9ydCwgYW5kIHByb3ZpZGVyIGV2aWRlbmNlIHJlbWFpbiBnYXRlZCB8CnwgUGhhc2UgNSBzY2FsZSB8IFZlcnNpb24gMC41LjAgc291cmNlIGFyY2hpdGVjdHVyZSBpcyBjb21wbGV0ZSBmb3IgY29ubmVjdG9ycywgbXVsdGktYnJhbmQgaXNvbGF0aW9uLCB3aGl0ZSBsYWJlbCwgYW5kIG5hdGl2ZSBzaGVsbHM7IHRoZSBQaGFzZSA1IFFBIHJlcG9ydCByZWNvcmRzIGFyY2hpdGVjdHVyZSBldmlkZW5jZSBhbmQgZGVmZXJyZWQgaG9zdGVkIGNoZWNrcyB8CnwgUmVsZWFzZSBjb250cm9scyB8IFJlYWQtb25seSByZWFkaW5lc3MsIFN0cmlwZSB0ZXN0LWNhdGFsb2cgYm9vdHN0cmFwLCBzdGFnaW5nIHRhcmdldCBndWFyZHMsIG5hdGl2ZSBob3N0ZWQgcGdUQVAsIHByb2R1Y3Rpb24gV29ya2VyL1BhZ2VzIHJvbGxiYWNrIGNvbnRyb2wsIGFuZCBzaWduZWQgaW50ZXJuYWwtc3RvcmUgd29ya2Zsb3dzIGFyZSBzb3VyY2UtY29tcGxldGU7IGNyZWRlbnRpYWwtYm91bmQgZXhlY3V0aW9uIHJlbWFpbnMgZ2F0ZWQgfAp8IFByb3ZpZGVyIGFjdGl2YXRpb24gfCBQZW5kaW5nIGhvc3RlZCBTdXBhYmFzZSwgU3RyaXBlL3Byb3ZpZGVyIHRlc3QgYW5kIGxpdmUgYWNjb3VudHMsIGN1c3RvbS1kb21haW4gRE5TL2NlcnRpZmljYXRlcywgQVBOcy9GQ00sIHNpZ25pbmcsIHBoeXNpY2FsIGRldmljZXMsIGFuZCBzdG9yZSB0cmFja3MgfAp8IFB1YmxpYyBkZXBsb3ltZW50IHwgUGFnZXMgY29udGludWVzIHNlcnZpbmcgdGhlIHZlcmlmaWVkIHByb3RvdHlwZSB1bnRpbCB0aGUgV29ya2VyIGFjdGl2YXRpb24gcnVuYm9va3MgcGFzcyB8CgojIyBSZXBvc2l0b3J5IFN0cnVjdHVyZQoKYGBgCnZpbmlmZXJhLwrilJzilIDilIAgaW5kZXguaHRtbCAgICAgICAgICAgICAgIyBMYW5kaW5nIHBhZ2UgKGhlcm8sIGZlYXR1cmVzLCBwcmljaW5nLCBDVEEpCuKUnOKUgOKUgCBhcHAgICAgICAgICAgICAgICAgICAgICAjIE9yaWdpbmFsIHZpc3VhbCBwcm90b3R5cGUgKHNvdXJjZSByZWZlcmVuY2Ugb25seSkK4pSc4pSA4pSAIGd1aWRlICAgICAgICAgICAgICAgICAgICMgSW52ZXN0b3IncyBndWlkZSAoZXh0ZW5zaW9ubGVzcywgc2VydmVkIGF0IC9ndWlkZS8qKQrilJzilIDilIAgd2ViLyAgICAgICAgICAgICAgICAgICAgIyBWaXRlIEhUTUwgZW50cnkK4pSc4pSA4pSAIHNyYy9jbGllbnQvICAgICAgICAgICAgICMgUmVhY3Qgc3RhZmYgYW5kIG1lbWJlciBhcHBsaWNhdGlvbnMK4pSc4pSA4pSAIHNlcnZlci8gICAgICAgICAgICAgICAgICMgRXhwcmVzcyBCRkYgYW5kIENsb3VkZmxhcmUgV29ya2VyIGVudHJ5CuKUgiAgIOKUlOKUgOKUgCBpbnRlZ3JhdGlvbnMvICAgICAgICMgS2xhdml5bywgUXVpY2tCb29rcywgQXZhbGFyYSwgTWV0YSwgZG9tYWlucywgbW9iaWxlIGF1dGgsIGFuZCBwdXNoIGFkYXB0ZXJzCuKUnOKUgOKUgCBzdXBhYmFzZS8gICAgICAgICAgICAgICAjIFBvc3RncmVTUUwgbWlncmF0aW9ucyBhbmQgcGdUQVAgdGVzdHMK4pSc4pSA4pSAIHRlc3RzLyAgICAgICAgICAgICAgICAgICMgQVBJIGFuZCBicm93c2VyIFFBIHN1aXRlcwrilJzilIDilIAgYW5kcm9pZC8gICAgICAgICAgICAgICAgIyBDYXBhY2l0b3IgQW5kcm9pZCBzb3VyY2UgcHJvamVjdDsgZ2VuZXJhdGVkIHdlYiBvdXRwdXQgaXMgaWdub3JlZArilJzilIDilIAgaW9zLyAgICAgICAgICAgICAgICAgICAgIyBDYXBhY2l0b3IgaU9TIHNvdXJjZSBwcm9qZWN0OyBnZW5lcmF0ZWQgd2ViIG91dHB1dCBpcyBpZ25vcmVkCuKUnOKUgOKUgCBtb2JpbGUvICAgICAgICAgICAgICAgICAjIENhbm9uaWNhbCBhcHAgaWRlbnRpdHksIHNvdXJjZSBhcnR3b3JrLCBuYXRpdmUgc2VjdXJpdHksIGFuZCBkZWVwIGxpbmtzCuKUnOKUgOKUgCBjYXBhY2l0b3IuY29uZmlnLmpzb24gICAjIFNoYXJlZCBuYXRpdmUgc2hlbGwgY29uZmlndXJhdGlvbgrilJzilIDilIAgcHVibGljLwrilIIgICDilJzilIDilIAgX3JlZGlyZWN0cyAgICAgICAgICAjIFJvdXRlIHJ1bGVzOiAvYXBwLyogL2d1aWRlLyoK4pSCICAg4pSU4pSA4pSAIF9oZWFkZXJzICAgICAgICAgICAgICMgU2VjdXJpdHkgaGVhZGVycyArIENvbnRlbnQtVHlwZSBvdmVycmlkZXMK4pSc4pSA4pSAIHNjcmlwdHMvCuKUgiAgIOKUnOKUgOKUgCBidWlsZC5tanMgICAgICAgICAgICAjIEFkZHMgc3RhdGljIHB1YmxpYyBzdXJmYWNlcyBhZnRlciBWaXRlIGJ1aWxkCuKUgiAgIOKUnOKUgOKUgCB2ZXJpZnktcGhhc2UyLWRiLm1qcyAjIENvcmUtY2x1YiBlbWJlZGRlZCBkYXRhYmFzZSBhbmQgc2NhbGUgUUEK4pSCICAg4pSc4pSA4pSAIHZlcmlmeS1waGFzZTMtZGIubWpzICMgUmV0ZW50aW9uIGRhdGFiYXNlLCBSTFMsIFJQQywgYW5kIHNjYWxlIFFBCuKUgiAgIOKUnOKUgOKUgCB2ZXJpZnktcGhhc2U0LWRiLm1qcyAjIEFuYWx5dGljcywgTUwsIGJlbmNobWFyaywgY29tcGxpYW5jZSwgYW5kIHNjYWxlIFFBCuKUgiAgIOKUnOKUgOKUgCB2ZXJpZnktcGhhc2U1LWRiLm1qcyAjIEJyYW5kLCBjb25uZWN0b3IsIG1vYmlsZS10b2tlbiwgUkxTLCBhbmQgc2NhbGUgUUEK4pSCICAg4pSc4pSA4pSAIHF1YWxpZnktcGhhc2U0LW1sLm1qcyAjIERyeS1ydW4vY29ubmVjdGVkIG9wZXJhdG9yIHNvdXJjZSBhdHRlc3RhdGlvbgrilIIgICDilJzilIDilIAgdmVyaWZ5LW1vYmlsZS1pZGVudGl0eS5tanMgIyBDcm9zcy1wbGF0Zm9ybSBJRCwgdmVyc2lvbiwgZGVlcC1saW5rLCBhbmQgcHJpdmFjeSBkcmlmdCBnYXRlCuKUgiAgIOKUnOKUgOKUgCBnZW5lcmF0ZS1tb2JpbGUtYXNzZXRzLm1qcyAjIERldGVybWluaXN0aWMgaU9TL0FuZHJvaWQgYnJhbmRlZCBhc3NldCBnZW5lcmF0b3IK4pSCICAg4pSU4pSA4pSAIHByZXBhcmUtY2FwYWNpdG9yLm1qcyAjIE5hdGl2ZSBlbnRyeXBvaW50IGFuZCByZXN0cmljdGl2ZSBDU1AgcHJlcGFyYXRpb24K4pSc4pSA4pSAIGRvY3MvICAgICAgICAgICAgICAgICAgICAjIEFyY2hpdGVjdHVyZSwgc2V0dXAsIEFEUnMsIHJ1bmJvb2tzCuKUnOKUgOKUgCAuZ2l0aHViL3dvcmtmbG93cy8gICAgICAgIyBDSS9DRCBwaXBlbGluZQrilJzilIDilIAgQUdFTlRTLm1kICAgICAgICAgICAgICAgICMgQUkgYWdlbnQgY29sbGFib3JhdGlvbiBndWlkZQrilJzilIDilIAgQ09OVElOVUlUWV9CUklFRi5tZCAgICAgICMgRHJvcC1pbiBjb250ZXh0IGZvciBuZXcgYWdlbnQgc2Vzc2lvbnMK4pSc4pSA4pSAIENIQU5HRUxPRy5tZCAgICAgICAgICAgICAjIFZlcnNpb25lZCBjaGFuZ2UgbG9nCuKUnOKUgOKUgCBSRVZFUlQubWQgICAgICAgICAgICAgICAgIyBTdGFibGUgYmFzZWxpbmUgYW5kIHJvbGxiYWNrIGd1aWRlCuKUnOKUgOKUgCBwYWNrYWdlLmpzb24gICAgICAgICAgICAgIyBMb2NrZWQgYnVpbGQsIHRlc3QsIGFuZCBkZXBsb3kgY29tbWFuZHMK4pSU4pSA4pSAIHdyYW5nbGVyLmpzb25jICAgICAgICAgICAjIFdvcmtlciwgc3RhdGljIGFzc2V0cywgYW5kIGhvdXJseSByZWNvbmNpbGlhdGlvbgpgYGAKCi0tLQoKPGRpdiBhbGlnbj0iY2VudGVyIj4KCiMjIEFib3V0IEVkU3RyYXR1bSBMYWJzCgoqKltlZHN0cmF0dW1sYWJzLmFpXShodHRwczovL2Vkc3RyYXR1bWxhYnMuYWkpKioKClZpbmlmZXJhIGlzIGRlc2lnbmVkLCBhcmNoaXRlY3RlZCwgYW5kIGRlcGxveWVkIGJ5ICoqRWRTdHJhdHVtIExhYnMqKiDigJQgYSBib3V0aXF1ZSBBSSBhbmQgcHJvZHVjdCBlbmdpbmVlcmluZyBmaXJtIGJ1aWx0IG9uIGEgc3BlY2lmaWMgY29udmljdGlvbjogcHJvZHVjdGlvbi1ncmFkZSBzb2Z0d2FyZSByZXN0cyBvbiB2ZXJpZmlhYmxlIGV2aWRlbmNlLCBub3QgaHlwZS4KCkEgKnN0cmF0dW0qIGlzIGEgZGlzdGluY3QgZ2VvbG9naWNhbCBsYXllciDigJQgZWFjaCBvbmUgZGVwb3NpdGVkIHdpdGggcHJlY2lzaW9uLCBlYWNoIG9uZSBsb2FkLWJlYXJpbmcgZm9yIHdoYXQgY29tZXMgYWJvdmUgaXQuIFByb2R1Y3Rpb24gc29mdHdhcmUgd29ya3MgdGhlIHNhbWUgd2F5OiBjbGVhbiBkYXRhIGFyY2hpdGVjdHVyZSBmaXJzdCwgdGhlbiBzb2xpZCBhcHBsaWNhdGlvbiBsb2dpYywgdGhlbiBpbnRlbGxpZ2VuY2Ugb24gdG9wLiBTa2lwIGEgbGF5ZXIsIGFuZCB0aGUgc3RydWN0dXJlIGFib3ZlIGl0IGZhaWxzLgoKVGhlIGZvdW5kZXIgbGVhZHMgZXZlcnkgZW5nYWdlbWVudCBwZXJzb25hbGx5IOKAlCBubyBoYW5kb2ZmIHRvIGEganVuaW9yIHRlYW0gYWZ0ZXIgdGhlIGluaXRpYWwgcGl0Y2guIEV2ZXJ5IHRlY2huaWNhbCByZWNvbW1lbmRhdGlvbiBzdGVtcyBmcm9tIGRpcmVjdCwgdmVyaWZpYWJsZSBleHBlcmllbmNlIGJ1aWxkaW5nIGFuZCBzaGlwcGluZyBwcm9kdWN0aW9uIHN5c3RlbXMuCgoqKkZvdW5kZXIgJiBQcmluY2lwYWwqKgoqKkNvbnRhY3Q6KiogZm91bmRlckBlZHN0cmF0dW1sYWJzLmFpCgo8L2Rpdj4KCi0tLQoKPHN1Yj7CqSAyMDI2IEVkU3RyYXR1bSBMYWJzLiBWaW5pZmVyYSBpcyBhIHByb2R1Y3QgaW4gYWN0aXZlIGRldmVsb3BtZW50LiBGZWF0dXJlIGF2YWlsYWJpbGl0eSBhbmQgcHJpY2luZyBhcmUgc3ViamVjdCB0byBjaGFuZ2UuPC9zdWI+Cg==
+<div align="center">
+
+# 🍇 Vinifera
+
+### Wine Club Management Built for What's Next
+
+A web-based platform for wine club operations — member management, shipment processing, AI churn prediction, and a passwordless member portal — designed for small to mid-size wineries.
+
+[![Live Site](https://img.shields.io/badge/🌐_Live_Site-vinifera.edstratumlabs.ai-6B1E30?style=for-the-badge)](https://vinifera.edstratumlabs.ai/)
+[![Production Build](https://img.shields.io/badge/Production_Build-0.5.0_Phase_5-C9993A?style=for-the-badge)](./docs/build-specs/phase-5-scale-integrations.md)
+[![Investor's Guide](https://img.shields.io/badge/📖_Investor's_Guide-Full_Story-3D0E1B?style=for-the-badge)](https://vinifera.edstratumlabs.ai/guide/)
+
+[![WCAG 2.1 AA](https://img.shields.io/badge/WCAG_2.1_AA-✓_0_Violations-success?style=flat-square)](https://vinifera.edstratumlabs.ai/)
+[![Cloudflare Workers](https://img.shields.io/badge/Runtime-Cloudflare_Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
+[![Node](https://img.shields.io/badge/Node-22-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+
+</div>
+
+---
+
+## Overview
+
+Vinifera 0.5.0 contains the complete Phase 1–5 source architecture: a
+React/Vite staff application and member portal, an Express API on Cloudflare
+Workers, Supabase Auth/PostgreSQL with forced tenant and brand RLS, Stripe
+subscription and shipment billing, EasyPost fulfillment, Resend transactional
+delivery, analytics from operational facts, gated ML churn intelligence,
+privacy-thresholded peer benchmarks, ShipCompliant fulfillment controls,
+multi-brand and white-label operation, Klaviyo/QuickBooks/Avalara/Meta
+connectors, and Capacitor iOS/Android projects.
+
+The source architecture is connection-ready and fails closed when credentials or
+control-plane settings are absent. Hosted Supabase migration, provider account
+validation, winery DNS, Stripe live-mode approval, signed physical-device
+testing, and app-store distribution remain separate activation work. The public
+custom domain continues to serve the verified static Cloudflare Pages rollback
+baseline; it is not evidence that the Worker application is live.
+
+The name comes from *Vitis vinifera*, the Latin species name for the primary wine grape vine. It signals domain knowledge to winery operators and reads as a premium brand word — without the overused "wine" prefix that defines most platform names in this market.
+
+## Current live baseline
+
+| Page | URL | Description |
+|------|-----|-------------|
+| **Landing** | [vinifera.edstratumlabs.ai](https://vinifera.edstratumlabs.ai/) | Marketing site with hero vineyard illustration, feature overview, pricing, and animated CTA |
+| **App Prototype** | [vinifera.edstratumlabs.ai/app/](https://vinifera.edstratumlabs.ai/app/) | Static visual and rollback baseline retained until the complete hosted Worker activation gate passes |
+| **Investor's Guide** | [vinifera.edstratumlabs.ai/guide/](https://vinifera.edstratumlabs.ai/guide/) | 8-part plain-language guide covering the problem, technology, build plan, and business case |
+
+## Features
+
+The prototype demonstrates thirteen functional areas across an administration portal and a member portal:
+
+| Area | What It Does |
+|------|-------------|
+| **Dashboard** | KPI tiles, AI Churn Watch panel with per-member risk scores, revenue chart, payment recovery queue |
+| **Members / CRM** | Tenant-scoped member records, tier assignment, status transitions, batch actions, export, and durable CSV import |
+| **Shipments** | Scheduled release processing, Stripe payment status, decline recovery, refunds, address validation, and retry logic |
+| **Analytics** | Operational-fact revenue, member, cohort, shipment, engagement, LTV, and acquisition intelligence with configurable widgets, CSV, and scheduled reports |
+| **Club Tiers** | Multi-tier configuration with pricing, billing interval, bottles, frequency, upgrade paths, and immutable release snapshots |
+| **Allocations** | Invite-only allocation lists, per-member bottle limits, release embargoes, waitlists |
+| **Release Schedule** | Calendar view of all club releases with processing dates and notification timing |
+| **Fulfillment** | EasyPost-ready adult-signature labels, pick lists, scan-to-confirm packing, tracking, and delivery state |
+| **Communications** | Automated email triggers (pre-shipment, decline, welcome, birthday) and campaign sends |
+| **Loyalty** | Points on shipments, events, and referrals — redeemable against upcoming shipments |
+| **Integrations** | Klaviyo profile/event sync, QuickBooks Online accounting, Avalara tax, Meta Conversions API, ShipCompliant compliance, Stripe billing, EasyPost shipping, and Resend email |
+| **Brands & White Label** | Brand-scoped staff access, shared or independent billing, custom themes, and Cloudflare for SaaS hostname lifecycle |
+| **Native Mobile** | Capacitor iOS/Android shells, secure mobile magic-link sessions, biometrics, push, barcode scanning, offline read-only snapshots, and store-directed updates |
+| **Settings & Audit** | Role-based permissions, billing config, API key management, tamper-evident audit log |
+| **Member Portal** | Self-service: preview shipments, update address, swap bottles, pause membership — magic-link login |
+
+## Technology Stack
+
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| **Interface** | React + Tailwind CSS | Industry standard for fast, responsive web apps |
+| **Database** | Supabase (PostgreSQL) | Row-Level Security enforces tenant isolation at the database layer |
+| **Payments** | Stripe | Handles decline logic, card updates, fraud detection — Vinifera stores no card data |
+| **Email** | Resend | DKKM/SPF-authenticated transactional delivery |
+| **Runtime** | Cloudflare Workers + Static Assets | Same-origin React application and Express API |
+| **Shipping** | EasyPost adapter | Address verification, rates, adult-signature labels, and tracking; test credentials activate it later |
+| **Compliance** | ShipCompliant OAuth adapter | Every label requires an exact compliant decision; missing credentials and unknown responses fail closed |
+| **Scale integrations** | Server-side provider adapters + encrypted credential envelopes | Winery credentials never enter browser-readable configuration |
+| **Mobile** | Capacitor 8 | One React source with native secure storage, push, camera, network, and deep-link adapters |
+| **Observability** | Cloudflare Worker logs | Runtime failures are visible at the hosting layer; external APM remains a later activation decision |
+| **Auth** | Supabase Auth | JWT sessions, magic-link for members, password/OAuth for staff |
+
+## Build & Deploy
+
+```bash
+# Install locked dependencies
+npm ci
+
+# Build for production (outputs to dist/)
+npm run build
+
+# Visual development server
+npm run dev
+
+# Full Worker + API development server
+npm run dev:worker
+
+# Full local verification
+npm run check
+npm run qa:mobile-release
+npm run qa:production-release
+npm run qa:db:phase2
+npm run qa:db:phase3
+npm run qa:db:phase4
+npm run qa:db:phase5
+npm run qa:mobile:identity
+npm run qa:e2e
+
+# Native web bundle and project synchronization
+npm run build:mobile
+npm run build:mobile:android
+npm run build:mobile:android:release
+npm run build:mobile:ios
+```
+
+The build emits code-split React assets, then copies `index.html`, `guide`, and
+`public/*` into `dist/`. Wrangler packages those assets with the Express Worker.
+GitHub-hosted CI uses Node 22.22.0, runs the Phase 2–5 database gates and browser
+QA, builds and lints Android debug plus minified release shells, conditionally
+applies migrations with Supabase CLI 2.109.1 plus linked pgTAP/RLS, and can
+deploy an isolated `vinifera-staging` Worker only after hashed target approval.
+Available runtime secrets are attached atomically to that staging version.
+A protected manual controller can later bootstrap and version the production
+Worker, move the custom domain only after the full configuration gate, and
+restore the retained Pages baseline. A separate protected workflow produces
+signed Android/iOS artifacts and optionally uploads only to internal tracks.
+All three paths ship fail-closed until their scoped credentials, target hashes,
+and confirmations exist.
+
+### Routing
+
+| Route | Served By | Content-Type |
+|-------|----------|---------------|
+| `/` | `index.html` (static) | `text/html` |
+| `/app/*` | React staff application | `text/html` |
+| `/portal/*` | React member portal | `text/html` |
+| `/guide/*` | `guide` (extensionless, via `_redirects`) | `text/html` |
+| `/api/*` | Express BFF | `application/json` |
+| `/.well-known/*` | Worker-generated mobile association files | `application/json` |
+
+The original extensionless `app` file remains the visual specification. It is
+shipped only by the temporary Cloudflare Pages rollback build; Worker builds
+serve the React application instead.
+
+## Quality status
+
+| Metric | Result |
+|--------|--------|
+| Static marketing/guide baseline | Previously verified for accessibility and responsive layout; rerun as a regression gate |
+| Phase 1 foundation | Architecture, API, browser, Worker, and embedded PostgreSQL gates pass |
+| Phase 2 core club | 231 database assertions plus service and browser regression gates pass locally |
+| Phase 3 retention | Lease-owned activation-safe email, rules scoring, immutable cancel-flow, tenant-scoped commands, snapshot-keyset loyalty, brand-local jobs, and 199 database assertions pass locally |
+| Phase 4 intelligence | Current-stack architecture passes 158 database assertions: brand-local real-fact analytics, source-qualified and actor-audited ML lifecycle, all-brand benchmark authorization, and fail-closed compliance/label binding; hosted real-data, model, cohort, and provider evidence remain gated |
+| Phase 5 scale | Version 0.5.0 source architecture is complete for connectors, multi-brand isolation, white label, and native shells; the Phase 5 QA report records architecture evidence and deferred hosted checks |
+| Release controls | Read-only readiness, Stripe test-catalog bootstrap, staging target guards, native hosted pgTAP, production Worker/Pages rollback control, and signed internal-store workflows are source-complete; credential-bound execution remains gated |
+| Provider activation | Pending hosted Supabase, Stripe/provider test and live accounts, custom-domain DNS/certificates, APNs/FCM, signing, physical devices, and store tracks |
+| Public deployment | Pages continues serving the verified prototype until the Worker activation runbooks pass |
+
+## Repository Structure
+
+```
+vinifera/
+├── index.html              # Landing page (hero, features, pricing, CTA)
+├── app                     # Original visual prototype (source reference only)
+├── guide                   # Investor's guide (extensionless, served at /guide/*)
+├── web/                    # Vite HTML entry
+├── src/client/             # React staff and member applications
+├── server/                 # Express BFF and Cloudflare Worker entry
+│   └── integrations/       # Klaviyo, QuickBooks, Avalara, Meta, domains, mobile auth, and push adapters
+├── supabase/               # PostgreSQL migrations and pgTAP tests
+├── tests/                  # API and browser QA suites
+├── android/                # Capacitor Android source project; generated web output is ignored
+├── ios/                    # Capacitor iOS source project; generated web output is ignored
+├── mobile/                 # Canonical app identity, source artwork, native security, and deep links
+├── capacitor.config.json   # Shared native shell configuration
+├── public/
+│   ├── _redirects          # Route rules: /app/* /guide/*
+│   └── _headers             # Security headers + Content-Type overrides
+├── scripts/
+│   ├── build.mjs            # Adds static public surfaces after Vite build
+│   ├── verify-phase2-db.mjs # Core-club embedded database and scale QA
+│   ├── verify-phase3-db.mjs # Retention database, RLS, RPC, and scale QA
+│   ├── verify-phase4-db.mjs # Analytics, ML, benchmark, compliance, and scale QA
+│   ├── verify-phase5-db.mjs # Brand, connector, mobile-token, RLS, and scale QA
+│   ├── qualify-phase4-ml.mjs # Dry-run/connected operator source attestation
+│   ├── verify-mobile-identity.mjs # Cross-platform ID, version, deep-link, and privacy drift gate
+│   ├── generate-mobile-assets.mjs # Deterministic iOS/Android branded asset generator
+│   └── prepare-capacitor.mjs # Native entrypoint and restrictive CSP preparation
+├── docs/                    # Architecture, setup, ADRs, runbooks
+├─  .github/workflows/       # CI/CD pipeline
+├── AGENTS.md                # AI agent collaboration guide
+├── CONTINUITY_BRIEF.md      # Drop-in context for new agent sessions
+├── CHANGELOG.md             # Versioned change log
+├── REVERT.md                # Stable baseline and rollback guide
+├── package.json             # Locked build, test, and deploy commands
+└── wrangler.jsonc           # Worker, static assets, and hourly reconciliation
+```
+
+---
+
+<div align="center">
+
+## About EdStratum Labs
+
+**[edstratumlabs.ai](https://edstratumlabs.ai)**
+
+Vinifera is designed, architected, and deployed by **EdStratum Labs** — a boutique AI and product engineering firm built on a specific conviction: production-grade software rests on verifiable evidence, not hype.
+
+A *stratum* is a distinct geological layer — each one deposited with precision, each one load-bearing for what comes above it. Production software works the same way: clean data architecture first, then solid application logic, then intelligence on top. Skip a layer, and the structure above it fails.
+
+The founder leads every engagement personally — no handoff to a junior team after the initial pitch. Every technical recommendation stems from direct, verifiable experience building and shipping production systems.
+
+**Founder & Principal**
+**Contact:** founder@edstratumlabs.ai
+
+</div>
+
+---
+
+<sub>© 2026 EdStratum Labs. Vinifera is a product in active development. Feature availability and pricing are subject to change.</sub>
