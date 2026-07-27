@@ -1,0 +1,16 @@
+{
+  "strictness": 1,
+  "commentTypes": ["logic", "syntax", "style", "security"],
+  "triggerOnUpdates": true,
+  "triggerOnDrafts": true,
+  "statusCheck": true,
+  "statusCommentsEnabled": true,
+  "shouldUpdateDescription": true,
+  "instructions": "This is a TypeScript wine club management platform. Review for: (1) security vulnerabilities in auth and payment flows, (2) type safety and null handling, (3) async/await correctness and race conditions, (4) API error handling completeness, (5) accessibility issues against WCAG standards, (6) Cloudflare Pages compatibility, (7) AI churn prediction model integration correctness, (8) data validation on member and shipment records.",
+  "ignorePatterns": "node_modules/**\n.next/**\ndist/**\n.cloudflare/**\n*.lock\n*.log",
+  "includeBranches": ["main", "develop", "staging"],
+  "fixWithAI": true,
+  "summarySection": {
+    "enabled": true
+  }
+}
