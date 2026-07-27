@@ -5,6 +5,7 @@ import type {
   Response,
 } from "express";
 import type { WorkerEnv } from "../types";
+import { getClientAddress } from "./client-address";
 import { AppError } from "./errors";
 
 const UUID_PATTERN =
@@ -55,13 +56,6 @@ function tenantScope(request: Request): string {
   }
 }
 
-function actorSource(request: Request): string {
-  const connectingIp = request.get("cf-connecting-ip");
-  if (connectingIp) return `ip:${connectingIp}`;
-
-  return `ip:${request.ip || "unknown"}`;
-}
-
 async function sha256(value: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     "SHA-256",
@@ -86,11 +80,12 @@ function shouldSkip(
 async function rateLimitKeys(
   request: Request,
   routeGroup: RateLimiterConfig["routeGroup"],
+  env: WorkerEnv,
 ): Promise<string[]> {
   const route = normalizedRoute(requestPath(request));
   return Promise.all([
     sha256(`${routeGroup}:${route}:tenant:${tenantScope(request)}`),
-    sha256(`${routeGroup}:${route}:actor:${actorSource(request)}`),
+    sha256(`${routeGroup}:${route}:actor:ip:${getClientAddress(request, env)}`),
   ]);
 }
 
@@ -123,7 +118,7 @@ export function createRateLimiter(
       );
     }
 
-    const keys = await rateLimitKeys(request, config.routeGroup);
+    const keys = await rateLimitKeys(request, config.routeGroup, env);
     const outcomes = await Promise.all(
       keys.map((key) => limiter.limit({ key })),
     );

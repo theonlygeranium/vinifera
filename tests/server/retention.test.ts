@@ -883,6 +883,19 @@ describe("Phase 3 HTTP contracts", () => {
     });
   });
 
+  it("does not re-enable a template when PATCH omits enabled", async () => {
+    const service = retention();
+    await request(retentionApp(service))
+      .patch(`/api/email/templates/${templateId}`)
+      .set("Origin", "https://vinifera.test")
+      .send({ subject: "Updated subject" })
+      .expect(200);
+
+    expect(service.updateEmailTemplate).toHaveBeenCalledWith(templateId, {
+      subject: "Updated subject",
+    });
+  });
+
   it("requires UUID command keys for cancel and manual loyalty mutations", async () => {
     const service = retention();
     const app = retentionApp(service);
@@ -920,6 +933,21 @@ describe("Phase 3 HTTP contracts", () => {
       { points: 25, reason: "Service recovery" },
       commandId,
     );
+  });
+
+  it("explains that loyalty adjustments must be non-zero", async () => {
+    const service = retention();
+    const response = await request(retentionApp(service))
+      .post(`/api/loyalty/members/${memberId}/adjust`)
+      .set("Idempotency-Key", commandId)
+      .set("Origin", "https://vinifera.test")
+      .send({ points: 0, reason: "No adjustment" });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.fieldErrors.points).toBe(
+      "Point adjustment cannot be zero.",
+    );
+    expect(service.adjustLoyaltyPoints).not.toHaveBeenCalled();
   });
 
   it("keeps confirmation last and validates ledger pagination", async () => {

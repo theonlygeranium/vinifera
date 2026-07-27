@@ -89,6 +89,53 @@ describe("Cloudflare API rate limiting middleware", () => {
     );
   });
 
+  it("trusts edge client addresses only in staging and production", async () => {
+    async function actorKeys(
+      appEnvironment: WorkerEnv["APP_ENV"],
+    ): Promise<string[]> {
+      const limit = vi.fn<RateLimit["limit"]>().mockResolvedValue({
+        success: true,
+      });
+      const env: WorkerEnv = {
+        API_RATE_LIMITER: { limit },
+        APP_ENV: appEnvironment,
+      };
+      const middleware = createRateLimiter(() => env, {
+        binding: "API_RATE_LIMITER",
+        max: 100,
+        message: "Rate limit exceeded",
+        routeGroup: "api",
+        windowMs: 60_000,
+      });
+      const app = testApp(env, middleware);
+
+      await request(app)
+        .get("/api/members/10000000-0000-4000-8000-000000000001")
+        .set("CF-Connecting-IP", "192.0.2.10")
+        .set("X-Forwarded-For", "198.51.100.10");
+      await request(app)
+        .get("/api/members/10000000-0000-4000-8000-000000000001")
+        .set("CF-Connecting-IP", "192.0.2.11")
+        .set("X-Forwarded-For", "198.51.100.11");
+
+      expect(limit).toHaveBeenCalledTimes(4);
+      return [
+        limit.mock.calls[1]![0].key,
+        limit.mock.calls[3]![0].key,
+      ];
+    }
+
+    const development = await actorKeys("development");
+    const test = await actorKeys("test");
+    const staging = await actorKeys("staging");
+    const production = await actorKeys("production");
+
+    expect(development[0]).toBe(development[1]);
+    expect(test[0]).toBe(test[1]);
+    expect(staging[0]).not.toBe(staging[1]);
+    expect(production[0]).not.toBe(production[1]);
+  });
+
   it("returns the stable 429 envelope and retry window", async () => {
     const limit = vi
       .fn<RateLimit["limit"]>()
