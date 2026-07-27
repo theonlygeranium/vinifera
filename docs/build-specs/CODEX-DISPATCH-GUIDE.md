@@ -1,1 +1,339 @@
-IyBWaW5pZmVyYSDigJQgQ29kZXggRGlzcGF0Y2ggR3VpZGUKKipHZW5lcmF0ZWQ6KiogMjAyNi0wNy0yNyAgCioqT3duZXI6KiogRWRTdHJhdHVtIExhYnMgLyBmb3VuZGVyQGVkc3RyYXR1bWxhYnMuYWkgIAoqKlJlcG86KiogYHRoZW9ubHlnZXJhbml1bS92aW5pZmVyYWAgIAoqKlRhcmdldCB3aW5kb3c6KiogOOKAkzEwIGhvdXJzIG9mIHVuYXR0ZW5kZWQgcGFyYWxsZWwgQ29kZXggd29yawoKLS0tCgojIyBIb3cgdG8gcmVhZCB0aGlzIGRvY3VtZW50CgpUaGlzIGd1aWRlIHRlbGxzIHlvdSBleGFjdGx5IGhvdyBtYW55IENvZGV4IHNlc3Npb25zIHRvIG9wZW4sIHdoYXQgcHJvbXB0IHRvIHBhc3RlIGludG8gZWFjaCBvbmUsIGFuZCBpbiB3aGF0IG9yZGVyLiBSZWFkIHRoZSB3YXZlIHN0cnVjdHVyZSBmaXJzdCDigJQgaXQgZGV0ZXJtaW5lcyB3aGljaCBzZXNzaW9ucyBibG9jayBvbiB3aGljaC4KCi0tLQoKIyMgV2F2ZSBzdHJ1Y3R1cmUgYW5kIHBhcmFsbGVsaXNtCgpBbGwgc2l4IGJ1aWxkIHNwZWNzIGFyZSBvcmdhbml6ZWQgaW50byB0d28gd2F2ZXMuIERvIG5vdCBzdGFydCBXYXZlIDEgdW50aWwgQlMtMDEgaXMgbWVyZ2VkIOKAlCBpdHMgR3JlcHRpbGUgY29uZmlndXJhdGlvbiBnb3Zlcm5zIHRoZSByZXZpZXcgcXVhbGl0eSBvZiBldmVyeSBzdWJzZXF1ZW50IFBSLgoKYGBgClRpbWVsaW5lIChhcHByb3hpbWF0ZSk6CjBoIOKUgOKUgOKUgOKUgCBCUy0wMSDilIDilIDilIDilrogbWVyZ2UgKH4xLjVoKQogICAgICAgICAgICAgICAgICAg4pSCCiAgICAgICAgICAgICAg4pSM4pSA4pSA4pSA4pSA4pS04pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSQCjEuNWggICAgICAgICAg4pa8ICAgICAgICAgICAgICAgICAgICAgICAgIOKWvCAgICAgICAgICAgICAgICAgICAgICAgICDilrwKICAgICAgICAgQlMtMDIgKH4zLjVoKSAgICAgICAgICAgQlMtMDMgKH41LjVoKSAgICAgICAgICAgQlMtMDQgKH4yLjVoKQogICAgICAgICBSb3V0ZSBkZWNvbXAgICAgICAgICAgICBTZXJ2aWNlIGRlY29tcCAgICAgICAgICBPYnNlcnZhYmlsaXR5CiAgICAgICAgICAgICAg4pSCICAgICAgICAgICAgICAgICAgICAgICAgIOKUgiAgICAgICAgICAgICAgICAgICAgICAgICDilIIKICAgICAgICAgICAgICDilJTilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilKzilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilJggICAgICAgICAgICAgICAgICAgICAgICAg4pSCCjVoICAgICAgICAgICAgICAgICAgICAgICDilrwgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg4pa8CiAgICAgICAgICAgICAgICAgICBCUy0wNSAofjQuNWgpICAgICAgICAgICAgICAgICAgICAgICAgICBCUy0wNiAofjMuNWgpCiAgICAgICAgICAgICAgICAgICBMb2NhbCBkZXYgLyBVSSAgICAgICAgICAgICAgICAgICAgIEhhcmRlbmluZyAvIERvY3MKICAgICAgICAgICAgICAgICAgICAgICAgIOKUgiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICDilIIKOS41aCAgICAgICAgICAgICAgICAgICAgIOKUlOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUrOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUmAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg4pa8CiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgQWxsIFBScyBvcGVuCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgSHVtYW4gcmV2aWV3ICsgbWVyZ2UKYGBgCgoqKlNlc3Npb24gY291bnQ6KiogNiBDb2RleCBzZXNzaW9ucyBtaW5pbXVtLiBCUy0wMyBiZW5lZml0cyBmcm9tIHVwIHRvIDggc3ViYWdlbnRzIOKAlCB0aG9zZSBhcmUgc3Bhd25lZCBieSB0aGUgQlMtMDMgcHJpbWFyeSBhZ2VudCwgbm90IG9wZW5lZCBtYW51YWxseS4KCi0tLQoKIyMgU2Vzc2lvbiAxIOKAlCBCUy0wMSAob3BlbiBpbW1lZGlhdGVseSwgV2F2ZSAwKQoKPiBPcGVuIHRoaXMgc2Vzc2lvbiBmaXJzdC4gQWxsIG90aGVyIHNlc3Npb25zIHdhaXQgZm9yIHRoaXMgUFIgdG8gbWVyZ2UgYmVmb3JlIHN0YXJ0aW5nIFdhdmUgMS4KCmBgYApSZXBvc2l0b3J5OiB0aGVvbmx5Z2VyYW5pdW0vdmluaWZlcmEKCkJyYW5jaGluZyBydWxlcyAobWFuZGF0b3J5KToKLSBEbyBub3QgcHVzaCB0byBtYWluIGRpcmVjdGx5LgotIENyZWF0ZSBhIGJyYW5jaDogZ2l0IGNoZWNrb3V0IC1iIGNob3JlL2dyZXB0aWxlLWNvbmZpZy1hbmQtcmVwby1oeWdpZW5lCi0gQ29tbWl0IGNoYW5nZXMgdG8gdGhhdCBicmFuY2ggb25seS4KLSBQdXNoIGFuZCBvcGVuIGEgUFIgd2l0aDogZ2ggcHIgY3JlYXRlIC0tYmFzZSBtYWluIC0tdGl0bGUgImNob3JlOiBncmVwdGlsZSBjb25maWcgdXBncmFkZSBhbmQgcmVwbyBoeWdpZW5lIiAtLWJvZHkgIjxzdW1tYXJ5PiIKLSBEbyBub3QgbWVyZ2UuIExlYXZlIG9wZW4gZm9yIEdyZXB0aWxlICsgQ0kgcmV2aWV3LgoKUHJlLXRhc2sgcmVhZGluZyAocmVhZCBBTEwgYmVmb3JlIHdyaXRpbmcgYW55IGNvZGUpOgoxLiBBR0VOVFMubWQKMi4gQ09OVElOVUlUWV9CUklFRi5tZAozLiBkb2NzL2FnZW50LXdvcmtmbG93Lm1kCjQuIGdyZXB0aWxlLmpzb24gKHlvdSB3aWxsIHJlcGxhY2UgdGhpcykKNS4gZG9jcy9jb2RlYmFzZS1hc3Nlc3NtZW50LTIwMjYtMDctMjcubWQKCkJ1aWxkIHNwZWM6IGRvY3MvYnVpbGQtc3BlY3MvYnMtMDEtZ3JlcHRpbGUtaHlnaWVuZS5tZAoKUmVhZCB0aGUgYnVpbGQgc3BlYyBpbiBmdWxsIGJlZm9yZSBzdGFydGluZyBhbnkgdGFzay4gRXhlY3V0ZSBhbGwgZm91ciB0YXNrcyBpbiBvcmRlcjoKMS4gTWlncmF0ZSBncmVwdGlsZS5qc29uIOKGkiAuZ3JlcHRpbGUvIGZvbGRlciB3aXRoIGNvbmZpZy5qc29uLCBydWxlcy5tZCwgZmlsZXMuanNvbgoyLiBDcmVhdGUgcGVyLWRpcmVjdG9yeSAuZ3JlcHRpbGUvIG92ZXJyaWRlcyBpbiBzZXJ2ZXIvc2VydmljZXMvLCBzdXBhYmFzZS9taWdyYXRpb25zLywgdGVzdHMvCjMuIFJlbW92ZSB3b3JrZXItY29uZmlndXJhdGlvbi5kLnRzIGZyb20gZ2l0IHRyYWNraW5nOyBhZGQgdG8gLmdpdGlnbm9yZTsgYWRkIGNmLXR5cGVnZW4gc3RlcCB0byBDSQo0LiBDcmVhdGUgZG9jcy9idWlsZC1zcGVjcy9waGFzZS01LXFhLXJlcG9ydC5tZCBmcm9tIENPTlRJTlVJVFlfQlJJRUYubWQgZGF0YQo1LiBEZWxldGUgb2xkIGdyZXB0aWxlLmpzb24KNi4gVXBkYXRlIENIQU5HRUxPRy5tZAoKQWZ0ZXIgb3BlbmluZyB0aGUgUFIsIGNvbW1lbnQgIkBncmVwdGlsZWFpIHJldmlldyB0aGlzIGRyYWZ0IiBvbiBpdC4KRG8gbm90IG1lcmdlIHRoZSBQUi4gU2lnbmFsIHdoZW4gdGhlIFBSIGlzIG9wZW4uCmBgYAoKLS0tCgojIyBTZXNzaW9uIDIg4oCUIEJTLTAyIChvcGVuIGFmdGVyIEJTLTAxIFBSIGlzIG1lcmdlZCwgV2F2ZSAxKQoKYGBgClJlcG9zaXRvcnk6IHRoZW9ubHlnZXJhbml1bS92aW5pZmVyYQoKQnJhbmNoaW5nIHJ1bGVzIChtYW5kYXRvcnkpOgotIERvIG5vdCBwdXNoIHRvIG1haW4gZGlyZWN0bHkuCi0gQ3JlYXRlIGEgYnJhbmNoOiBnaXQgY2hlY2tvdXQgLWIgcmVmYWN0b3Ivcm91dGUtbGF5ZXItZGVjb21wb3NpdGlvbgotIENvbW1pdCBjaGFuZ2VzIHRvIHRoYXQgYnJhbmNoIG9ubHkuCi0gUHVzaCBhbmQgb3BlbiBhIFBSIHdpdGg6IGdoIHByIGNyZWF0ZSAtLWJhc2UgbWFpbiAtLXRpdGxlICJyZWZhY3RvcjogZXh0cmFjdCByb3V0ZSBoYW5kbGVycyBmcm9tIGFwcC50cyBpbnRvIHNlcnZlci9yb3V0ZXMvIiAtLWJvZHkgIjxzdW1tYXJ5PiIKLSBEbyBub3QgbWVyZ2UuIExlYXZlIG9wZW4gZm9yIEdyZXB0aWxlICsgQ0kgcmV2aWV3LgoKUHJlLXRhc2sgcmVhZGluZyAocmVhZCBBTEwgYmVmb3JlIHdyaXRpbmcgYW55IGNvZGUpOgoxLiBBR0VOVFMubWQKMi4gQ09OVElOVUlUWV9CUklFRi5tZAozLiBkb2NzL2FnZW50LXdvcmtmbG93Lm1kCjQuIGRvY3MvY29kZWJhc2UtYXNzZXNzbWVudC0yMDI2LTA3LTI3Lm1kCgpCdWlsZCBzcGVjOiBkb2NzL2J1aWxkLXNwZWNzL2JzLTAyLXJvdXRlLWRlY29tcG9zaXRpb24ubWQKClJlYWQgdGhlIGJ1aWxkIHNwZWMgaW4gZnVsbCBiZWZvcmUgc3RhcnRpbmcuIFRoaXMgc3BlYyBhbGxvd3MgeW91IHRvIHNwYXduIHN1YmFnZW50cyDigJQgcmVhZCB0aGUgc3ViYWdlbnQgc3RyYXRlZ3kgc2VjdGlvbiBjYXJlZnVsbHkuIFRoZSBjb29yZGluYXRpb24gcnVsZSBpczogc3ViYWdlbnRzIGNyZWF0ZSByb3V0ZSBmaWxlcywgb25seSB0aGUgaW50ZWdyYXRpb24gc3ViYWdlbnQgdG91Y2hlcyBhcHAudHMuCgpLZXkgY29uc3RyYWludDogZG8gTk9UIHJlZmFjdG9yIGxvZ2ljIGR1cmluZyB0aGlzIHRhc2suIENvcHkgcm91dGUgaGFuZGxlcnMgYXMtaXMuIElmIGEgaGFuZGxlciBoYXMgaW5saW5lIGJ1c2luZXNzIGxvZ2ljLCBhZGQgYSBUT0RPIGNvbW1lbnQgYW5kIGNvbnRpbnVlLiBMb2dpYyByZWZhY3RvcmluZyBiZWxvbmdzIHRvIEJTLTAzLgoKQWZ0ZXIgb3BlbmluZyB0aGUgUFIsIGNvbW1lbnQgIkBncmVwdGlsZWFpIHJldmlldyBvbmx5IHRoZSByb3V0ZSBsYXllciBjaGFuZ2VzIiBvbiBpdC4KRG8gbm90IG1lcmdlLiBTaWduYWwgd2hlbiB0aGUgUFIgaXMgb3Blbi4KYGBgCgotLS0KCiMjIFNlc3Npb24gMyDigJQgQlMtMDMgKG9wZW4gYWZ0ZXIgQlMtMDEgUFIgaXMgbWVyZ2VkLCBXYXZlIDEpCgo+IFRoaXMgaXMgdGhlIG1vc3QgY29tcGxleCBzZXNzaW9uLiBUaGUgcHJpbWFyeSBhZ2VudCBtdXN0IHByb2R1Y2UgdGhlIHNlcnZpY2UgbWFuaWZlc3QgYW5kIGRpcmVjdG9yeSBza2VsZXRvbiBiZWZvcmUgZGlzcGF0Y2hpbmcgc3ViYWdlbnRzLgoKYGBgClJlcG9zaXRvcnk6IHRoZW9ubHlnZXJhbml1bS92aW5pZmVyYQoKQnJhbmNoaW5nIHJ1bGVzIChtYW5kYXRvcnkpOgotIERvIG5vdCBwdXNoIHRvIG1haW4gZGlyZWN0bHkuCi0gUHJpbWFyeSBicmFuY2g6IGdpdCBjaGVja291dCAtYiByZWZhY3Rvci9zZXJ2aWNlLWxheWVyLWRlY29tcG9zaXRpb24KLSBTdWJhZ2VudHMgZWFjaCBjcmVhdGUgdGhlaXIgb3duIGJyYW5jaCAoc2VlIGJ1aWxkIHNwZWMgc3ViYWdlbnQgdGFibGUpCi0gQWxsIHN1YmFnZW50IFBScyB0YXJnZXQgbWFpbi4gUHJpbWFyeSBpbnRlZ3JhdGlvbiBQUiBhbHNvIHRhcmdldHMgbWFpbi4KLSBEbyBub3QgbWVyZ2UgYW55IFBSLiBMZWF2ZSBhbGwgb3BlbiBmb3IgR3JlcHRpbGUgKyBDSSByZXZpZXcuCgpQcmUtdGFzayByZWFkaW5nIChyZWFkIEFMTCBiZWZvcmUgd3JpdGluZyBhbnkgY29kZSk6CjEuIEFHRU5UUy5tZAoyLiBDT05USU5VSVRZX0JSSUVGLm1kCjMuIGRvY3MvYWdlbnQtd29ya2Zsb3cubWQKNC4gZG9jcy9jb2RlYmFzZS1hc3Nlc3NtZW50LTIwMjYtMDctMjcubWQKNS4gQWxsIC5ncmVwdGlsZS8gcnVsZXMgZmlsZXMgKGNvbW1pdHRlZCBieSBCUy0wMSkKCkJ1aWxkIHNwZWM6IGRvY3MvYnVpbGQtc3BlY3MvYnMtMDMtc2VydmljZS1kZWNvbXBvc2l0aW9uLm1kCgpSZWFkIHRoZSBlbnRpcmUgYnVpbGQgc3BlYyBiZWZvcmUgc3RhcnRpbmcuIFRoaXMgdGFzayByZXF1aXJlcyBzcGF3bmluZyB1cCB0byA4IHN1YmFnZW50cy4gWW91ciBwcmltYXJ5LWFnZW50IHJlc3BvbnNpYmlsaXRpZXMgYXJlOgoxLiBSZWFkIGNvcmUtY2x1Yi50cyBhbmQgaW50ZWdyYXRpb25zLnRzIGluIGZ1bGwKMi4gUHJvZHVjZSBkb2NzL2J1aWxkLXNwZWNzL3NlcnZpY2UtbWFuaWZlc3QubWQgKGNvbW1pdCB0aGlzIGJlZm9yZSBkaXNwYXRjaGluZykKMy4gQ3JlYXRlIHRoZSBkaXJlY3Rvcnkgc2tlbGV0b24gd2l0aCBlbXB0eSBmaWxlcyAoY29tbWl0IGJlZm9yZSBkaXNwYXRjaGluZykKNC4gRGlzcGF0Y2ggb25lIHN1YmFnZW50IHBlciByb3cgaW4gdGhlIHN1YmFnZW50IHRhYmxlCjUuIEFmdGVyIGFsbCBzdWJhZ2VudCBQUnMgYXJlIG1lcmdlZCwgYWRkIGJhY2t3YXJkLWNvbXBhdCByZS1leHBvcnRzIHRvIG9yaWdpbmFscwo2LiBVcGRhdGUgaW1wb3J0IHBhdGhzIGluIHNlcnZlci9yb3V0ZXMvIChjb29yZGluYXRlIHZpYSBicmFuY2gg4oCUIGRvIG5vdCBlZGl0IGZpbGVzIG93bmVkIGJ5IG9wZW4gQlMtMDIgUFJzKQo3LiBSdW4gZnVsbCB0ZXN0IHN1aXRlOiBucG0gcnVuIHRlc3Q6dW5pdCAmJiBucG0gcnVuIHRlc3Q6ZTJlICYmIG5wbSBydW4gdHlwZWNoZWNrICYmIG5wbSBydW4gYnVpbGQKCkNSSVRJQ0FMOiBleHRyYWN0aW9uIGlzIHRoZSBvbmx5IGdvYWwuIE5vIGxvZ2ljIGNoYW5nZXMuIE5vIHJlZmFjdG9yaW5nLiBObyAid2hpbGUgSSdtIGhlcmUiIGltcHJvdmVtZW50cy4gRXh0cmFjdC1vbmx5LgoKQWZ0ZXIgb3BlbmluZyB0aGUgaW50ZWdyYXRpb24gUFIsIGNvbW1lbnQ6CiJAZ3JlcHRpbGVhaSBjaGVjayBmb3IgYW55IGJ1c2luZXNzIGxvZ2ljIHJlbWFpbmluZyBpbiBjb3JlLWNsdWIudHMgb3IgaW50ZWdyYXRpb25zLnRzIgoiQGdyZXB0aWxlYWkgdmVyaWZ5IG5vIGNpcmN1bGFyIGltcG9ydHMgd2VyZSBpbnRyb2R1Y2VkIGJldHdlZW4gdGhlIG5ldyBzZXJ2aWNlIGZpbGVzIgpEbyBub3QgbWVyZ2UuIFNpZ25hbCB3aGVuIGFsbCBQUnMgYXJlIG9wZW4uCmBgYAoKLS0tCgojIyBTZXNzaW9uIDQg4oCUIEJTLTA0IChvcGVuIGFmdGVyIEJTLTAxIFBSIGlzIG1lcmdlZCwgV2F2ZSAxKQoKYGBgClJlcG9zaXRvcnk6IHRoZW9ubHlnZXJhbml1bS92aW5pZmVyYQoKQnJhbmNoaW5nIHJ1bGVzIChtYW5kYXRvcnkpOgotIERvIG5vdCBwdXNoIHRvIG1haW4gZGlyZWN0bHkuCi0gQ3JlYXRlIGEgYnJhbmNoOiBnaXQgY2hlY2tvdXQgLWIgZmVhdC9vYnNlcnZhYmlsaXR5LWFuZC1yYXRlLWxpbWl0aW5nCi0gQ29tbWl0IGNoYW5nZXMgdG8gdGhhdCBicmFuY2ggb25seS4KLSBQdXNoIGFuZCBvcGVuIGEgUFIgd2l0aDogZ2ggcHIgY3JlYXRlIC0tYmFzZSBtYWluIC0tdGl0bGUgImZlYXQ6IGFkZCBTZW50cnkgZXJyb3IgdHJhY2tpbmcgYW5kIEFQSSByYXRlIGxpbWl0aW5nIiAtLWJvZHkgIjxzdW1tYXJ5PiIKLSBEbyBub3QgbWVyZ2UuIExlYXZlIG9wZW4gZm9yIEdyZXB0aWxlICsgQ0kgcmV2aWV3LgoKUHJlLXRhc2sgcmVhZGluZyAocmVhZCBBTEwgYmVmb3JlIHdyaXRpbmcgYW55IGNvZGUpOgoxLiBBR0VOVFMubWQKMi4gQ09OVElOVUlUWV9CUklFRi5tZAozLiBkb2NzL2FnZW50LXdvcmtmbG93Lm1kCjQuIHBhY2thZ2UuanNvbiAoY2hlY2sgd2hhdCBpcyBhbHJlYWR5IGluc3RhbGxlZCBiZWZvcmUgYWRkaW5nIGRlcGVuZGVuY2llcykKNS4gd3JhbmdsZXIudG9tbCAoY2hlY2sgZXhpc3RpbmcgdmFycyBjb25maWd1cmF0aW9uKQoKQnVpbGQgc3BlYzogZG9jcy9idWlsZC1zcGVjcy9icy0wNC1vYnNlcnZhYmlsaXR5LXJhdGUtbGltaXRpbmcubWQKClJlYWQgdGhlIGJ1aWxkIHNwZWMgaW4gZnVsbC4gS2V5IGNvbnN0cmFpbnRzOgotIFRoZSBhY3R1YWwgU0VOVFJZX0RTTiB2YWx1ZSBtdXN0IE5FVkVSIGFwcGVhciBpbiBhbnkgY29tbWl0dGVkIGZpbGUKLSBDaGVjayBwYWNrYWdlLmpzb24gZmlyc3Qg4oCUIGluc3RhbGwgb25seSBtaXNzaW5nIHBhY2thZ2VzCi0gVGhlIGVycm9yIGhhbmRsZXIgbXVzdCBiZSByZWdpc3RlcmVkIExBU1QgaW4gYXBwLnRzIChhZnRlciBhbGwgcm91dGVzKQotIElmIEJTLTAyIGlzIG5vdCB5ZXQgbWVyZ2VkLCBhZGQgYSBUT0RPIGNvbW1lbnQgd2hlcmUgcm91dGVzIHdpbGwgYmUgbW91bnRlZCDigJQgZG8gbm90IGNyZWF0ZSBhIG1lcmdlIGRlcGVuZGVuY3kKLSBXcml0ZSA0IFZpdGVzdCB0ZXN0cyBmb3IgdGhlIGVycm9yIGhhbmRsZXIKCkFmdGVyIG9wZW5pbmcgdGhlIFBSLCBjb21tZW50OgoiQGdyZXB0aWxlYWkgY2hlY2sgdGhhdCBubyByZWFsIGNyZWRlbnRpYWxzIGFwcGVhciBpbiBhbnkgZmlsZSBpbiB0aGlzIGRpZmYiCiJAZ3JlcHRpbGVhaSB2ZXJpZnkgdGhlIGVycm9yIGhhbmRsZXIgaXMgcmVnaXN0ZXJlZCBsYXN0IGluIGFwcC50cyIKRG8gbm90IG1lcmdlLiBTaWduYWwgd2hlbiB0aGUgUFIgaXMgb3Blbi4KYGBgCgotLS0KCiMjIFNlc3Npb24gNSDigJQgQlMtMDUgKG9wZW4gYWZ0ZXIgQlMtMDEgUFIgaXMgbWVyZ2VkLCBXYXZlIDIpCgo+IFdhdmUgMiBtZWFucyB5b3UgY2FuIHN0YXJ0IHRoaXMgYXMgc29vbiBhcyBCUy0wMSBpcyBtZXJnZWQuIFlvdSBkbyBub3QgbmVlZCB0byB3YWl0IGZvciBCUy0wMiBvciBCUy0wMy4gSG93ZXZlciwgaWYgQlMtMDMgaXMgYWxyZWFkeSBtZXJnZWQgd2hlbiB5b3Ugc3RhcnQsIGltcG9ydCBmcm9tIHRoZSBuZXcgc2VydmljZSBmaWxlcyByYXRoZXIgdGhhbiB0aGUgb3JpZ2luYWxzLgoKYGBgClJlcG9zaXRvcnk6IHRoZW9ubHlnZXJhbml1bS92aW5pZmVyYQoKQnJhbmNoaW5nIHJ1bGVzIChtYW5kYXRvcnkpOgotIERvIG5vdCBwdXNoIHRvIG1haW4gZGlyZWN0bHkuCi0gQ3JlYXRlIGEgYnJhbmNoOiBnaXQgY2hlY2tvdXQgLWIgZmVhdC9sb2NhbC1kZXYtYW5kLXVpLXJlYWRpbmVzcwotIENvbW1pdCBjaGFuZ2VzIHRvIHRoYXQgYnJhbmNoIG9ubHkuCi0gUHVzaCBhbmQgb3BlbiBhIFBSIHdpdGg6IGdoIHByIGNyZWF0ZSAtLWJhc2UgbWFpbiAtLXRpdGxlICJmZWF0OiBsb2NhbCBkZXYgc3RhY2ssIHNlZWQgZGF0YSwgYW5kIFVJIHNtb2tlIHRlc3QgdmVyaWZpY2F0aW9uIiAtLWJvZHkgIjxzdW1tYXJ5PiIKLSBEbyBub3QgbWVyZ2UuIExlYXZlIG9wZW4gZm9yIEdyZXB0aWxlICsgQ0kgcmV2aWV3LgoKUHJlLXRhc2sgcmVhZGluZyAocmVhZCBBTEwgYmVmb3JlIHdyaXRpbmcgYW55IGNvZGUpOgoxLiBBR0VOVFMubWQKMi4gQ09OVElOVUlUWV9CUklFRi5tZCDigJQgcmVhZCBhbGwgMjAgYWN0aXZhdGlvbiBnYXRlcyBjYXJlZnVsbHkKMy4gZG9jcy9hZ2VudC13b3JrZmxvdy5tZAo0LiBwYWNrYWdlLmpzb24gYW5kIHdyYW5nbGVyLnRvbWwKNS4gQWxsIGV4aXN0aW5nIHN1cGFiYXNlL3NlZWQuc3FsIG9yIHNlZWQgZmlsZXMgaWYgcHJlc2VudAoKQnVpbGQgc3BlYzogZG9jcy9idWlsZC1zcGVjcy9icy0wNS1sb2NhbC1kZXYtdWktcmVhZGluZXNzLm1kCgpSZWFkIHRoZSBidWlsZCBzcGVjIGluIGZ1bGwuIFRoaXMgc3BlYyBoYXMgdHdvIGdvYWxzOgpHb2FsIDE6IEEgc2luZ2xlIGNvbW1hbmQgc3RhcnRzIHRoZSBmdWxsIHN0YWNrIGxvY2FsbHkgKFN1cGFiYXNlICsgV29ya2VyICsgRnJvbnRlbmQpCkdvYWwgMjogVGhlIHBsYXRmb3JtIFVJIHJlbmRlcnMgYW5kIGF1dGhlbnRpY2F0ZXMgYWdhaW5zdCB0aGUgbG9jYWwgV29ya2VyIHdpdGggc2VlZGVkIGRhdGEKCllvdSBtYXkgc3Bhd24gYSBzdWJhZ2VudCBmb3IgdGhlIHNlZWQgZGF0YSB0YXNrIChUYXNrIDIpIGluZGVwZW5kZW50bHkgb2YgdGhlIGRldiBzY3JpcHQgdGFzayAoVGFzayAxKS4KCktleSB0ZXN0cyB0byBwYXNzOgotIEdFVCAvYXBpL2hlYWx0aCDihpIgMjAwCi0gUE9TVCAvYXBpL2F1dGgvbG9naW4gKHNlZWRlZCBtZW1iZXIpIOKGkiAyMDAgd2l0aCBzZXNzaW9uIGNvb2tpZQotIEdFVCAvYXBpL21lbWJlcnMgd2l0aCBicmFuZC0wMDIgY29va2llIG9uIGJyYW5kLTAwMSBlbmRwb2ludCDihpIgNDAzIG9yIGVtcHR5ICh0ZW5hbnQgaXNvbGF0aW9uKQotIG5wbSBydW4gdGVzdDplMmUg4oaSIDE0NS8xNDUgcGFzc2luZwotIFplcm8gYXhlIHZpb2xhdGlvbnMKCkFmdGVyIG9wZW5pbmcgdGhlIFBSLCBjb21tZW50OgoiQGdyZXB0aWxlYWkgdmVyaWZ5IHRlbmFudCBpc29sYXRpb24gaXMgZW5mb3JjZWQgaW4gYWxsIHNlZWRlZCBxdWVyaWVzIGFuZCBzbW9rZSB0ZXN0IGFzc2VydGlvbnMiCkRvIG5vdCBtZXJnZS4gU2lnbmFsIHdoZW4gdGhlIFBSIGlzIG9wZW4uCmBgYAoKLS0tCgojIyBTZXNzaW9uIDYg4oCUIEJTLTA2IChvcGVuIGFmdGVyIEJTLTAxIFBSIGlzIG1lcmdlZCwgV2F2ZSAyKQoKYGBgClJlcG9zaXRvcnk6IHRoZW9ubHlnZXJhbml1bS92aW5pZmVyYQoKQnJhbmNoaW5nIHJ1bGVzIChtYW5kYXRvcnkpOgotIERvIG5vdCBwdXNoIHRvIG1haW4gZGlyZWN0bHkuCi0gQ3JlYXRlIGEgYnJhbmNoOiBnaXQgY2hlY2tvdXQgLWIgY2hvcmUvYXJjaGl0ZWN0dXJlLWhhcmRlbmluZy1hbmQtZG9jcwotIENvbW1pdCBjaGFuZ2VzIHRvIHRoYXQgYnJhbmNoIG9ubHkuCi0gUHVzaCBhbmQgb3BlbiBhIFBSIHdpdGg6IGdoIHByIGNyZWF0ZSAtLWJhc2UgbWFpbiAtLXRpdGxlICJjaG9yZTogdGVuYW5jeSBhdWRpdCwgYXJjaGl0ZWN0dXJlIGRvY3MsIGFuZCBnb3Zlcm5hbmNlIGhhcmRlbmluZyIgLS1ib2R5ICI8c3VtbWFyeT4iCi0gRG8gbm90IG1lcmdlLiBMZWF2ZSBvcGVuIGZvciBHcmVwdGlsZSArIENJIHJldmlldy4KClByZS10YXNrIHJlYWRpbmcgKHJlYWQgQUxMIGJlZm9yZSB3cml0aW5nIGFueSBjb2RlKToKMS4gQUdFTlRTLm1kCjIuIENPTlRJTlVJVFlfQlJJRUYubWQKMy4gZG9jcy9hZ2VudC13b3JrZmxvdy5tZAo0LiBBbGwgc3VwYWJhc2UvbWlncmF0aW9ucy8gZmlsZXMgKHlvdSBuZWVkIHRvIHVuZGVyc3RhbmQgdGhlIG11bHRpLXRlbmFudCBzY2hlbWEpCjUuIEFsbCAuZ3JlcHRpbGUvcnVsZXMubWQgZmlsZXMgKGNvbW1pdHRlZCBieSBCUy0wMSkg4oCUIFJ1bGUgOCBpcyB0aGUgcHJpbWFyeSBlbmZvcmNlbWVudCB0YXJnZXQKCkJ1aWxkIHNwZWM6IGRvY3MvYnVpbGQtc3BlY3MvYnMtMDYtZG9jcy1oYXJkZW5pbmctdGVuYW5jeS5tZAoKUmVhZCB0aGUgYnVpbGQgc3BlYyBpbiBmdWxsLiBUaGlzIHNwZWMgaGFzIHR3byBpbmRlcGVuZGVudCB0cmFja3MgeW91IGNhbiBydW4gaW4gcGFyYWxsZWw6ClRyYWNrIEEgKHRlbmFuY3kpOiBBdWRpdCBhbGwgc2VydmljZSBmdW5jdGlvbnMgZm9yIGJyYW5kX2lkIHNjb3BpbmcsIGZpeCBnYXBzLCB3cml0ZSBWaXRlc3QgdGVzdHMKVHJhY2sgQiAoZG9jcyk6IFdyaXRlIGFyY2hpdGVjdHVyZS5tZCwgdXBkYXRlIFJFQURNRSwgY3JlYXRlIGdvdmVybmFuY2Ugbm90ZXMsIGdyZXB0aWxlLWxlYXJuaW5nLW5vdGVzLm1kCgpZb3UgbWF5IHNwYXduIG9uZSBzdWJhZ2VudCBmb3IgVHJhY2sgQSBhbmQgb25lIGZvciBUcmFjayBCLgoKQWZ0ZXIgb3BlbmluZyB0aGUgUFIsIGNvbW1lbnQ6CiJAZ3JlcHRpbGVhaSB2ZXJpZnkgYWxsIGRhdGFiYXNlIHF1ZXJpZXMgaW4gc2VydmVyL3NlcnZpY2VzLyBoYXZlIGJyYW5kX2lkIHNjb3BpbmciCiJAZ3JlcHRpbGVhaSBjaGVjayBhcmNoaXRlY3R1cmUubWQgYWNjdXJhdGVseSByZWZsZWN0cyB0aGUgY3VycmVudCBjb2RlYmFzZSBzdHJ1Y3R1cmUiClVzZSDwn5GNIG9uIEdyZXB0aWxlIGNvbW1lbnRzIHRoYXQgY29ycmVjdGx5IGlkZW50aWZ5IGFkZGl0aW9uYWwgdW5zY29wZWQgcXVlcmllcy4KRG8gbm90IG1lcmdlLiBTaWduYWwgd2hlbiB0aGUgUFIgaXMgb3Blbi4KYGBgCgotLS0KCiMjIERvIE5PVCBvcGVuIHRoZXNlIHNlc3Npb25zIG1hbnVhbGx5CgpCUy0wMyBkaXNwYXRjaGVzIGl0cyBvd24gc3ViYWdlbnRzICh1cCB0byA4KS4gRG8gbm90IGNyZWF0ZSBzZXBhcmF0ZSBDb2RleCBzZXNzaW9ucyBmb3IgdGhlbSDigJQgQlMtMDMncyBwcmltYXJ5IGFnZW50IG1hbmFnZXMgdGhlaXIgbGlmZWN5Y2xlLgoKLS0tCgojIyBNZXJnZSBvcmRlciAoaHVtYW4gYWN0aW9uIHJlcXVpcmVkIGFmdGVyIHNlc3Npb25zIGNvbXBsZXRlKQoKV2hlbiBhbGwgNiBzZXNzaW9ucyBoYXZlIHNpZ25hbGVkIGNvbXBsZXRpb24gYW5kIGFsbCBQUnMgYXJlIG9wZW4sIG1lcmdlIGluIHRoaXMgb3JkZXI6CgoxLiAqKkJTLTAxKiogZmlyc3Qg4oCUIGFsd2F5cy4gSXQgZXN0YWJsaXNoZXMgR3JlcHRpbGUgcnVsZXMgdGhhdCBhbGwgb3RoZXJzIGJlbmVmaXQgZnJvbS4KMi4gKipCUy0wNCoqIGJlZm9yZSBCUy0wMi9CUy0wMyDigJQgZXJyb3IgaGFuZGxpbmcgc2hvdWxkIGJlIGxpdmUgYmVmb3JlIHJvdXRlL3NlcnZpY2Ugd29yayBtZXJnZXMuCjMuICoqQlMtMDIqKiBhbmQgKipCUy0wNioqIGNvbmN1cnJlbnRseSDigJQgbm8gZmlsZSBvdmVybGFwLgo0LiAqKkJTLTAzKiogaW50ZWdyYXRpb24gUFIg4oCUIGFmdGVyIEJTLTAyIGlzIG1lcmdlZCAoaW1wb3J0IHBhdGggdXBkYXRlcyByZXF1aXJlIEJTLTAyIHJvdXRlIGZpbGVzIHRvIGV4aXN0KS4KNS4gKipCUy0wNSoqIGxhc3Qg4oCUIGxvY2FsIGRldiB2ZXJpZmljYXRpb24gYWdhaW5zdCB0aGUgZmluYWxpemVkIHNlcnZpY2UgYW5kIHJvdXRlIHN0cnVjdHVyZS4KCkJldHdlZW4gZWFjaCBtZXJnZTogd2FpdCBmb3IgR3JlcHRpbGUgdG8gcG9zdCBpdHMgcmV2aWV3ICh+MyBtaW51dGVzKSwgYWRkcmVzcyBhbnkgZmxhZ2dlZCBpc3N1ZXMsIHRoZW4gcHJvY2VlZCDjgJBrZy13d3dncmUtM2Y3Zjc3YWHjgJEuCgotLS0KCiMjIEdyZXB0aWxlIHRyYWluaW5nIGFjdGlvbnMgZHVyaW5nIHRoZSBzcHJpbnQKCkFzIFBScyBjb21lIGluLCB0YWtlIHRoZXNlIGFjdGlvbnMgY29uc2lzdGVudGx5IHRvIGFjY2VsZXJhdGUgR3JlcHRpbGUncyBsZWFybmluZyDjgJBrZy13d3dncmUtODU3NWVjMmbjgJE6Cgp8IFBhdHRlcm4gfCBBY3Rpb24gfAp8LS0tfC0tLXwKfCBHcmVwdGlsZSBmbGFncyBIVFRQLW9ubHkgY29va2llIGF1dGggfCDwn5GOICsgcmVwbHkgIkludGVudGlvbmFsIOKAlCBzZWUgZ3JlcHRpbGUtbGVhcm5pbmctbm90ZXMubWQiIHwKfCBHcmVwdGlsZSBmbGFncyBhY3RpdmF0aW9uIGd1YXJkcyBhcyBkZWFkIGNvZGUgfCDwn5GOICsgcmVwbHkgIkludGVudGlvbmFsIOKAlCBzZWUgQ09OVElOVUlUWV9CUklFRi5tZCBhY3RpdmF0aW9uIGdhdGVzIiB8CnwgR3JlcHRpbGUgY29ycmVjdGx5IGlkZW50aWZpZXMgbWlzc2luZyBicmFuZF9pZCBzY29wZSB8IPCfkY0gKyByZXBseSAiQ29ycmVjdCDigJQgYWRkcmVzc2luZyBpbiBCUy0wNiB0ZW5hbmN5IGF1ZGl0IiB8CnwgR3JlcHRpbGUgZmxhZ3MgYW55IGluIGxlZ2FjeSBtb25vbGl0aCBmaWxlcyB8IPCfkY4gKyByZXBseSAiS25vd24g4oCUIGJlaW5nIHJlbW92ZWQgYnkgQlMtMDMgZGVjb21wb3NpdGlvbiIgfAp8IEdyZXB0aWxlIGZsYWdzIGFueSBpbiBORVcgZXh0cmFjdGVkIHNlcnZpY2UgZmlsZXMgfCDwn5GNICsgIkZpeCB0aGlzIG9uZSIgfAoKLS0tCgojIyBXaGF0IHRoaXMgc3ByaW50IGRvZXMgTk9UIGNvdmVyCgpUaGUgZm9sbG93aW5nIGl0ZW1zIHJlcXVpcmUgbGl2ZSBjcmVkZW50aWFscyBhbmQgYXJlIFRyYWNrIEEgKGh1bWFuLWluaXRpYXRlZCkgdGFza3MuIE5vIENvZGV4IHNlc3Npb24gc2hvdWxkIGF0dGVtcHQgdGhlbToKCi0gU3RyaXBlIENvbm5lY3QgYWN0aXZhdGlvbiBhbmQgUHJpY2UgSUQgcmVjb25jaWxpYXRpb24KLSBFYXN5UG9zdCBwcm9kdWN0aW9uIGtleSB3aXJpbmcKLSBSZXNlbmQgZG9tYWluIHZlcmlmaWNhdGlvbgotIENsb3VkZmxhcmUgY3VzdG9tIGRvbWFpbiByb3V0aW5nIHN3aXRjaCBmcm9tIFBhZ2VzIHRvIFdvcmtlcgotIEFueSBvZiB0aGUgMjAgYWN0aXZhdGlvbiBnYXRlcyBpbiBDT05USU5VSVRZX0JSSUVGLm1kCgpBZnRlciB0aGlzIHNwcmludCB0aGUgY29kZWJhc2Ugd2lsbCBiZSBzdHJ1Y3R1cmFsbHkgcmVhZHkgdG8gcGFzcyBhY3RpdmF0aW9uIGdhdGVzLiBUaGUgZ2F0ZXMgdGhlbXNlbHZlcyByZXF1aXJlIGh1bWFuIGFjdGlvbiB3aXRoIGxpdmUgY3JlZGVudGlhbHMuCgotLS0KCiMjIEZpbGVzIGNvbW1pdHRlZCBieSB0aGlzIHNwcmludAoKfCBGaWxlIHwgU3BlYyB8IFB1cnBvc2UgfAp8LS0tfC0tLXwtLS18CnwgYC5ncmVwdGlsZS9jb25maWcuanNvbmAgfCBCUy0wMSB8IEdyZXB0aWxlIHN0cmljdG5lc3MgYW5kIGNvbW1lbnQgdHlwZSBzZXR0aW5ncyB8CnwgYC5ncmVwdGlsZS9ydWxlcy5tZGAgfCBCUy0wMSB8IDEwIGFyY2hpdGVjdHVyYWwgYm91bmRhcnkgcnVsZXMgfAp8IGAuZ3JlcHRpbGUvZmlsZXMuanNvbmAgfCBCUy0wMSB8IEdyZXB0aWxlIGNvbnRleHQgZmlsZXMgZm9yIGV2ZXJ5IFBSIHwKfCBgc2VydmVyL3NlcnZpY2VzLy5ncmVwdGlsZS9ydWxlcy5tZGAgfCBCUy0wMSB8IFNlcnZpY2UgbGF5ZXIgcnVsZXMgfAp8IGBkb2NzL2J1aWxkLXNwZWNzL3BoYXNlLTUtcWEtcmVwb3J0Lm1kYCB8IEJTLTAxIHwgUGhhc2UgNSBldmlkZW5jZSB3aXRoIDIwIHBlbmRpbmcgZ2F0ZXMgfAp8IGBzZXJ2ZXIvcm91dGVzLyoudHNgIHwgQlMtMDIgfCBFeHRyYWN0ZWQgcm91dGUgaGFuZGxlcnMgfAp8IGBkb2NzL2J1aWxkLXNwZWNzL3JvdXRlLW1hbmlmZXN0Lm1kYCB8IEJTLTAyIHwgUm91dGUgYXVkaXQgZG9jdW1lbnQgfAp8IGBzZXJ2ZXIvc2VydmljZXMvKi50c2AgKDggbmV3IGZpbGVzKSB8IEJTLTAzIHwgRXh0cmFjdGVkIHNlcnZpY2UgZnVuY3Rpb25zIHwKfCBgZG9jcy9idWlsZC1zcGVjcy9zZXJ2aWNlLW1hbmlmZXN0Lm1kYCB8IEJTLTAzIHwgU2VydmljZSBmdW5jdGlvbiBkZXBlbmRlbmN5IGdyYXBoIHwKfCBgc2VydmVyL2xpYi9zZW50cnkudHNgIHwgQlMtMDQgfCBTZW50cnkgaW5pdGlhbGl6YXRpb24gfAp8IGBzZXJ2ZXIvbGliL3JhdGUtbGltaXQudHNgIHwgQlMtMDQgfCBSYXRlIGxpbWl0aW5nIG1pZGRsZXdhcmUgfAp8IGBzZXJ2ZXIvbGliL2Vycm9yLWhhbmRsZXIudHNgIHwgQlMtMDQgfCBDZW50cmFsaXplZCBlcnJvciBoYW5kbGVyIHwKfCBgc2NyaXB0cy9kZXYuc2hgIHwgQlMtMDUgfCBPbmUtY29tbWFuZCBsb2NhbCBkZXYgc3RhcnR1cCB8CnwgYHN1cGFiYXNlL3NlZWQuc3FsYCB8IEJTLTA1IHwgQ29tcHJlaGVuc2l2ZSB0ZXN0IHNlZWQgZGF0YSB8CnwgYGRvY3MvbG9jYWwtZGV2LXF1aWNrc3RhcnQubWRgIHwgQlMtMDUgfCBMb2NhbCBkZXYgZ3VpZGUgZm9yIGFnZW50cyB8CnwgYGRvY3MvYnVpbGQtc3BlY3MvYWN0aXZhdGlvbi1yZWFkaW5lc3MubWRgIHwgQlMtMDUgfCAyMC1nYXRlIGFjdGl2YXRpb24gY2hlY2tsaXN0IHwKfCBgZG9jcy9hcmNoaXRlY3R1cmUubWRgIHwgQlMtMDYgfCBTeXN0ZW0gYXJjaGl0ZWN0dXJlIGRvY3VtZW50YXRpb24gfAp8IGAuZ2l0aHViL0NPREVPV05FUlNgIHwgQlMtMDYgfCBSZXZpZXcgb3duZXJzaGlwIHwKfCBgLmdpdGh1Yi9wdWxsX3JlcXVlc3RfdGVtcGxhdGUubWRgIHwgQlMtMDYgfCBTdGFuZGFyZCBQUiB0ZW1wbGF0ZSB8CnwgYGRvY3MvZ3JlcHRpbGUtbGVhcm5pbmctbm90ZXMubWRgIHwgQlMtMDYgfCBHcmVwdGlsZSB0cmFpbmluZyBndWlkYW5jZSB8CnwgYGRvY3MvYnVpbGQtc3BlY3MvdGVuYW5jeS1hdWRpdC5tZGAgfCBCUy0wNiB8IFBlci1mdW5jdGlvbiB0ZW5hbnQgaXNvbGF0aW9uIGF1ZGl0IHw=
+# Vinifera — Codex Dispatch Guide
+**Generated:** 2026-07-27  
+**Owner:** EdStratum Labs / founder@edstratumlabs.ai  
+**Repo:** `theonlygeranium/vinifera`  
+**Target window:** 8–10 hours of unattended parallel Codex work
+
+---
+
+## How to read this document
+
+This guide tells you exactly how many Codex sessions to open, what prompt to paste into each one, and in what order. Read the wave structure first — it determines which sessions block on which.
+
+---
+
+## Wave structure and parallelism
+
+All six build specs are organized into two waves. Do not start Wave 1 until BS-01 is merged — its Greptile configuration governs the review quality of every subsequent PR.
+
+```
+Timeline (approximate):
+0h ──── BS-01 ───► merge (~1.5h)
+                   │
+              ┌────┴────────────────────┐
+1.5h          ▼                         ▼                         ▼
+         BS-02 (~3.5h)           BS-03 (~5.5h)           BS-04 (~2.5h)
+         Route decomp            Service decomp          Observability
+              │                         │                         │
+              └──────────┬──────────────┘                         │
+5h                       ▼                                        ▼
+                   BS-05 (~4.5h)                          BS-06 (~3.5h)
+                   Local dev / UI                     Hardening / Docs
+                         │                                        │
+9.5h                     └──────────────┬───────────────────────┘
+                                        ▼
+                                   All PRs open
+                                Human review + merge
+```
+
+**Session count:** 6 Codex sessions minimum. BS-03 benefits from up to 8 subagents — those are spawned by the BS-03 primary agent, not opened manually.
+
+---
+
+## Session 1 — BS-01 (open immediately, Wave 0)
+
+> Open this session first. All other sessions wait for this PR to merge before starting Wave 1.
+
+```
+Repository: theonlygeranium/vinifera
+
+Branching rules (mandatory):
+- Do not push to main directly.
+- Create a branch: git checkout -b chore/greptile-config-and-repo-hygiene
+- Commit changes to that branch only.
+- Push and open a PR with: gh pr create --base main --title "chore: greptile config upgrade and repo hygiene" --body "<summary>"
+- Do not merge. Leave open for Greptile + CI review.
+
+Pre-task reading (read ALL before writing any code):
+1. AGENTS.md
+2. CONTINUITY_BRIEF.md
+3. docs/agent-workflow.md
+4. greptile.json (you will replace this)
+5. docs/codebase-assessment-2026-07-27.md
+
+Build spec: docs/build-specs/bs-01-greptile-hygiene.md
+
+Read the build spec in full before starting any task. Execute all four tasks in order:
+1. Migrate greptile.json → .greptile/ folder with config.json, rules.md, files.json
+2. Create per-directory .greptile/ overrides in server/services/, supabase/migrations/, tests/
+3. Remove worker-configuration.d.ts from git tracking; add to .gitignore; add cf-typegen step to CI
+4. Create docs/build-specs/phase-5-qa-report.md from CONTINUITY_BRIEF.md data
+5. Delete old greptile.json
+6. Update CHANGELOG.md
+
+After opening the PR, comment "@greptileai review this draft" on it.
+Do not merge the PR. Signal when the PR is open.
+```
+
+---
+
+## Session 2 — BS-02 (open after BS-01 PR is merged, Wave 1)
+
+```
+Repository: theonlygeranium/vinifera
+
+Branching rules (mandatory):
+- Do not push to main directly.
+- Create a branch: git checkout -b refactor/route-layer-decomposition
+- Commit changes to that branch only.
+- Push and open a PR with: gh pr create --base main --title "refactor: extract route handlers from app.ts into server/routes/" --body "<summary>"
+- Do not merge. Leave open for Greptile + CI review.
+
+Pre-task reading (read ALL before writing any code):
+1. AGENTS.md
+2. CONTINUITY_BRIEF.md
+3. docs/agent-workflow.md
+4. docs/codebase-assessment-2026-07-27.md
+
+Build spec: docs/build-specs/bs-02-route-decomposition.md
+
+Read the build spec in full before starting. This spec allows you to spawn subagents — read the subagent strategy section carefully. The coordination rule is: subagents create route files, only the integration subagent touches app.ts.
+
+Key constraint: do NOT refactor logic during this task. Copy route handlers as-is. If a handler has inline business logic, add a TODO comment and continue. Logic refactoring belongs to BS-03.
+
+After opening the PR, comment "@greptileai review only the route layer changes" on it.
+Do not merge. Signal when the PR is open.
+```
+
+---
+
+## Session 3 — BS-03 (open after BS-01 PR is merged, Wave 1)
+
+> This is the most complex session. The primary agent must produce the service manifest and directory skeleton before dispatching subagents.
+
+```
+Repository: theonlygeranium/vinifera
+
+Branching rules (mandatory):
+- Do not push to main directly.
+- Primary branch: git checkout -b refactor/service-layer-decomposition
+- Subagents each create their own branch (see build spec subagent table)
+- All subagent PRs target main. Primary integration PR also targets main.
+- Do not merge any PR. Leave all open for Greptile + CI review.
+
+Pre-task reading (read ALL before writing any code):
+1. AGENTS.md
+2. CONTINUITY_BRIEF.md
+3. docs/agent-workflow.md
+4. docs/codebase-assessment-2026-07-27.md
+5. All .greptile/ rules files (committed by BS-01)
+
+Build spec: docs/build-specs/bs-03-service-decomposition.md
+
+Read the entire build spec before starting. This task requires spawning up to 8 subagents. Your primary-agent responsibilities are:
+1. Read core-club.ts and integrations.ts in full
+2. Produce docs/build-specs/service-manifest.md (commit this before dispatching)
+3. Create the directory skeleton with empty files (commit before dispatching)
+4. Dispatch one subagent per row in the subagent table
+5. After all subagent PRs are merged, add backward-compat re-exports to originals
+6. Update import paths in server/routes/ (coordinate via branch — do not edit files owned by open BS-02 PRs)
+7. Run full test suite: npm run test:unit && npm run test:e2e && npm run typecheck && npm run build
+
+CRITICAL: extraction is the only goal. No logic changes. No refactoring. No "while I'm here" improvements. Extract-only.
+
+After opening the integration PR, comment:
+"@greptileai check for any business logic remaining in core-club.ts or integrations.ts"
+"@greptileai verify no circular imports were introduced between the new service files"
+Do not merge. Signal when all PRs are open.
+```
+
+---
+
+## Session 4 — BS-04 (open after BS-01 PR is merged, Wave 1)
+
+```
+Repository: theonlygeranium/vinifera
+
+Branching rules (mandatory):
+- Do not push to main directly.
+- Create a branch: git checkout -b feat/observability-and-rate-limiting
+- Commit changes to that branch only.
+- Push and open a PR with: gh pr create --base main --title "feat: add Sentry error tracking and API rate limiting" --body "<summary>"
+- Do not merge. Leave open for Greptile + CI review.
+
+Pre-task reading (read ALL before writing any code):
+1. AGENTS.md
+2. CONTINUITY_BRIEF.md
+3. docs/agent-workflow.md
+4. package.json (check what is already installed before adding dependencies)
+5. wrangler.toml (check existing vars configuration)
+
+Build spec: docs/build-specs/bs-04-observability-rate-limiting.md
+
+Read the build spec in full. Key constraints:
+- The actual SENTRY_DSN value must NEVER appear in any committed file
+- Check package.json first — install only missing packages
+- The error handler must be registered LAST in app.ts (after all routes)
+- If BS-02 is not yet merged, add a TODO comment where routes will be mounted — do not create a merge dependency
+- Write 4 Vitest tests for the error handler
+
+After opening the PR, comment:
+"@greptileai check that no real credentials appear in any file in this diff"
+"@greptileai verify the error handler is registered last in app.ts"
+Do not merge. Signal when the PR is open.
+```
+
+---
+
+## Session 5 — BS-05 (open after BS-01 PR is merged, Wave 2)
+
+> Wave 2 means you can start this as soon as BS-01 is merged. You do not need to wait for BS-02 or BS-03. However, if BS-03 is already merged when you start, import from the new service files rather than the originals.
+
+```
+Repository: theonlygeranium/vinifera
+
+Branching rules (mandatory):
+- Do not push to main directly.
+- Create a branch: git checkout -b feat/local-dev-and-ui-readiness
+- Commit changes to that branch only.
+- Push and open a PR with: gh pr create --base main --title "feat: local dev stack, seed data, and UI smoke test verification" --body "<summary>"
+- Do not merge. Leave open for Greptile + CI review.
+
+Pre-task reading (read ALL before writing any code):
+1. AGENTS.md
+2. CONTINUITY_BRIEF.md — read all 20 activation gates carefully
+3. docs/agent-workflow.md
+4. package.json and wrangler.toml
+5. All existing supabase/seed.sql or seed files if present
+
+Build spec: docs/build-specs/bs-05-local-dev-ui-readiness.md
+
+Read the build spec in full. This spec has two goals:
+Goal 1: A single command starts the full stack locally (Supabase + Worker + Frontend)
+Goal 2: The platform UI renders and authenticates against the local Worker with seeded data
+
+You may spawn a subagent for the seed data task (Task 2) independently of the dev script task (Task 1).
+
+Key tests to pass:
+- GET /api/health → 200
+- POST /api/auth/login (seeded member) → 200 with session cookie
+- GET /api/members with brand-002 cookie on brand-001 endpoint → 403 or empty (tenant isolation)
+- npm run test:e2e → 145/145 passing
+- Zero axe violations
+
+After opening the PR, comment:
+"@greptileai verify tenant isolation is enforced in all seeded queries and smoke test assertions"
+Do not merge. Signal when the PR is open.
+```
+
+---
+
+## Session 6 — BS-06 (open after BS-01 PR is merged, Wave 2)
+
+```
+Repository: theonlygeranium/vinifera
+
+Branching rules (mandatory):
+- Do not push to main directly.
+- Create a branch: git checkout -b chore/architecture-hardening-and-docs
+- Commit changes to that branch only.
+- Push and open a PR with: gh pr create --base main --title "chore: tenancy audit, architecture docs, and governance hardening" --body "<summary>"
+- Do not merge. Leave open for Greptile + CI review.
+
+Pre-task reading (read ALL before writing any code):
+1. AGENTS.md
+2. CONTINUITY_BRIEF.md
+3. docs/agent-workflow.md
+4. All supabase/migrations/ files (you need to understand the multi-tenant schema)
+5. All .greptile/rules.md files (committed by BS-01) — Rule 8 is the primary enforcement target
+
+Build spec: docs/build-specs/bs-06-docs-hardening-tenancy.md
+
+Read the build spec in full. This spec has two independent tracks you can run in parallel:
+Track A (tenancy): Audit all service functions for brand_id scoping, fix gaps, write Vitest tests
+Track B (docs): Write architecture.md, update README, create governance notes, greptile-learning-notes.md
+
+You may spawn one subagent for Track A and one for Track B.
+
+After opening the PR, comment:
+"@greptileai verify all database queries in server/services/ have brand_id scoping"
+"@greptileai check architecture.md accurately reflects the current codebase structure"
+Use 👍 on Greptile comments that correctly identify additional unscoped queries.
+Do not merge. Signal when the PR is open.
+```
+
+---
+
+## Do NOT open these sessions manually
+
+BS-03 dispatches its own subagents (up to 8). Do not create separate Codex sessions for them — BS-03's primary agent manages their lifecycle.
+
+---
+
+## Merge order (human action required after sessions complete)
+
+When all 6 sessions have signaled completion and all PRs are open, merge in this order:
+
+1. **BS-01** first — always. It establishes Greptile rules that all others benefit from.
+2. **BS-04** before BS-02/BS-03 — error handling should be live before route/service work merges.
+3. **BS-02** and **BS-06** concurrently — no file overlap.
+4. **BS-03** integration PR — after BS-02 is merged (import path updates require BS-02 route files to exist).
+5. **BS-05** last — local dev verification against the finalized service and route structure.
+
+Between each merge: wait for Greptile to post its review (~3 minutes), address any flagged issues, then proceed 【kg-wwwgre-3f7f77aa】.
+
+---
+
+## Greptile training actions during the sprint
+
+As PRs come in, take these actions consistently to accelerate Greptile's learning 【kg-wwwgre-8575ec2f】:
+
+| Pattern | Action |
+|---|---|
+| Greptile flags HTTP-only cookie auth | 👎 + reply "Intentional — see greptile-learning-notes.md" |
+| Greptile flags activation guards as dead code | 👎 + reply "Intentional — see CONTINUITY_BRIEF.md activation gates" |
+| Greptile correctly identifies missing brand_id scope | 👍 + reply "Correct — addressing in BS-06 tenancy audit" |
+| Greptile flags any in legacy monolith files | 👎 + reply "Known — being removed by BS-03 decomposition" |
+| Greptile flags any in NEW extracted service files | 👍 + "Fix this one" |
+
+---
+
+## What this sprint does NOT cover
+
+The following items require live credentials and are Track A (human-initiated) tasks. No Codex session should attempt them:
+
+- Stripe Connect activation and Price ID reconciliation
+- EasyPost production key wiring
+- Resend domain verification
+- Cloudflare custom domain routing switch from Pages to Worker
+- Any of the 20 activation gates in CONTINUITY_BRIEF.md
+
+After this sprint the codebase will be structurally ready to pass activation gates. The gates themselves require human action with live credentials.
+
+---
+
+## Files committed by this sprint
+
+| File | Spec | Purpose |
+|---|---|---|
+| `.greptile/config.json` | BS-01 | Greptile strictness and comment type settings |
+| `.greptile/rules.md` | BS-01 | 10 architectural boundary rules |
+| `.greptile/files.json` | BS-01 | Greptile context files for every PR |
+| `server/services/.greptile/rules.md` | BS-01 | Service layer rules |
+| `docs/build-specs/phase-5-qa-report.md` | BS-01 | Phase 5 evidence with 20 pending gates |
+| `server/routes/*.ts` | BS-02 | Extracted route handlers |
+| `docs/build-specs/route-manifest.md` | BS-02 | Route audit document |
+| `server/services/*.ts` (8 new files) | BS-03 | Extracted service functions |
+| `docs/build-specs/service-manifest.md` | BS-03 | Service function dependency graph |
+| `server/lib/sentry.ts` | BS-04 | Sentry initialization |
+| `server/lib/rate-limit.ts` | BS-04 | Rate limiting middleware |
+| `server/lib/error-handler.ts` | BS-04 | Centralized error handler |
+| `scripts/dev.sh` | BS-05 | One-command local dev startup |
+| `supabase/seed.sql` | BS-05 | Comprehensive test seed data |
+| `docs/local-dev-quickstart.md` | BS-05 | Local dev guide for agents |
+| `docs/build-specs/activation-readiness.md` | BS-05 | 20-gate activation checklist |
+| `docs/architecture.md` | BS-06 | System architecture documentation |
+| `.github/CODEOWNERS` | BS-06 | Review ownership |
+| `.github/pull_request_template.md` | BS-06 | Standard PR template |
+| `docs/greptile-learning-notes.md` | BS-06 | Greptile training guidance |
+| `docs/build-specs/tenancy-audit.md` | BS-06 | Per-function tenant isolation audit |
