@@ -1,8 +1,12 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import express from "express";
 import { createApp } from "../../server/app";
 import { getConfigurationReport } from "../../server/config";
+import { errorHandler } from "../../server/lib/error-handler";
+import { createPublicRetentionRouter } from "../../server/routes/retention";
+import { createRouteContext } from "../../server/routes/shared";
 import {
   awardedPoints,
   calculateChurnScore,
@@ -107,6 +111,24 @@ function retentionApp(
       ...env,
     }),
   });
+}
+
+function publicRetentionRouteApp(service: RetentionService) {
+  const createService = (() => service) as unknown as FoundationServiceFactory;
+  const getEnv = (): WorkerEnv => ({
+    ALLOWED_ORIGINS: "https://vinifera.test",
+    APP_ENV: "test",
+    APP_ORIGIN: "https://vinifera.test",
+    UNSUBSCRIBE_SIGNING_SECRET: signingSecret,
+  });
+  const app = express();
+  app.use(
+    createPublicRetentionRouter(
+      createRouteContext({ createService, getEnv }),
+    ),
+  );
+  app.use(errorHandler);
+  return app;
 }
 
 describe("Phase 3 provider activation", () => {
@@ -828,13 +850,22 @@ describe("Phase 3 HTTP contracts", () => {
       { memberId, organizationId },
     );
     const app = retentionApp(service);
-    const confirmation = await request(app).get(
+    const confirmation = await request(publicRetentionRouteApp(service)).get(
       `/api/communications/unsubscribe?token=${encodeURIComponent(token)}`,
     );
     expect(confirmation.status).toBe(200);
     expect(confirmation.type).toBe("text/html");
+    expect(confirmation.headers["cache-control"]).toBe("no-store");
+    expect(confirmation.headers["referrer-policy"]).toBe("no-referrer");
     expect(confirmation.text).toContain("<form");
     expect(service.applyUnsubscribe).not.toHaveBeenCalled();
+
+    const invalid = await request(publicRetentionRouteApp(service)).get(
+      `/api/communications/unsubscribe?token=${"x".repeat(32)}`,
+    );
+    expect(invalid.status).toBe(400);
+    expect(invalid.headers["cache-control"]).toBe("no-store");
+    expect(invalid.headers["referrer-policy"]).toBe("no-referrer");
 
     const oneClick = await request(app).post(
       `/api/communications/unsubscribe?token=${encodeURIComponent(token)}`,

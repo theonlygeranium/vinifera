@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { AppError } from "../lib/errors";
-import type { ReleaseInput } from "../types";
+import type { ReleaseInput, ReleasePatchInput } from "../types";
 import {
   commandId,
   data,
@@ -9,6 +9,13 @@ import {
   uuid,
   type RouteContext,
 } from "./shared";
+
+const releaseWineSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  priceCents: z.number().int().nonnegative().optional(),
+  quantity: z.number().int().min(1).max(120),
+  wineName: z.string().trim().min(1).max(200).optional(),
+});
 
 const releaseSchema = z.object({
   description: z.string().trim().max(5_000).nullable().optional(),
@@ -25,17 +32,19 @@ const releaseSchema = z.object({
     .array(z.object({ priceCents: z.number().int().positive(), tierId: uuid }))
     .min(1)
     .optional(),
-  wines: z
-    .array(
-      z.object({
-        name: z.string().trim().min(1).max(200).optional(),
-        priceCents: z.number().int().nonnegative().optional(),
-        quantity: z.number().int().min(1).max(120),
-        wineName: z.string().trim().min(1).max(200).optional(),
-      }),
-    )
-    .min(1),
+  wines: z.array(releaseWineSchema).min(1),
 });
+
+const releasePatchSchema = releaseSchema
+  .omit({ status: true, wines: true })
+  .partial()
+  .extend({
+    wines: z
+      .array(releaseWineSchema.extend({ id: uuid.optional() }))
+      .min(1)
+      .optional(),
+  })
+  .strict();
 
 function asReleaseInput(input: z.infer<typeof releaseSchema>): ReleaseInput {
   const tiers = input.tierPrices ?? input.tiers ?? [];
@@ -118,20 +127,39 @@ export default function createReleasesRouter(
   router.patch("/api/releases/:id", async (request, response) => {
     // TODO(BS-03): move logic to service layer
     const releaseId = uuid.parse(request.params.id);
-    const raw = parseBody(releaseSchema.partial(), request);
-    const tiers = raw.tierPrices ?? raw.tiers;
-    const tierIds = raw.tierIds ?? tiers?.map((tier) => tier.tierId);
-    if (tierIds && new Set(tierIds).size !== tierIds.length) {
+    const raw = parseBody(releasePatchSchema, request);
+    if (Object.keys(raw).length === 0) {
       throw new AppError(
         400,
         "invalid_request",
-        "Choose each participating tier once and set its release price.",
+        "Supply at least one release field to update.",
       );
     }
+    const hasTierPrices = "tierPrices" in raw;
+    const hasLegacyTiers = "tiers" in raw;
+    if (hasTierPrices && hasLegacyTiers) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "Supply tierPrices or tiers, not both.",
+      );
+    }
+    const hasTierIds = "tierIds" in raw;
+    const hasTiers = hasTierPrices || hasLegacyTiers;
+    if (hasTierIds !== hasTiers) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "Update tierIds and tier prices together.",
+      );
+    }
+    const tiers = raw.tierPrices ?? raw.tiers;
+    const tierIds = raw.tierIds;
     if (tiers && tierIds) {
       const tierPriceIds = tiers.map((tier) => tier.tierId);
       const tierPriceIdSet = new Set(tierPriceIds);
       if (
+        new Set(tierIds).size !== tierIds.length ||
         tierPriceIdSet.size !== tierPriceIds.length ||
         tierIds.length !== tierPriceIds.length ||
         tierIds.some((tierId) => !tierPriceIdSet.has(tierId))
@@ -149,19 +177,20 @@ export default function createReleasesRouter(
         throw new AppError(400, "invalid_request", "Every wine needs a name.");
       }
       return {
-        priceCents: wine.priceCents ?? 0,
+        ...(wine.id ? { id: wine.id } : {}),
+        ...("priceCents" in wine ? { priceCents: wine.priceCents } : {}),
         quantity: wine.quantity,
         wineName,
       };
     });
-    const input: Partial<ReleaseInput> = {
+    const input: ReleasePatchInput = {
       ...("description" in raw ? { description: raw.description } : {}),
       ...("embargoDate" in raw ? { embargoDate: raw.embargoDate } : {}),
       ...("name" in raw ? { name: raw.name } : {}),
       ...("processingDate" in raw
         ? { processingDate: raw.processingDate }
         : {}),
-      ...(tiers || tierIds
+      ...(tiers && tierIds
         ? {
             tierIds,
             tierPrices: tiers,

@@ -23,6 +23,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Release PATCH requests now reject empty bodies, direct
+  status changes, ambiguous tier aliases, and unpaired tier IDs/prices; omit
+  absent nested fields; and reconcile an omitted existing-wine price only by
+  its stable wine ID before rebuilding the release aggregate. New or unknown
+  wines still require an explicit price, while an explicit zero remains zero.
+  The token-bearing unsubscribe confirmation route now owns
+  `Cache-Control: no-store` and `Referrer-Policy: no-referrer` before token
+  parsing and verification. **Why:** Review identified silent aggregate
+  rewrites, undefined tier inputs, destructive zero-price defaults, and
+  route-local privacy headers that depended on global middleware.
+  **Deployment impact:** Worker API request validation and response headers
+  change; no database migration, provider activation, Pages route, or static
+  asset changes are required. **Verification:** `npm run typecheck` and
+  `npx vitest run tests/server/app.test.ts tests/server/core-club.test.ts
+  tests/server/retention.test.ts` (106 tests).
 - Hardened extracted route boundaries after review: release tier/price sets and
   wine names now fail closed when inconsistent, partial email-template updates
   no longer inject `enabled: true`, padded emails normalize before validation,

@@ -36,6 +36,17 @@ whose quantities sum to its snapshotted bottle count. The same invariant
 applies to separately scheduled drafts and releases created directly in the
 scheduled state.
 
+Release PATCH requests preserve that complete-aggregate contract at the HTTP
+and service boundaries. Tier IDs and tier prices must be supplied together,
+with one unambiguous price alias and identical duplicate-free tier sets.
+Status transitions remain available only through their dedicated command
+endpoints, and an empty PATCH cannot trigger an aggregate rewrite. Existing
+wine prices may be omitted only when the request carries that wine's stable
+release-wine ID; the service reconciles the price by ID, never by array
+position or mutable name, and removes the reconciliation ID before calling the
+database command. New or unknown wines require an explicit nonnegative price,
+including an explicit zero when that is intended.
+
 Staff commands carry UUID idempotency keys and canonical SHA-256 request
 fingerprints. PostgreSQL records the command, business mutation, audit row,
 result, and any provider side-effect request in one transaction. Provider calls
@@ -158,5 +169,7 @@ recovery details.
 - PostgreSQL migration reset, pgTAP schema checks, and two-tenant RLS tests
 - Idempotent batch, partial-decline, retry, refund, and shipment-transition tests
 - CSV format, limit, validation, duplicate, preview, and commit tests
+- Release PATCH pairing, status/empty-body rejection, stable wine-ID price
+  reconciliation, explicit-zero, and unknown-wine tests
 - Playwright functional, axe-core, breakpoint, layout, and performance gates
 - Signed Stripe webhook replay and EasyPost test-label creation after activation

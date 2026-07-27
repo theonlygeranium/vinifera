@@ -49,6 +49,7 @@ import type {
   PlanTier,
   PostalAddress,
   ReleaseInput,
+  ReleasePatchInput,
   ReleaseStatus,
   ShipmentStatus,
   StaffPrincipal,
@@ -3434,7 +3435,7 @@ export class ProductionCoreClubService implements CoreClubService {
 
   async updateRelease(
     releaseId: string,
-    input: Partial<ReleaseInput>,
+    input: ReleasePatchInput,
     commandId: string,
   ): Promise<Record<string, unknown>> {
     assertUuid(releaseId, "Release");
@@ -3443,6 +3444,42 @@ export class ProductionCoreClubService implements CoreClubService {
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
     const current = await this.getRelease(releaseId);
+    const currentWines =
+      (current.wines as Array<Record<string, unknown>> | undefined) ?? [];
+    const currentWinePrices = new Map(
+      currentWines
+        .filter((wine) => typeof wine.id === "string")
+        .map((wine) => [String(wine.id), Number(wine.priceCents)]),
+    );
+    const completeWines = input.wines
+      ? input.wines.map((wine) => {
+          if (wine.priceCents !== undefined) {
+            return {
+              priceCents: wine.priceCents,
+              quantity: wine.quantity,
+              wineName: wine.wineName,
+            };
+          }
+          const storedPrice =
+            wine.id === undefined ? undefined : currentWinePrices.get(wine.id);
+          if (storedPrice === undefined) {
+            throw new AppError(
+              400,
+              "invalid_request",
+              "Each new or unknown wine needs an explicit price.",
+            );
+          }
+          return {
+            priceCents: storedPrice,
+            quantity: wine.quantity,
+            wineName: wine.wineName,
+          };
+        })
+      : currentWines.map((row) => ({
+          priceCents: Number(row.priceCents),
+          quantity: Number(row.quantity),
+          wineName: String(row.name),
+        }));
     const completeInput: ReleaseInput = {
       description:
         Object.prototype.hasOwnProperty.call(input, "description")
@@ -3471,15 +3508,7 @@ export class ProductionCoreClubService implements CoreClubService {
             tierId: String(row.id),
           }),
         )),
-      wines:
-        input.wines ??
-        (((current.wines as Array<Record<string, unknown>> | undefined) ?? []).map(
-          (row) => ({
-            priceCents: Number(row.priceCents),
-            quantity: Number(row.quantity),
-            wineName: String(row.name),
-          }),
-        )),
+      wines: completeWines,
     };
     const { data, error } = await this.admin.rpc("apply_release_command", {
       p_actor_user_id: principal.user.id,
