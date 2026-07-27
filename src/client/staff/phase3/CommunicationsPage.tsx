@@ -203,13 +203,15 @@ export function CommunicationsPage() {
 
   async function sendTest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected) return;
+    if (!selected || !draft) return;
     setBusy("test");
     setFeedback(null);
     try {
       await postJson(`/api/email/templates/${selected.id}/test`, {
+        body: draft.body,
         email: testRecipient,
         recipient: testRecipient,
+        subject: draft.subject,
       });
       setTestOpen(false);
       setTestRecipient("");

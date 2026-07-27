@@ -34,8 +34,16 @@ connection-ready source architecture:
   immutable Stripe event convergence, and bounded stale-refund recovery leases
 - A final live-reference check before member provider-identity deletion
 - EasyPost address/label adapter with fail-closed activation and a test-only deterministic simulator
-- Durable Resend email outbox, six lifecycle triggers, signed delivery webhooks, and unsubscribe handling
-- Explainable nightly churn snapshots, a configurable four-step cancellation flow, and a FIFO loyalty ledger
+- Durable Resend email outbox with lease-token completion, one stable provider
+  key per logical message, bounded concurrency, early-webhook inbox,
+  monotonic delivery convergence, six lifecycle triggers, and deterministic
+  signed unsubscribe handling
+- Explainable nightly churn snapshots, immutable/expiring four-step
+  cancellation attempts, resumable pauses, command-idempotent loyalty
+  mutations, paginated ledgers, and FIFO point lots
+- Brand-complete Phase 3 defaults, composite organization/brand/member
+  integrity, validated winery time zones, and an independent durable daily
+  retention scheduler
 - Operational-fact analytics, saved dashboard layouts, CSV exports, and
   scheduled summary reports
 - A guarded L2 logistic training, scoring, A/B, drift, promotion, and
@@ -165,13 +173,13 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   are deferred, so no retry was attempted; reconcile the fixed lookup key only
   when activation is explicitly resumed.
 - The current credential-independent architecture gate passes: dependency
-  audit 0, TypeScript green, Vitest 290/290 with focused Phase 2 at 72/72,
-  Phase 1 database 92/92, Phase 2 231/231 (170 point-in-time plus 61
-  current-stack transactional), Phase 3 138/138, Phase 4 121/121, Phase 5
-  340/340, and Playwright 136/136 with Phase 2 at 38/38, zero axe violations,
-  and 375/768/1440 coverage. Phase 2 release/import RPCs complete in
-  10.76/338.85 ms, the single-worker 100-member roster in 941.7 ms, LCP in
-  712 ms, and CLS at 0. Pages and default/production Worker dry-run builds pass, as do
+  audit 0, TypeScript green, Vitest 301/301, Phase 1 database 92/92, Phase 2
+  231/231, Phase 3 199/199 (138 point-in-time plus 61 current-stack
+  hardening), Phase 4 121/121, Phase 5 401/401, and Playwright 141/141 with
+  Phase 3 at 27/27, zero axe violations, and 375/768/1440 coverage. Phase 3
+  scores 1,000 members in 155.11 ms and claims 100 emails in 7.48 ms; the
+  single-worker 100-member roster renders in 943.50 ms, latest LCP is 436 ms,
+  and CLS is 0. Pages and default/production Worker dry-run builds pass, as do
   production release 14/14, mobile release 7/7, Stripe catalog 16/16, mobile
   identity, and compile-only Capacitor Android/iOS sync.
 - Architecture commit `5d36471` passed GitHub Actions run

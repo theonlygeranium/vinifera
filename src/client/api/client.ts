@@ -5,6 +5,11 @@ const COMMAND_STORAGE_PREFIX = "vinifera.pending-command.";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 let nativeAccessTokenProvider: (() => Promise<string | null>) | null = null;
+let authCommandScope: {
+  brandId: string | null;
+  organizationId: string | null;
+  subjectId: string;
+} | null = null;
 const pendingCommandKeys = new Map<string, string>();
 
 interface ErrorBody {
@@ -97,7 +102,7 @@ function resolveApiUrl(path: `/api/${string}`) {
   return new URL(path, origin).toString();
 }
 
-function isTransactionalCoreCommand(
+function isTransactionalCommand(
   method: string,
   path: `/api/${string}`,
 ): boolean {
@@ -108,7 +113,11 @@ function isTransactionalCoreCommand(
       path === "/api/members" ||
       path === "/api/members/batch" ||
       path === "/api/releases" ||
+      path === "/api/member/cancel-flow" ||
+      path === "/api/member/cancel-flow/events" ||
+      path === "/api/member/loyalty/redeem" ||
       /^\/api\/club-tiers\/[0-9a-f-]+\/assign$/i.test(path) ||
+      /^\/api\/loyalty\/members\/[0-9a-f-]+\/adjust$/i.test(path) ||
       /^\/api\/releases\/[0-9a-f-]+\/schedule$/i.test(path) ||
       /^\/api\/shipments\/[0-9a-f-]+\/refund$/i.test(path)
     )
@@ -132,12 +141,112 @@ function isTransactionalCoreCommand(
   );
 }
 
+function isBrandNeutralPath(path: `/api/${string}`): boolean {
+  return (
+    path.startsWith("/api/auth/") ||
+    path.startsWith("/api/member/") ||
+    path.startsWith("/api/mobile/") ||
+    path.startsWith("/api/portal/") ||
+    path.startsWith("/api/brands") ||
+    path.startsWith("/api/organization/")
+  );
+}
+
+function updateAuthTenantScope(
+  path: `/api/${string}`,
+  payload: unknown,
+  responseOk: boolean,
+): void {
+  if (!responseOk) return;
+  if (
+    path === "/api/auth/staff/logout" ||
+    path === "/api/auth/member/logout" ||
+    path === "/api/auth/member/mobile/logout"
+  ) {
+    authCommandScope = null;
+    return;
+  }
+  if (
+    path !== "/api/auth/staff/session" &&
+    path !== "/api/auth/member/session"
+  ) {
+    return;
+  }
+  const unwrapped =
+    payload &&
+    typeof payload === "object" &&
+    "data" in payload
+      ? (payload as { data: unknown }).data
+      : payload;
+  if (!unwrapped || typeof unwrapped !== "object") {
+    authCommandScope = null;
+    return;
+  }
+  const session = unwrapped as {
+    authenticated?: unknown;
+    brand?: { id?: unknown } | null;
+    organization?: { id?: unknown } | null;
+    user?: { id?: unknown } | null;
+  };
+  const brandId = session.brand?.id;
+  const organizationId = session.organization?.id;
+  const subjectId = session.user?.id;
+  authCommandScope =
+    session.authenticated === true &&
+    typeof subjectId === "string" &&
+    UUID_PATTERN.test(subjectId)
+      ? {
+          brandId:
+            typeof brandId === "string" && UUID_PATTERN.test(brandId)
+              ? brandId
+              : null,
+          organizationId:
+            typeof organizationId === "string" &&
+            UUID_PATTERN.test(organizationId)
+              ? organizationId
+              : null,
+          subjectId,
+        }
+      : null;
+}
+
+function commandScope(
+  brandNeutral: boolean,
+  activeBrandId: string | null,
+): string {
+  const authScope = authCommandScope
+    ? `tenant:${authCommandScope.organizationId ?? "platform"}:subject:${authCommandScope.subjectId}:session-brand:${authCommandScope.brandId ?? "none"}`
+    : "tenant:auth-session:subject:unknown:session-brand:unknown";
+  return brandNeutral
+    ? authScope
+    : `${authScope}:active-brand:${activeBrandId ?? "default"}`;
+}
+
 async function commandFingerprint(
+  scope: string,
   method: string,
   path: `/api/${string}`,
   body: BodyInit | null | undefined,
 ): Promise<string> {
-  const source = `${method}:${path}:${typeof body === "string" ? body : ""}`;
+  let bodyForFingerprint = typeof body === "string" ? body : "";
+  if (bodyForFingerprint) {
+    try {
+      const parsed = JSON.parse(bodyForFingerprint) as unknown;
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed) &&
+        "idempotencyKey" in parsed
+      ) {
+        const canonical = { ...(parsed as Record<string, unknown>) };
+        delete canonical.idempotencyKey;
+        bodyForFingerprint = JSON.stringify(canonical);
+      }
+    } catch {
+      // Non-JSON request bodies are fingerprinted exactly as supplied.
+    }
+  }
+  const source = `${scope}:${method}:${path}:${bodyForFingerprint}`;
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(source),
@@ -193,28 +302,47 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const headers = new Headers(options.headers);
   const method = (options.method ?? "GET").toUpperCase();
-  const transactionalCommand = isTransactionalCoreCommand(method, path);
+  const brandId = readActiveBrandId();
+  const brandNeutral = isBrandNeutralPath(path);
+  const transactionalCommand = isTransactionalCommand(method, path);
+  const fingerprintScope = commandScope(brandNeutral, brandId);
   const fingerprint = transactionalCommand
-    ? await commandFingerprint(method, path, options.body)
+    ? await commandFingerprint(fingerprintScope, method, path, options.body)
     : null;
+  let requestBody = options.body;
   if (fingerprint && !headers.has("Idempotency-Key")) {
     const retainedKey = readPendingCommandKey(fingerprint);
-    const nextKey = retainedKey ?? crypto.randomUUID();
+    let bodyKey: string | null = null;
+    if (typeof requestBody === "string") {
+      try {
+        const parsed = JSON.parse(requestBody) as unknown;
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          !Array.isArray(parsed) &&
+          typeof (parsed as Record<string, unknown>).idempotencyKey === "string" &&
+          UUID_PATTERN.test(
+            (parsed as Record<string, unknown>).idempotencyKey as string,
+          )
+        ) {
+          bodyKey = (parsed as Record<string, unknown>).idempotencyKey as string;
+        }
+      } catch {
+        // The generated header still protects non-JSON transactional commands.
+      }
+    }
+    const nextKey = retainedKey ?? bodyKey ?? crypto.randomUUID();
     retainPendingCommandKey(fingerprint, nextKey);
     headers.set("Idempotency-Key", nextKey);
+    if (typeof requestBody === "string" && bodyKey) {
+      const parsed = JSON.parse(requestBody) as Record<string, unknown>;
+      requestBody = JSON.stringify({ ...parsed, idempotencyKey: nextKey });
+    }
   }
-  if (options.body && !(options.body instanceof FormData)) {
+  if (requestBody && !(requestBody instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
   headers.set("Accept", "application/json");
-  const brandId = readActiveBrandId();
-  const brandNeutral =
-    path.startsWith("/api/auth/") ||
-    path.startsWith("/api/member/") ||
-    path.startsWith("/api/mobile/") ||
-    path.startsWith("/api/portal/") ||
-    path.startsWith("/api/brands") ||
-    path.startsWith("/api/organization/");
   if (brandId && !brandNeutral) {
     headers.set("X-Vinifera-Brand-Id", brandId);
   }
@@ -227,6 +355,7 @@ export async function apiRequest<T>(
   try {
     response = await fetch(resolveApiUrl(path), {
       ...options,
+      body: requestBody,
       headers,
       credentials: "include",
     });
@@ -238,6 +367,7 @@ export async function apiRequest<T>(
   }
 
   const payload = await parseResponse(response);
+  updateAuthTenantScope(path, payload, response.ok);
   const retryableResponse =
     response.status >= 500 ||
     response.status === 408 ||

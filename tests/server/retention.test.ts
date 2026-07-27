@@ -1,21 +1,29 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createApp } from "../../server/app";
 import { getConfigurationReport } from "../../server/config";
 import {
   awardedPoints,
   calculateChurnScore,
+  cancelOutcomeMessage,
+  commandRequestFingerprint,
   createTransactionalEmailProvider,
   createUnsubscribeToken,
   deliverClaimedEmails,
   deliverLoggedTestEmail,
+  decodeLoyaltyLedgerCursor,
+  encodeLoyaltyLedgerCursor,
+  normalizeCancelFlowAnalyticsSnapshot,
   portalLoginIdempotencyKey,
+  recordEmailProviderEvent,
   renderTransactionalEmail,
   resolveBrandSenderIdentity,
   ResendEmailProvider,
   sanitizeTemplateHtml,
   sanitizeTemplateSubject,
   SimulatedEmailProvider,
+  runRetentionSchedule,
   verifyResendSignature,
   verifyUnsubscribeToken,
 } from "../../server/services/retention";
@@ -28,7 +36,10 @@ import type {
 const organizationId = "10000000-0000-4000-8000-000000000001";
 const memberId = "30000000-0000-4000-8000-000000000001";
 const templateId = "40000000-0000-4000-8000-000000000001";
+const commandId = "50000000-0000-4000-8000-000000000001";
 const signingSecret = "test-only-signing-secret-with-enough-entropy";
+const unsubscribeSignedAt = "2026-07-26T00:00:00.000Z";
+const unsubscribeExpiresAt = "2026-08-25T00:00:00.000Z";
 
 function retention(overrides: Partial<RetentionService> = {}): RetentionService {
   return {
@@ -300,6 +311,7 @@ describe("Phase 3 email safety", () => {
     const rows = Array.from({ length: 100 }, (_, index) => ({
       attempt_count: 1,
       body: "<p>Hello {{member_name}}</p>",
+      completion_token: crypto.randomUUID(),
       email_log_id: `log-${index}`,
       member_id: memberId,
       organization_id: organizationId,
@@ -308,6 +320,8 @@ describe("Phase 3 email safety", () => {
       subject: "Welcome",
       to_email: `member${index}@example.com`,
       trigger_type: "welcome" as const,
+      unsubscribe_expires_at: unsubscribeExpiresAt,
+      unsubscribe_signed_at: unsubscribeSignedAt,
     }));
     const provider = new SimulatedEmailProvider();
     const mark = vi.fn().mockResolvedValue(undefined);
@@ -333,11 +347,14 @@ describe("Phase 3 email safety", () => {
     const base = {
       attempt_count: 1,
       body: "<p>Hello</p>",
+      completion_token: commandId,
       member_id: null,
       organization_id: organizationId,
       payload: null,
       subject: "Welcome",
       trigger_type: "welcome" as const,
+      unsubscribe_expires_at: unsubscribeExpiresAt,
+      unsubscribe_signed_at: unsubscribeSignedAt,
     };
     const result = await deliverClaimedEmails({
       appOrigin: "https://vinifera.test",
@@ -366,13 +383,162 @@ describe("Phase 3 email safety", () => {
     expect(result).toEqual({ failed: 1, sent: 1 });
     expect(provider.sendBatch).toHaveBeenCalledWith(
       [expect.objectContaining({ to: "fallback@example.com" })],
-      expect.stringMatching(/^outbox:/),
+      "outbox:outbox-fallback",
     );
     expect(mark).toHaveBeenCalledWith(
       expect.objectContaining({ email_log_id: "log-pending" }),
       "failed",
       null,
+      expect.any(String),
     );
+  });
+
+  it("isolates provider failures per outbox row and uses a stable key per message", async () => {
+    const row = (suffix: string) => ({
+      attempt_count: 1,
+      body: "<p>Hello</p>",
+      completion_token: crypto.randomUUID(),
+      email_log_id: `log-${suffix}`,
+      member_id: null,
+      organization_id: organizationId,
+      outbox_id: `outbox-${suffix}`,
+      payload: null,
+      subject: "Welcome",
+      to_email: `${suffix}@example.com`,
+      trigger_type: "welcome" as const,
+      unsubscribe_expires_at: unsubscribeExpiresAt,
+      unsubscribe_signed_at: unsubscribeSignedAt,
+    });
+    const provider = {
+      sendBatch: vi.fn().mockImplementation(
+        async (
+          messages: Array<{ to: string }>,
+          idempotencyKey: string,
+        ) => {
+          if (messages[0]?.to === "bad@example.com") {
+            throw new Error("provider unavailable");
+          }
+          return [{ id: `${idempotencyKey}:receipt` }];
+        },
+      ),
+    };
+    const mark = vi.fn().mockResolvedValue(undefined);
+    await expect(
+      deliverClaimedEmails({
+        appOrigin: "https://vinifera.test",
+        env: { UNSUBSCRIBE_SIGNING_SECRET: signingSecret },
+        mark,
+        provider,
+        rows: [row("bad"), row("good")],
+      }),
+    ).resolves.toEqual({ failed: 1, sent: 1 });
+
+    expect(provider.sendBatch).toHaveBeenCalledWith(
+      [expect.objectContaining({ to: "bad@example.com" })],
+      "outbox:outbox-bad",
+    );
+    expect(provider.sendBatch).toHaveBeenCalledWith(
+      [expect.objectContaining({ to: "good@example.com" })],
+      "outbox:outbox-good",
+    );
+    expect(mark).toHaveBeenCalledWith(
+      expect.objectContaining({ outbox_id: "outbox-bad" }),
+      "failed",
+      null,
+      "provider_delivery_failed",
+    );
+    expect(mark).toHaveBeenCalledWith(
+      expect.objectContaining({ outbox_id: "outbox-good" }),
+      "sent",
+      "outbox:outbox-good:receipt",
+    );
+  });
+
+  it("retries provider-accepted completion failures with identical content and key", async () => {
+    const row = {
+      attempt_count: 1,
+      body: "<p>Hello {{member_name}}</p>",
+      completion_token: commandId,
+      email_log_id: "log-retry",
+      member_id: memberId,
+      organization_id: organizationId,
+      outbox_id: "outbox-retry",
+      payload: { member_name: "Avery", organization_name: "Winery" },
+      subject: "Welcome",
+      to_email: "member@example.com",
+      trigger_type: "welcome" as const,
+      unsubscribe_expires_at: unsubscribeExpiresAt,
+      unsubscribe_signed_at: unsubscribeSignedAt,
+    };
+    const provider = {
+      sendBatch: vi.fn().mockResolvedValue([{ id: "provider-email-1" }]),
+    };
+    const mark = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("database unavailable"))
+      .mockResolvedValue(undefined);
+    const registerUnsubscribe = vi.fn().mockResolvedValue(undefined);
+    const deliver = () =>
+      deliverClaimedEmails({
+        appOrigin: "https://vinifera.test",
+        env: { UNSUBSCRIBE_SIGNING_SECRET: signingSecret },
+        mark,
+        provider,
+        registerUnsubscribe,
+        rows: [row],
+      });
+
+    await expect(deliver()).resolves.toEqual({ failed: 1, sent: 0 });
+    await expect(deliver()).resolves.toEqual({ failed: 0, sent: 1 });
+    expect(provider.sendBatch).toHaveBeenCalledTimes(2);
+    expect(provider.sendBatch.mock.calls[0]?.[1]).toBe("outbox:outbox-retry");
+    expect(provider.sendBatch.mock.calls[1]?.[1]).toBe("outbox:outbox-retry");
+    expect(provider.sendBatch.mock.calls[0]?.[0]).toEqual(
+      provider.sendBatch.mock.calls[1]?.[0],
+    );
+    expect(registerUnsubscribe.mock.calls[0]?.[1]).toBe(
+      registerUnsubscribe.mock.calls[1]?.[1],
+    );
+    expect(mark).toHaveBeenNthCalledWith(1, row, "sent", "provider-email-1");
+    expect(mark).toHaveBeenNthCalledWith(2, row, "sent", "provider-email-1");
+  });
+
+  it("bounds concurrent one-message provider sends", async () => {
+    let active = 0;
+    let maximum = 0;
+    const provider = {
+      sendBatch: vi.fn().mockImplementation(async () => {
+        active += 1;
+        maximum = Math.max(maximum, active);
+        await new Promise((resolve) => setTimeout(resolve, 2));
+        active -= 1;
+        return [{ id: crypto.randomUUID() }];
+      }),
+    };
+    const rows = Array.from({ length: 24 }, (_, index) => ({
+      attempt_count: 1,
+      body: "<p>Hello</p>",
+      completion_token: crypto.randomUUID(),
+      email_log_id: `concurrency-log-${index}`,
+      member_id: null,
+      organization_id: organizationId,
+      outbox_id: `concurrency-outbox-${index}`,
+      payload: null,
+      subject: "Welcome",
+      to_email: `concurrency-${index}@example.com`,
+      trigger_type: "welcome" as const,
+      unsubscribe_expires_at: unsubscribeExpiresAt,
+      unsubscribe_signed_at: unsubscribeSignedAt,
+    }));
+    await deliverClaimedEmails({
+      appOrigin: "https://vinifera.test",
+      env: { UNSUBSCRIBE_SIGNING_SECRET: signingSecret },
+      mark: vi.fn().mockResolvedValue(undefined),
+      provider,
+      rows,
+    });
+    expect(maximum).toBeLessThanOrEqual(8);
+    expect(maximum).toBeGreaterThan(1);
   });
 
   it("persists a test-email log before provider delivery and converges its receipt", async () => {
@@ -412,6 +578,186 @@ describe("Phase 3 email safety", () => {
 });
 
 describe("Phase 3 explainable retention rules", () => {
+  it("round-trips a deterministic loyalty snapshot cursor and rejects malformed cursors", () => {
+    const cursor = encodeLoyaltyLedgerCursor({
+      beforeSequence: 25,
+      snapshotSequence: 50,
+    });
+    expect(decodeLoyaltyLedgerCursor(cursor)).toEqual({
+      beforeSequence: 25,
+      snapshotSequence: 50,
+    });
+    expect(() => decodeLoyaltyLedgerCursor("not-a-cursor")).toThrowError(
+      expect.objectContaining({ code: "invalid_request", status: 400 }),
+    );
+    expect(() =>
+      decodeLoyaltyLedgerCursor(
+        Buffer.from(
+          JSON.stringify({ beforeSequence: 51, snapshotSequence: 50 }),
+        ).toString("base64url"),
+      ),
+    ).toThrowError(
+      expect.objectContaining({ code: "invalid_request", status: 400 }),
+    );
+  });
+
+  it("normalizes database analytics fractions and completed-step outcomes for the UI", () => {
+    expect(
+      normalizeCancelFlowAnalyticsSnapshot({
+        abandonedCount: 1,
+        attemptCount: 3,
+        cancelledCount: 1,
+        recentOutcomes: [
+          {
+            attemptId: "attempt-1",
+            completedAt: "2026-07-26T12:00:00.000Z",
+            memberEmail: "avery@example.test",
+            memberFirstName: "Avery",
+            memberId,
+            memberLastName: "Stone",
+            outcome: "paused",
+            status: "intercepted",
+            step: "pause",
+          },
+        ],
+        retainedCount: 1,
+        retentionRate: 0.3333,
+        steps: [
+          {
+            cancelledCount: 0,
+            continuedCount: 1,
+            conversionRate: 0.6667,
+            interceptedCount: 2,
+            stepPosition: 1,
+            stepType: "pause",
+            viewedCount: 3,
+          },
+        ],
+      }),
+    ).toMatchObject({
+      recentOutcomes: [
+        {
+          memberName: "Avery Stone",
+          outcome: "paused",
+          step: "pause",
+        },
+      ],
+      retentionRate: 33.33,
+      steps: [{ conversionRate: 66.67, step: "pause" }],
+    });
+  });
+
+  it("fingerprints canonical command payloads and uses persisted replay outcomes", async () => {
+    await expect(
+      Promise.all([
+        commandRequestFingerprint("loyalty.adjust", {
+          memberId,
+          points: 25,
+          reason: "Service recovery",
+        }),
+        commandRequestFingerprint("loyalty.adjust", {
+          reason: "Service recovery",
+          points: 25,
+          memberId,
+        }),
+      ]),
+    ).resolves.toEqual([expect.any(String), expect.any(String)]);
+    const [left, right] = await Promise.all([
+      commandRequestFingerprint("loyalty.adjust", {
+        memberId,
+        points: 25,
+        reason: "Service recovery",
+      }),
+      commandRequestFingerprint("loyalty.adjust", {
+        reason: "Service recovery",
+        points: 25,
+        memberId,
+      }),
+    ]);
+    expect(left).toBe(right);
+    expect(left).toMatch(/^[a-f0-9]{64}$/);
+    expect(cancelOutcomeMessage("paused")).toBe(
+      "Your membership pause is confirmed.",
+    );
+    expect(cancelOutcomeMessage("cancelled")).toBe(
+      "Your membership has been cancelled.",
+    );
+  });
+
+  it("persists early provider events through the reconciliation RPC", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ duplicate: false, matched: false }],
+      error: null,
+    });
+    await expect(
+      recordEmailProviderEvent(
+        { rpc } as unknown as SupabaseClient,
+        {
+          eventType: "delivered",
+          occurredAt: "2026-07-26T00:00:00.000Z",
+          payload: { data: { email_id: "early-provider-id" } },
+          providerEmailId: "early-provider-id",
+          providerEventId: "provider-event-1",
+        },
+      ),
+    ).resolves.toEqual({ duplicate: false, matched: false });
+    expect(rpc).toHaveBeenCalledWith("record_email_provider_event", {
+      p_event_type: "delivered",
+      p_occurred_at: "2026-07-26T00:00:00.000Z",
+      p_payload: { data: { email_id: "early-provider-id" } },
+      p_provider_email_id: "early-provider-id",
+      p_provider_event_id: "provider-event-1",
+    });
+  });
+
+  it("runs durable daily retention work even when email delivery is unavailable", async () => {
+    const rpc = vi.fn().mockImplementation(async (name: string) => {
+      if (name === "enqueue_due_email_triggers") {
+        return { data: 2, error: null };
+      }
+      if (name === "run_retention_daily_jobs") {
+        return {
+          data: {
+            cancelAttemptsExpired: 3,
+            churnScoresWritten: 4,
+            loyaltyAwardsWritten: 5,
+            loyaltyLotsExpired: 6,
+            membersResumed: 7,
+          },
+          error: null,
+        };
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+    await expect(
+      runRetentionSchedule(
+        {
+          APP_ENV: "test",
+          APP_ORIGIN: "https://vinifera.test",
+          EMAIL_PROVIDER: "simulated",
+          EMAIL_SIMULATOR_ENABLED: "true",
+          UNSUBSCRIBE_SIGNING_SECRET: signingSecret,
+        },
+        new Date("2026-07-26T04:00:00.000Z"),
+        {
+          admin: { rpc } as unknown as SupabaseClient,
+          deliverEmail: vi.fn().mockRejectedValue(new Error("provider outage")),
+        },
+      ),
+    ).resolves.toEqual({
+      cancelAttemptsExpired: 3,
+      churnScoresUpdated: 4,
+      email: { failed: 0, sent: 0 },
+      failures: ["email_delivery"],
+      loyaltyEventsProcessed: 5,
+      loyaltyExpired: 6,
+      membersResumed: 7,
+    });
+    expect(rpc).toHaveBeenCalledWith("run_retention_daily_jobs", {
+      p_job_date: "2026-07-26",
+    });
+  });
+
   it("assigns deterministic low, medium, and high churn scores with factors", () => {
     const low = calculateChurnScore({
       daysSinceInteraction: 2,
@@ -514,7 +860,11 @@ describe("Phase 3 HTTP contracts", () => {
     await request(app)
       .post(`/api/email/templates/${templateId}/test`)
       .set("Origin", origin)
-      .send({ recipient: "member@example.com" })
+      .send({
+        body: "Unsaved body",
+        recipient: "member@example.com",
+        subject: "Unsaved subject",
+      })
       .expect(202);
 
     expect(service.updateEmailTemplate).toHaveBeenCalledWith(
@@ -526,8 +876,112 @@ describe("Phase 3 HTTP contracts", () => {
       expect.objectContaining({ body: "Draft", subject: "Draft subject" }),
     );
     expect(service.sendEmailTemplateTest).toHaveBeenCalledWith(templateId, {
+      body: "Unsaved body",
       email: "member@example.com",
+      subject: "Unsaved subject",
       variables: undefined,
+    });
+  });
+
+  it("requires UUID command keys for cancel and manual loyalty mutations", async () => {
+    const service = retention();
+    const app = retentionApp(service);
+    const origin = "https://vinifera.test";
+    await request(app)
+      .post("/api/member/cancel-flow")
+      .set("Origin", origin)
+      .send({ confirmed: true })
+      .expect(400);
+    await request(app)
+      .post("/api/member/cancel-flow")
+      .set("Idempotency-Key", commandId)
+      .set("Origin", origin)
+      .send({ confirmed: true })
+      .expect(201);
+    await request(app)
+      .post("/api/member/cancel-flow/events")
+      .set("Idempotency-Key", commandId)
+      .set("Origin", origin)
+      .send({ action: "paused", step: "pause" })
+      .expect(200);
+    await request(app)
+      .post(`/api/loyalty/members/${memberId}/adjust`)
+      .set("Idempotency-Key", commandId)
+      .set("Origin", origin)
+      .send({ points: 25, reason: "Service recovery" })
+      .expect(201);
+
+    expect(service.startMemberCancelFlow).toHaveBeenCalledWith(commandId);
+    expect(service.processCancelFlowEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ commandId }),
+    );
+    expect(service.adjustLoyaltyPoints).toHaveBeenCalledWith(
+      memberId,
+      { points: 25, reason: "Service recovery" },
+      commandId,
+    );
+  });
+
+  it("keeps confirmation last and validates ledger pagination", async () => {
+    const service = retention();
+    const app = retentionApp(service);
+    const origin = "https://vinifera.test";
+    await request(app)
+      .patch("/api/cancel-flow/config")
+      .set("Origin", origin)
+      .send({
+        steps: [
+          { enabled: true, id: "confirm", position: 1 },
+          { enabled: true, id: "pause", position: 2 },
+          { enabled: true, id: "downgrade", position: 3 },
+          { enabled: true, id: "swap", position: 4 },
+        ],
+      })
+      .expect(400);
+    await request(app)
+      .get(`/api/loyalty/members/${memberId}?limit=20&cursor=staff-cursor`)
+      .expect(200);
+    await request(app)
+      .get("/api/member/loyalty?limit=10&cursor=member-cursor")
+      .expect(200);
+
+    expect(service.updateCancelFlowConfiguration).not.toHaveBeenCalled();
+    expect(service.getStaffMemberLoyalty).toHaveBeenCalledWith(memberId, {
+      cursor: "staff-cursor",
+      limit: 20,
+    });
+    expect(service.getMemberLoyalty).toHaveBeenCalledWith({
+      cursor: "member-cursor",
+      limit: 10,
+    });
+  });
+
+  it("requires redemption command IDs to be UUIDs", async () => {
+    const service = retention();
+    const app = retentionApp(service);
+    const origin = "https://vinifera.test";
+    await request(app)
+      .post("/api/member/loyalty/redeem")
+      .set("Origin", origin)
+      .send({
+        idempotencyKey: "not-a-command",
+        points: 100,
+        shipmentId: templateId,
+      })
+      .expect(400);
+    await request(app)
+      .post("/api/member/loyalty/redeem")
+      .set("Origin", origin)
+      .send({
+        idempotencyKey: commandId,
+        points: 100,
+        shipmentId: templateId,
+      })
+      .expect(201);
+    expect(service.redeemMemberLoyalty).toHaveBeenCalledWith({
+      idempotencyKey: commandId,
+      points: 100,
+      shipmentId: templateId,
     });
   });
 

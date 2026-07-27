@@ -168,28 +168,21 @@ values
     15000
   );
 
-insert into public.email_templates (
-  organization_id, brand_id, trigger_type, subject, body
-)
-values (
-  'd2000000-0000-4000-8000-000000000001',
-  'd3000000-0000-4000-8000-000000000002',
-  'welcome',
-  'Welcome second label',
-  'Welcome to the second label.'
-);
+update public.email_templates
+set
+  subject = 'Welcome second label',
+  body = 'Welcome to the second label.'
+where organization_id = 'd2000000-0000-4000-8000-000000000001'
+  and brand_id = 'd3000000-0000-4000-8000-000000000002'
+  and trigger_type = 'welcome';
 
-insert into public.cancel_flow_steps (
-  organization_id, brand_id, step_type, position, headline, body
-)
-values (
-  'd2000000-0000-4000-8000-000000000001',
-  'd3000000-0000-4000-8000-000000000002',
-  'confirm',
-  1,
-  'Tell us why',
-  'Help the second label improve.'
-);
+update public.cancel_flow_steps
+set
+  headline = 'Tell us why',
+  body = 'Help the second label improve.'
+where organization_id = 'd2000000-0000-4000-8000-000000000001'
+  and brand_id = 'd3000000-0000-4000-8000-000000000002'
+  and step_type = 'confirm';
 
 insert into public.dashboard_layout_preferences (
   organization_id, brand_id, staff_user_id, layout

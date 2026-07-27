@@ -218,9 +218,15 @@ verification enabled. Missing or unverified configuration leaves email work
 queued and returns an explicit activation state. A deterministic email adapter
 is accepted only in the test runtime with both simulator gates enabled.
 
-Nightly Worker scheduling recalculates explainable churn scores, enqueues due
-messages, expires loyalty points, awards birthday/anniversary points, and
-reclaims bounded outbox work. See
+Every outbox row keeps one provider idempotency identity across retries. Claims
+carry a completion token, and early webhook events remain in a durable inbox
+until the matching provider receipt is attached. Brand sender identity and
+IANA time zone are resolved before delivery or calendar-trigger selection.
+
+Hourly Worker scheduling treats email enqueue/delivery independently from
+retry-safe UTC/global and per-brand-local routines that recalculate explainable
+churn scores, expire loyalty points, award birthday/anniversary points, clean
+stale cancellation attempts, and resume due pauses. See
 `docs/runbooks/phase-3-resend-activation.md` for DNS, webhook, trigger, and
 rollback proof.
 
@@ -409,12 +415,12 @@ npm run build:mobile:android
 ```
 
 The current credential-independent architecture gate passes TypeScript,
-256/256 Vitest tests, Phase 1 92/92, Phase 2 145/145, Phase 3 138/138, Phase 4
-121/121, Phase 5 279/279 embedded PostgreSQL/pgTAP assertions, and 132/132 Playwright tests
-with zero axe violations. Pages, Worker, and production Worker dry-run builds
-pass. The focused release controls pass 14/14, mobile-release controls 7/7,
-Stripe catalog controls 16/16, and mobile identity passes. These are local
-architecture results, not service-connection or hosted exit evidence.
+301/301 Vitest tests, Phase 1 92/92, Phase 2 231/231, Phase 3 199/199, Phase 4
+121/121, Phase 5 401/401 embedded PostgreSQL/pgTAP assertions, and 141/141
+Playwright tests with zero axe violations. Pages, Worker, and production Worker
+dry-run builds pass. The focused release controls pass 14/14, mobile-release
+controls 7/7, Stripe catalog controls 16/16, and mobile identity passes. These
+are local architecture results, not service-connection or hosted exit evidence.
 
 `npm run build` runs Vite, then copies the marketing site, investor guide, and static metadata into `dist/`. The original `app` prototype is retained in source as a visual reference and is not included in the authenticated production bundle.
 

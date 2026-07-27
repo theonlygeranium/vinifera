@@ -4,10 +4,14 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 const organizationId = "10000000-0000-4000-8000-000000000001";
 const staffId = "20000000-0000-4000-8000-000000000001";
 const memberId = "30000000-0000-4000-8000-000000000001";
+const brandAId = "31000000-0000-4000-8000-000000000001";
+const brandBId = "32000000-0000-4000-8000-000000000001";
 const tierId = "40000000-0000-4000-8000-000000000001";
 const lowerTierId = "40000000-0000-4000-8000-000000000002";
 const shipmentId = "60000000-0000-4000-8000-000000000001";
 const wineId = "80000000-0000-4000-8000-000000000001";
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type EmailTriggerFixture =
   | "welcome"
@@ -74,6 +78,7 @@ const staffSession = {
 
 const memberSession = {
   authenticated: true,
+  brand: { id: brandAId },
   organization: { id: organizationId, name: "QA Winery" },
   user: {
     email: "avery@example.com",
@@ -301,6 +306,14 @@ const baseLedger = [
     reason: "Member anniversary",
     type: "anniversary",
   },
+  ...Array.from({ length: 25 }, (_, index) => ({
+    createdAt: "2026-06-01T12:00:00.000Z",
+    expiresAt: "2028-06-01T12:00:00.000Z",
+    id: `96000000-0000-4000-8000-${String(index + 3).padStart(12, "0")}`,
+    points: 10,
+    reason: `Historical loyalty activity ${index + 1}`,
+    type: "adjustment",
+  })),
 ];
 
 const portalShipment = {
@@ -328,7 +341,13 @@ const portalShipment = {
   trackingNumber: null,
 };
 
-type Capture = Array<{ body: unknown; method: string; path: string }>;
+type Capture = Array<{
+  body: unknown;
+  brandId: string | null;
+  idempotencyKey: string | null;
+  method: string;
+  path: string;
+}>;
 
 interface MockState {
   cancelConfig: {
@@ -365,6 +384,66 @@ interface MockState {
     policyVersion: string | null;
     revokedAt: string | null;
     updatedAt: string | null;
+  };
+}
+
+const loyaltySnapshotAt = "2026-07-26T23:59:59.999Z";
+
+function mockLoyaltyLedgerPage(
+  ledger: MockState["loyaltyAccount"]["ledger"],
+  url: URL,
+) {
+  const limit = Math.min(
+    100,
+    Math.max(1, Number(url.searchParams.get("limit") ?? 25)),
+  );
+  const encodedCursor = url.searchParams.get("cursor");
+  const cursor = encodedCursor
+    ? (JSON.parse(
+        Buffer.from(encodedCursor, "base64url").toString("utf8"),
+      ) as {
+        beforeCreatedAt: string;
+        beforeId: string;
+        snapshotAt: string;
+      })
+    : null;
+  const snapshotAt = cursor?.snapshotAt ?? loyaltySnapshotAt;
+  const snapshotLedger = ledger
+    .filter((entry) => entry.createdAt <= snapshotAt)
+    .sort(
+      (left, right) =>
+        right.createdAt.localeCompare(left.createdAt) ||
+        right.id.localeCompare(left.id),
+    );
+  const eligibleLedger = cursor
+    ? snapshotLedger.filter(
+        (entry) =>
+          entry.createdAt < cursor.beforeCreatedAt ||
+          (entry.createdAt === cursor.beforeCreatedAt &&
+            entry.id < cursor.beforeId),
+      )
+    : snapshotLedger;
+  const page = eligibleLedger.slice(0, limit);
+  const hasMore = eligibleLedger.length > limit;
+  const lastEntry = page.at(-1);
+  return {
+    ledger: page,
+    ledgerPagination: {
+      hasMore,
+      limit,
+      nextCursor:
+        hasMore && lastEntry
+          ? Buffer.from(
+              JSON.stringify({
+                beforeCreatedAt: lastEntry.createdAt,
+                beforeId: lastEntry.id,
+                snapshotAt,
+              }),
+              "utf8",
+            ).toString("base64url")
+          : null,
+      total: snapshotLedger.length,
+    },
   };
 }
 
@@ -409,9 +488,31 @@ function createMockState(): MockState {
   };
 }
 
-async function installMockApi(page: Page, capture: Capture = []) {
+async function installMockApi(
+  page: Page,
+  capture: Capture = [],
+  options: {
+    brands?: Array<{
+      billingMode: "shared";
+      customDomain: null;
+      description: null;
+      domainStatus: "unconfigured";
+      fontFamily: null;
+      id: string;
+      isDefault: boolean;
+      logoUrl: null;
+      name: string;
+      primaryColor: null;
+    }>;
+    cancelCurrentStepId?: string;
+    failAttempts?: number;
+    failOncePath?: string;
+    memberSession?: () => unknown;
+  } = {},
+) {
   const state = createMockState();
   let attempt = 0;
+  let failedAttempts = 0;
 
   await page.route("**/api/**", async (route) => {
     const request = route.request();
@@ -425,25 +526,50 @@ async function installMockApi(page: Page, capture: Capture = []) {
       } catch {
         body = request.postData();
       }
-      capture.push({ body, method, path });
+    }
+    capture.push({
+      body,
+      brandId: request.headers()["x-vinifera-brand-id"] ?? null,
+      idempotencyKey: request.headers()["idempotency-key"] ?? null,
+      method,
+      path,
+    });
+    if (
+      options.failOncePath === path &&
+      method === "POST" &&
+      failedAttempts < (options.failAttempts ?? 1)
+    ) {
+      failedAttempts += 1;
+      return route.fulfill({
+        body: JSON.stringify({
+          error: {
+            code: "TEMPORARY_FAILURE",
+            message: "The command is temporarily unavailable. Try again.",
+          },
+        }),
+        contentType: "application/json",
+        status: 503,
+      });
     }
 
     if (path === "/api/auth/staff/session") return json(route, staffSession);
-    if (path === "/api/auth/member/session") return json(route, memberSession);
+    if (path === "/api/auth/member/session") {
+      return json(route, options.memberSession?.() ?? memberSession);
+    }
     if (path === "/api/portal/branding") {
       return json(route, { brand: null, mode: "canonical" });
     }
     if (path === "/api/brands" && method === "GET") {
       return json(route, {
         canViewAllBrands: false,
-        items: [
+        items: options.brands ?? [
           {
             billingMode: "shared",
             customDomain: null,
             description: null,
             domainStatus: "unconfigured",
             fontFamily: null,
-            id: "30000000-0000-4000-8000-000000000001",
+            id: brandAId,
             isDefault: true,
             logoUrl: null,
             name: staffSession.organization.name,
@@ -476,7 +602,12 @@ async function installMockApi(page: Page, capture: Capture = []) {
       });
     }
     if (emailAction?.[2] === "test" && method === "POST") {
-      const testBody = body as { email?: string; recipient?: string };
+      const testBody = body as {
+        body?: string;
+        email?: string;
+        recipient?: string;
+        subject?: string;
+      };
       const template = state.emailTemplates.find(
         (candidate) => candidate.id === emailAction[1],
       );
@@ -596,13 +727,17 @@ async function installMockApi(page: Page, capture: Capture = []) {
       return json(route, cancelAnalytics);
     }
     if (path === "/api/member/cancel-flow" && method === "GET") {
-      return json(route, memberCancelFlow);
+      return json(route, {
+        ...memberCancelFlow,
+        currentStepId: options.cancelCurrentStepId ?? null,
+      });
     }
     if (path === "/api/member/cancel-flow" && method === "POST") {
       attempt += 1;
       return json(route, {
         ...memberCancelFlow,
         attemptId: `95000000-0000-4000-8000-${String(attempt).padStart(12, "0")}`,
+        currentStepId: options.cancelCurrentStepId ?? null,
       });
     }
     if (path === "/api/member/cancel-flow/events" && method === "POST") {
@@ -659,7 +794,14 @@ async function installMockApi(page: Page, capture: Capture = []) {
       return json(route, { items: [item], page: 1, pageSize: 1, total: 1 });
     }
     if (path === `/api/loyalty/members/${memberId}` && method === "GET") {
-      return json(route, state.loyaltyAccount);
+      const ledgerPage = mockLoyaltyLedgerPage(
+        state.loyaltyAccount.ledger,
+        url,
+      );
+      return json(route, {
+        ...state.loyaltyAccount,
+        ...ledgerPage,
+      });
     }
     if (path === `/api/loyalty/members/${memberId}/adjust` && method === "POST") {
       const adjustment = body as { points: number; reason: string };
@@ -694,7 +836,14 @@ async function installMockApi(page: Page, capture: Capture = []) {
       return json(route, { recorded: true });
     }
     if (path === "/api/member/loyalty" && method === "GET") {
-      return json(route, state.loyaltyAccount);
+      const ledgerPage = mockLoyaltyLedgerPage(
+        state.loyaltyAccount.ledger,
+        url,
+      );
+      return json(route, {
+        ...state.loyaltyAccount,
+        ...ledgerPage,
+      });
     }
     if (path === "/api/member/loyalty/redeem" && method === "POST") {
       const redemption = body as { points: number };
@@ -889,19 +1038,6 @@ test.describe("Phase 3 communications and explainable churn", () => {
       .getByLabel("Email body")
       .fill("Hello {{member_first_name}}, your {{release_name}} allocation is ready.");
     await page.getByLabel("Send before processing").fill("5");
-    await page.getByRole("button", { name: "Save template" }).click();
-    await expect(page.getByText("Pre-shipment notice saved.")).toBeVisible();
-
-    const saveRequest = capture.find(
-      (request) =>
-        request.method === "PATCH" &&
-        request.path === `/api/email/templates/${emailTemplates[1]!.id}`,
-    );
-    expect(saveRequest?.body).toMatchObject({
-      daysBefore: 5,
-      enabled: true,
-      subject: "Fall release for {{member_first_name}}",
-    });
 
     await page.getByRole("button", { name: "Preview" }).click();
     const preview = page.getByRole("dialog", { name: "Email preview" });
@@ -928,8 +1064,25 @@ test.describe("Phase 3 communications and explainable churn", () => {
     expect(
       capture.find((request) => request.path.endsWith("/test"))?.body,
     ).toMatchObject({
+      body:
+        "Hello {{member_first_name}}, your {{release_name}} allocation is ready.",
       email: "qa-delivery@example.com",
       recipient: "qa-delivery@example.com",
+      subject: "Fall release for {{member_first_name}}",
+    });
+
+    await page.getByRole("button", { name: "Save template" }).click();
+    await expect(page.getByText("Pre-shipment notice saved.")).toBeVisible();
+
+    const saveRequest = capture.find(
+      (request) =>
+        request.method === "PATCH" &&
+        request.path === `/api/email/templates/${emailTemplates[1]!.id}`,
+    );
+    expect(saveRequest?.body).toMatchObject({
+      daysBefore: 5,
+      enabled: true,
+      subject: "Fall release for {{member_first_name}}",
     });
   });
 
@@ -959,6 +1112,36 @@ test.describe("Phase 3 communications and explainable churn", () => {
     await expect(rows.first()).toContainText("Jordan Cellar");
     await expect(rows.first()).toContainText("Rules 82");
     await expect(rows.first()).toContainText("Rules fallback");
+  });
+
+  test("rules baseline directly uses the Phase 3 score endpoint and component", async ({
+    page,
+  }) => {
+    const capture: Capture = [];
+    await installMockApi(page, capture);
+    await page.goto("/app/churn-watch?view=rules");
+
+    await expect(
+      page.getByRole("heading", { name: "AI Churn Watch", exact: true }).first(),
+    ).toBeVisible();
+    const rows = page.locator(".churn-watch-row");
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText("Jordan Cellar");
+    await rows.nth(0).getByText("2 factors", { exact: true }).click();
+    await expect(rows.nth(0).getByText("Missed payments")).toBeVisible();
+    expect(
+      capture.some(
+        (request) =>
+          request.method === "GET" && request.path === "/api/churn-scores",
+      ),
+    ).toBe(true);
+    expect(
+      capture.some(
+        (request) =>
+          request.method === "GET" &&
+          request.path === "/api/churn-intelligence",
+      ),
+    ).toBe(false);
   });
 });
 
@@ -1060,6 +1243,12 @@ test.describe("Phase 3 cancel-flow retention", () => {
     await openFlow();
     await dialog.getByRole("button", { name: "Continue cancellation" }).click();
     await expect(dialog.getByText("Step 2 of 4")).toBeVisible();
+    const currentTier = dialog.getByLabel(
+      "Current tier Founders Circle, $149.00",
+    );
+    await expect(currentTier).toContainText("Current tier");
+    await expect(currentTier).toContainText("Founders Circle");
+    await expect(currentTier).toContainText("$149.00");
     await dialog.getByLabel("Founders Lite").check();
     await dialog.getByRole("button", { name: "Switch tier" }).click();
     await expect(page.getByText("Your club tier change is confirmed.")).toBeVisible();
@@ -1121,19 +1310,106 @@ test.describe("Phase 3 cancel-flow retention", () => {
       outcome: "cancelled",
       step: "confirm",
     });
+    const startCommands = capture.filter(
+      (request) =>
+        request.method === "POST" &&
+        request.path === "/api/member/cancel-flow",
+    );
+    const eventCommands = capture.filter(
+      (request) =>
+        request.method === "POST" &&
+        request.path === "/api/member/cancel-flow/events",
+    );
+    expect(startCommands.length).toBeGreaterThan(0);
+    expect(eventCommands.length).toBe(events.length);
+    for (const command of [...startCommands, ...eventCommands]) {
+      expect(command.idempotencyKey).toMatch(uuidPattern);
+    }
+  });
+
+  test("member resumes an in-progress attempt at its persisted current step", async ({
+    page,
+  }) => {
+    const capture: Capture = [];
+    await installMockApi(page, capture, {
+      cancelCurrentStepId: cancelSteps[1]!.stepId,
+    });
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/portal");
+
+    await page
+      .locator(".portal-action-grid")
+      .getByRole("button", { name: /Cancel membership/ })
+      .click();
+    const dialog = page.getByRole("dialog", { name: "Membership options" });
+    await expect(dialog.getByText("Step 2 of 4")).toBeVisible();
+    await dialog.getByLabel("Founders Lite").check();
+    await dialog.getByRole("button", { name: "Switch tier" }).click();
+    await expect(page.getByText("Your club tier change is confirmed.")).toBeVisible();
+
+    const event = capture.find(
+      (request) =>
+        request.method === "POST" &&
+        request.path === "/api/member/cancel-flow/events",
+    );
+    expect(event?.body).toMatchObject({
+      outcome: "downgraded",
+      step: "downgrade",
+    });
   });
 });
 
 test.describe("Phase 3 loyalty program", () => {
+  test("ledger cursor preserves its snapshot and orders equal timestamps by id", async ({
+    page,
+  }) => {
+    const state = await installMockApi(page);
+    await page.goto("/app/loyalty");
+    await expect(page.getByText("Showing 25 of 27 ledger entries")).toBeVisible();
+
+    state.loyaltyAccount.ledger.unshift({
+      createdAt: "2026-07-27T12:00:00.000Z",
+      expiresAt: "2028-07-27T12:00:00.000Z",
+      id: "96000000-0000-4000-8000-999999999999",
+      points: 500,
+      reason: "Concurrent newer loyalty insert",
+      type: "adjustment",
+    });
+    await page.getByRole("button", { name: "Load more activity" }).click();
+
+    const ledger = page.getByRole("table", {
+      name: "Loyalty points ledger for Avery Vine",
+    });
+    await expect(page.getByText("Showing 27 of 27 ledger entries")).toBeVisible();
+    await expect(ledger.getByText("Concurrent newer loyalty insert")).toHaveCount(
+      0,
+    );
+    const rows = await ledger.locator("tbody tr").allTextContents();
+    expect(rows).toHaveLength(27);
+    expect(rows.at(-2)).toContain("Historical loyalty activity 2");
+    expect(rows.at(-1)).toContain("Historical loyalty activity 1");
+    await expect(
+      ledger.getByText("Historical loyalty activity 1", { exact: true }),
+    ).toHaveCount(1);
+  });
+
   test("staff can audit a member and record adjustments and attendance", async ({
     page,
   }) => {
     const capture: Capture = [];
-    await installMockApi(page, capture);
+    await installMockApi(page, capture, {
+      failOncePath: `/api/loyalty/members/${memberId}/adjust`,
+    });
     await page.goto("/app/loyalty");
     await expect(
       page.getByRole("table", { name: "Loyalty points ledger for Avery Vine" }),
     ).toContainText("Summer release shipment");
+    await expect(page.getByText("Showing 25 of 27 ledger entries")).toBeVisible();
+    await page.getByRole("button", { name: "Load more activity" }).click();
+    await expect(
+      page.getByText("Historical loyalty activity 1", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("Showing 27 of 27 ledger entries")).toBeVisible();
 
     await page.getByRole("button", { name: "Adjust Points" }).click();
     const adjustmentDialog = page.getByRole("dialog", {
@@ -1142,6 +1418,23 @@ test.describe("Phase 3 loyalty program", () => {
     await adjustmentDialog.getByLabel("Points adjustment").fill("125");
     await adjustmentDialog.getByLabel("Reason").fill("Service recovery award");
     await adjustmentDialog
+      .getByRole("button", { name: "Record adjustment" })
+      .click();
+    await expect(
+      page.getByText("The command is temporarily unavailable. Try again."),
+    ).toBeVisible();
+
+    await page.reload();
+    await expect(
+      page.getByRole("table", { name: "Loyalty points ledger for Avery Vine" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Adjust Points" }).click();
+    const retryDialog = page.getByRole("dialog", {
+      name: "Adjust loyalty points",
+    });
+    await retryDialog.getByLabel("Points adjustment").fill("125");
+    await retryDialog.getByLabel("Reason").fill("Service recovery award");
+    await retryDialog
       .getByRole("button", { name: "Record adjustment" })
       .click();
     await expect(
@@ -1174,6 +1467,14 @@ test.describe("Phase 3 loyalty program", () => {
       points: 125,
       reason: "Service recovery award",
     });
+    const adjustmentCommands = capture.filter((request) =>
+      request.path.endsWith("/adjust"),
+    );
+    expect(adjustmentCommands).toHaveLength(2);
+    expect(adjustmentCommands[0]?.idempotencyKey).toMatch(uuidPattern);
+    expect(adjustmentCommands[1]?.idempotencyKey).toBe(
+      adjustmentCommands[0]?.idempotencyKey,
+    );
     const attendance = capture.find((request) =>
       request.path.endsWith("/events"),
     );
@@ -1182,10 +1483,103 @@ test.describe("Phase 3 loyalty program", () => {
       occurredAt: "2026-07-20T12:00:00.000Z",
       reason: "Summer release tasting",
     });
-    expect(
-      (attendance?.body as { eventId?: string }).eventId,
-    ).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    expect((attendance?.body as { eventId?: string }).eventId).toMatch(
+      uuidPattern,
+    );
+  });
+
+  test("ambiguous retries retain separate command identities across brand switches", async ({
+    page,
+  }) => {
+    const capture: Capture = [];
+    const brands = [
+      {
+        billingMode: "shared" as const,
+        customDomain: null,
+        description: null,
+        domainStatus: "unconfigured" as const,
+        fontFamily: null,
+        id: brandAId,
+        isDefault: true,
+        logoUrl: null,
+        name: "QA Estate",
+        primaryColor: null,
+      },
+      {
+        billingMode: "shared" as const,
+        customDomain: null,
+        description: null,
+        domainStatus: "unconfigured" as const,
+        fontFamily: null,
+        id: brandBId,
+        isDefault: false,
+        logoUrl: null,
+        name: "QA Cellars",
+        primaryColor: null,
+      },
+    ];
+    await installMockApi(page, capture, {
+      brands,
+      failAttempts: 1,
+      failOncePath: `/api/loyalty/members/${memberId}/adjust`,
+    });
+    await page.goto("/app/loyalty");
+
+    const brandSwitcher = page.getByLabel("Active brand");
+    await expect(brandSwitcher).toHaveValue(brandAId);
+
+    const submitAdjustment = async () => {
+      await page.getByRole("button", { name: "Adjust Points" }).click();
+      const dialog = page.getByRole("dialog", {
+        name: "Adjust loyalty points",
+      });
+      await dialog.getByLabel("Points adjustment").fill("125");
+      await dialog.getByLabel("Reason").fill("Ambiguous retry award");
+      await dialog
+        .getByRole("button", { name: "Record adjustment" })
+        .click();
+    };
+
+    await submitAdjustment();
+    await expect(
+      page.getByText("The command is temporarily unavailable. Try again."),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Close Adjust loyalty points" })
+      .click();
+
+    await brandSwitcher.selectOption(brandBId);
+    await expect(brandSwitcher).toHaveValue(brandBId);
+    await submitAdjustment();
+    await expect(
+      page.getByText("Loyalty adjustment recorded in the member ledger."),
+    ).toBeVisible();
+
+    await brandSwitcher.selectOption(brandAId);
+    await expect(brandSwitcher).toHaveValue(brandAId);
+    await submitAdjustment();
+    await expect(
+      page.getByText("Loyalty adjustment recorded in the member ledger."),
+    ).toBeVisible();
+
+    const adjustmentCommands = capture.filter(
+      (request) =>
+        request.method === "POST" &&
+        request.path === `/api/loyalty/members/${memberId}/adjust`,
+    );
+    expect(adjustmentCommands).toHaveLength(3);
+    expect(adjustmentCommands.map((command) => command.brandId)).toEqual([
+      brandAId,
+      brandBId,
+      brandAId,
+    ]);
+    expect(adjustmentCommands[0]?.idempotencyKey).toMatch(uuidPattern);
+    expect(adjustmentCommands[1]?.idempotencyKey).toMatch(uuidPattern);
+    expect(adjustmentCommands[1]?.idempotencyKey).not.toBe(
+      adjustmentCommands[0]?.idempotencyKey,
+    );
+    expect(adjustmentCommands[2]?.idempotencyKey).toBe(
+      adjustmentCommands[0]?.idempotencyKey,
     );
   });
 
@@ -1197,11 +1591,17 @@ test.describe("Phase 3 loyalty program", () => {
     await page.goto("/portal");
 
     await expect(
-      page.getByRole("table", { name: "Your complete loyalty points ledger" }),
+      page.getByRole("table", { name: "Your loyalty points ledger" }),
     ).toContainText("Summer release shipment");
     await expect(
       page.locator(".portal-loyalty__balance strong"),
     ).toHaveText("950");
+    await expect(page.getByText("Showing 25 of 27 ledger entries")).toBeVisible();
+    await page.getByRole("button", { name: "Load more activity" }).click();
+    await expect(
+      page.getByText("Historical loyalty activity 1", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("Showing 27 of 27 ledger entries")).toBeVisible();
 
     await page.getByRole("button", { name: "Redeem points" }).click();
     const dialog = page.getByRole("dialog", { name: "Redeem Vine Points" });
@@ -1222,11 +1622,73 @@ test.describe("Phase 3 loyalty program", () => {
       points: 200,
       shipmentId,
     });
-    expect(
-      (redemption?.body as { idempotencyKey?: string }).idempotencyKey,
-    ).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    const redemptionBody = redemption?.body as {
+      idempotencyKey?: string;
+    };
+    expect(redemptionBody.idempotencyKey).toMatch(uuidPattern);
+    expect(redemption?.idempotencyKey).toBe(redemptionBody.idempotencyKey);
+  });
+
+  test("member retry identity follows the authenticated session brand", async ({
+    page,
+  }) => {
+    const capture: Capture = [];
+    let sessionBrandId = brandAId;
+    await installMockApi(page, capture, {
+      failAttempts: 1,
+      failOncePath: "/api/member/loyalty/redeem",
+      memberSession: () => ({
+        ...memberSession,
+        brand: { id: sessionBrandId },
+      }),
+    });
+
+    const submitRedemption = async () => {
+      await page.getByRole("button", { name: "Redeem points" }).click();
+      const dialog = page.getByRole("dialog", { name: "Redeem Vine Points" });
+      await dialog.getByLabel("Points to redeem").fill("200");
+      await dialog.getByRole("button", { name: "Apply redemption" }).click();
+    };
+
+    await page.goto("/portal");
+    await submitRedemption();
+    await expect(
+      page.getByText("The command is temporarily unavailable. Try again."),
+    ).toBeVisible();
+
+    sessionBrandId = brandBId;
+    await page.reload();
+    await submitRedemption();
+    await expect(
+      page.getByText("Your Vine Points redemption was applied."),
+    ).toBeVisible();
+
+    sessionBrandId = brandAId;
+    await page.reload();
+    await submitRedemption();
+    await expect(
+      page.getByText("Your Vine Points redemption was applied."),
+    ).toBeVisible();
+
+    const redemptionCommands = capture.filter(
+      (request) =>
+        request.method === "POST" &&
+        request.path === "/api/member/loyalty/redeem",
     );
+    expect(redemptionCommands).toHaveLength(3);
+    expect(redemptionCommands[0]?.idempotencyKey).toMatch(uuidPattern);
+    expect(redemptionCommands[1]?.idempotencyKey).toMatch(uuidPattern);
+    expect(redemptionCommands[1]?.idempotencyKey).not.toBe(
+      redemptionCommands[0]?.idempotencyKey,
+    );
+    expect(redemptionCommands[2]?.idempotencyKey).toBe(
+      redemptionCommands[0]?.idempotencyKey,
+    );
+    for (const command of redemptionCommands) {
+      expect(
+        (command.body as { idempotencyKey?: string }).idempotencyKey,
+      ).toBe(command.idempotencyKey);
+    }
   });
 
   test("member can explicitly allow and revoke Meta attribution", async ({

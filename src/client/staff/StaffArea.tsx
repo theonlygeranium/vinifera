@@ -20,6 +20,7 @@ import {
   SignupPage,
 } from "./StaffAuthPages";
 import { CommunicationsPage } from "./phase3/CommunicationsPage";
+import { ChurnWatchPage } from "./phase3/ChurnWatchPage";
 import { LoyaltyPage } from "./phase3/LoyaltyPage";
 import { RetentionPage } from "./phase3/RetentionPage";
 import { AnalyticsPage } from "./phase4/AnalyticsPage";
@@ -152,7 +153,11 @@ function StaffRoutes() {
   if (route === "/app/churn-watch") {
     return (
       <ProtectedPage>
-        <ChurnIntelligencePage />
+        {new URLSearchParams(location.search).get("view") === "rules" ? (
+          <ChurnWatchPage />
+        ) : (
+          <ChurnIntelligencePage />
+        )}
       </ProtectedPage>
     );
   }

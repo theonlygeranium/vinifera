@@ -3818,6 +3818,20 @@ a.table-primary {
   white-space: nowrap;
 }
 
+.ledger-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ledger-pagination p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
 .points-change--positive {
   color: #166534;
 }
@@ -3958,6 +3972,42 @@ a.table-primary {
   margin-bottom: 0;
   color: var(--text-secondary);
   font-size: 11px;
+}
+
+.cancel-tier-comparison {
+  display: grid;
+  gap: 10px;
+}
+
+.cancel-tier-comparison__current {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.cancel-tier-comparison__current > span {
+  grid-column: 1 / -1;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cancel-tier-comparison__current strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.cancel-tier-comparison__current small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .cancel-flow-step__actions {
@@ -5423,7 +5473,8 @@ select:focus-visible {
 
   .email-editor__header,
   .loyalty-account-header,
-  .portal-loyalty__header {
+  .portal-loyalty__header,
+  .ledger-pagination {
     align-items: stretch;
     flex-direction: column;
   }
@@ -5435,7 +5486,8 @@ select:focus-visible {
   }
 
   .email-editor__actions .button,
-  .cancel-flow-step__actions .button {
+  .cancel-flow-step__actions .button,
+  .ledger-pagination .button {
     width: 100%;
   }
 

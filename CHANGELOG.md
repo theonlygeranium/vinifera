@@ -10,6 +10,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added the Phase 3 final-stack retention hardening migration: brand-scoped
+  defaults and time zones, same-brand composite integrity, lease-token email
+  completion, a durable provider-event inbox, command result fingerprints,
+  immutable cancel snapshots, stale-attempt cleanup, pause resumption, and a
+  UTC/global plus brand-local daily retention ledger.
+- Added 61 current-stack Phase 3 database assertions and wired them into both
+  the Phase 3 and Phase 5 embedded PostgreSQL gates.
+- Added paginated staff/member loyalty ledgers, current-tier downgrade
+  comparison, unsaved-draft email tests, direct rules-based churn coverage, and
+  tenant-scoped session-retained UUID commands for cancellation and loyalty
+  mutations.
+- Added the Phase 3 retention integrity hardening ADR and expanded activation
+  diagnostics for lease expiry, uncertain provider receipts, early webhooks,
+  monotonic events, daily replay, and brand-local dates.
 - Added the Phase 2 transactional command ledger and leased provider outbox:
   UUID/SHA-256 replay protection, atomic business/audit/result persistence,
   privacy-preserving browser resumption, supersession, and bounded recovery.
@@ -64,6 +78,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Replaced composition-dependent email batch idempotency with one stable
+  provider key per outbox row and bounded delivery concurrency of eight.
+- Isolated email enqueue/delivery from daily churn, loyalty, cancellation, and
+  pause-resume work so a configured provider outage cannot suppress unrelated
+  retention jobs.
+- Changed loyalty history from offset paging to an immutable-sequence snapshot
+  cursor, blocked unverified sender claims without consuming attempts, and
+  aligned retention analytics with completed decisions and real client events.
+- Recorded the Phase 3 credential-independent gate: audit 0, TypeScript green,
+  Vitest 301/301, database gates 92/231/199/121/401, Playwright 141/141
+  (Phase 3 27/27) with zero axe violations, 155.11 ms scoring, 7.48 ms email
+  claim, 436 ms LCP, CLS 0, Pages/Worker dry runs, and compile-only Android/iOS
+  synchronization.
 - Recorded Phase 2 architecture closure commit `15c9942` and GitHub Actions run
   `30226397256`: quality passed in 5m15s, Android in 3m39s, evidence uploaded,
   and credential-gated Supabase/Worker mutation jobs skipped.
@@ -152,6 +179,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Prevented stale email Workers from finalizing reclaimed work, accepted-email
+  retries from changing provider identity, early webhooks from being discarded,
+  and out-of-order events from regressing terminal delivery state.
+- Prevented live cancel configuration edits from changing an in-flight
+  attempt, unsafe confirm-step configurations, permanently pinned stale
+  attempts, duplicate manual loyalty adjustments, referral first-delivery
+  races, and all-time analytics from being truncated to the newest events.
+- Completed Phase 3 multi-brand isolation, made birthday/pre-shipment calendar
+  selection brand-time-zone aware, and kept final-stack test fixtures aligned
+  with automatic retention seeding.
 - Prevented cross-brand Phase 2 references, incomplete scheduled releases,
   conflicting command replays, duplicate active charges/refunds, mutable Stripe
   event replays, abandoned stale refunds, and member-auth deletion races.
@@ -170,6 +207,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- Preserved the server-BFF boundary by keeping every Phase 3 mutation,
+  analytics, scheduler, and provider-reconciliation RPC service-role-only in
+  the final stack.
+- Required exact UUID/SHA-256 command intent for cancellation, loyalty
+  adjustment, reservation, and redemption replay, and enforced organization,
+  brand, and member identity through composite foreign keys.
 - Restricted Phase 2 security-definer command/recovery functions to the service
   role, bound results to same-brand audit evidence, and kept member PII out of
   resumable browser command storage.
@@ -220,6 +263,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - All external services remain disconnected by owner direction. No hosted,
   provider, DNS, store, or live-payment exit criterion is claimed.
+- Phase 3 still requires hosted migration/pgTAP proof, a verified Resend domain,
+  signed webhook round trips, real tenant triggers, hosted churn/cancel/loyalty
+  records, and a Stripe test redemption before its operational exit can pass.
 - Protected Stripe bootstrap run `30218801133` left its first test Price
   created-or-unknown before failing closed. No retry was attempted; activation
   must later reconcile the fixed lookup key before any create.

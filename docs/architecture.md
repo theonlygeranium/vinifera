@@ -93,25 +93,34 @@ rewritten history is detectable.
 ```text
 member/release/payment/shipment event
   → idempotent PostgreSQL email outbox
-  → bounded Worker claim
+  → bounded lease-token Worker claim
   → sanitized responsive render
-  → Resend batch send
-  → signed raw-body webhook
-  → delivery and engagement ledger
+  → stable per-outbox Resend request
+  → signed raw-body webhook inbox
+  → monotonic delivery and engagement ledger
 
-nightly schedule
-  ├── explainable rules-based churn snapshots
-  ├── birthday and anniversary loyalty awards
-  ├── loyalty expiration
-  └── due/retry email claims
+hourly schedule
+  ├── due email enqueue and independent delivery
+  ├── UTC date-keyed timestamp transaction
+  │     ├── explainable rules-based churn snapshots
+  │     ├── loyalty expiration
+  │     └── stale cancel-attempt cleanup
+  └── brand-local date-keyed calendar transaction
+        ├── birthday and anniversary loyalty awards
+        └── paused-member resumption
 ```
 
 Cancellation is an authenticated member state machine. Pause, tier downgrade,
-shipment swap, and final cancellation write append-only attempt events; an
-accepted alternative terminates the attempt exactly once. Loyalty awards use
-stable source-event keys, positive expiring lots, first-expiring-first-out
-redemption, and an explicit reservation/finalization boundary around Stripe
-shipment charges and refunds.
+shipment swap, and final cancellation write append-only attempt events against
+an immutable four-step snapshot; an accepted alternative terminates the attempt
+exactly once. Cancellation and loyalty mutations use tenant-scoped retained
+UUID commands plus SHA-256 request fingerprints. Loyalty awards use stable
+source-event keys, positive expiring lots, first-expiring-first-out redemption,
+an immutable insertion sequence for snapshot-keyset history, and an explicit
+reservation/finalization boundary around Stripe shipment charges and refunds.
+All relationships are organization/brand/member safe, and brand time zones
+control calendar-trigger semantics. Explicit unverified senders remain queued
+without consuming delivery attempts.
 
 ---
 
@@ -367,7 +376,7 @@ The Worker serves `/app/*` and `/portal/*` from the Vite shell with `text/html; 
 | Stripe | SaaS subscriptions and portal | Billing operations return `503 activation_required` |
 | Stripe PaymentIntents | Release charges, retries, refunds | Shipment billing returns `503 activation_required` |
 | EasyPost | Address verification, carrier rates, labels, tracking | Shipping returns `503 activation_required` |
-| Resend | Transactional templates, batch delivery, events | Delivery returns `503 activation_required`; durable work remains queued |
+| Resend | Transactional templates, stable per-message delivery, events | Delivery returns `503 activation_required`; durable work remains queued |
 | ShipCompliant | Post-charge/pre-label shipment legality, volume, and tax checks | Labels fail closed; dashboard reports `activation_required` until the contracted adapter configuration is complete |
 | Klaviyo | Profiles, list membership, and engagement sync | Jobs remain unclaimable until explicit opt-in and encrypted winery credentials validate |
 | QuickBooks Online | Sales receipts, refunds, OAuth refresh, and reconciliation | Application OAuth remains disabled without Worker config; connection tokens are encrypted per winery |

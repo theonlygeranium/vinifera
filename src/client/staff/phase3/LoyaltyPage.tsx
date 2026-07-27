@@ -7,10 +7,19 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import { type FormEvent, useCallback, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ApiError, apiRequest, postJson } from "../../api/client";
 import {
   type LoyaltyAccount,
+  type LoyaltyLedgerEntry,
+  type LoyaltyLedgerPagination,
   type LoyaltyMembersResult,
   normalizeLoyaltyAccount,
 } from "../../api/phase3";
@@ -28,6 +37,8 @@ import {
 import { StaffShell } from "../StaffShell";
 import { date, money, sentence } from "../phase2/format";
 import { useApiResource } from "../phase2/useApiResource";
+
+const LOYALTY_LEDGER_PAGE_SIZE = 25;
 
 function points(value: number) {
   return new Intl.NumberFormat("en-US").format(value);
@@ -57,7 +68,9 @@ export function LoyaltyPage() {
     () =>
       activeMemberId
         ? apiRequest<LoyaltyAccount>(
-            `/api/loyalty/members/${activeMemberId}`,
+            queryPath(`/api/loyalty/members/${activeMemberId}`, {
+              limit: String(LOYALTY_LEDGER_PAGE_SIZE),
+            }),
           ).then(normalizeLoyaltyAccount)
         : Promise.resolve(null),
     [activeMemberId],
@@ -73,10 +86,24 @@ export function LoyaltyPage() {
   const [attendanceReason, setAttendanceReason] = useState("");
   const [attendanceDate, setAttendanceDate] = useState("");
   const [busy, setBusy] = useState(false);
+  const [ledgerBusy, setLedgerBusy] = useState(false);
+  const [ledgerEntries, setLedgerEntries] = useState<LoyaltyLedgerEntry[]>([]);
+  const [ledgerPagination, setLedgerPagination] =
+    useState<LoyaltyLedgerPagination | null>(null);
+  const ledgerGeneration = useRef(0);
+  const activeMemberIdRef = useRef(activeMemberId);
+  activeMemberIdRef.current = activeMemberId;
   const [feedback, setFeedback] = useState<{
     message: string;
     kind: "error" | "success";
   } | null>(null);
+
+  useEffect(() => {
+    ledgerGeneration.current += 1;
+    if (account.state.status !== "ready" || !account.state.data) return;
+    setLedgerEntries(account.state.data.ledger);
+    setLedgerPagination(account.state.data.ledgerPagination);
+  }, [account.state, activeMemberId]);
 
   const summary = useMemo(
     () => ({
@@ -107,6 +134,7 @@ export function LoyaltyPage() {
         message: "Loyalty adjustment recorded in the member ledger.",
         kind: "success",
       });
+      ledgerGeneration.current += 1;
       await Promise.all([members.refresh(), account.refresh()]);
     } catch (error) {
       setFeedback({
@@ -151,6 +179,7 @@ export function LoyaltyPage() {
         message: "Event attendance recorded in the member loyalty ledger.",
         kind: "success",
       });
+      ledgerGeneration.current += 1;
       await Promise.all([members.refresh(), account.refresh()]);
     } catch (error) {
       setFeedback({
@@ -162,6 +191,55 @@ export function LoyaltyPage() {
       });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function loadMoreLedger() {
+    if (
+      !activeMemberId ||
+      !ledgerPagination?.hasMore ||
+      !ledgerPagination.nextCursor ||
+      ledgerBusy
+    ) {
+      return;
+    }
+    setLedgerBusy(true);
+    setFeedback(null);
+    const requestGeneration = ledgerGeneration.current;
+    const requestMemberId = activeMemberId;
+    const requestCursor = ledgerPagination.nextCursor;
+    try {
+      const page = await apiRequest<LoyaltyAccount>(
+        queryPath(`/api/loyalty/members/${activeMemberId}`, {
+          cursor: ledgerPagination.nextCursor,
+          limit: String(LOYALTY_LEDGER_PAGE_SIZE),
+        }),
+      ).then(normalizeLoyaltyAccount);
+      if (
+        ledgerGeneration.current !== requestGeneration ||
+        activeMemberIdRef.current !== requestMemberId ||
+        page.ledgerPagination.nextCursor === requestCursor
+      ) {
+        return;
+      }
+      setLedgerEntries((current) => {
+        const ids = new Set(current.map((entry) => entry.id));
+        return [
+          ...current,
+          ...page.ledger.filter((entry) => !ids.has(entry.id)),
+        ];
+      });
+      setLedgerPagination(page.ledgerPagination);
+    } catch (error) {
+      setFeedback({
+        message:
+          error instanceof ApiError
+            ? error.message
+            : "More loyalty activity could not be loaded.",
+        kind: "error",
+      });
+    } finally {
+      setLedgerBusy(false);
     }
   }
 
@@ -259,7 +337,7 @@ export function LoyaltyPage() {
             <div className="panel-heading">
               <div>
                 <h2 id="loyalty-members-title">Member balances</h2>
-                <p>Select a member to inspect the full ledger.</p>
+                <p>Select a member to inspect their loyalty history.</p>
               </div>
             </div>
             <div className="search-control loyalty-search">
@@ -320,7 +398,10 @@ export function LoyaltyPage() {
               ) : (
                 <ErrorBlock
                   error={account.state.error}
-                  onRetry={() => void account.refresh()}
+                  onRetry={() => {
+                    ledgerGeneration.current += 1;
+                    void account.refresh();
+                  }}
                 />
               )
             ) : selectedAccount ? (
@@ -363,49 +444,69 @@ export function LoyaltyPage() {
                     </strong>
                   </div>
                 </div>
-                {selectedAccount.ledger.length ? (
-                  <div
-                    className="data-table-wrap"
-                    tabIndex={0}
-                    aria-label={`Scrollable loyalty ledger for ${selectedAccount.memberName}`}
-                  >
-                    <table className="data-table loyalty-ledger-table">
-                      <caption>
-                        Loyalty points ledger for {selectedAccount.memberName}
-                      </caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">Activity</th>
-                          <th scope="col">Type</th>
-                          <th scope="col">Points</th>
-                          <th scope="col">Recorded</th>
-                          <th scope="col">Expires</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedAccount.ledger.map((entry) => (
-                          <tr key={entry.id}>
-                            <td>{entry.reason}</td>
-                            <td>{sentence(entry.type)}</td>
-                            <td>
-                              <span
-                                className={
-                                  entry.points >= 0
-                                    ? "points-change points-change--positive"
-                                    : "points-change points-change--negative"
-                                }
-                              >
-                                {entry.points >= 0 ? "+" : ""}
-                                {points(entry.points)}
-                              </span>
-                            </td>
-                            <td>{date(entry.createdAt)}</td>
-                            <td>{date(entry.expiresAt)}</td>
+                {ledgerEntries.length ? (
+                  <>
+                    <div
+                      className="data-table-wrap"
+                      tabIndex={0}
+                      aria-label={`Scrollable loyalty ledger for ${selectedAccount.memberName}`}
+                    >
+                      <table className="data-table loyalty-ledger-table">
+                        <caption>
+                          Loyalty points ledger for {selectedAccount.memberName}
+                        </caption>
+                        <thead>
+                          <tr>
+                            <th scope="col">Activity</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Points</th>
+                            <th scope="col">Recorded</th>
+                            <th scope="col">Expires</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {ledgerEntries.map((entry) => (
+                            <tr key={entry.id}>
+                              <td>{entry.reason}</td>
+                              <td>{sentence(entry.type)}</td>
+                              <td>
+                                <span
+                                  className={
+                                    entry.points >= 0
+                                      ? "points-change points-change--positive"
+                                      : "points-change points-change--negative"
+                                  }
+                                >
+                                  {entry.points >= 0 ? "+" : ""}
+                                  {points(entry.points)}
+                                </span>
+                              </td>
+                              <td>{date(entry.createdAt)}</td>
+                              <td>{date(entry.expiresAt)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="ledger-pagination">
+                      <p aria-live="polite">
+                        Showing {points(ledgerEntries.length)} of{" "}
+                        {points(
+                          ledgerPagination?.total ?? ledgerEntries.length,
+                        )} ledger entries
+                      </p>
+                      {ledgerPagination?.hasMore ? (
+                        <button
+                          type="button"
+                          className="button button--secondary"
+                          onClick={() => void loadMoreLedger()}
+                          disabled={ledgerBusy}
+                        >
+                          {ledgerBusy ? "Loading more…" : "Load more activity"}
+                        </button>
+                      ) : null}
+                    </div>
+                  </>
                 ) : (
                   <EmptyBlock
                     title="No loyalty activity"

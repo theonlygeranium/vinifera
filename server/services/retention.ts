@@ -16,8 +16,8 @@ import { ProductionCoreClubService } from "./core-club";
 
 const RESEND_API_ORIGIN = "https://api.resend.com";
 const EMAIL_BATCH_LIMIT = 100;
+const EMAIL_DELIVERY_CONCURRENCY = 8;
 const WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
-const DAILY_JOB_UTC_HOUR = 8;
 const EMAIL_TRIGGERS: readonly EmailTriggerType[] = [
   "welcome",
   "pre_shipment",
@@ -31,6 +31,7 @@ interface ClaimedEmail {
   attempt_count: number;
   brand_id?: string | null;
   body: string;
+  completion_token: string;
   email_log_id: string;
   member_id: string | null;
   organization_id: string;
@@ -43,6 +44,8 @@ interface ClaimedEmail {
   subject: string;
   to_email: string;
   trigger_type: EmailTriggerType;
+  unsubscribe_expires_at: string;
+  unsubscribe_signed_at: string;
 }
 
 interface OutgoingEmail {
@@ -161,6 +164,103 @@ function returnedRpcRow(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function percentageFromFraction(value: unknown): number {
+  const fraction = Number(value ?? 0);
+  if (!Number.isFinite(fraction)) return 0;
+  return Math.min(100, Math.max(0, fraction * 100));
+}
+
+export function normalizeCancelFlowAnalyticsSnapshot(
+  value: unknown,
+): Record<string, unknown> {
+  const snapshot = toPublicRecord(returnedRpcRow(value) ?? value);
+  const recentOutcomes = Array.isArray(snapshot.recentOutcomes)
+    ? snapshot.recentOutcomes
+    : [];
+  const stepRows = Array.isArray(snapshot.steps) ? snapshot.steps : [];
+  return {
+    abandoned: Number(snapshot.abandonedCount ?? 0),
+    attempts: Number(snapshot.attemptCount ?? 0),
+    cancelled: Number(snapshot.cancelledCount ?? 0),
+    recentOutcomes: recentOutcomes.map((entry) => {
+      const outcome = entry as Record<string, unknown>;
+      const firstName = String(outcome.memberFirstName ?? "").trim();
+      const lastName = String(outcome.memberLastName ?? "").trim();
+      return {
+        attemptId: outcome.attemptId,
+        createdAt: outcome.completedAt,
+        id: outcome.attemptId,
+        memberEmail: outcome.memberEmail,
+        memberId: outcome.memberId,
+        memberName:
+          [firstName, lastName].filter(Boolean).join(" ") ||
+          String(outcome.memberEmail ?? "Unknown member"),
+        outcome: String(outcome.outcome ?? "abandoned"),
+        status: outcome.status,
+        step: String(outcome.step ?? "confirm"),
+      };
+    }),
+    retained: Number(snapshot.retainedCount ?? 0),
+    retentionRate: percentageFromFraction(snapshot.retentionRate),
+    steps: stepRows.map((entry) => {
+      const step = entry as Record<string, unknown>;
+      return {
+        cancelled: Number(step.cancelledCount ?? 0),
+        continued: Number(step.continuedCount ?? 0),
+        conversionRate: percentageFromFraction(step.conversionRate),
+        intercepted: Number(step.interceptedCount ?? 0),
+        position: Number(step.stepPosition ?? 0),
+        reached: Number(step.viewedCount ?? 0),
+        step: step.stepType,
+      };
+    }),
+  };
+}
+
+interface LoyaltyLedgerCursor {
+  beforeSequence?: number;
+  snapshotSequence: number;
+}
+
+export function encodeLoyaltyLedgerCursor(
+  cursor: LoyaltyLedgerCursor,
+): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+export function decodeLoyaltyLedgerCursor(
+  value: string | undefined,
+): LoyaltyLedgerCursor | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8"),
+    ) as Record<string, unknown>;
+    const snapshotSequence = Number(parsed.snapshotSequence);
+    const beforeSequence =
+      parsed.beforeSequence === undefined
+        ? undefined
+        : Number(parsed.beforeSequence);
+    if (
+      !Number.isSafeInteger(snapshotSequence) ||
+      snapshotSequence < 0 ||
+      (beforeSequence !== undefined &&
+        (!Number.isSafeInteger(beforeSequence) ||
+          beforeSequence < 1 ||
+          beforeSequence > snapshotSequence))
+    ) {
+      throw new Error("invalid cursor");
+    }
+    return { beforeSequence, snapshotSequence };
+  } catch {
+    throw new AppError(
+      400,
+      "invalid_request",
+      "The loyalty history cursor is invalid.",
+    );
+  }
 }
 
 function toPublicCancelStep(value: Record<string, unknown>): Record<string, unknown> {
@@ -318,6 +418,49 @@ async function sha256(value: string): Promise<string> {
     new TextEncoder().encode(value),
   );
   return Buffer.from(digest).toString("hex");
+}
+
+function canonicalizeCommandValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeCommandValue);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, nested]) => nested !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, canonicalizeCommandValue(nested)]),
+    );
+  }
+  return value;
+}
+
+export function commandRequestFingerprint(
+  operation: string,
+  payload: Record<string, unknown>,
+): Promise<string> {
+  return sha256(
+    JSON.stringify(
+      canonicalizeCommandValue({
+        operation,
+        payload,
+      }),
+    ),
+  );
+}
+
+async function derivedCommandId(
+  commandId: string,
+  purpose: string,
+): Promise<string> {
+  const digest = await sha256(`${commandId}:${purpose}`);
+  return [
+    digest.slice(0, 8),
+    digest.slice(8, 12),
+    `5${digest.slice(13, 16)}`,
+    `a${digest.slice(17, 20)}`,
+    digest.slice(20, 32),
+  ].join("-");
 }
 
 async function hmac(
@@ -813,6 +956,14 @@ export function awardedPoints(basePoints: number, planTier: string): number {
   return Math.floor(basePoints * loyaltyMultiplier(planTier));
 }
 
+export function cancelOutcomeMessage(outcome: CancelFlowOutcome): string {
+  if (outcome === "paused") return "Your membership pause is confirmed.";
+  if (outcome === "downgraded") return "Your club tier change is confirmed.";
+  if (outcome === "swapped") return "Your next shipment swap is confirmed.";
+  if (outcome === "cancelled") return "Your membership has been cancelled.";
+  return "Continue to the next retention option.";
+}
+
 export function portalLoginIdempotencyKey(
   memberId: string,
   asOf = new Date(),
@@ -998,17 +1149,32 @@ function canonicalProviderEventType(type: string): string | null {
   return null;
 }
 
-function providerEventStatus(type: string):
-  | "sent"
-  | "delivered"
-  | "failed"
-  | "bounced"
-  | null {
-  if (type === "sent") return "sent";
-  if (type === "delivered") return "delivered";
-  if (type === "bounced" || type === "complained") return "bounced";
-  if (type === "failed") return "failed";
-  return null;
+export async function recordEmailProviderEvent(
+  admin: SupabaseClient,
+  input: {
+    eventType: string;
+    occurredAt: string;
+    payload: Record<string, unknown>;
+    providerEmailId: string;
+    providerEventId: string;
+  },
+): Promise<{ duplicate: boolean; matched: boolean }> {
+  const { data, error } = await admin.rpc("record_email_provider_event", {
+    p_event_type: input.eventType,
+    p_occurred_at: input.occurredAt,
+    p_payload: input.payload,
+    p_provider_email_id: input.providerEmailId,
+    p_provider_event_id: input.providerEventId,
+  });
+  if (error) throw databaseError("The email delivery event could not be recorded.");
+  const result = returnedRpcRow(data);
+  if (!result) {
+    throw databaseError("The email delivery event result was invalid.");
+  }
+  return {
+    duplicate: result.duplicate === true,
+    matched: result.matched === true,
+  };
 }
 
 async function markEmail(
@@ -1016,15 +1182,21 @@ async function markEmail(
   row: ClaimedEmail,
   status: "sent" | "failed",
   providerId: string | null,
+  errorMessage: string | null = null,
 ): Promise<void> {
-  const { error } = await admin.rpc("mark_email_delivery", {
-    p_email_log_id: row.email_log_id,
-    p_error: status === "failed" ? "provider_delivery_failed" : null,
-    p_organization_id: row.organization_id,
+  const { data, error } = await admin.rpc("complete_email_outbox_claim", {
+    p_completion_token: row.completion_token,
+    p_error:
+      status === "failed"
+        ? (errorMessage ?? "provider_delivery_failed")
+        : null,
+    p_outbox_id: row.outbox_id,
     p_resend_id: providerId,
     p_status: status,
   });
-  if (error) throw databaseError("The email delivery receipt could not be recorded.");
+  if (error || data !== true) {
+    throw databaseError("The email delivery receipt could not be recorded.");
+  }
 }
 
 export function resolveBrandSenderIdentity(
@@ -1071,6 +1243,7 @@ export async function deliverClaimedEmails(input: {
     row: ClaimedEmail,
     status: "sent" | "failed",
     providerId: string | null,
+    errorMessage?: string | null,
   ) => Promise<void>;
   registerUnsubscribe?: (
     row: ClaimedEmail,
@@ -1085,9 +1258,10 @@ export async function deliverClaimedEmails(input: {
     throw new AppError(400, "invalid_request", "At most 100 emails can be delivered.");
   }
   if (!input.rows.length) return { failed: 0, sent: 0 };
-  const deliveryRows: Array<{ from?: string; row: ClaimedEmail }> = [];
-  const rejectedRows: ClaimedEmail[] = [];
-  for (const row of input.rows) {
+  const deliverOne = async (
+    row: ClaimedEmail,
+  ): Promise<"failed" | "sent"> => {
+    let providerAccepted = false;
     try {
       const from = resolveBrandSenderIdentity(
         row.sender_identity_id
@@ -1099,19 +1273,6 @@ export async function deliverClaimedEmails(input: {
             }
           : null,
       );
-      deliveryRows.push({ from, row });
-    } catch {
-      rejectedRows.push(row);
-    }
-  }
-  await Promise.allSettled(
-    rejectedRows.map((row) => input.mark(row, "failed", null)),
-  );
-  if (!deliveryRows.length) {
-    return { failed: rejectedRows.length, sent: 0 };
-  }
-  const prepared = await Promise.all(
-    deliveryRows.map(async ({ from, row }) => {
       const variables = Object.fromEntries(
         Object.entries(row.payload ?? {})
           .filter((entry): entry is [string, string | number | boolean] =>
@@ -1121,10 +1282,19 @@ export async function deliverClaimedEmails(input: {
       );
       let unsubscribeUrl = new URL("/portal/preferences", input.appOrigin);
       if (row.member_id) {
-        const signedAt = new Date();
-        const expiresAt = new Date(
-          signedAt.getTime() + 30 * 24 * 60 * 60 * 1_000,
-        );
+        const signedAt = new Date(row.unsubscribe_signed_at);
+        const expiresAt = new Date(row.unsubscribe_expires_at);
+        if (
+          !Number.isFinite(signedAt.getTime()) ||
+          !Number.isFinite(expiresAt.getTime()) ||
+          expiresAt <= signedAt
+        ) {
+          throw new AppError(
+            500,
+            "upstream_error",
+            "The claimed email has invalid unsubscribe token dates.",
+          );
+        }
         const token = await createUnsubscribeToken(
           input.env,
           {
@@ -1148,7 +1318,7 @@ export async function deliverClaimedEmails(input: {
         unsubscribeUrl: unsubscribeUrl.toString(),
         variables,
       });
-      return {
+      const message = {
         attachments: emailAttachments(row.payload),
         from,
         headers: row.member_id
@@ -1161,25 +1331,52 @@ export async function deliverClaimedEmails(input: {
         subject: rendered.subject,
         to: row.to_email,
       };
-    }),
+      const [receipt] = await input.provider.sendBatch(
+        [message],
+        `outbox:${row.outbox_id}`,
+      );
+      if (!receipt?.id) {
+        throw databaseError("The email provider did not accept the message.");
+      }
+      providerAccepted = true;
+      await input.mark(row, "sent", receipt.id);
+      return "sent";
+    } catch (error) {
+      if (!providerAccepted) {
+        const errorMessage =
+          error instanceof AppError
+            ? error.code
+            : "provider_delivery_failed";
+        await input
+          .mark(row, "failed", null, errorMessage)
+          .catch(() => undefined);
+      }
+      return "failed";
+    }
+  };
+  const outcomes: Array<"failed" | "sent"> = new Array(input.rows.length);
+  let nextIndex = 0;
+  await Promise.all(
+    Array.from(
+      {
+        length: Math.min(EMAIL_DELIVERY_CONCURRENCY, input.rows.length),
+      },
+      async () => {
+        while (nextIndex < input.rows.length) {
+          const index = nextIndex;
+          nextIndex += 1;
+          outcomes[index] = await deliverOne(input.rows[index] as ClaimedEmail);
+        }
+      },
+    ),
   );
-  const idempotencyKey = `outbox:${await sha256(
-    deliveryRows.map(({ row }) => row.outbox_id).sort().join(":"),
-  )}`;
-  try {
-    const receipts = await input.provider.sendBatch(prepared, idempotencyKey);
-    await Promise.all(
-      deliveryRows.map(({ row }, index) =>
-        input.mark(row, "sent", receipts[index]?.id ?? null),
-      ),
-    );
-    return { failed: rejectedRows.length, sent: deliveryRows.length };
-  } catch (error) {
-    await Promise.allSettled(
-      deliveryRows.map(({ row }) => input.mark(row, "failed", null)),
-    );
-    throw error;
-  }
+  return outcomes.reduce(
+    (totals, outcome) => {
+      totals[outcome] += 1;
+      return totals;
+    },
+    { failed: 0, sent: 0 },
+  );
 }
 
 export async function deliverLoggedTestEmail(input: {
@@ -1463,16 +1660,23 @@ export class ProductionRetentionService
 
   async sendEmailTemplateTest(
     templateId: string,
-    input: { email: string; variables?: Record<string, string> },
+    input: {
+      body?: string;
+      email: string;
+      subject?: string;
+      variables?: Record<string, string>;
+    },
   ): Promise<{ accepted: boolean; deliveryId: string }> {
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
     const template = await this.getTemplate(templateId, organizationId, brandId);
+    const sourceBody = input.body ?? String(template.body ?? "");
+    const sourceSubject = input.subject ?? String(template.subject ?? "");
     const rendered = renderTransactionalEmail({
-      body: String(template.body ?? ""),
+      body: sourceBody,
       organizationName: principal.organization?.name ?? "Your wine club",
-      subject: `[TEST] ${String(template.subject ?? "")}`,
+      subject: `[TEST] ${sourceSubject}`,
       unsubscribeUrl: "#email-preferences",
       variables: input.variables,
     });
@@ -1502,7 +1706,7 @@ export class ProductionRetentionService
         const { data, error } = await this.admin.rpc("enqueue_test_email", {
           p_actor_user_id: principal.user.id,
           p_body: interpolate(
-            sanitizeTemplateHtml(String(template.body ?? "")),
+            sanitizeTemplateHtml(sourceBody),
             input.variables ?? {},
           ),
           p_idempotency_key: idempotencyKey,
@@ -1580,7 +1784,7 @@ export class ProductionRetentionService
   async handleResendWebhook(
     payload: Buffer,
     headers: { id: string; signature: string; timestamp: string },
-  ): Promise<{ duplicate: boolean; ignored?: boolean }> {
+  ): Promise<{ duplicate: boolean; ignored?: boolean; matched?: boolean }> {
     await verifyResendSignature(this.env, payload, headers);
     let event: {
       created_at?: string;
@@ -1601,14 +1805,9 @@ export class ProductionRetentionService
     if (!canonicalType) {
       return { duplicate: false, ignored: true };
     }
-    const { data: log, error: logError } = await this.admin
-      .from("email_log")
-      .select("id,organization_id,brand_id")
-      .eq("resend_id", providerId)
-      .maybeSingle();
-    if (logError) throw databaseError("The email delivery event could not be matched.");
-    if (!log) return { duplicate: false };
-    const occurred = event.created_at ? new Date(event.created_at) : new Date();
+    const occurred = event.created_at
+      ? new Date(event.created_at)
+      : new Date(Number(headers.timestamp) * 1_000);
     if (!Number.isFinite(occurred.getTime())) {
       throw new AppError(
         400,
@@ -1617,31 +1816,13 @@ export class ProductionRetentionService
       );
     }
     const occurredAt = occurred.toISOString();
-    const { data: recorded, error: eventError } = await this.admin.rpc(
-      "record_email_delivery_event",
-      {
-        p_email_log_id: log.id,
-        p_event_type: canonicalType,
-        p_occurred_at: occurredAt,
-        p_organization_id: log.organization_id,
-        p_payload: { email_id: providerId, type: canonicalType },
-        p_provider_event_id: headers.id,
-      },
-    );
-    if (eventError) throw databaseError("The email delivery event could not be recorded.");
-    if (recorded === false) return { duplicate: true };
-    const status = providerEventStatus(canonicalType);
-    if (status) {
-      const { error } = await this.admin.rpc("mark_email_delivery", {
-        p_email_log_id: log.id,
-        p_error: status === "failed" || status === "bounced" ? type : null,
-        p_organization_id: log.organization_id,
-        p_resend_id: providerId,
-        p_status: status,
-      });
-      if (error) throw databaseError("The email delivery status could not be updated.");
-    }
-    return { duplicate: false };
+    return recordEmailProviderEvent(this.admin, {
+      eventType: canonicalType,
+      occurredAt,
+      payload: event as Record<string, unknown>,
+      providerEmailId: providerId,
+      providerEventId: headers.id,
+    });
   }
 
   async listChurnScores(input: {
@@ -1775,10 +1956,20 @@ export class ProductionRetentionService
     const principal = await this.requireStaff(["owner", "admin"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    await this.assertLegacySingleBrandScope(
-      principal,
-      "Cancel-flow configuration",
-    );
+    const confirmation = input.steps.find((step) => step.id === "confirm");
+    if (
+      input.steps.length !== 4 ||
+      new Set(input.steps.map((step) => step.id)).size !== 4 ||
+      new Set(input.steps.map((step) => step.position)).size !== 4 ||
+      !confirmation?.enabled ||
+      confirmation.position !== 4
+    ) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "The enabled confirmation step must remain last.",
+      );
+    }
     input.steps
       .filter((step) => step.stepId)
       .forEach((step) => assertUuid(step.stepId as string, "Cancel-flow step"));
@@ -1816,6 +2007,7 @@ export class ProductionRetentionService
       "update_cancel_flow_configuration",
       {
         p_actor_user_id: principal.user.id,
+        p_brand_id: brandId,
         p_organization_id: organizationId,
         p_steps: databaseSteps,
       },
@@ -1835,115 +2027,18 @@ export class ProductionRetentionService
     const principal = await this.requireStaff();
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    const [{ data, error }, { count: attemptCount, error: attemptError }] =
-      await Promise.all([
-        this.admin
-          .from("cancel_flow_events")
-          .select(
-            "id,attempt_id,member_id,step_position,outcome,created_at,members(first_name,last_name,email),cancel_flow_steps(step_type)",
-          )
-          .eq("organization_id", organizationId)
-          .eq("brand_id", brandId)
-          .order("created_at", { ascending: false })
-          .limit(1_000),
-        this.admin
-          .from("cancel_flow_attempts")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", organizationId)
-          .eq("brand_id", brandId),
-      ]);
+    const { data, error } = await this.admin.rpc(
+      "get_cancel_flow_analytics_snapshot",
+      {
+        p_brand_id: brandId,
+        p_from: "1970-01-01T00:00:00.000Z",
+        p_organization_id: organizationId,
+        p_recent_limit: 50,
+        p_to: new Date().toISOString(),
+      },
+    );
     if (error) throw databaseError("Cancel-flow analytics could not be loaded.");
-    if (attemptError) {
-      throw databaseError("Cancel-flow attempt totals could not be loaded.");
-    }
-    const events = data ?? [];
-    const steps = new Map<
-      string,
-      { attempts: number; intercepts: number; outcomes: Record<string, number> }
-    >();
-    for (const event of events) {
-      const stepRelation = oneRelation(
-        event.cancel_flow_steps as
-          | Record<string, unknown>
-          | Array<Record<string, unknown>>
-          | null,
-      );
-      const step = String(stepRelation?.step_type ?? "confirm");
-      const entry = steps.get(step) ?? {
-        attempts: 0,
-        intercepts: 0,
-        outcomes: {},
-      };
-      entry.attempts += 1;
-      const outcome = String(event.outcome);
-      entry.outcomes[outcome] = (entry.outcomes[outcome] ?? 0) + 1;
-      if (["paused", "downgraded", "swapped"].includes(outcome)) {
-        entry.intercepts += 1;
-      }
-      steps.set(step, entry);
-    }
-    const terminalByAttempt = new Map<string, (typeof events)[number]>();
-    for (const event of events) {
-      if (
-        ["paused", "downgraded", "swapped", "cancelled"].includes(
-          String(event.outcome),
-        ) &&
-        !terminalByAttempt.has(String(event.attempt_id))
-      ) {
-        terminalByAttempt.set(String(event.attempt_id), event);
-      }
-    }
-    const terminal = [...terminalByAttempt.values()];
-    const retained = terminal.filter((event) =>
-      ["paused", "downgraded", "swapped"].includes(String(event.outcome)),
-    ).length;
-    const cancelled = terminal.filter(
-      (event) => event.outcome === "cancelled",
-    ).length;
-    return {
-      attempts: attemptCount ?? 0,
-      cancelled,
-      recentOutcomes: terminal.slice(0, 50).map((event) => {
-        const member = oneRelation(
-          event.members as
-            | Record<string, unknown>
-            | Array<Record<string, unknown>>
-            | null,
-        );
-        const step = oneRelation(
-          event.cancel_flow_steps as
-            | Record<string, unknown>
-            | Array<Record<string, unknown>>
-            | null,
-        );
-        return {
-          createdAt: event.created_at,
-          id: event.id,
-          memberId: event.member_id,
-          memberName: memberName(member),
-          outcome: event.outcome,
-          step: step?.step_type ?? "confirm",
-        };
-      }),
-      retained,
-      retentionRate:
-        retained + cancelled > 0 ? (retained / (retained + cancelled)) * 100 : 0,
-      steps: [...steps.entries()]
-        .sort(
-          ([left], [right]) =>
-            ["pause", "downgrade", "swap", "confirm"].indexOf(left) -
-            ["pause", "downgrade", "swap", "confirm"].indexOf(right),
-        )
-        .map(([step, metrics]) => ({
-          conversionRate:
-            metrics.attempts > 0
-              ? (metrics.intercepts / metrics.attempts) * 100
-              : 0,
-          intercepted: metrics.intercepts,
-          reached: metrics.attempts,
-          step,
-        })),
-    };
+    return normalizeCancelFlowAnalyticsSnapshot(data);
   }
 
   async getMemberCancelFlow(): Promise<Record<string, unknown>> {
@@ -1986,7 +2081,7 @@ export class ProductionRetentionService
       }),
       this.admin
         .from("cancel_flow_attempts")
-        .select("id,current_step_id")
+        .select("id,current_step_id,configuration_snapshot")
         .eq("organization_id", organizationId)
         .eq("brand_id", principal.brand.id)
         .eq("member_id", memberId)
@@ -2005,6 +2100,15 @@ export class ProductionRetentionService
     if (attemptResult.error) {
       throw databaseError("The active cancellation attempt could not be loaded.");
     }
+    const configurationSnapshot = attemptResult.data?.configuration_snapshot;
+    const attemptConfiguration =
+      Array.isArray(configurationSnapshot) && configurationSnapshot.length > 0
+        ? {
+            steps: configurationSnapshot.map((step) =>
+              toPublicCancelStep(step as Record<string, unknown>),
+            ),
+          }
+        : configuration;
     const currentTier = oneRelation(
       memberResult.data.club_tiers as
         | Record<string, unknown>
@@ -2065,8 +2169,9 @@ export class ProductionRetentionService
       returnedRpcRow(loyaltyResult.data)?.available_points ?? 0,
     );
     return {
-      ...configuration,
+      ...attemptConfiguration,
       attemptId: attemptResult.data?.id ?? null,
+      currentStepId: attemptResult.data?.current_step_id ?? null,
       benefitsAtRisk: [
         ...(currentTier?.name
           ? [`${String(currentTier.name)} tier benefits`]
@@ -2089,13 +2194,24 @@ export class ProductionRetentionService
     };
   }
 
-  async startMemberCancelFlow(): Promise<Record<string, unknown>> {
+  async startMemberCancelFlow(commandId: string): Promise<Record<string, unknown>> {
+    assertUuid(commandId, "Command");
     const principal = await this.requireMember();
-    await this.assertLegacySingleBrandScope(principal, "Cancellation flow");
+    const requestFingerprint = await commandRequestFingerprint(
+      "cancel_flow.start",
+      {
+        brandId: principal.brand.id,
+        memberId: principal.user.id,
+        organizationId: principal.organization.id,
+      },
+    );
     const { data, error } = await this.admin.rpc("start_cancel_flow", {
       p_actor_user_id: principal.user.authUserId,
+      p_brand_id: principal.brand.id,
+      p_command_id: commandId,
       p_member_id: principal.user.id,
       p_organization_id: principal.organization.id,
+      p_request_fingerprint_sha256: requestFingerprint,
     });
     const attempt = returnedRpcRow(data);
     if (error || typeof attempt?.id !== "string") {
@@ -2110,11 +2226,12 @@ export class ProductionRetentionService
   async processCancelFlowEvent(input: {
     action: CancelFlowOutcome;
     attemptId?: string;
+    commandId: string;
     details?: Record<string, unknown>;
     stepId: string;
   }): Promise<Record<string, unknown>> {
+    assertUuid(input.commandId, "Command");
     const principal = await this.requireMember();
-    await this.assertLegacySingleBrandScope(principal, "Cancellation flow");
     let stepId = input.stepId;
     if (!/^[0-9a-f-]{36}$/i.test(stepId)) {
       const { data: step, error: stepError } = await this.admin
@@ -2149,10 +2266,26 @@ export class ProductionRetentionService
         typeof activeAttempt?.id === "string" ? activeAttempt.id : undefined;
     }
     if (!attemptId) {
+      const startCommandId = await derivedCommandId(
+        input.commandId,
+        "cancel-flow-start",
+      );
       const { data, error } = await this.admin.rpc("start_cancel_flow", {
         p_actor_user_id: principal.user.authUserId,
+        p_brand_id: principal.brand.id,
+        p_command_id: startCommandId,
         p_member_id: principal.user.id,
         p_organization_id: principal.organization.id,
+        p_request_fingerprint_sha256: await commandRequestFingerprint(
+          "cancel_flow.start_for_step",
+          {
+            action: input.action,
+            brandId: principal.brand.id,
+            memberId: principal.user.id,
+            organizationId: principal.organization.id,
+            stepId,
+          },
+        ),
       });
       const attempt = returnedRpcRow(data);
       if (error || typeof attempt?.id !== "string") {
@@ -2242,12 +2375,27 @@ export class ProductionRetentionService
       details.shipment_item_id = sourceItem.id;
       details.target_release_wine_id = targetWineId;
     }
+    const requestFingerprint = await commandRequestFingerprint(
+      "cancel_flow.record_step",
+      {
+        action: input.action,
+        attemptId,
+        brandId: principal.brand.id,
+        details,
+        memberId: principal.user.id,
+        organizationId: principal.organization.id,
+        stepId,
+      },
+    );
     const { data, error } = await this.admin.rpc("record_cancel_flow_step", {
       p_actor_user_id: principal.user.authUserId,
       p_attempt_id: attemptId,
+      p_brand_id: principal.brand.id,
+      p_command_id: input.commandId,
       p_details: details,
       p_organization_id: principal.organization.id,
       p_outcome: input.action,
+      p_request_fingerprint_sha256: requestFingerprint,
       p_step_id: stepId,
     });
     if (error) {
@@ -2257,8 +2405,11 @@ export class ProductionRetentionService
         "The cancellation action could not be applied.",
       );
     }
-    const outcome = toPublicRecord(data);
-    if (input.action === "cancelled") {
+    const outcome = toPublicRecord(returnedRpcRow(data) ?? {});
+    const acceptedOutcome = String(
+      outcome.acceptedOutcome ?? outcome.outcome ?? input.action,
+    ) as CancelFlowOutcome;
+    if (acceptedOutcome === "cancelled") {
       await this.recordDomainAnalyticsEvent(principal, {
         eventData: {
           source: "cancel_flow",
@@ -2266,21 +2417,12 @@ export class ProductionRetentionService
         },
         eventType: "member.cancelled",
         memberId: principal.user.id,
-        requestKey: `cancel-flow:${attemptId}:${stepId}:cancelled`,
+        requestKey: `cancel-flow:${input.commandId}:cancelled`,
       });
     }
     return {
       ...outcome,
-      message:
-        input.action === "paused"
-          ? "Your membership pause is confirmed."
-          : input.action === "downgraded"
-            ? "Your club tier change is confirmed."
-            : input.action === "swapped"
-              ? "Your next shipment swap is confirmed."
-              : input.action === "cancelled"
-                ? "Your membership has been cancelled."
-                : "Continue to the next retention option.",
+      message: cancelOutcomeMessage(acceptedOutcome),
     };
   }
 
@@ -2382,8 +2524,10 @@ export class ProductionRetentionService
   async adjustLoyaltyPoints(
     memberId: string,
     input: { points: number; reason: string },
+    commandId: string,
   ): Promise<Record<string, unknown>> {
     assertUuid(memberId, "Member");
+    assertUuid(commandId, "Command");
     const principal = await this.requireStaff(["owner", "admin", "manager"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
@@ -2405,14 +2549,28 @@ export class ProductionRetentionService
         "The loyalty member is not available for this brand.",
       );
     }
-    const { data, error } = await this.admin.rpc("adjust_loyalty_points", {
+    const { data, error } = await this.admin.rpc(
+      "adjust_loyalty_points_command",
+      {
       p_actor_user_id: principal.user.id,
-      p_idempotency_key: `loyalty:manual:${crypto.randomUUID()}`,
+      p_brand_id: brandId,
+      p_command_id: commandId,
       p_member_id: memberId,
       p_organization_id: organizationId,
       p_points: input.points,
+      p_request_fingerprint_sha256: await commandRequestFingerprint(
+        "loyalty.manual_adjustment",
+        {
+          brandId,
+          memberId,
+          organizationId,
+          points: input.points,
+          reason: input.reason,
+        },
+      ),
       p_reason: input.reason,
-    });
+      },
+    );
     if (error) {
       throw new AppError(
         409,
@@ -2493,17 +2651,22 @@ export class ProductionRetentionService
     };
   }
 
-  async getMemberLoyalty(): Promise<Record<string, unknown>> {
+  async getMemberLoyalty(input: {
+    cursor?: string;
+    limit: number;
+  }): Promise<Record<string, unknown>> {
     const principal = await this.requireMember();
     return this.loadMemberLoyalty(
       principal.organization.id,
       principal.brand.id,
       principal.user.id,
+      input,
     );
   }
 
   async getStaffMemberLoyalty(
     memberId: string,
+    input: { cursor?: string; limit: number },
   ): Promise<Record<string, unknown>> {
     assertUuid(memberId, "Member");
     const principal = await this.requireStaff();
@@ -2511,6 +2674,7 @@ export class ProductionRetentionService
       this.organizationId(principal),
       await this.activeBrandId(principal),
       memberId,
+      input,
     );
   }
 
@@ -2518,8 +2682,51 @@ export class ProductionRetentionService
     organizationId: string,
     brandId: string,
     memberId: string,
+    page: { cursor?: string; limit: number },
   ): Promise<Record<string, unknown>> {
-    const [member, lots, ledger, organization, multiplier] = await Promise.all([
+    const decodedCursor = decodeLoyaltyLedgerCursor(page.cursor);
+    let snapshotSequence = decodedCursor?.snapshotSequence;
+    if (snapshotSequence === undefined) {
+      const { data: newestLedgerRow, error: watermarkError } = await this.admin
+        .from("loyalty_ledger")
+        .select("ledger_sequence")
+        .eq("organization_id", organizationId)
+        .eq("brand_id", brandId)
+        .eq("member_id", memberId)
+        .order("ledger_sequence", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (watermarkError) {
+        throw databaseError("The loyalty account could not be loaded.");
+      }
+      snapshotSequence = Number(newestLedgerRow?.ledger_sequence ?? 0);
+    }
+    let ledgerQuery = this.admin
+      .from("loyalty_ledger")
+      .select(
+        "id,ledger_sequence,entry_type,points,reason,source_event_type,expires_at,created_at",
+      )
+      .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
+      .eq("member_id", memberId)
+      .lte("ledger_sequence", snapshotSequence)
+      .order("ledger_sequence", { ascending: false })
+      .limit(page.limit + 1);
+    if (decodedCursor?.beforeSequence !== undefined) {
+      ledgerQuery = ledgerQuery.lt(
+        "ledger_sequence",
+        decodedCursor.beforeSequence,
+      );
+    }
+    const ledgerCountQuery = this.admin
+      .from("loyalty_ledger")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("brand_id", brandId)
+      .eq("member_id", memberId)
+      .lte("ledger_sequence", snapshotSequence);
+    const [member, lots, ledger, ledgerCount, organization, multiplier] =
+      await Promise.all([
       this.admin
         .from("members")
         .select(
@@ -2537,16 +2744,8 @@ export class ProductionRetentionService
         .eq("member_id", memberId)
         .gt("expires_at", new Date().toISOString())
         .order("expires_at"),
-      this.admin
-        .from("loyalty_ledger")
-        .select(
-          "id,entry_type,points,reason,source_event_type,expires_at,created_at",
-        )
-        .eq("organization_id", organizationId)
-        .eq("brand_id", brandId)
-        .eq("member_id", memberId)
-        .order("created_at", { ascending: false })
-        .limit(250),
+      ledgerQuery,
+      ledgerCountQuery,
       this.admin
         .from("organizations")
         .select("loyalty_points_per_unit,loyalty_discount_unit_cents")
@@ -2574,9 +2773,19 @@ export class ProductionRetentionService
     if (member.error || !member.data) {
       throw new AppError(404, "not_found", "Member not found.");
     }
-    if (lots.error || ledger.error || organization.error || multiplier.error) {
+    if (
+      lots.error ||
+      ledger.error ||
+      ledgerCount.error ||
+      organization.error ||
+      multiplier.error
+    ) {
       throw databaseError("The loyalty account could not be loaded.");
     }
+    const ledgerRows = ledger.data ?? [];
+    const hasMore = ledgerRows.length > page.limit;
+    const visibleLedgerRows = ledgerRows.slice(0, page.limit);
+    const lastLedgerRow = visibleLedgerRows.at(-1);
     const availablePoints = (lots.data ?? []).reduce(
       (sum, lot) =>
         sum +
@@ -2613,7 +2822,7 @@ export class ProductionRetentionService
           ),
         0,
       ),
-      ledger: (ledger.data ?? []).map((row) => ({
+      ledger: visibleLedgerRows.map((row) => ({
         createdAt: row.created_at,
         expiresAt: row.expires_at,
         id: row.id,
@@ -2621,6 +2830,18 @@ export class ProductionRetentionService
         reason: row.reason,
         type: loyaltyEntryType(row as Record<string, unknown>),
       })),
+      ledgerPagination: {
+        hasMore,
+        limit: page.limit,
+        nextCursor:
+          hasMore && lastLedgerRow
+            ? encodeLoyaltyLedgerCursor({
+                beforeSequence: Number(lastLedgerRow.ledger_sequence),
+                snapshotSequence,
+              })
+            : null,
+        total: ledgerCount.count ?? visibleLedgerRows.length,
+      },
       memberEmail: member.data.email,
       memberId: member.data.id,
       memberName: memberName(member.data as Record<string, unknown>),
@@ -2642,16 +2863,31 @@ export class ProductionRetentionService
     points: number;
     shipmentId: string;
   }): Promise<Record<string, unknown>> {
+    assertUuid(input.idempotencyKey, "Command");
     assertUuid(input.shipmentId, "Shipment");
     const principal = await this.requireMember();
-    const { data, error } = await this.admin.rpc("reserve_loyalty_discount", {
+    const { data, error } = await this.admin.rpc(
+      "reserve_loyalty_discount_command",
+      {
       p_actor_user_id: principal.user.authUserId,
-      p_idempotency_key: input.idempotencyKey,
+      p_brand_id: principal.brand.id,
+      p_command_id: input.idempotencyKey,
       p_member_id: principal.user.id,
       p_organization_id: principal.organization.id,
       p_points: input.points,
+      p_request_fingerprint_sha256: await commandRequestFingerprint(
+        "loyalty.reserve_discount",
+        {
+          brandId: principal.brand.id,
+          memberId: principal.user.id,
+          organizationId: principal.organization.id,
+          points: input.points,
+          shipmentId: input.shipmentId,
+        },
+      ),
       p_shipment_id: input.shipmentId,
-    });
+      },
+    );
     if (error) {
       throw new AppError(
         409,
@@ -2688,7 +2924,7 @@ export class ProductionRetentionService
   }
 }
 
-async function runEmailOutbox(
+export async function runEmailOutbox(
   env: WorkerEnv,
   admin: SupabaseClient,
 ): Promise<{ failed: number; sent: number }> {
@@ -2703,8 +2939,8 @@ async function runEmailOutbox(
   return deliverClaimedEmails({
     appOrigin: requireConfigured(env.APP_ORIGIN, "APP_ORIGIN"),
     env,
-    mark: (row, status, providerId) =>
-      markEmail(admin, row, status, providerId),
+    mark: (row, status, providerId, errorMessage) =>
+      markEmail(admin, row, status, providerId, errorMessage),
     provider: createTransactionalEmailProvider(env),
     registerUnsubscribe: async (row, token, signedAt, expiresAt) => {
       if (!row.member_id) return;
@@ -2728,52 +2964,67 @@ async function runEmailOutbox(
 export async function runRetentionSchedule(
   env: WorkerEnv,
   asOf = new Date(),
+  dependencies: {
+    admin?: SupabaseClient;
+    deliverEmail?: (
+      env: WorkerEnv,
+      admin: SupabaseClient,
+    ) => Promise<{ failed: number; sent: number }>;
+  } = {},
 ): Promise<{
+  cancelAttemptsExpired: number;
   churnScoresUpdated: number;
   email: { failed: number; sent: number };
+  failures: string[];
   loyaltyExpired: number;
   loyaltyEventsProcessed: number;
+  membersResumed: number;
 }> {
-  const admin = createAdminClient(env);
+  const admin = dependencies.admin ?? createAdminClient(env);
+  const failures: string[] = [];
   const { error: enqueueError } = await admin.rpc("enqueue_due_email_triggers", {
     p_as_of: asOf.toISOString(),
   });
   if (enqueueError) {
-    throw databaseError("Due transactional emails could not be queued.");
+    failures.push("email_enqueue");
   }
-  const email = getConfigurationReport(env).communications.configured
-    ? await runEmailOutbox(env, admin)
-    : { failed: 0, sent: 0 };
+  let email = { failed: 0, sent: 0 };
+  if (getConfigurationReport(env).communications.configured) {
+    try {
+      email = await (dependencies.deliverEmail ?? runEmailOutbox)(env, admin);
+    } catch {
+      failures.push("email_delivery");
+    }
+  }
+  let cancelAttemptsExpired = 0;
   let churnScoresUpdated = 0;
   let loyaltyExpired = 0;
   let loyaltyEventsProcessed = 0;
-  if (asOf.getUTCHours() === DAILY_JOB_UTC_HOUR) {
-    const [churn, expired, awards] = await Promise.all([
-      admin.rpc("calculate_nightly_churn_scores", {
-        p_calculated_at: asOf.toISOString(),
-        p_organization_id: null,
-      }),
-      admin.rpc("expire_loyalty_points", {
-        p_as_of: asOf.toISOString(),
-        p_organization_id: null,
-      }),
-      admin.rpc("process_daily_loyalty_awards", {
-        p_as_of: asOf.toISOString().slice(0, 10),
-        p_organization_id: null,
-      }),
-    ]);
-    if (churn.error) throw databaseError("Nightly churn scoring failed.");
-    if (expired.error) throw databaseError("Loyalty expiration failed.");
-    if (awards.error) throw databaseError("Daily loyalty awards failed.");
-    churnScoresUpdated = Number(churn.data ?? 0);
-    loyaltyExpired = Number(expired.data ?? 0);
-    loyaltyEventsProcessed = Number(awards.data ?? 0);
+  let membersResumed = 0;
+  const { data: dailyData, error: dailyError } = await admin.rpc(
+    "run_retention_daily_jobs",
+    {
+      p_job_date: asOf.toISOString().slice(0, 10),
+    },
+  );
+  if (dailyError) {
+    failures.push("daily_retention");
+  } else {
+    const daily = toPublicRecord(returnedRpcRow(dailyData) ?? dailyData);
+    cancelAttemptsExpired = Number(daily.cancelAttemptsExpired ?? 0);
+    churnScoresUpdated = Number(daily.churnScoresWritten ?? 0);
+    loyaltyExpired = Number(daily.loyaltyLotsExpired ?? 0);
+    loyaltyEventsProcessed = Number(daily.loyaltyAwardsWritten ?? 0);
+    membersResumed = Number(daily.membersResumed ?? 0);
   }
   return {
+    cancelAttemptsExpired,
     churnScoresUpdated,
     email,
+    failures,
     loyaltyExpired,
     loyaltyEventsProcessed,
+    membersResumed,
   };
 }
 

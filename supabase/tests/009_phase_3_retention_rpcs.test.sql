@@ -2,6 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
+set local time zone 'UTC';
 
 select plan(54);
 

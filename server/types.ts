@@ -443,18 +443,25 @@ export interface RetentionService {
   adjustLoyaltyPoints(
     memberId: string,
     input: { points: number; reason: string },
+    commandId: string,
   ): Promise<Record<string, unknown>>;
   deleteEmailTemplate(templateId: string): Promise<void>;
   getCancelFlowAnalytics(): Promise<Record<string, unknown>>;
   getCancelFlowConfiguration(): Promise<Record<string, unknown>>;
   getChurnScore(memberId: string): Promise<Record<string, unknown>>;
   getMemberCancelFlow(): Promise<Record<string, unknown>>;
-  getMemberLoyalty(): Promise<Record<string, unknown>>;
-  getStaffMemberLoyalty(memberId: string): Promise<Record<string, unknown>>;
+  getMemberLoyalty(input: {
+    cursor?: string;
+    limit: number;
+  }): Promise<Record<string, unknown>>;
+  getStaffMemberLoyalty(
+    memberId: string,
+    input: { cursor?: string; limit: number },
+  ): Promise<Record<string, unknown>>;
   handleResendWebhook(
     payload: Buffer,
     headers: { id: string; signature: string; timestamp: string },
-  ): Promise<{ duplicate: boolean; ignored?: boolean }>;
+  ): Promise<{ duplicate: boolean; ignored?: boolean; matched?: boolean }>;
   listChurnScores(input: {
     limit: number;
     offset: number;
@@ -492,6 +499,7 @@ export interface RetentionService {
   processCancelFlowEvent(input: {
     action: CancelFlowOutcome;
     attemptId?: string;
+    commandId: string;
     details?: Record<string, unknown>;
     stepId: string;
   }): Promise<Record<string, unknown>>;
@@ -511,9 +519,14 @@ export interface RetentionService {
   }): Promise<Record<string, unknown>>;
   sendEmailTemplateTest(
     templateId: string,
-    input: { email: string; variables?: Record<string, string> },
+    input: {
+      body?: string;
+      email: string;
+      subject?: string;
+      variables?: Record<string, string>;
+    },
   ): Promise<{ accepted: boolean; deliveryId: string }>;
-  startMemberCancelFlow(): Promise<Record<string, unknown>>;
+  startMemberCancelFlow(commandId: string): Promise<Record<string, unknown>>;
   updateCancelFlowConfiguration(input: {
     steps: Array<{
       enabled: boolean;

@@ -152,8 +152,8 @@ serve the React application instead.
 |--------|--------|
 | Static marketing/guide baseline | Previously verified for accessibility and responsive layout; rerun as a regression gate |
 | Phase 1 foundation | Architecture, API, browser, Worker, and embedded PostgreSQL gates pass |
-| Phase 2 core club | 145 database assertions plus service and browser regression gates pass locally |
-| Phase 3 retention | Email, rules scoring, cancel-flow, and loyalty architecture plus database/service/browser gates pass locally |
+| Phase 2 core club | 231 database assertions plus service and browser regression gates pass locally |
+| Phase 3 retention | Lease-owned activation-safe email, rules scoring, immutable cancel-flow, tenant-scoped commands, snapshot-keyset loyalty, brand-local jobs, and 199 database assertions pass locally |
 | Phase 4 intelligence | Local architecture release gate passes: analytics, ML lifecycle, benchmark privacy, compliance, database, service, browser, accessibility, and performance checks are green; hosted real-data, model, cohort, and provider evidence remain gated |
 | Phase 5 scale | Version 0.5.0 source architecture is complete for connectors, multi-brand isolation, white label, and native shells; the Phase 5 QA report records architecture evidence and deferred hosted checks |
 | Release controls | Read-only readiness, Stripe test-catalog bootstrap, staging target guards, native hosted pgTAP, production Worker/Pages rollback control, and signed internal-store workflows are source-complete; credential-bound execution remains gated |

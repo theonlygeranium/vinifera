@@ -97,13 +97,14 @@ export interface CancelFlowAnalytics {
     memberId: string;
     memberName: string;
     step: CancelStepId;
-    outcome: "paused" | "downgraded" | "swapped" | "cancelled";
+    outcome: "paused" | "downgraded" | "swapped" | "cancelled" | "abandoned";
     createdAt: string;
   }>;
 }
 
 export interface MemberCancelFlow {
   attemptId?: string;
+  currentStepId?: string | null;
   steps: CancelFlowStepConfig[];
   currentTier: Pick<ClubTier, "id" | "name" | "priceCents"> | null;
   lowerTiers: Array<Pick<ClubTier, "id" | "name" | "priceCents" | "bottleCount">>;
@@ -132,6 +133,13 @@ export interface LoyaltyLedgerEntry {
   createdAt: string;
 }
 
+export interface LoyaltyLedgerPagination {
+  nextCursor?: string | null;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+}
+
 export interface LoyaltyAccount {
   memberId: string;
   memberName: string;
@@ -147,6 +155,7 @@ export interface LoyaltyAccount {
     discountCents: number;
   };
   ledger: LoyaltyLedgerEntry[];
+  ledgerPagination: LoyaltyLedgerPagination;
 }
 
 export interface LoyaltyMemberSummary {
@@ -250,6 +259,7 @@ export function normalizeMemberCancelFlow(value: unknown): MemberCancelFlow {
     : [];
   return {
     attemptId: stringValue(source.attemptId) || undefined,
+    currentStepId: stringValue(source.currentStepId) || null,
     steps: normalizeCancelSteps(source.steps),
     currentTier,
     lowerTiers,
@@ -359,6 +369,22 @@ export function normalizeLoyaltyAccount(value: unknown): LoyaltyAccount {
       ? source.redemption_rate
       : {};
   const rawLedger = Array.isArray(source.ledger) ? source.ledger : [];
+  const rawPagination = isRecord(
+    source.ledgerPagination ?? source.ledger_pagination,
+  )
+    ? ((source.ledgerPagination ?? source.ledger_pagination) as Record<
+        string,
+        unknown
+      >)
+    : {};
+  const paginationLimit = Math.max(
+    0,
+    numberValue(rawPagination.limit, rawLedger.length),
+  );
+  const paginationTotal = Math.max(
+    rawLedger.length,
+    numberValue(rawPagination.total, rawLedger.length),
+  );
 
   return {
     memberId: stringValue(source.memberId ?? source.member_id),
@@ -413,5 +439,16 @@ export function normalizeLoyaltyAccount(value: unknown): LoyaltyAccount {
         },
       ];
     }),
+    ledgerPagination: {
+      hasMore: Boolean(
+        rawPagination.nextCursor ?? rawPagination.next_cursor,
+      ),
+      limit: paginationLimit,
+      nextCursor:
+        stringValue(
+          rawPagination.nextCursor ?? rawPagination.next_cursor,
+        ) || null,
+      total: paginationTotal,
+    },
   };
 }

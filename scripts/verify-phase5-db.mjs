@@ -14,9 +14,9 @@ function resolvePglite() {
   } catch {
     const message = [
       "Phase 5 database verification requires @electric-sql/pglite.",
-      "Expose an existing workspace installation with NODE_PATH or install it",
-      "outside this repository. Set VINIFERA_DB_VERIFY_ALLOW_SKIP=1 only when",
-      "an explicit non-blocking skip is intended.",
+      "Run npm ci to install the locked development dependency.",
+      "Set VINIFERA_DB_VERIFY_ALLOW_SKIP=1 only when an explicit non-blocking",
+      "skip is intended.",
     ].join(" ");
     if (allowSkip) {
       console.warn(`SKIP ${message}`);
@@ -45,6 +45,7 @@ const migrations = [
   "supabase/migrations/202607260011_provider_activation_runtime.sql",
   "supabase/migrations/202607260012_custom_hostname_write_safety.sql",
   "supabase/migrations/202607260013_phase_2_transactional_commands.sql",
+  "supabase/migrations/202607260014_phase_3_brand_retention_hardening.sql",
 ];
 const tests = [
   "supabase/tests/013_phase_5_schema.test.sql",
@@ -58,6 +59,7 @@ const tests = [
   "supabase/tests/021_provider_activation_runtime.test.sql",
   "supabase/tests/022_custom_hostname_write_safety.test.sql",
   "supabase/tests/023_phase_2_transactional_commands.test.sql",
+  "supabase/tests/024_phase_3_current_stack_hardening.test.sql",
 ];
 
 async function readRepositoryFile(relativeFile) {

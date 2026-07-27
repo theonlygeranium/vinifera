@@ -1484,8 +1484,10 @@ export function createApp(options: AppOptions): express.Express {
     async (request, response) => {
     const input = parseBody(
       z.object({
+        body: z.string().trim().min(1).max(100_000).optional(),
         email: email.optional(),
         recipient: email.optional(),
+        subject: z.string().trim().min(1).max(200).optional(),
         variables: templateVariableSchema.optional(),
       }).refine((value) => Boolean(value.email ?? value.recipient), {
         message: "A test recipient is required.",
@@ -1498,7 +1500,9 @@ export function createApp(options: AppOptions): express.Express {
       await retentionService(request, response).sendEmailTemplateTest(
         uuid.parse(request.params.id),
         {
+          body: input.body,
           email: input.email ?? input.recipient ?? "",
+          subject: input.subject,
           variables: input.variables,
         },
       ),
@@ -1578,6 +1582,16 @@ export function createApp(options: AppOptions): express.Express {
               new Set(steps.map((step) => step.order ?? step.position)).size ===
                 steps.length,
             "Each cancel-flow step and position must be unique.",
+          )
+          .refine(
+            (steps) =>
+              steps.some(
+                (step) =>
+                  step.id === "confirm" &&
+                  step.enabled &&
+                  (step.order ?? step.position) === 4,
+              ),
+            "The enabled confirmation step must remain last.",
           ),
       }),
       request,
@@ -1613,7 +1627,9 @@ export function createApp(options: AppOptions): express.Express {
     parseBody(z.object({ confirmed: z.literal(true) }), request);
     data(
       response,
-      await retentionService(request, response).startMemberCancelFlow(),
+      await retentionService(request, response).startMemberCancelFlow(
+        commandId(request),
+      ),
       201,
     );
   });
@@ -1657,6 +1673,7 @@ export function createApp(options: AppOptions): express.Express {
       await retentionService(request, response).processCancelFlowEvent({
         action: input.action ?? input.outcome ?? "continued",
         attemptId: input.attemptId,
+        commandId: commandId(request),
         details: {
           ...(input.details ?? input.metadata ?? {}),
           ...(input.offerId ? { offer_id: input.offerId } : {}),
@@ -1693,6 +1710,7 @@ export function createApp(options: AppOptions): express.Express {
       await retentionService(request, response).adjustLoyaltyPoints(
         uuid.parse(request.params.id),
         input,
+        commandId(request),
       ),
       201,
     );
@@ -1720,25 +1738,38 @@ export function createApp(options: AppOptions): express.Express {
   });
 
   app.get("/api/loyalty/members/:id", async (request, response) => {
+    const query = z
+      .object({
+        cursor: z.string().trim().min(1).max(1_000).optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+      })
+      .parse(request.query);
     data(
       response,
       await retentionService(request, response).getStaffMemberLoyalty(
         uuid.parse(request.params.id),
+        query,
       ),
     );
   });
 
   app.get("/api/member/loyalty", async (request, response) => {
+    const query = z
+      .object({
+        cursor: z.string().trim().min(1).max(1_000).optional(),
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+      })
+      .parse(request.query);
     data(
       response,
-      await retentionService(request, response).getMemberLoyalty(),
+      await retentionService(request, response).getMemberLoyalty(query),
     );
   });
 
   app.post("/api/member/loyalty/redeem", async (request, response) => {
     const input = parseBody(
       z.object({
-        idempotencyKey: z.string().trim().min(16).max(200),
+        idempotencyKey: uuid,
         points: z.number().int().positive().max(100_000),
         shipmentId: uuid,
       }),

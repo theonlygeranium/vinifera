@@ -12,4 +12,8 @@ Provider activation and hosted tenant data evidence are tracked separately in
 
 The accompanying automated browser gate runs axe-core WCAG 2.1 AA, horizontal
 overflow, 44 px effective touch target, focus containment/restoration, LCP, CLS,
-and functional workflow assertions at 375, 768, and 1440 pixels.
+and functional workflow assertions at 375, 768, and 1440 pixels. The current
+Phase 3 gate is 27/27 and also covers unsaved-draft test delivery, current-tier
+downgrade comparison, resumed cancellation steps, snapshot-keyset loyalty
+ledgers, tenant-scoped retained command UUIDs across transient failure, reload,
+and brand switches, and the direct rules-based churn surface.

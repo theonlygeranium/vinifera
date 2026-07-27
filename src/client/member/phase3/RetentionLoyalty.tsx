@@ -8,12 +8,21 @@ import {
   Repeat2,
   Sparkles,
 } from "lucide-react";
-import { type FormEvent, useCallback, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ApiError, apiRequest, postJson } from "../../api/client";
 import {
   type CancelFlowStepConfig,
   type CancelStepId,
   type LoyaltyAccount,
+  type LoyaltyLedgerEntry,
+  type LoyaltyLedgerPagination,
   type MemberCancelFlow,
   normalizeLoyaltyAccount,
   normalizeMemberCancelFlow,
@@ -27,6 +36,7 @@ import {
   isActivationError,
   LoadingBlock,
 } from "../../shared/OperationalState";
+import { queryPath } from "../../api/phase2";
 import { date, money, sentence } from "../../staff/phase2/format";
 import { useApiResource } from "../../staff/phase2/useApiResource";
 
@@ -36,6 +46,7 @@ const cancelStepIcons: Record<CancelStepId, typeof CirclePause> = {
   swap: Repeat2,
   confirm: CheckCircle2,
 };
+const LOYALTY_LEDGER_PAGE_SIZE = 25;
 
 function formatPoints(value: number) {
   return new Intl.NumberFormat("en-US").format(value);
@@ -100,7 +111,6 @@ export function MemberRetentionControls() {
 
   async function openCancelFlow() {
     if (busy) return;
-    setActiveIndex(0);
     setPauseMonths("1");
     setSelectedTierId("");
     setSelectedSwapId("");
@@ -112,6 +122,13 @@ export function MemberRetentionControls() {
       if (!attempt) {
         throw new Error("Membership options are still loading.");
       }
+      const attemptSteps = [...attempt.steps]
+        .filter((step) => step.enabled)
+        .sort((left, right) => left.order - right.order);
+      const resumedIndex = attempt.currentStepId
+        ? attemptSteps.findIndex((step) => step.stepId === attempt.currentStepId)
+        : 0;
+      setActiveIndex(resumedIndex >= 0 ? resumedIndex : 0);
       setFlowOpen(true);
     } catch (error) {
       setFeedback({
@@ -503,32 +520,46 @@ function CancelStep({
       ) : null}
 
       {step.id === "downgrade" ? (
-        flow.lowerTiers.length ? (
-          <fieldset className="member-choice-list">
-            <legend>Available lower tiers</legend>
-            {flow.lowerTiers.map((tier) => (
-              <label key={tier.id}>
-                <input
-                  type="radio"
-                  name="cancel-downgrade-tier"
-                  value={tier.id}
-                  checked={selectedTierId === tier.id}
-                  onChange={(event) => onTier(event.target.value)}
-                />
-                <span>
-                  <strong>{tier.name}</strong>
-                  <small>
-                    {tier.bottleCount} bottles · {money(tier.priceCents)}
-                  </small>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-        ) : (
-          <p className="cancel-flow-unavailable">
-            No lower-priced tier is currently available.
-          </p>
-        )
+        <div className="cancel-tier-comparison">
+          {flow.currentTier ? (
+            <div
+              className="cancel-tier-comparison__current"
+              aria-label={`Current tier ${flow.currentTier.name}, ${money(
+                flow.currentTier.priceCents,
+              )}`}
+            >
+              <span>Current tier</span>
+              <strong>{flow.currentTier.name}</strong>
+              <small>{money(flow.currentTier.priceCents)}</small>
+            </div>
+          ) : null}
+          {flow.lowerTiers.length ? (
+            <fieldset className="member-choice-list">
+              <legend>Available lower tiers</legend>
+              {flow.lowerTiers.map((tier) => (
+                <label key={tier.id}>
+                  <input
+                    type="radio"
+                    name="cancel-downgrade-tier"
+                    value={tier.id}
+                    checked={selectedTierId === tier.id}
+                    onChange={(event) => onTier(event.target.value)}
+                  />
+                  <span>
+                    <strong>{tier.name}</strong>
+                    <small>
+                      {tier.bottleCount} bottles · {money(tier.priceCents)}
+                    </small>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          ) : (
+            <p className="cancel-flow-unavailable">
+              No lower-priced tier is currently available.
+            </p>
+          )}
+        </div>
       ) : null}
 
       {step.id === "swap" ? (
@@ -654,12 +685,19 @@ export function MemberLoyaltyPanel({
 }) {
   const load = useCallback(
     () =>
-      apiRequest<LoyaltyAccount>("/api/member/loyalty").then(
-        normalizeLoyaltyAccount,
-      ),
+      apiRequest<LoyaltyAccount>(
+        queryPath("/api/member/loyalty", {
+          limit: String(LOYALTY_LEDGER_PAGE_SIZE),
+        }),
+      ).then(normalizeLoyaltyAccount),
     [],
   );
   const loyalty = useApiResource(load, [load]);
+  const [ledgerEntries, setLedgerEntries] = useState<LoyaltyLedgerEntry[]>([]);
+  const [ledgerPagination, setLedgerPagination] =
+    useState<LoyaltyLedgerPagination | null>(null);
+  const ledgerGeneration = useRef(0);
+  const [ledgerBusy, setLedgerBusy] = useState(false);
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [redeemPoints, setRedeemPoints] = useState("");
   const [redemptionKey, setRedemptionKey] = useState("");
@@ -668,6 +706,60 @@ export function MemberLoyaltyPanel({
     message: string;
     kind: "error" | "success";
   } | null>(null);
+
+  useEffect(() => {
+    ledgerGeneration.current += 1;
+    if (loyalty.state.status !== "ready") return;
+    setLedgerEntries(loyalty.state.data.ledger);
+    setLedgerPagination(loyalty.state.data.ledgerPagination);
+  }, [loyalty.state]);
+
+  async function loadMoreLedger() {
+    if (
+      loyalty.state.status !== "ready" ||
+      !ledgerPagination?.hasMore ||
+      !ledgerPagination.nextCursor ||
+      ledgerBusy
+    ) {
+      return;
+    }
+    setLedgerBusy(true);
+    setFeedback(null);
+    const requestGeneration = ledgerGeneration.current;
+    const requestCursor = ledgerPagination.nextCursor;
+    try {
+      const page = await apiRequest<LoyaltyAccount>(
+        queryPath("/api/member/loyalty", {
+          cursor: ledgerPagination.nextCursor,
+          limit: String(LOYALTY_LEDGER_PAGE_SIZE),
+        }),
+      ).then(normalizeLoyaltyAccount);
+      if (
+        ledgerGeneration.current !== requestGeneration ||
+        page.ledgerPagination.nextCursor === requestCursor
+      ) {
+        return;
+      }
+      setLedgerEntries((current) => {
+        const ids = new Set(current.map((entry) => entry.id));
+        return [
+          ...current,
+          ...page.ledger.filter((entry) => !ids.has(entry.id)),
+        ];
+      });
+      setLedgerPagination(page.ledgerPagination);
+    } catch (error) {
+      setFeedback({
+        message:
+          error instanceof ApiError
+            ? error.message
+            : "More loyalty activity could not be loaded.",
+        kind: "error",
+      });
+    } finally {
+      setLedgerBusy(false);
+    }
+  }
 
   async function redeem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -697,6 +789,7 @@ export function MemberLoyaltyPanel({
           "Your points redemption was applied to an eligible upcoming shipment.",
         kind: "success",
       });
+      ledgerGeneration.current += 1;
       await loyalty.refresh();
     } catch (error) {
       setFeedback({
@@ -734,7 +827,13 @@ export function MemberLoyaltyPanel({
             detail="Your winery will activate points after the Phase 3 loyalty program is connected."
           />
         ) : (
-          <ErrorBlock error={loyalty.state.error} onRetry={() => void loyalty.refresh()} />
+          <ErrorBlock
+            error={loyalty.state.error}
+            onRetry={() => {
+              ledgerGeneration.current += 1;
+              void loyalty.refresh();
+            }}
+          />
         )
       ) : (
         <>
@@ -745,7 +844,7 @@ export function MemberLoyaltyPanel({
                 {loyalty.state.data.multiplier}× earning
               </p>
               <h2 id="portal-loyalty-title">Vine Points</h2>
-              <p>Every award, redemption, and expiration is shown below.</p>
+              <p>Awards, redemptions, and expirations are available below.</p>
             </div>
             <div className="portal-loyalty__balance">
               <Sparkles aria-hidden="true" />
@@ -780,48 +879,68 @@ export function MemberLoyaltyPanel({
               Redeem points
             </button>
           </div>
-          {loyalty.state.data.ledger.length ? (
-            <div
-              className="data-table-wrap"
-              tabIndex={0}
-              aria-label="Scrollable loyalty points ledger"
-            >
-              <table className="data-table loyalty-ledger-table">
-                <caption>Your complete loyalty points ledger</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Activity</th>
-                    <th scope="col">Points</th>
-                    <th scope="col">Recorded</th>
-                    <th scope="col">Expires</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loyalty.state.data.ledger.map((entry) => (
-                    <tr key={entry.id}>
-                      <td>
-                        <span className="table-primary">{entry.reason}</span>
-                        <small>{sentence(entry.type)}</small>
-                      </td>
-                      <td>
-                        <span
-                          className={
-                            entry.points >= 0
-                              ? "points-change points-change--positive"
-                              : "points-change points-change--negative"
-                          }
-                        >
-                          {entry.points >= 0 ? "+" : ""}
-                          {formatPoints(entry.points)}
-                        </span>
-                      </td>
-                      <td>{date(entry.createdAt)}</td>
-                      <td>{date(entry.expiresAt)}</td>
+          {ledgerEntries.length ? (
+            <>
+              <div
+                className="data-table-wrap"
+                tabIndex={0}
+                aria-label="Scrollable loyalty points ledger"
+              >
+                <table className="data-table loyalty-ledger-table">
+                  <caption>Your loyalty points ledger</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Activity</th>
+                      <th scope="col">Points</th>
+                      <th scope="col">Recorded</th>
+                      <th scope="col">Expires</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {ledgerEntries.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>
+                          <span className="table-primary">{entry.reason}</span>
+                          <small>{sentence(entry.type)}</small>
+                        </td>
+                        <td>
+                          <span
+                            className={
+                              entry.points >= 0
+                                ? "points-change points-change--positive"
+                                : "points-change points-change--negative"
+                            }
+                          >
+                            {entry.points >= 0 ? "+" : ""}
+                            {formatPoints(entry.points)}
+                          </span>
+                        </td>
+                        <td>{date(entry.createdAt)}</td>
+                        <td>{date(entry.expiresAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="ledger-pagination">
+                <p aria-live="polite">
+                  Showing {formatPoints(ledgerEntries.length)} of{" "}
+                  {formatPoints(
+                    ledgerPagination?.total ?? ledgerEntries.length,
+                  )} ledger entries
+                </p>
+                {ledgerPagination?.hasMore ? (
+                  <button
+                    type="button"
+                    className="button button--secondary"
+                    onClick={() => void loadMoreLedger()}
+                    disabled={ledgerBusy}
+                  >
+                    {ledgerBusy ? "Loading more…" : "Load more activity"}
+                  </button>
+                ) : null}
+              </div>
+            </>
           ) : (
             <EmptyBlock
               title="No points activity yet"
