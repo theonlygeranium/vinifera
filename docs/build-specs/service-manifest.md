@@ -23,14 +23,19 @@ unchanged.
 - Existing missing tenant or activation guards are recorded, not repaired.
   BS-03 does not add guards or tenant filters. Rule 8 follow-up belongs to
   BS-06.
+- The communications executors and webhook scheduler both require the original
+  provider-runtime helpers. Those unchanged source-private helpers live in
+  `integration-runtime.ts`, preventing a `comms.ts` ↔ `webhooks.ts` import
+  cycle without changing their bodies or exposing them through the public
+  service barrel.
 
 ## Intended dependency direction
 
 ```text
-members.ts ──► clubs.ts ──► stripe.ts ──► orders.ts
-                      └───────────────► easypost.ts
+easypost.ts ──► members.ts ──► clubs.ts ──► stripe.ts ──► orders.ts
 
-analytics.ts (existing) ──► comms.ts ──► webhooks.ts
+analytics.ts (existing) ───────────────────────────────► webhooks.ts
+integration-runtime.ts ──► comms.ts ──────────────────► webhooks.ts
 ```
 
 The final public class names remain `ProductionCoreClubService` and
@@ -50,7 +55,7 @@ barrels until the route-layer transition is merged.
 | `buildCsvTierLookup(tiers): Map<string, string>` | `members.ts` | None | None | No provider/DB access |
 | `resolveCsvTierId(value, lookup): string \| null` | `members.ts` | None | None | No provider/DB access |
 | `isCompleteShippingContact(contact, requireCompany?): boolean` | `easypost.ts` | `isUsableShippingPhone` | None | No provider/DB access |
-| `brandAllowsOperationalAccess(input): boolean` | `stripe.ts` | None | None | Pure fail-closed status predicate |
+| `brandAllowsOperationalAccess(input): boolean` | `members.ts` (re-exported by `stripe.ts`) | None | None | Pure fail-closed status predicate shared by member authorization and payment scheduling |
 | `prepareAvalaraTax(env, admin, shipment): Promise<PreparedAvalaraTax \| null>` | `stripe.ts` | `persistAvalaraTaxStatus`, `shipmentSubtotalAmount`, `getAddress`, `databaseError` | Supabase, Avalara, credential decryption | Present: connection status, opt-in, activation and environment assertions; queries scope `organization_id` + `brand_id` |
 | `executeMemberSideEffect(admin, stripe, effect): Promise<"applied" \| "superseded">` | `stripe.ts` | `databaseError` | Supabase, Stripe | Provider is injected by guarded schedule; row is pre-claimed |
 | `processMemberSideEffects(admin, stripe, asOf): Promise<{ failed; processed }>` | `stripe.ts` | `executeMemberSideEffect`, `safeMemberSideEffectErrorCode`, `mapConcurrent` | Supabase, Stripe | Provider is injected by guarded schedule; RPC claims authoritative rows |
@@ -63,7 +68,7 @@ barrels until the route-layer transition is merged.
 
 | Symbol | Destination | Dependencies | Activation / tenant audit |
 |---|---|---|---|
-| `ShipmentPaymentRow` | `stripe.ts` | Member/shipment types | Data contract only |
+| `ShipmentPaymentRow` | `members.ts` (re-exported by `stripe.ts`) | Member/shipment types | Data contract shared by member, payment, and order services |
 | `AddressValidationResult`, `LabelRequest`, `LabelResult`, `LabelPurchaseRecovery`, `ShippingProvider` | `easypost.ts` | `PostalAddress` | Data contracts only |
 | `SimulatedShippingProvider` | `easypost.ts` | `sha256` | Instantiation is guarded by `createShippingProvider` |
 | `EasyPostShippingProvider` | `easypost.ts` | Fetch API, `assertEasyPostTarget` | Constructor validates target; provider key required by factory |

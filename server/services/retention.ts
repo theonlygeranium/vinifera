@@ -13,7 +13,7 @@ import type {
   WorkerEnv,
 } from "../types";
 import { formatBrandSender } from "../integrations/resend-domains";
-import { ProductionCoreClubService } from "./core-club";
+import { ProductionCoreClubService } from "./orders";
 
 const RESEND_API_ORIGIN = "https://api.resend.com";
 const EMAIL_BATCH_LIMIT = 100;

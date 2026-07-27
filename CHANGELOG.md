@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored
+
+- Decomposed `core-club.ts` into domain-scoped member, club, order, Stripe,
+  and EasyPost services while preserving its prior public API through re-exports.
+- Decomposed `integrations.ts` into communications and webhook services, with
+  an unchanged shared provider-runtime extraction that prevents circular
+  imports between those domains.
+- Added the complete `server/services/index.ts` barrel and moved internal
+  service consumers to their direct domain imports; the BS-02-owned route
+  transition remains isolated to that branch.
+
 ### Added
 
 - Added the BS-03 `server/services/` extraction skeleton for members, clubs,

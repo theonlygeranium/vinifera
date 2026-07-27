@@ -123,6 +123,7 @@ web/                    Vite entry
 src/client/             React application
 server/                 Express API, provider adapters, Worker entry
 server/integrations/    Provider, domains, mobile auth, and push transports
+server/services/        Domain services plus compatibility and public barrels
 supabase/migrations/    PostgreSQL source of truth
 supabase/tests/         pgTAP schema, RLS, and RPC suites
 tests/server/           API integration tests
@@ -142,6 +143,13 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- BS-03 decomposes the two service monoliths into member, club, order,
+  analytics, Stripe, EasyPost, communications, webhook, and shared
+  provider-runtime modules. `core-club.ts` and `integrations.ts` are now
+  re-export-only compatibility barrels, and internal non-route consumers use
+  direct domain imports. This extraction changes no runtime logic, provider
+  activation, deployment configuration, or static production surface; BS-02
+  must merge before the BS-03 pull request is eligible to merge.
 - BS-01 repository hygiene migrates Greptile review policy from the legacy
   root JSON file to scoped `.greptile/` configuration and rules, removes the
   generated Worker declaration from version control while regenerating it

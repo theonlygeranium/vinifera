@@ -24,7 +24,7 @@ import {
   setMemberAuthLinkContextCookie,
   verifyMemberAuthLinkCallback,
 } from "../lib/member-brand-context";
-import { ProductionIntegrationService } from "./integrations";
+import { ProductionIntegrationService } from "./webhooks";
 import {
   executeStripeBillingAttempt,
   isNonterminalSubscriptionStatus,
