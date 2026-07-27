@@ -1,3 +1,6 @@
+import { readdir, readFile } from "node:fs/promises";
+import { relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   requireSecuritySecrets,
@@ -6,7 +9,40 @@ import {
 import { issueMemberAuthLinkContext } from "../../server/lib/member-brand-context";
 import { securitySecretTestFixture } from "../fixtures/security-secrets";
 
+const serverRoot = fileURLToPath(new URL("../../server/", import.meta.url));
+const SECURITY_BINDING_NAMES = [
+  "MEMBER_BRAND_CONTEXT_SECRET",
+  "RATE_LIMIT_PEPPER",
+];
+
+async function sourceFiles(directory: string): Promise<string[]> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const path = resolve(directory, entry.name);
+      if (entry.isDirectory()) return sourceFiles(path);
+      return entry.isFile() && entry.name.endsWith(".ts") ? [path] : [];
+    }),
+  );
+  return nested.flat();
+}
+
 describe("purpose-separated application security secrets", () => {
+  it("keeps direct secret-binding access inside the type and neutral security owners", async () => {
+    const owners: string[] = [];
+    for (const path of await sourceFiles(serverRoot)) {
+      const source = await readFile(path, "utf8");
+      if (SECURITY_BINDING_NAMES.some((name) => source.includes(name))) {
+        owners.push(relative(serverRoot, path));
+      }
+    }
+
+    expect(owners.sort()).toEqual([
+      "lib/security-secrets.ts",
+      "types.ts",
+    ]);
+  });
+
   it("accepts only the explicit isolated test fixture", () => {
     expect(
       securitySecretConfiguration(securitySecretTestFixture()),

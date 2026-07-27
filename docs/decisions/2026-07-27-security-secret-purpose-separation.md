@@ -30,6 +30,15 @@ constraints before staging secret upload and production release-bundle
 assembly. The configuration health report exposes only configured/missing
 binding names through its `security` capability.
 
+The Worker owner keeps equality validation synchronous because both the
+configuration report and dependent service entry points consume it
+synchronously. Its bounded byte loop evaluates only validated values and
+returns the same equality predicate as the Node deployment guard. The Node
+guard hashes first because Node's `timingSafeEqual` requires equal-length
+buffers; changing the Worker path to `crypto.subtle.digest` would make the
+configuration API asynchronous without changing the accepted or rejected
+secret set.
+
 Tests use values created by `tests/fixtures/security-secrets.ts`. The fixture
 is explicitly test-only, is not imported by runtime code, and prevents tests
 from relying on production fallbacks.
@@ -73,10 +82,13 @@ npm run check
 npm run qa:production-release
 npm audit --audit-level=moderate
 git diff --check
-rg -n -U 'RATE_LIMIT_PEPPER\s*\?\?|MEMBER_BRAND_CONTEXT_SECRET\s*\?\?' server
 ```
 
-The final search must return no production fallback expression.
+The focused `security-secrets` suite recursively scans `server/**/*.ts` and
+requires the two binding identifiers to appear only in `server/types.ts` and
+their neutral owner, `server/lib/security-secrets.ts`. Direct member and mobile
+service-path tests additionally prove that provider credentials cannot replace
+either binding.
 
 ## Reversal
 

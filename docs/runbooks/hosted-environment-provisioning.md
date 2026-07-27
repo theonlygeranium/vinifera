@@ -163,10 +163,11 @@ workflow. The workflow constructs an ephemeral Worker secret bundle, never
 prints it, and removes it in an always-run cleanup step. The production policy
 rejects a non-`sk_test_*` Stripe key and cannot set
 `LIVE_BILLING_ENABLED=true`. The production release guard also requires
-independently generated, distinct 32-byte-or-longer
+independently generated values for
 `PRODUCTION_RATE_LIMIT_PEPPER` and
-`PRODUCTION_MEMBER_BRAND_CONTEXT_SECRET` values before it assembles the
-ephemeral bundle.
+`PRODUCTION_MEMBER_BRAND_CONTEXT_SECRET` before it assembles the ephemeral
+bundle. Both must contain at least 32 UTF-8 bytes, have no surrounding
+whitespace, and differ.
 
 First bootstrap creates only the named `vinifera-production` Worker on
 `workers.dev`; it does not attach a route or custom domain. Later version

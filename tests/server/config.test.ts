@@ -9,6 +9,7 @@ import {
   usesSecureCookies,
   type ProtectedProvider,
 } from "../../server/config";
+import { securitySecretTestFixture } from "../fixtures/security-secrets";
 
 describe("hosted environment security boundaries", () => {
   it("uses secure cookies for staging and production only", () => {
@@ -133,12 +134,7 @@ describe("hosted environment security boundaries", () => {
       MEMBER_BRAND_CONTEXT_SECRET: secret,
       RATE_LIMIT_PEPPER: secret,
     });
-    const configured = getConfigurationReport({
-      MEMBER_BRAND_CONTEXT_SECRET:
-        "test-member-context-secret-43f3b070-4f50-4a6b",
-      RATE_LIMIT_PEPPER:
-        "test-rate-limit-pepper-7b15a76f-9f4e-49f6",
-    });
+    const configured = getConfigurationReport(securitySecretTestFixture());
 
     expect(missing.security).toEqual({
       configured: false,

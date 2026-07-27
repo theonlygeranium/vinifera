@@ -552,7 +552,7 @@ not replaced before Worker activation. Reproduce that artifact locally with
    linked native pgTAP/RLS suite.
 9. Optionally deploy the isolated `vinifera-staging` Worker, attaching available
    runtime secrets atomically to that version and verifying health plus the core
-   app/database/test-billing/security/webhook configuration capabilities.
+   app/database/billing/security/webhook configuration capabilities.
 
 The migration and deployment jobs are skipped unless the repository variables
 `STAGING_SUPABASE_MIGRATION_ENABLED=true` and
