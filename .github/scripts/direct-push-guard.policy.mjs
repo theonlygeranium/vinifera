@@ -188,6 +188,7 @@ test("retries a bounded GitHub request timeout and then accepts exact evidence",
   let timers = 0;
   const delays = [];
   const signals = [];
+  const timeoutDurations = [];
 
   const evidence = await verifyMainPush({
     clearTimeoutImplementation() {},
@@ -212,8 +213,9 @@ test("retries a bounded GitHub request timeout and then accepts exact evidence",
     },
     output: { log() {} },
     requestTimeoutMs: 25,
-    setTimeoutImplementation: (callback) => {
+    setTimeoutImplementation: (callback, milliseconds) => {
       timers += 1;
+      timeoutDurations.push(milliseconds);
       if (timers === 1) callback();
       return timers;
     },
@@ -223,12 +225,14 @@ test("retries a bounded GitHub request timeout and then accepts exact evidence",
   assert.equal(requests, 2);
   assert.equal(signals.length, 2);
   assert.deepEqual(delays, [10_000]);
+  assert.deepEqual(timeoutDurations, [25, 25]);
 });
 
 test("keeps GitHub response parsing inside the bounded request timeout", async () => {
   let requests = 0;
   let timeoutCallback;
   const delays = [];
+  const timeoutDurations = [];
 
   const evidencePromise = verifyMainPush({
     clearTimeoutImplementation() {},
@@ -253,8 +257,9 @@ test("keeps GitHub response parsing inside the bounded request timeout", async (
     },
     output: { log() {} },
     requestTimeoutMs: 25,
-    setTimeoutImplementation: (callback) => {
+    setTimeoutImplementation: (callback, milliseconds) => {
       timeoutCallback = callback;
+      timeoutDurations.push(milliseconds);
       return requests + 1;
     },
   });
@@ -263,11 +268,13 @@ test("keeps GitHub response parsing inside the bounded request timeout", async (
   assert.equal(evidence.number, 42);
   assert.equal(requests, 2);
   assert.deepEqual(delays, [10_000]);
+  assert.deepEqual(timeoutDurations, [25, 25]);
 });
 
 test("fails closed after three deterministic GitHub request timeouts", async () => {
   let requests = 0;
   const delays = [];
+  const timeoutDurations = [];
 
   await assert.rejects(
     verifyMainPush({
@@ -283,7 +290,8 @@ test("fails closed after three deterministic GitHub request timeouts", async () 
       },
       output: { log() {} },
       requestTimeoutMs: 25,
-      setTimeoutImplementation: (callback) => {
+      setTimeoutImplementation: (callback, milliseconds) => {
+        timeoutDurations.push(milliseconds);
         callback();
         return requests;
       },
@@ -293,6 +301,7 @@ test("fails closed after three deterministic GitHub request timeouts", async () 
 
   assert.equal(requests, 3);
   assert.deepEqual(delays, [10_000, 10_000]);
+  assert.deepEqual(timeoutDurations, [25, 25, 25]);
 });
 
 test("rejects a direct push even when its commit message could be conventional", async () => {
