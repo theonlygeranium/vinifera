@@ -38,6 +38,29 @@ baseline; it is not evidence that the Worker application is live.
 
 The name comes from *Vitis vinifera*, the Latin species name for the primary wine grape vine. It signals domain knowledge to winery operators and reads as a premium brand word — without the overused "wine" prefix that defines most platform names in this market.
 
+## Project status
+
+v0.5.0: architecturally complete, operationally dormant pending 20 activation
+gates. See [`CONTINUITY_BRIEF.md`](./CONTINUITY_BRIEF.md).
+
+## Local development
+
+The current commands are documented under [Build & Deploy](#build--deploy).
+The single-command local-stack guide will live at
+[`docs/local-dev-quickstart.md`](./docs/local-dev-quickstart.md) when BS-05 is
+merged; no such file is present on `main` yet.
+
+## Agent workflow
+
+All agent changes use pull requests, CI, and Greptile review as documented in
+[`docs/agent-workflow.md`](./docs/agent-workflow.md).
+
+## Architecture
+
+The current Pages rollback baseline, Worker/Supabase topology, tenant model,
+provider guards, and 20 pending activation gates are documented in
+[`docs/architecture.md`](./docs/architecture.md).
+
 ## Current live baseline
 
 | Page | URL | Description |

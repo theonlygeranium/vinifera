@@ -3426,6 +3426,7 @@ export class ProductionIntegrationService
       .select("id,brand_id,first_name,last_name,brands(id,name,logo_url,primary_color)")
       .eq("id", principal.user.id)
       .eq("organization_id", principal.organization.id)
+      .eq("brand_id", principal.brand.id)
       .single();
     if (memberError || !member) throw databaseError("The mobile member profile could not be loaded.");
     const [{ data: shipments, error: shipmentError }, { data: ledger, error: ledgerError }] =
@@ -3436,12 +3437,16 @@ export class ProductionIntegrationService
             "id,status,charge_amount_cents,tracking_number,created_at,releases(name)",
           )
           .eq("member_id", principal.user.id)
+          .eq("organization_id", principal.organization.id)
+          .eq("brand_id", principal.brand.id)
           .order("created_at", { ascending: false })
           .limit(20),
         memberClient
           .from("loyalty_ledger")
           .select("id,description,points,created_at")
           .eq("member_id", principal.user.id)
+          .eq("organization_id", principal.organization.id)
+          .eq("brand_id", principal.brand.id)
           .order("created_at", { ascending: false })
           .limit(50),
       ]);

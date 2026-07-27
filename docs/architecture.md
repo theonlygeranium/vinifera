@@ -1,6 +1,6 @@
 # Architecture — Vinifera
 
-**Last updated:** 2026-07-26
+**Last updated:** 2026-07-27
 **Maintainer:** Any agent (must reflect actual deployment state)
 
 ## System overview
@@ -55,6 +55,49 @@ and route `/app/*` to the React shell.
 | API | `server/` | `/api/*` | Express on Worker |
 | Mobile associations | `server/services/integrations.ts` | `/.well-known/*` | Express on Worker |
 | Temporary Pages rollback | `app` | `/app/` on Pages only | Original static prototype |
+
+### Deployment topology
+
+There are three distinct runtime tiers:
+
+1. **Cloudflare Pages** currently serves the public static production and
+   rollback baseline. It does not prove that the application Worker is active.
+2. **Cloudflare Worker** packages the React/Vite static assets with the
+   Express-compatible API. When activated, one same-origin deployment serves
+   `/app/*`, `/portal/*`, `/api/*`, and the mobile association routes.
+3. **Supabase** provides PostgreSQL, Row Level Security, Auth, and the durable
+   RPC/state-machine boundary. No provider or control-plane activation is
+   implied by the existence of the source architecture.
+
+### Multi-tenant model
+
+`organization_id` is the winery boundary and `brand_id` is the operational
+tenant discriminator within a winery. One Supabase project serves all
+organizations and brands. PostgreSQL RLS and same-tenant composite constraints
+form the database boundary; the Worker repeats organization/brand predicates
+for defense in depth whenever privileged credentials are used.
+
+A browser-supplied brand identifier is only a scope request. Staff grants,
+member binding, hostname state, or a service-role claim must authorize it.
+Privileged cross-brand schedulers are the explicit exception: a guarded
+service-role RPC claims authoritative rows and returns their organization and
+brand; downstream queries and provider work remain bound to those values. The
+complete service review is recorded in
+[`build-specs/tenancy-audit.md`](./build-specs/tenancy-audit.md).
+
+### Service-layer request path
+
+```text
+HTTP Request
+  └─► Cloudflare Worker (`server/app.ts`)
+        ├─► Auth middleware (reads an HTTP-only web-session cookie)
+        ├─► Global security and request middleware
+        ├─► Route handler (`server/app.ts`; moving to `server/routes/` in BS-02)
+        │     └─► Validates API input with Zod
+        └─► Service function (`server/services/*.ts`)
+              ├─► Supabase query or RPC (organization/brand scoped)
+              └─► Provider call (only after its activation guard passes)
+```
 
 ---
 
@@ -404,22 +447,25 @@ The Worker serves `/app/*` and `/portal/*` from the Vite shell with `text/html; 
 
 ## Provider adapters
 
-| Provider | Purpose | Missing-wiring behavior |
-|---|---|---|
-| Supabase | Auth, PostgreSQL, RLS | Auth/data operations return `503 activation_required` |
-| Stripe | SaaS subscriptions and portal | Billing operations return `503 activation_required` |
-| Stripe PaymentIntents | Release charges, retries, refunds | Shipment billing returns `503 activation_required` |
-| EasyPost | Address verification, carrier rates, labels, tracking | Shipping returns `503 activation_required` |
-| Resend | Transactional templates, stable per-message delivery, events | Delivery returns `503 activation_required`; durable work remains queued |
-| ShipCompliant | Post-charge/pre-label shipment legality, volume, and tax checks | Labels fail closed; dashboard reports `activation_required` until the contracted adapter configuration is complete |
-| Klaviyo | Profiles, list membership, and engagement sync | Jobs remain unclaimable until explicit opt-in and encrypted winery credentials validate |
-| QuickBooks Online | Sales receipts, refunds, OAuth refresh, and reconciliation | Application OAuth remains disabled without Worker config; connection tokens are encrypted per winery |
-| Avalara | Pre-charge tax calculation, commit, void, and reconciliation | An opted-in connected failure blocks the charge; inactive connections transmit nothing |
-| Meta Conversions API | Consent-gated conversions with hashed identifiers | Unconsented events are suppressed; missing encrypted dataset/token configuration transmits nothing |
-| Cloudflare for SaaS | White-label hostname validation and certificates | Pending or unverified hosts never choose brand context |
-| APNs / FCM | Platform-specific native push delivery | Missing platform credentials leave push work dormant without creating a connected state |
-| Google via Supabase | Staff OAuth | OAuth route remains disabled until configured |
-| SMTP via Supabase | Invite/reset/magic-link delivery | Delivery QA remains pending |
+All provider activation remains pending. Gate numbers refer to the canonical
+table below.
+
+| Provider | Purpose | Activation gate | Status | Missing-wiring behavior |
+|---|---|---:|---|---|
+| Supabase | Auth, PostgreSQL, RLS | 1, 3, 7, 9 | Pending | Auth/data operations return `503 activation_required` |
+| Stripe | SaaS subscriptions and portal | 4, 19 | Pending | Billing operations return `503 activation_required` |
+| Stripe PaymentIntents | Release charges, retries, refunds | 4, 6, 19 | Pending | Shipment billing returns `503 activation_required` |
+| EasyPost | Address verification, carrier rates, labels, tracking | 5, 13 | Pending | Shipping returns `503 activation_required` |
+| Resend | Transactional templates, stable per-message delivery, events | 8 | Pending | Delivery returns `503 activation_required`; durable work remains queued |
+| ShipCompliant | Post-charge/pre-label shipment legality, volume, and tax checks | 13 | Pending | Labels fail closed; dashboard reports `activation_required` until the contracted adapter configuration is complete |
+| Klaviyo | Profiles, list membership, and engagement sync | 14 | Pending | Jobs remain unclaimable until explicit opt-in and encrypted winery credentials validate |
+| QuickBooks Online | Sales receipts, refunds, OAuth refresh, and reconciliation | 14 | Pending | Application OAuth remains disabled without Worker config; connection tokens are encrypted per winery |
+| Avalara | Pre-charge tax calculation, commit, void, and reconciliation | 14 | Pending | An opted-in connected failure blocks the charge; inactive connections transmit nothing |
+| Meta Conversions API | Consent-gated conversions with hashed identifiers | 14 | Pending | Unconsented events are suppressed; missing encrypted dataset/token configuration transmits nothing |
+| Cloudflare for SaaS | Worker deployment, hostname validation, and certificates | 2, 16, 20 | Pending | Pending or unverified hosts never choose brand context |
+| APNs / FCM | Platform-specific native push delivery | 17, 18 | Pending | Missing platform credentials leave push work dormant without creating a connected state |
+| Google via Supabase | Staff OAuth | 3 | Pending | OAuth route remains disabled until configured |
+| SMTP via Supabase | Invite/reset/magic-link delivery | 3, 7 | Pending | Delivery QA remains pending |
 
 ---
 
@@ -440,56 +486,51 @@ All animations are disabled under `@media (prefers-reduced-motion: reduce)`.
 
 ## Current activation gates
 
-- Supabase migration management requires `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, and `SUPABASE_DB_PASSWORD`.
-- Supabase Google OAuth and outbound Auth email require dashboard/provider configuration.
-- Stripe requires four recurring test Price IDs and a webhook signing secret.
-  Protected test-catalog run `30218801133` left its first Price
-  created-or-unknown before failing closed; do not retry while provider
-  connections are deferred. When activation resumes, reconcile the fixed
-  lookup key before any create.
-- Phase 2 shipment billing requires Stripe test customers/payment methods for
-  members and Phase 2 webhook event subscriptions.
-- EasyPost requires a server-only test key and a complete per-winery origin
-  address. The shipping simulator is accepted only in an explicitly enabled
-  non-production test runtime.
-- Resend requires a server-only API key, verified winery sender domain, signed
-  webhook secret, and unsubscribe signing secret. The email simulator is
-  rejected outside an explicitly enabled test runtime.
-- Production ML promotion requires qualifying production history and a
-  completed 30-day A/B result. Synthetic QA data is permanently ineligible.
-- Peer results require Estate/Reserve entitlement, explicit opt-in, and a
-  coarsened cohort of at least ten wineries.
-- ShipCompliant requires vendor-approved OAuth credentials, versioned sandbox
-  paths, account/license mapping, and verified provider responses. Missing or
-  degraded configuration blocks labels.
-- Phase 5 provider activation requires the integration wrapping key, explicit
-  winery opt-in, approved field/account mappings, and provider sandbox or live
-  accounts. Winery credentials stay in encrypted connection envelopes.
-- Environment-referenced winery credentials require a dedicated
-  `VINIFERA_INTEGRATION_SECRET_*` Worker binding and the matching exact
-  `env://` reference; no generic secret-manager URI is accepted.
-- Credential rotation requires an enabled reviewed policy, an allowlisted
-  Supabase project and key-version transition, both old and new key versions in
-  the Worker keyring, and protected start/resume/verify operations.
-- QuickBooks additionally requires Intuit application OAuth secrets in the
-  Worker; returned connection tokens remain encrypted in PostgreSQL.
-- Avalara activation additionally requires reviewed wine/shipping mappings,
-  exemption validation, nexus, and winery-controlled filing authority.
-- Per-brand Resend activation requires the exact sender domain to be verified;
-  one global `RESEND_FROM` does not activate a brand sender identity.
-- Provider runtime activation requires the exact Cloudflare custom-hostname,
-  FCM, and ShipCompliant target hashes to be reviewed in
-  `config/provider-target-policy.json`.
-- White-label activation requires a zone-scoped Cloudflare custom-hostname
-  token, winery DNS, and active ownership plus certificate states.
-- Native activation requires Apple/Google developer accounts, platform push
-  credentials, signing material, privacy/store metadata, physical-device tests,
-  and TestFlight/Play internal-track evidence.
-- Replacing Stripe test keys with live keys and running a real charge/refund is
-  a human-controlled Phase 5 launch action. The checked-in live-billing policy
-  and its independent authority switch remain disabled until then.
-- The Worker custom-domain cutover occurs only after the hosted Phase 1–5
-  activation and regression gates pass.
+The canonical gates below are reproduced from `CONTINUITY_BRIEF.md`. Source
+architecture and local tests do not change their status.
+
+| Gate | Requirement | Status |
+|---:|---|---|
+| 1 | Add staging-environment Supabase management credentials, then set the exact project hash and repository variable `STAGING_SUPABASE_MIGRATION_ENABLED=true` to apply `supabase/migrations/` and run `supabase test db --linked`. | Pending |
+| 2 | Give the staging Cloudflare token Workers Scripts edit permission and set the exact account hash plus repository variable `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` only for the isolated `vinifera-staging` Worker. | Pending |
+| 3 | Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP. | Pending |
+| 4 | When service activation is explicitly resumed, reconcile the created-or-unknown Stripe test Price from run `30218801133`, then bootstrap/verify the four recurring Prices without a blind retry, register `/api/billing/webhook`, and add its signing secret. | Pending |
+| 5 | Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled. | Pending |
+| 6 | Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof. | Pending |
+| 7 | Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests. | Pending |
+| 8 | Verify a Resend sending domain, signed webhook, and at least two real staging triggers. | Pending |
+| 9 | Apply Phase 4 migration 15 to hosted Supabase and run the 37 current-stack pgTAP assertions plus native tenant/RPC tests. | Pending |
+| 10 | Connect a winery with real Phase 2/3 operations and verify every analytics metric and CSV export against source records. | Pending |
+| 11 | Configure a dedicated active `ML_PLATFORM_ACTOR_USER_ID`, accumulate at least 500 labeled members and 50 cancellations, reconcile all six source families, dry-run and execute `ops:phase4:qualify-ml`, train on production history, meet held-out AUC-ROC 0.82 without underperforming rules, and complete the superior 30-day A/B gate before actor-audited promotion. | Pending |
+| 12 | Opt an Estate/Reserve winery into a peer cohort with at least ten contributors and verify the quarterly report delivery. | Pending |
+| 13 | Obtain vendor-approved ShipCompliant sandbox access, set the server-only credential and contract bindings, and prove compliant, non-compliant, unknown, timeout, tax, fingerprint invalidation, and label recovery cases. | Pending |
+| 14 | Provision the integration credential keyring, then validate winery-specific Klaviyo, Avalara, and Meta envelopes and the QuickBooks application OAuth plus encrypted per-connection token lifecycle. | Pending |
+| 15 | Create two production-like brands and prove database plus service-role cross-brand isolation, shared/independent billing, and hostname-derived member context. | Pending |
+| 16 | Add one winery custom hostname, complete DNS ownership and certificate activation, and verify sibling/unknown hosts cannot select its brand. | Pending |
+| 17 | Configure APNs and FCM, Apple/Google signing, privacy/store metadata, and prove magic links, secure storage, biometrics, push, camera, offline restore, and relock on physical devices. | Pending |
+| 18 | Install signed builds from TestFlight and the Play internal track. | Pending |
+| 19 | Replace Stripe test keys with approved live keys only under human supervision and run one controlled charge/refund. | Pending |
+| 20 | Move the production custom domain only after every hosted exit criterion is evidenced. | Pending |
+
+## File ownership
+
+This table is copied from `AGENTS.md` so architecture reviewers have the same
+ownership boundary.
+
+| File/Directory | Who Can Modify | Notes |
+|---|---|---|
+| `AGENTS.md` | Human owner only | Requires explicit authorization to change |
+| `CONTINUITY_BRIEF.md` | Any agent | Must reflect current reality — update after every session |
+| `README.md` | Any agent | Must reflect reality — no aspirational content |
+| `CHANGELOG.md` | Any agent | Required on every commit |
+| `REVERT.md` | Any agent | Update whenever a new stable tag is created |
+| `.env.example` | Any agent | Real secrets NEVER go here |
+| `docs/` | Any agent | Must stay in sync with actual architecture |
+| `index.html` | Any agent | Landing page — verify WCAG after changes |
+| `app` | Any agent | App prototype — verify WCAG + mobile after changes |
+| `guide` | Any agent | Investor's guide — verify WCAG after changes |
+| `public/_redirects` | Any agent | Routing rules — test after changes |
+| `public/_headers` | Any agent | Security + content-type headers — test after changes |
 
 See [the Phase 1 ADR](./decisions/2026-07-26-phase-1-foundation-architecture.md)
 and [the Phase 2 ADR](./decisions/2026-07-26-phase-2-core-club-loop.md) for

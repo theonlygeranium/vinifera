@@ -54,6 +54,7 @@ import {
   metaAttributionCustomData,
   normalizeMetaAttribution,
   normalizeMobileClubCode,
+  ProductionIntegrationService,
   quickBooksRefundDeltaFinancials,
   quickBooksShipmentFinancials,
   runMobilePushSchedule,
@@ -154,6 +155,134 @@ function integrationAdminMock(input: {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("mobile bootstrap tenant isolation", () => {
+  it("scopes every offline snapshot query to the authenticated organization and brand", async () => {
+    const brandId = "30000000-0000-4000-8000-000000000003";
+    const otherBrandId = "30000000-0000-4000-8000-000000000099";
+    const memberId = "40000000-0000-4000-8000-000000000004";
+    const otherMemberId = "40000000-0000-4000-8000-000000000099";
+    const filters: Array<{ column: string; table: string; value: unknown }> = [];
+    const rows: Record<string, Array<Record<string, unknown>>> = {
+      loyalty_ledger: [
+        {
+          brand_id: otherBrandId,
+          description: "Other tenant points",
+          id: "50000000-0000-4000-8000-000000000099",
+          member_id: otherMemberId,
+          organization_id: "10000000-0000-4000-8000-000000000099",
+          points: 999,
+        },
+      ],
+      members: [
+        {
+          brand_id: brandId,
+          brands: {
+            id: brandId,
+            logo_url: null,
+            name: "Tenant One",
+            primary_color: "#6B1E30",
+          },
+          first_name: "Avery",
+          id: memberId,
+          last_name: "Member",
+          organization_id: organizationId,
+        },
+      ],
+      shipments: [
+        {
+          brand_id: otherBrandId,
+          charge_amount_cents: 999_00,
+          id: "60000000-0000-4000-8000-000000000099",
+          member_id: otherMemberId,
+          organization_id: "10000000-0000-4000-8000-000000000099",
+          releases: { name: "Other tenant release" },
+          status: "charged",
+        },
+      ],
+    };
+    const memberClient = {
+      from(table: string) {
+        const tableFilters: Array<{ column: string; value: unknown }> = [];
+        const result = (single: boolean): MockTableResult => {
+          const matching = (rows[table] ?? []).filter((row) =>
+            tableFilters.every(({ column, value }) => row[column] === value),
+          );
+          return { data: single ? (matching[0] ?? null) : matching, error: null };
+        };
+        const builder = {
+          eq(column: string, value: unknown) {
+            filters.push({ column, table, value });
+            tableFilters.push({ column, value });
+            return builder;
+          },
+          limit() {
+            return builder;
+          },
+          order() {
+            return builder;
+          },
+          select() {
+            return builder;
+          },
+          single() {
+            return Promise.resolve(result(true));
+          },
+          then<TResult1 = MockTableResult, TResult2 = never>(
+            onfulfilled?:
+              | ((value: MockTableResult) => TResult1 | PromiseLike<TResult1>)
+              | null,
+            onrejected?:
+              | ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
+              | null,
+          ) {
+            return Promise.resolve(result(false)).then(onfulfilled, onrejected);
+          },
+        };
+        return builder;
+      },
+    };
+
+    class MobileBootstrapService extends ProductionIntegrationService {
+      protected override authenticatedSurfaceClient() {
+        return memberClient as never;
+      }
+
+      protected override async requireMember() {
+        return {
+          brand: { id: brandId },
+          organization: { id: organizationId },
+          user: { id: memberId },
+        } as never;
+      }
+    }
+
+    const service = new MobileBootstrapService(
+      {
+        SUPABASE_SERVICE_ROLE_KEY: "service-role-placeholder",
+        SUPABASE_URL: "https://example.supabase.co",
+      } as WorkerEnv,
+      {} as never,
+      {} as never,
+    );
+    const bootstrap = await service.getMobileBootstrap();
+
+    for (const table of ["members", "shipments", "loyalty_ledger"]) {
+      expect(filters).toContainEqual({
+        column: "organization_id",
+        table,
+        value: organizationId,
+      });
+      expect(filters).toContainEqual({
+        column: "brand_id",
+        table,
+        value: brandId,
+      });
+    }
+    expect(JSON.stringify(bootstrap)).not.toContain(otherBrandId);
+    expect(JSON.stringify(bootstrap)).not.toContain(otherMemberId);
+  });
 });
 
 describe("provider activation runtime seams", () => {

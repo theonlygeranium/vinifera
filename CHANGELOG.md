@@ -10,6 +10,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added architecture context for the current Pages/Worker/Supabase topology,
+  explicit tenant boundary, service request path, provider activation status,
+  all 20 pending gates, and the canonical file-ownership table.
+- Added repository-wide CODEOWNERS, a pull-request template aligned with the
+  actual test commands, governance risk notes, Greptile learning guidance, and
+  an exhaustive service-layer tenancy audit.
+- Added a focused mobile-bootstrap isolation test that requires member,
+  shipment, and loyalty queries to use the authenticated organization and
+  brand.
 - `.greptile/rules.md`: 10 architectural boundary rules encoding vinifera's service, security, and tenancy patterns
 - `.greptile/files.json`: Greptile context files for every PR review
 - `docs/build-specs/phase-5-qa-report.md`: Phase 5 closure evidence with all 20 activation gates listed as pending
@@ -120,6 +129,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Updated README developer context with the current v0.5.0 status, the pending
+  BS-05 local quickstart, agent workflow, and architecture links.
 - Local `typecheck`, `lint`, and aggregate `check` commands now regenerate the
   ignored Worker binding declaration before TypeScript reads it, so a fresh
   checkout no longer depends on a previously generated local file.
@@ -279,6 +290,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Added explicit `organization_id` and `brand_id` predicates to every mobile
+  offline-bootstrap profile, shipment, and loyalty query instead of relying
+  only on member RLS and `member_id`.
 - Restored unauthenticated browser bootstrap for the existing member
   magic-link, callback, session, and logout routes while keeping protected APIs
   behind the production credential-presence gate.

@@ -142,6 +142,15 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- BS-06 audits every database-calling function in `server/services/` against
+  the final 21-migration tenancy model. It adds explicit organization and brand
+  predicates to all mobile offline-bootstrap reads, a focused cross-brand
+  query assertion, CODEOWNERS, a PR template, governance and Greptile guidance,
+  and current architecture documentation with all 20 activation gates still
+  pending. TypeScript, 355 Vitest tests, Phase 2/3/4/5 embedded database gates
+  (231/199/158/494 assertions), Worker build/dry-run, and 145 Playwright/axe
+  tests pass. No provider, hosted database, Worker, or production activation
+  state changed.
 - BS-01 repository hygiene migrates Greptile review policy from the legacy
   root JSON file to scoped `.greptile/` configuration and rules, removes the
   generated Worker declaration from version control while regenerating it
