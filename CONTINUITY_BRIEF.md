@@ -1,6 +1,6 @@
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-07-26
+**Last updated:** 2026-07-27
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
 
 ## Project identity
@@ -142,6 +142,12 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- BS-01 repository hygiene migrates Greptile review policy from the legacy
+  root JSON file to scoped `.greptile/` configuration and rules, removes the
+  generated Worker declaration from version control while regenerating it
+  before CI verification/typecheck, and records the Phase 5 closure evidence
+  plus all 20 still-pending activation gates. These changes do not alter
+  runtime routes, provider activation, or the static production baseline.
 - Phase 1–4 local architecture gates and the 94-test browser regression were
   recorded as passing in their phase QA reports.
 - Version 0.5.0 aligns the package, Android, and iOS source release and contains

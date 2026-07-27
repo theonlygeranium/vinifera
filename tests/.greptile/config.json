@@ -1,0 +1,8 @@
+{
+  "commentTypes": {
+    "logic": true,
+    "security": false,
+    "style": false,
+    "syntax": false
+  }
+}

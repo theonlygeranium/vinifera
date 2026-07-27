@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `.greptile/rules.md`: 10 architectural boundary rules encoding vinifera's service, security, and tenancy patterns
+- `.greptile/files.json`: Greptile context files for every PR review
+- `docs/build-specs/phase-5-qa-report.md`: Phase 5 closure evidence with all 20 activation gates listed as pending
 - Added tenant-free Cloudflare Queue wake signals with PostgreSQL-authoritative
   claiming, duplicate-safe consumers, independent immediate-continuation and
   delayed-retry scheduling, hourly recovery, isolated environment bindings,
@@ -117,6 +120,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Migrated Greptile configuration from `greptile.json` to `.greptile/` folder format with per-directory overrides for `server/services/`, `supabase/migrations/`, and `tests/`
+- Removed committed generated artifact `worker-configuration.d.ts` (552 KB); CI now generates it pre-typecheck
+- This repository-hygiene change does not alter runtime routes, build output,
+  provider activation, or the static production baseline. Validate it with
+  JSON parsing, Git tracking checks, Worker type generation/verification,
+  TypeScript typecheck, and a Worker dry-run build.
 - Aggregated organization-wide analytics from raw per-brand numerators and
   denominators, including email, loyalty, shipment-value, and shipping-cost
   rates, instead of weighting unrelated percentages.

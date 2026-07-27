@@ -34,6 +34,9 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=moderate
 
+      - name: Generate Worker types
+        run: npm run cf-typegen
+
       - name: Verify generated Worker binding types
         run: npm run qa:worker-types
 
