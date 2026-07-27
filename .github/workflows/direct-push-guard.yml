@@ -1,0 +1,49 @@
+name: Direct Push Guard
+
+# Fires on every push to main.
+# PRs merging into main are NOT a direct push — they are excluded.
+# This workflow catches agents or humans who commit straight to main,
+# bypassing the PR + Greptile review gate.
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-direct-push:
+    name: Block direct push to main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect direct push
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.base_ref }}
+          HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          echo "Event: $GITHUB_EVENT_NAME"
+          echo "Head commit: $HEAD_COMMIT_MSG"
+
+          # Check if this push is a merge commit from a PR
+          # PR merges always have a commit message starting with 'Merge pull request'
+          # or are squash/rebase merges which come through the PR merge endpoint.
+          # We allow: merge commits, initial repo setup, and CI bot commits.
+          if echo "$HEAD_COMMIT_MSG" | grep -qE '^(Merge pull request|Merge branch .* into main|chore: initial|chore: add Greptile|chore: trigger Greptile|ci:)'; then
+            echo "✅ Allowed commit pattern detected. Passing."
+            exit 0
+          fi
+
+          echo ""
+          echo "🚫 DIRECT PUSH TO MAIN DETECTED"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Commit: $HEAD_COMMIT_MSG"
+          echo ""
+          echo "All changes must go through a pull request so that:"
+          echo "  • Greptile can review the code before it reaches production"
+          echo "  • CI checks (type, test, build) can gate the deploy"
+          echo "  • The deploy pipeline only runs on reviewed, passing code"
+          echo ""
+          echo "To fix: create a branch, commit your changes there,"
+          echo "open a PR targeting main, and merge after Greptile + CI pass."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          exit 1
