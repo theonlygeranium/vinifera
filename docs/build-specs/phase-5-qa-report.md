@@ -43,6 +43,7 @@ live provider or production-store result.
 | Signed mobile/store control | Pass in source | Immutable signed AAB/IPA and internal-track workflow wired; credentials and store execution deferred |
 | Envelope rotation control | Pass in source | Disabled policy, empty target/transition hashes, no rotation executed |
 | Stripe live-billing control | Pass in source | Independent authority and policy remain default-deny; no live connection or mutation |
+| Phase 5 final architecture CI | Pass — [run 30235083942](https://github.com/theonlygeranium/vinifera/actions/runs/30235083942) | Commit `5d3dadd`; quality 5m39s and Android 4m10s; migration/deploy skipped while activation is off |
 | Architecture completion CI | Pass — [run 30221722696](https://github.com/theonlygeranium/vinifera/actions/runs/30221722696) | Quality 5m23s and Android 4m37s; migration/deploy skipped while activation is off |
 | GitHub post-hardening CI | Pass — [run 30217201984](https://github.com/theonlygeranium/vinifera/actions/runs/30217201984) | Quality and Android pass; migration/deploy skip while activation is off |
 | Hosted readiness | Pass — [run 30217462802](https://github.com/theonlygeranium/vinifera/actions/runs/30217462802) | GET-only classifications; no provider or deployment mutation |
@@ -343,6 +344,7 @@ verification.
 | Full post-remediation browser suite | Pass — 145/145 |
 | Full-suite multi-brand performance assertion | Pass — 920 ms / 2,000 ms |
 | Full-suite axe scans | Pass — 0 WCAG 2.1 AA violations |
+| [GitHub final Phase 5 architecture workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30235083942) | Pass — commit `5d3dadd`; quality 5m39s, Android 4m10s, evidence uploaded; hosted migration/deploy skipped while activation is off |
 | [GitHub Phase 5 workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30214620782) | Pass — quality 4m08s, Android 6m44s; hosted migration/deploy skipped while activation is off |
 | [GitHub post-hardening workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30217201984) | Pass — quality 5m18s, Android 6m54s; hosted migration/deploy skipped while activation is off |
 | [GitHub architecture completion workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30221722696) | Pass — quality 5m23s, Android 4m37s; hosted migration/deploy skipped while activation is off |
@@ -492,6 +494,9 @@ is supplied.
 - [x] The downloaded CI lint report records 0 errors and 33 warnings.
 - [x] Current architecture candidate passes compile-only preparation and
       Capacitor Android synchronization.
+- [x] Final architecture commit `5d3dadd` passes Java 21 Android lint, debug
+      APK, and minified release APK assembly in GitHub Actions run
+      [`30235083942`](https://github.com/theonlygeranium/vinifera/actions/runs/30235083942).
 - [x] Architecture commit `5d36471` passes Java 21 Android lint, debug APK, and
       minified release APK assembly in GitHub Actions run
       [`30221722696`](https://github.com/theonlygeranium/vinifera/actions/runs/30221722696).

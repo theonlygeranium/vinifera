@@ -219,6 +219,12 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   migration/deployment skipped while activation remains off. The static custom
   domain now returns CSP, COOP, HSTS, frame-deny, and MIME-sniffing headers;
   `/api/health` still returns the static HTML shell until Worker activation.
+- Phase 5 architecture closure commit `5d3dadd` passed GitHub Actions run
+  [`30235083942`](https://github.com/theonlygeranium/vinifera/actions/runs/30235083942):
+  quality/database/browser/Pages rollback completed in 5m39s, Java 21 Android
+  lint/debug/minified release completed in 4m10s, QA/native evidence uploaded,
+  and hosted migration/Worker deployment skipped because activation remains
+  off.
 - GitHub Actions artifact/log retention is configured at the allowed 90-day
   maximum, and Playwright login/signup captures at 375, 768, and 1440 are
   explicitly retained for 90 days. Android setup is pinned to v4.0.1/Node 24

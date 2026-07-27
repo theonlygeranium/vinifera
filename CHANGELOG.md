@@ -129,6 +129,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   CLS 0, 920 ms multi-brand readiness, 444.6 ms 100-member roster, Vite/Pages
   and development/staging/production Worker dry runs, mobile identity/release
   controls, compile-only preparation, and Android/iOS Capacitor sync.
+- Recorded Phase 5 architecture closure commit `5d3dadd` and GitHub Actions
+  run
+  [`30235083942`](https://github.com/theonlygeranium/vinifera/actions/runs/30235083942):
+  quality/database/browser/Pages rollback passed in 5m39s, Android
+  lint/debug/minified release passed in 4m10s, evidence uploaded, and
+  credential-gated migration/deployment skipped.
 - Integration enqueue/runtime/claim paths now exclude inactive or suspended
   brands, expired final-attempt jobs are dead-lettered during recovery, and
   Avalara quote adjustment replaces only same-shipment temporary facts while
