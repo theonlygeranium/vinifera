@@ -1630,7 +1630,7 @@ export class ProductionIntegrationService
       {
         p_connection_id: existing.id,
         p_cursor_data: {},
-        p_direction: type === "klaviyo" ? "outbound" : "outbound",
+        p_direction: type === "klaviyo" ? "outbound" : "inbound",
         p_entity_id: existing.brand_id,
         p_entity_type: "brand",
         p_idempotency_key: `manual:${existing.id}:${crypto.randomUUID()}`,

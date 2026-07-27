@@ -29,9 +29,7 @@ export interface MemberAuthLinkContext {
 function contextSecret(env: WorkerEnv): string {
   return requireConfigured(
     env.MEMBER_BRAND_CONTEXT_SECRET ??
-      env.RATE_LIMIT_PEPPER ??
-      env.SUPABASE_SECRET_KEY ??
-      env.SUPABASE_SERVICE_ROLE_KEY,
+      env.RATE_LIMIT_PEPPER,
     "MEMBER_BRAND_CONTEXT_SECRET",
   );
 }

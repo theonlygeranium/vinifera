@@ -1371,7 +1371,10 @@ export function createApp(options: AppOptions): express.Express {
       query.code,
       query.state,
     );
-    response.redirect(303, result.destination);
+    response.redirect(
+      303,
+      safeRedirectPath(result.destination, "/portal/"),
+    );
   });
 
   app.get("/api/auth/member/session", async (request, response) => {

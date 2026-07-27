@@ -192,8 +192,8 @@ export class ResendDomainsClient {
     return {
       dnsRecords: (identity.records ?? []).slice(0, 20).map((record) => ({
         name: String(record.name ?? "").slice(0, 253),
-        record: String(record.record ?? "").slice(0, 32),
-        status: String(record.status ?? "").slice(0, 32),
+        record: String(record.record ?? "").slice(0, 2_048),
+        status: String(record.status ?? "").slice(0, 64),
         type: String(record.type ?? "").slice(0, 16),
         value: String(record.value ?? "").slice(0, 2_048),
       })),
