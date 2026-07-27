@@ -153,7 +153,7 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   predicates. This extraction changes no provider activation, deployment
   configuration, or static production surface. The integrated branch passes
   the direct-push policy 12/12, dependency audit 0, generated Worker type check,
-  TypeScript, Vitest 386/386, database gates 92/250/199/158/513, Vite and Pages
+  TypeScript, Vitest 388/388, database gates 92/250/199/158/513, Vite and Pages
   builds, default/staging/production Worker dry runs, Playwright/axe 145/145,
   mobile identity, mobile-release controls 7/7, and a non-routable compile-only
   Capacitor web bundle plus Android sync. Exact-head review additionally
@@ -162,8 +162,10 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   persisted rate; validates QuickBooks lease generations; corrects the member
   address auth-user identity; and preserves integration-job completion while
   logging health-update failures. Focused review regressions pass 114/114 and
-  the 18-service/37-edge graph remains acyclic. This Mac has no Java runtime,
-  so Android lint/assemble remains CI evidence rather than a local claim.
+  the shared concurrency helper now rejects invalid limits without skipping
+  `undefined` inputs. The 18-service/37-edge graph remains acyclic. This Mac has
+  no Java runtime, so Android lint/assemble remains CI evidence rather than a
+  local claim.
 - The review-hardening branch closes the remaining aggregate-integrity,
   unsubscribe-privacy, direct-push timeout, checkout-credential, and setup
   documentation findings without changing provider activation. Release PATCH

@@ -3,15 +3,17 @@ export async function mapConcurrent<T, R>(
   concurrency: number,
   operation: (value: T) => Promise<R>,
 ): Promise<R[]> {
+  if (!Number.isInteger(concurrency) || concurrency <= 0) {
+    throw new RangeError("concurrency must be a positive integer");
+  }
   const results = new Array<R>(values.length);
   let cursor = 0;
   const worker = async (): Promise<void> => {
-    while (cursor < values.length) {
+    while (true) {
       const index = cursor;
+      if (index >= values.length) return;
       cursor += 1;
-      const value = values[index];
-      if (value === undefined) return;
-      results[index] = await operation(value);
+      results[index] = await operation(values[index] as T);
     }
   };
   await Promise.all(

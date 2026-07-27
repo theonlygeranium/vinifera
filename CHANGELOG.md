@@ -62,6 +62,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** `server/lib/concurrency.ts` now rejects non-positive,
+  fractional, and non-finite concurrency limits and passes `undefined` array
+  elements to the operation instead of treating them as worker exhaustion.
+  `tests/unit/concurrency.test.ts` proves validation, complete processing, and
+  result ordering. The service ADR now defines its dependency arrows against
+  the implemented import graph and includes explicit deployment and
+  verification sections. **Why:** Fresh exact-head CodeRabbit review found
+  that invalid limits could silently skip a batch, `undefined` data could
+  truncate one worker, and the original ADR arrow direction was ambiguous.
+  **Deployment impact:** Worker batch helpers now fail fast on programmer
+  configuration errors; public routes, database migrations, provider
+  activation, secrets, Pages, and hosted state are unchanged.
+  **Verification:** Concurrency unit tests 2/2, TypeScript, full Vitest
+  388/388, `git diff --check`, and fresh exact-head review.
 - **What changed:** Exact-head review hardening now defers mobile push only for
   `activation_required` and surfaces APNs configuration mismatches; requires
   EasyPost recovery to find the exact persisted rate; rejects invalid
@@ -212,10 +226,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Added the domain-service decomposition ADR and linked architecture guidance,
-  documenting extracted ownership, dependency direction, neutral shared
-  primitives, compatibility barrels, and the requirement to review behavioral
-  changes separately from structural moves.
+- **What changed:** Added the domain-service decomposition ADR and linked
+  architecture/service-manifest guidance, documenting extracted ownership,
+  import direction, neutral shared primitives, compatibility barrels, and the
+  requirement to review behavioral changes separately from structural moves.
+  **Why:** The decomposition establishes a durable architecture and therefore
+  requires a canonical decision record beyond the implementation manifest.
+  **Deployment impact:** Documentation only; routes, Worker bindings, database
+  migrations, providers, secrets, Pages, and activation state are unchanged.
+  **Verification:** ADR link review, implemented import-graph comparison,
+  18-service/37-edge zero-cycle audit, `git diff --check`, and exact-head
+  automated review.
 - Added the BS-03 `server/services/` extraction skeleton for members, clubs,
   orders, Stripe, EasyPost, communications, webhooks, and the service barrel;
   the pre-existing analytics module remains intact.

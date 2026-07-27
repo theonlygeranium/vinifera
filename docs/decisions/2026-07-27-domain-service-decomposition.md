@@ -31,15 +31,19 @@ needed a stable transition boundary.
 4. Preserve dependency direction:
 
    ```text
-   easypost → members → clubs → stripe → orders
+   members  → easypost
+   clubs    → members
+   stripe   → clubs, members, stripe-runtime
+   orders   → compliance, easypost, members, stripe
 
-   integration-runtime → comms → webhooks
-   analytics ──────────────────→ webhooks
+   comms    → integration-runtime
+   webhooks → analytics, comms, integration-runtime, stripe
    ```
 
-   Lower-level modules must not import a downstream owner. Shared primitives
-   belong in a neutral runtime or library module when reuse would otherwise
-   introduce a cycle.
+   Here `A → B` means “module A imports from module B.” An imported dependency
+   must not import its downstream consumer. Shared primitives belong in a
+   neutral runtime or library module when reuse would otherwise introduce a
+   cycle.
 5. Retain `core-club.ts` and `integrations.ts` as re-export-only compatibility
    barrels. Production runtime and route modules import the extracted domain
    owner directly; compatibility barrels exist only for callers that have not
@@ -64,6 +68,27 @@ needed a stable transition boundary.
 - Existing duplicate helpers or divergent provider metadata are not silently
   consolidated by the extraction. Any later cleanup must prove behavior and
   compatibility separately.
+
+## Deployment Impact
+
+The decomposition and neutral shared helpers change the Worker source bundle,
+but they do not change public routes, database migrations, provider
+credentials, Worker bindings, Pages routing, or activation state. The static
+Pages production baseline remains in place. Exact-head review hardening changes
+only fail-closed service behavior for invalid APNs configuration, EasyPost
+recovery state, QuickBooks lease state, member-address identity, and
+integration-health logging.
+
+## Verification
+
+- Direct-push policy: 12/12; dependency audit: 0 vulnerabilities
+- Generated Worker types and TypeScript: passed
+- Vitest: 388/388, including focused concurrency and provider regressions
+- Embedded database gates: 92/250/199/158/513
+- Vite, Pages, and development/staging/production Worker dry runs: passed
+- Playwright/axe: 145/145, including 375-pixel and touch-target coverage
+- Service graph: 18 service files, 37 internal edges, zero cycles
+- Compatibility barrels: export-only; `AGENTS.md`: untouched
 
 ## Alternatives Considered
 
