@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored
+
+- Extracted all 129 Express route handlers from `server/app.ts` into
+  domain-scoped modules under `server/routes/`, preserving the original route
+  paths, middleware order, schemas, service calls, and response behavior.
+- Reduced `server/app.ts` to the 73-line global middleware and route-mounting
+  entry point, with `server/routes/index.ts` owning the ordered public,
+  protected, fallback, and error-handler mounts.
+
 ### Added
 
 - Added the BS-02 route manifest covering all 129 Express route registrations,

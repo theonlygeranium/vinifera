@@ -142,6 +142,12 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- BS-02 decomposes all 129 Express registrations from the monolithic
+  `server/app.ts` into domain-scoped `server/routes/` modules. The 73-line app
+  entry point now retains only global middleware and ordered route mounting;
+  mechanical route/schema/handler comparison, TypeScript, 354 Vitest tests,
+  and 145 Playwright/axe tests pass with no runtime, deployment, or provider
+  activation behavior change.
 - BS-01 repository hygiene migrates Greptile review policy from the legacy
   root JSON file to scoped `.greptile/` configuration and rules, removes the
   generated Worker declaration from version control while regenerating it
