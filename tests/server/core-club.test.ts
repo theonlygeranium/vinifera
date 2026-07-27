@@ -332,32 +332,40 @@ describe("Phase 2 release update integrity", () => {
     };
   }
 
-  it("preserves omitted prices by stable wine ID and keeps an explicit zero", async () => {
+  it("preserves stable wine IDs and reaches the RPC on an exact retry", async () => {
     const admin = releaseAdmin();
-
-    await new CoreClubServiceHarness(
+    admin.rpc
+      .mockResolvedValueOnce({
+        data: { entityId: releaseId, replayed: false },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { entityId: releaseId, replayed: true },
+        error: null,
+      });
+    const service = new CoreClubServiceHarness(
       admin as unknown as SupabaseClient,
-    ).updateRelease(
-      releaseId,
-      {
-        wines: [
-          {
-            id: secondWineId,
-            quantity: 3,
-            wineName: "Renamed Library Merlot",
-          },
-          {
-            id: firstWineId,
-            priceCents: 0,
-            quantity: 4,
-            wineName: "Estate Cabernet",
-          },
-        ],
-      },
-      commandId,
     );
+    const patch = {
+      wines: [
+        {
+          id: secondWineId,
+          quantity: 3,
+          wineName: "Renamed Library Merlot",
+        },
+        {
+          id: firstWineId,
+          priceCents: 0,
+          quantity: 4,
+          wineName: "Estate Cabernet",
+        },
+      ],
+    };
 
-    expect(admin.rpc).toHaveBeenCalledWith(
+    await service.updateRelease(releaseId, patch, commandId);
+    await service.updateRelease(releaseId, patch, commandId);
+
+    const expectedCall = [
       "apply_release_command",
       expect.objectContaining({
         p_payload: expect.objectContaining({
@@ -365,17 +373,23 @@ describe("Phase 2 release update integrity", () => {
             {
               price_cents: 5_600,
               quantity: 3,
+              wine_id: secondWineId,
               wine_name: "Renamed Library Merlot",
             },
             {
               price_cents: 0,
               quantity: 4,
+              wine_id: firstWineId,
               wine_name: "Estate Cabernet",
             },
           ],
         }),
       }),
-    );
+    ] as const;
+    expect(admin.rpc).toHaveBeenCalledTimes(2);
+    expect(admin.rpc).toHaveBeenNthCalledWith(1, ...expectedCall);
+    expect(admin.rpc).toHaveBeenNthCalledWith(2, ...expectedCall);
+    expect(admin.rpc.mock.calls[1]).toStrictEqual(admin.rpc.mock.calls[0]);
   });
 
   it("rejects a new or unknown wine without a price before the RPC", async () => {
@@ -402,6 +416,42 @@ describe("Phase 2 release update integrity", () => {
       status: 400,
     });
     expect(admin.rpc).not.toHaveBeenCalled();
+  });
+
+  it("treats an unknown wine with an explicit price as new", async () => {
+    const admin = releaseAdmin();
+
+    await new CoreClubServiceHarness(
+      admin as unknown as SupabaseClient,
+    ).updateRelease(
+      releaseId,
+      {
+        wines: [
+          {
+            id: "41000000-0000-4000-8000-000000000099",
+            priceCents: 7_500,
+            quantity: 1,
+            wineName: "New Wine",
+          },
+        ],
+      },
+      commandId,
+    );
+
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "apply_release_command",
+      expect.objectContaining({
+        p_payload: expect.objectContaining({
+          wines: [
+            {
+              price_cents: 7_500,
+              quantity: 1,
+              wine_name: "New Wine",
+            },
+          ],
+        }),
+      }),
+    );
   });
 });
 

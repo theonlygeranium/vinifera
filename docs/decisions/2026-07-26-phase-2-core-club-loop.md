@@ -43,9 +43,13 @@ Status transitions remain available only through their dedicated command
 endpoints, and an empty PATCH cannot trigger an aggregate rewrite. Existing
 wine prices may be omitted only when the request carries that wine's stable
 release-wine ID; the service reconciles the price by ID, never by array
-position or mutable name, and removes the reconciliation ID before calling the
-database command. New or unknown wines require an explicit nonnegative price,
-including an explicit zero when that is intended.
+position or mutable name. The service includes validated existing wine IDs in
+the transactional command, and PostgreSQL preserves those IDs while rebuilding
+the draft aggregate. This keeps an exact omitted-price retry byte-for-byte
+equivalent after a lost response, so the command ledger can return its stored
+result without weakening fingerprint validation. New or unknown wines require
+an explicit nonnegative price, including an explicit zero when that is
+intended, and receive a new database-generated ID.
 
 Staff commands carry UUID idempotency keys and canonical SHA-256 request
 fingerprints. PostgreSQL records the command, business mutation, audit row,
@@ -170,6 +174,7 @@ recovery details.
 - Idempotent batch, partial-decline, retry, refund, and shipment-transition tests
 - CSV format, limit, validation, duplicate, preview, and commit tests
 - Release PATCH pairing, status/empty-body rejection, stable wine-ID price
-  reconciliation, explicit-zero, and unknown-wine tests
+  reconciliation and preservation, exact command replay, explicit-zero, and
+  unknown/cross-release/cross-brand wine tests
 - Playwright functional, axe-core, breakpoint, layout, and performance gates
 - Signed Stripe webhook replay and EasyPost test-label creation after activation

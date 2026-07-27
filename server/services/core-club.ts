@@ -3453,15 +3453,22 @@ export class ProductionCoreClubService implements CoreClubService {
     );
     const completeWines = input.wines
       ? input.wines.map((wine) => {
+          const existingWineId =
+            wine.id !== undefined && currentWinePrices.has(wine.id)
+              ? wine.id
+              : undefined;
           if (wine.priceCents !== undefined) {
             return {
+              ...(existingWineId ? { id: existingWineId } : {}),
               priceCents: wine.priceCents,
               quantity: wine.quantity,
               wineName: wine.wineName,
             };
           }
           const storedPrice =
-            wine.id === undefined ? undefined : currentWinePrices.get(wine.id);
+            existingWineId === undefined
+              ? undefined
+              : currentWinePrices.get(existingWineId);
           if (storedPrice === undefined) {
             throw new AppError(
               400,
@@ -3470,17 +3477,19 @@ export class ProductionCoreClubService implements CoreClubService {
             );
           }
           return {
+            id: existingWineId,
             priceCents: storedPrice,
             quantity: wine.quantity,
             wineName: wine.wineName,
           };
         })
       : currentWines.map((row) => ({
+          ...(typeof row.id === "string" ? { id: row.id } : {}),
           priceCents: Number(row.priceCents),
           quantity: Number(row.quantity),
           wineName: String(row.name),
         }));
-    const completeInput: ReleaseInput = {
+    const completeInput = {
       description:
         Object.prototype.hasOwnProperty.call(input, "description")
           ? input.description ?? null
@@ -3526,6 +3535,7 @@ export class ProductionCoreClubService implements CoreClubService {
           tier_id: tier.tierId,
         })),
         wines: completeInput.wines.map((wine) => ({
+          ...("id" in wine && wine.id ? { wine_id: wine.id } : {}),
           price_cents: wine.priceCents,
           quantity: wine.quantity,
           wine_name: wine.wineName,

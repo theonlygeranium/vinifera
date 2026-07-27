@@ -23,6 +23,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Draft release updates now carry each validated existing
+  release-wine UUID into the transactional command, and a forward-only database
+  migration preserves those UUIDs while rebuilding the aggregate. The command
+  rejects IDs during create, duplicate IDs, and IDs outside the exact
+  organization/brand/release boundary; new explicitly priced wines still
+  receive database-generated IDs. **Why:** An exact idempotent retry after a
+  lost PATCH response could previously carry the pre-update wine ID, fail
+  service reconciliation after the first rebuild replaced that ID, and never
+  reach the database command ledger's stored replay. **Deployment impact:** The
+  Worker RPC payload adds optional `wine_id`, and Supabase must apply migration
+  `202607260022_release_wine_identity_replay.sql`; Pages, providers, secrets,
+  and activation state are unchanged. **Verification:** Stateful service retry
+  tests, Phase 2 command-ledger pgTAP identity/tenant/mismatch assertions,
+  TypeScript, 382/382 Vitest tests, database gates
+  92/241/199/158/504, all Pages and Worker dry-run builds, and 145/145
+  Playwright/axe checks. Authenticated CodeRabbit review is rerun on the
+  committed head before merge.
 - **What changed:** Review follow-up keeps both the GitHub response and its JSON
   body parsing inside the direct-push guard's per-request timeout, aligns the
   guard ADR with the ten-page implementation limit, and proves an invalid

@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
-select plan(61);
+select plan(71);
 
 insert into auth.users (id, email)
 values ('c1000000-0000-4000-8000-000000000001', 'phase2-command-owner@example.test');
@@ -533,6 +533,305 @@ values (
   'c2100000-0000-4000-8000-000000000002',
   'c5100000-0000-4000-8000-000000000002',
   'Sibling Cabernet'
+);
+
+-- Draft aggregate updates must preserve wine identity so an exact retry can
+-- reach the durable command replay after a lost first response.
+create temporary table release_identity_create_result as
+select public.apply_release_command(
+  'c2000000-0000-4000-8000-000000000001',
+  (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+  'c1000000-0000-4000-8000-000000000001',
+  'c3600000-0000-4000-8000-000000000001',
+  'create',
+  null,
+  jsonb_build_object(
+    'name', 'Release Identity Draft',
+    'description', 'Stable release-wine identity fixture',
+    'processing_date', (current_date + 70)::text,
+    'embargo_date', (current_date + 60)::text,
+    'initial_status', 'draft',
+    'tiers', jsonb_build_array(jsonb_build_object(
+      'tier_id', (select result ->> 'entityId' from command_tier_result),
+      'price_cents', 12500
+    )),
+    'wines', jsonb_build_array(jsonb_build_object(
+      'wine_name', 'Identity Cabernet',
+      'quantity', 3,
+      'price_cents', 4000
+    ))
+  )
+) as result;
+
+create temporary table release_identity_original_wine as
+select wine.id
+from public.release_wines as wine
+where wine.release_id = (
+  select (result ->> 'entityId')::uuid
+  from release_identity_create_result
+);
+
+create temporary table release_identity_update_payload as
+select jsonb_build_object(
+  'name', 'Release Identity Draft Updated',
+  'description', 'Stable release-wine identity update',
+  'processing_date', (current_date + 71)::text,
+  'embargo_date', (current_date + 61)::text,
+  'tiers', jsonb_build_array(jsonb_build_object(
+    'tier_id', (select result ->> 'entityId' from command_tier_result),
+    'price_cents', 12750
+  )),
+  'wines', jsonb_build_array(jsonb_build_object(
+    'wine_id', (select id from release_identity_original_wine),
+    'wine_name', 'Identity Cabernet Renamed',
+    'quantity', 3,
+    'price_cents', 4250
+  ))
+) as payload;
+
+create temporary table release_identity_update_result as
+select public.apply_release_command(
+  'c2000000-0000-4000-8000-000000000001',
+  (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+  'c1000000-0000-4000-8000-000000000001',
+  'c3600000-0000-4000-8000-000000000002',
+  'update',
+  (select (result ->> 'entityId')::uuid from release_identity_create_result),
+  (select payload from release_identity_update_payload)
+) as result;
+
+select is(
+  (
+    select wine.id
+    from public.release_wines as wine
+    where wine.release_id = (
+      select (result ->> 'entityId')::uuid
+      from release_identity_create_result
+    )
+  ),
+  (select id from release_identity_original_wine),
+  'release update preserves the supplied release-wine identifier'
+);
+
+create temporary table release_identity_update_replay as
+select public.apply_release_command(
+  'c2000000-0000-4000-8000-000000000001',
+  (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+  'c1000000-0000-4000-8000-000000000001',
+  'c3600000-0000-4000-8000-000000000002',
+  'update',
+  (select (result ->> 'entityId')::uuid from release_identity_create_result),
+  (select payload from release_identity_update_payload)
+) as result;
+
+select is(
+  (select result ->> 'replayed' from release_identity_update_replay),
+  'true',
+  'an exact release update retry returns the durable replay result'
+);
+
+select ok(
+  (
+    select count(*) = 1
+    from private.core_club_command_results
+    where command_id = 'c3600000-0000-4000-8000-000000000002'
+  )
+  and (
+    select count(*) = 1
+    from public.audit_log
+    where action = 'release.updated'
+      and entity_id = (
+        select (result ->> 'entityId')::uuid
+        from release_identity_create_result
+      )
+  )
+  and (
+    select count(*) = 1
+    from public.release_wines
+    where release_id = (
+      select (result ->> 'entityId')::uuid
+      from release_identity_create_result
+    )
+  )
+  and (
+    select count(*) = 1
+    from public.release_tier_items
+    where release_id = (
+      select (result ->> 'entityId')::uuid
+      from release_identity_create_result
+    )
+  ),
+  'release update replay does not duplicate command, audit, or child rows'
+);
+
+select throws_ok(
+  $$
+    select public.apply_release_command(
+      'c2000000-0000-4000-8000-000000000001',
+      (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+      'c1000000-0000-4000-8000-000000000001',
+      'c3600000-0000-4000-8000-000000000002',
+      'update',
+      (select (result ->> 'entityId')::uuid from release_identity_create_result),
+      (select payload || jsonb_build_object('description', 'Changed retry input') from release_identity_update_payload)
+    )
+  $$,
+  '23505',
+  'The idempotency key was reused with different command input.',
+  'a release update retry cannot change its payload'
+);
+
+select throws_ok(
+  $$
+    select public.apply_release_command(
+      'c2000000-0000-4000-8000-000000000001',
+      (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+      'c1000000-0000-4000-8000-000000000001',
+      'c3600000-0000-4000-8000-000000000003',
+      'update',
+      (select (result ->> 'entityId')::uuid from release_identity_create_result),
+      (
+        select jsonb_set(
+          payload,
+          '{wines,0,wine_id}',
+          to_jsonb('c6100000-0000-4000-8000-000000000002'::uuid)
+        )
+        from release_identity_update_payload
+      )
+    )
+  $$,
+  'P0002',
+  'One or more release wines were not found in this release.',
+  'release update rejects a wine identifier from a sibling brand'
+);
+
+select ok(
+  (
+    select
+      release.name = 'Release Identity Draft Updated'
+      and wine.id = (select id from release_identity_original_wine)
+      and wine.wine_name = 'Identity Cabernet Renamed'
+    from public.releases as release
+    join public.release_wines as wine
+      on wine.organization_id = release.organization_id
+      and wine.brand_id = release.brand_id
+      and wine.release_id = release.id
+    where release.id = (
+      select (result ->> 'entityId')::uuid
+      from release_identity_create_result
+    )
+  )
+  and not exists (
+    select 1
+    from private.core_club_command_results
+    where command_id = 'c3600000-0000-4000-8000-000000000003'
+  ),
+  'foreign wine rejection leaves the aggregate and command ledger unchanged'
+);
+
+select throws_ok(
+  $$
+    select public.apply_release_command(
+      'c2000000-0000-4000-8000-000000000001',
+      (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+      'c1000000-0000-4000-8000-000000000001',
+      'c3600000-0000-4000-8000-000000000004',
+      'update',
+      (select (result ->> 'entityId')::uuid from release_identity_create_result),
+      (
+        select jsonb_set(
+          payload,
+          '{wines}',
+          jsonb_build_array(
+            payload -> 'wines' -> 0,
+            (payload -> 'wines' -> 0)
+              || jsonb_build_object(
+                'wine_name', 'Duplicate Identity Cabernet',
+                'quantity', 1
+              )
+          )
+        )
+        from release_identity_update_payload
+      )
+    )
+  $$,
+  '22023',
+  'Release wine identifiers must be unique.',
+  'release update rejects duplicate non-null wine identifiers'
+);
+
+select ok(
+  (
+    select
+      release.name = 'Release Identity Draft Updated'
+      and count(wine.id) = 1
+      and min(wine.id::text) = (
+        select id::text
+        from release_identity_original_wine
+      )
+    from public.releases as release
+    join public.release_wines as wine
+      on wine.organization_id = release.organization_id
+      and wine.brand_id = release.brand_id
+      and wine.release_id = release.id
+    where release.id = (
+      select (result ->> 'entityId')::uuid
+      from release_identity_create_result
+    )
+    group by release.name
+  )
+  and not exists (
+    select 1
+    from private.core_club_command_results
+    where command_id = 'c3600000-0000-4000-8000-000000000004'
+  ),
+  'duplicate wine rejection leaves the aggregate and command ledger unchanged'
+);
+
+select throws_ok(
+  $$
+    select public.apply_release_command(
+      'c2000000-0000-4000-8000-000000000001',
+      (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+      'c1000000-0000-4000-8000-000000000001',
+      'c3600000-0000-4000-8000-000000000005',
+      'create',
+      null,
+      jsonb_build_object(
+        'name', 'Forged Identity Create',
+        'processing_date', (current_date + 72)::text,
+        'embargo_date', (current_date + 62)::text,
+        'initial_status', 'draft',
+        'tiers', jsonb_build_array(jsonb_build_object(
+          'tier_id', (select result ->> 'entityId' from command_tier_result),
+          'price_cents', 12500
+        )),
+        'wines', jsonb_build_array(jsonb_build_object(
+          'wine_id', (select id from release_identity_original_wine),
+          'wine_name', 'Forged Identity Cabernet',
+          'quantity', 3,
+          'price_cents', 4000
+        ))
+      )
+    )
+  $$,
+  '22023',
+  'The release create state is invalid.',
+  'release create rejects a caller-supplied wine identifier'
+);
+
+select ok(
+  not exists (
+    select 1
+    from public.releases
+    where name = 'Forged Identity Create'
+  )
+  and not exists (
+    select 1
+    from private.core_club_command_results
+    where command_id = 'c3600000-0000-4000-8000-000000000005'
+  ),
+  'rejected release create leaves no aggregate or command result'
 );
 
 select throws_ok(
