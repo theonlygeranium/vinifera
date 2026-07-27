@@ -22,6 +22,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added shared CSV formula-injection hardening, calibrated churn uncertainty
   language, non-color chart differentiation, truthful compliance-rules
   evidence, and refreshed Phase 4 visual captures at 375, 768, and 1440.
+- Phase 4 architecture closure commit `623dd2a` passed GitHub Actions run
+  [`30232327146`](https://github.com/theonlygeranium/vinifera/actions/runs/30232327146):
+  quality/browser QA completed in 6m49s, Android lint/debug/minified release
+  completed in 4m19s, QA/native evidence uploaded, the Pages rollback artifact
+  validated, and hosted migration/deployment skipped while activation remains
+  off. The resulting static Pages deployment serves CSP, COOP, HSTS,
+  frame-deny, and MIME-sniffing protections at `/` and `/app/`; `/api/health`
+  remains static HTML until the Worker is activated.
 - Added the Phase 3 final-stack retention hardening migration: brand-scoped
   defaults and time zones, same-brand composite integrity, lease-token email
   completion, a durable provider-event inbox, command result fingerprints,

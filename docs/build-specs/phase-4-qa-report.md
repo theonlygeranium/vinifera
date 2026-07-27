@@ -13,7 +13,8 @@ operational exit criterion deferred and not met**
 The repository contains the Phase 4 analytics, guarded churn-model lifecycle,
 private peer benchmarking, and fail-closed compliance architecture. The
 TypeScript, unit/service, embedded database, browser, accessibility,
-responsive, build, and Worker packaging gates pass locally.
+responsive, build, and Worker packaging gates pass locally and in GitHub
+Actions for architecture commit `623dd2a`.
 
 Phase 4 is not operational or complete against the specification's exit
 criterion:
@@ -45,9 +46,10 @@ convert any of those hosted gates into a pass.
 | Later-stack database regression | `npm run qa:db:phase5` | PASS — 438/438 with migration 15 and Phase 4 hardening included |
 | Pages rollback build | `npm run build:pages` plus artifact comparison | PASS — the original prototype is retained exactly |
 | Native preparation | mobile identity, compile-only web bundle, Android/iOS Capacitor sync | PASS — no runtime/provider activation claimed |
-| Hosted root | read-only fetch against `https://vinifera.edstratumlabs.ai/` | HTTP 200 from the existing static Pages site |
-| Hosted application | read-only fetch against `/app/` | HTTP 200 static prototype HTML, 189,835 bytes |
-| Hosted API | read-only fetch against `/api/health` | HTTP 200 `text/html`, 89,676 bytes; not the Worker JSON health contract |
+| GitHub architecture gate | commit `623dd2a`, Actions run [`30232327146`](https://github.com/theonlygeranium/vinifera/actions/runs/30232327146) | PASS — quality/browser job 6m49s; Android job 4m19s; hosted migration and Worker deployment skipped |
+| Hosted root | read-only fetch against `https://vinifera.edstratumlabs.ai/` after the Pages deployment | HTTP 200 from the existing static Pages site with CSP, COOP, HSTS, frame-deny, and MIME-sniffing protections |
+| Hosted application | read-only fetch against `/app/` after the Pages deployment | HTTP 200 static prototype HTML, 189,835 bytes, with the same security headers |
+| Hosted API | read-only fetch against `/api/health` after the Pages deployment | HTTP 200 `text/html`, 89,676 bytes; not the Worker JSON health contract |
 
 The browser suite uses deterministic API fixtures. Its passing values and
 screenshots are not production analytics, model, benchmark, or legal-compliance

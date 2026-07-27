@@ -205,6 +205,13 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   quality completed in 6m22s, Android lint/debug/minified release completed in
   4m25s, QA/native evidence uploaded, the Pages rollback artifact validated,
   and hosted migration/deployment skipped while activation remains off.
+- Phase 4 architecture closure commit `623dd2a` passed GitHub Actions run
+  [`30232327146`](https://github.com/theonlygeranium/vinifera/actions/runs/30232327146):
+  quality/browser QA completed in 6m49s, Android lint/debug/minified release
+  completed in 4m19s, the Pages rollback artifact validated, and hosted
+  migration/deployment skipped while activation remains off. The static custom
+  domain now returns CSP, COOP, HSTS, frame-deny, and MIME-sniffing headers;
+  `/api/health` still returns the static HTML shell until Worker activation.
 - GitHub Actions artifact/log retention is configured at the allowed 90-day
   maximum, and Playwright login/signup captures at 375, 768, and 1440 are
   explicitly retained for 90 days. Android setup is pinned to v4.0.1/Node 24
