@@ -1,1 +1,234 @@
-IyBCUy0wNCDigJQgT2JzZXJ2YWJpbGl0eSBJbnRlZ3JhdGlvbiAmIEFQSSBSYXRlIExpbWl0aW5nCgoqKldhdmU6KiogMSAoc3RhcnQgYWZ0ZXIgQlMtMDEgbWVyZ2VzOyBydW5zIGNvbmN1cnJlbnRseSB3aXRoIEJTLTAyLCBCUy0wMykKKipCcmFuY2g6KiogYGZlYXQvb2JzZXJ2YWJpbGl0eS1hbmQtcmF0ZS1saW1pdGluZ2AKKipFc3RpbWF0ZWQgZHVyYXRpb246KiogMuKAkzMgaG91cnMKKipQYXJhbGxlbC1zYWZlOioqIFllcyDigJQgdG91Y2hlcyBvbmx5IGBhcHAudHNgIG1pZGRsZXdhcmUgcmVnaXN0cmF0aW9uIGFuZCBuZXcgZmlsZXM7IEJTLTAyIHRvdWNoZXMgcm91dGUgZmlsZXMgb25seQoqKlNwYXducyBzdWJhZ2VudHM6KiogT3B0aW9uYWwg4oCUIGVycm9yIHRyYWNraW5nIGFuZCByYXRlIGxpbWl0aW5nIGNhbiBiZSBwYXJhbGxlbGl6ZWQKKipCbG9ja3M6KiogUHJvZHVjdGlvbiByZWFkaW5lc3MgKEJTLTA1IGRlcGVuZHMgb24gYSB3b3JraW5nIGVycm9yIGJvdW5kYXJ5IGZvciBsb2NhbCBkZXYpCgotLS0KCiMjIE1hbmRhdG9yeSBwcmUtdGFzayByZWFkaW5nCgoxLiBgQUdFTlRTLm1kYAoyLiBgQ09OVElOVUlUWV9CUklFRi5tZGAg4oCUIG5vdGUgdGhlIGFjdGl2YXRpb24gZ2F0ZSBmb3IgdGhlIGxpdmUgV29ya2VyIChHYXRlIDEpOyBvYnNlcnZhYmlsaXR5IG11c3QgYmUgd2lyZWQgYmVmb3JlIEdhdGUgMSBwYXNzZXMKMy4gYGRvY3MvYWdlbnQtd29ya2Zsb3cubWRgCjQuIGBkb2NzL2NvZGViYXNlLWFzc2Vzc21lbnQtMjAyNi0wNy0yNy5tZGAgwqc0IOKAlCBpc3N1ZXMgSC0xIChvYnNlcnZhYmlsaXR5KSwgSC0yIChyYXRlIGxpbWl0aW5nKQo1LiBgcGFja2FnZS5qc29uYCDigJQgdmVyaWZ5IHdoaWNoIHBhY2thZ2VzIGFyZSBhbHJlYWR5IGluc3RhbGxlZCBiZWZvcmUgYWRkaW5nIGRlcGVuZGVuY2llcwoKLS0tCgojIyBDb250ZXh0OiB3aHkgdGhpcyBzaGlwcyBiZWZvcmUgYWN0aXZhdGlvbgoKVGhlIFZpbmlmZXJhIFdvcmtlciBoYXMgbm8gc3RydWN0dXJlZCBlcnJvciBjYXB0dXJlIHRvZGF5LiBXaGVuIEdhdGUgMSBwYXNzZXMgYW5kIHJlYWwgdHJhZmZpYyBoaXRzIHRoZSBXb3JrZXIsIGFueSB1bmhhbmRsZWQgZXhjZXB0aW9uIGJlY29tZXMgYSBzaWxlbnQgNTAwIHJldHVybmVkIHRvIGEgbWVtYmVyIHdpdGggbm8gdmlzaWJpbGl0eSBpbnRvIHdoYXQgZmFpbGVkLiBXaXJpbmcgU2VudHJ5IChvciBlcXVpdmFsZW50KSBhbmQgcmF0ZSBsaW1pdGluZyBiZWZvcmUgYWN0aXZhdGlvbiBtZWFucyB0aGUgZmlyc3QgcmVhbCBlcnJvciBwcm9kdWNlcyBhbiBhY3Rpb25hYmxlIGFsZXJ0IHJhdGhlciB0aGFuIGEgY29uZnVzZWQgbWVtYmVyLgoKUmF0ZSBsaW1pdGluZyBhZGRyZXNzZXMgYSBkaXN0aW5jdCByaXNrOiBvbmNlIHRoZSBjdXN0b20gZG9tYWluIHJvdXRlcyB0byB0aGUgV29ya2VyLCB0aGUgQVBJIGVuZHBvaW50cyBhcmUgcHVibGljbHkgcmVhY2hhYmxlIHdpdGhvdXQgYXV0aGVudGljYXRpb24uIEEgbWlzY29uZmlndXJlZCBjbGllbnQgb3IgYSBiYWQgYWN0b3IgY2FuIGV4aGF1c3QgQ2xvdWRmbGFyZSBXb3JrZXIgaW52b2NhdGlvbiBxdW90YSB3aXRoaW4gbWludXRlcy4KCi0tLQoKIyMgVGFzayAxOiBJbnN0YWxsIGRlcGVuZGVuY2llcwoKQ2hlY2sgYHBhY2thZ2UuanNvbmAgdG8gZGV0ZXJtaW5lIHdoaWNoIHBhY2thZ2VzIGFyZSBhbHJlYWR5IHByZXNlbnQuIEluc3RhbGwgb25seSB3aGF0IGlzIG1pc3Npbmc6CgpgYGBiYXNoCm5wbSBpbnN0YWxsIEBzZW50cnkvY2xvdWRmbGFyZSBob25vLXJhdGUtbGltaXRlcgojIG9yIGlmIGEgcmF0ZS1saW1pdGluZyBwYWNrYWdlIGFscmVhZHkgZXhpc3RzLCBkbyBub3QgaW5zdGFsbCBhIGR1cGxpY2F0ZQpgYGAKCklmIGBAc2VudHJ5L2Nsb3VkZmxhcmVgIGlzIGFscmVhZHkgbGlzdGVkLCBza2lwIHRoZSBpbnN0YWxsIGFuZCBwcm9jZWVkIHRvIGNvbmZpZ3VyYXRpb24uCgotLS0KCiMjIFRhc2sgMjogQ3JlYXRlIGBzZXJ2ZXIvbGliL2AgZGlyZWN0b3J5CgpUaGlzIGlzIGEgbmV3IGRpcmVjdG9yeSBmb3Igc2hhcmVkIGluZnJhc3RydWN0dXJlIHV0aWxpdGllcyDigJQgbm90IHNlcnZpY2VzICh3aGljaCBhcmUgYnVzaW5lc3MgbG9naWMpLCBub3Qgcm91dGVzICh3aGljaCBhcmUgSFRUUCBoYW5kbGVycykuIEl0IGhvbGRzIG1pZGRsZXdhcmUsIGVycm9yIGJvdW5kYXJpZXMsIGFuZCBpbnN0cnVtZW50YXRpb24uCgpgYGAKc2VydmVyL2xpYi8KICBzZW50cnkudHMgICAgICAgICDihpAgU2VudHJ5IGluaXQgYW5kIGVycm9yIGhhbmRsZXIKICByYXRlLWxpbWl0LnRzICAgICDihpAgcmF0ZSBsaW1pdCBtaWRkbGV3YXJlIGZhY3RvcnkKICBlcnJvci1oYW5kbGVyLnRzICDihpAgY2VudHJhbGl6ZWQgRXhwcmVzcyBlcnJvciBoYW5kbGVyCmBgYAoKLS0tCgojIyBUYXNrIDM6IEltcGxlbWVudCBTZW50cnkgZXJyb3IgdHJhY2tpbmcgKGBzZXJ2ZXIvbGliL3NlbnRyeS50c2ApCgpgYGB0eXBlc2NyaXB0CmltcG9ydCAqIGFzIFNlbnRyeSBmcm9tICdAc2VudHJ5L2Nsb3VkZmxhcmUnCgpleHBvcnQgZnVuY3Rpb24gaW5pdFNlbnRyeShkc246IHN0cmluZywgZW52aXJvbm1lbnQ6IHN0cmluZykgewogIFNlbnRyeS5pbml0KHsKICAgIGRzbiwKICAgIGVudmlyb25tZW50LAogICAgdHJhY2VzU2FtcGxlUmF0ZTogZW52aXJvbm1lbnQgPT09ICdwcm9kdWN0aW9uJyA/IDAuMSA6IDEuMCwKICAgIC8vIERvIG5vdCBjYXB0dXJlIFBJSSDigJQgdmluaWZlcmEgaGFuZGxlcyBtZW1iZXIgcGVyc29uYWwgZGF0YQogICAgc2VuZERlZmF1bHRQaWk6IGZhbHNlLAogIH0pCn0KCmV4cG9ydCB7IFNlbnRyeSB9CmBgYAoKVGhlIERTTiBtdXN0IGNvbWUgZnJvbSBhbiBlbnZpcm9ubWVudCB2YXJpYWJsZSDigJQgbmV2ZXIgaGFyZGNvZGVkLiBVc2UgYFNFTlRSWV9EU05gIGFzIHRoZSB2YXJpYWJsZSBuYW1lLiBBZGQgaXQgdG86Ci0gYC5kZXYudmFycy5leGFtcGxlYCAobmV3IGZpbGUgaWYgYWJzZW50KSBhcyBgU0VOVFJZX0RTTj15b3VyLWRzbi1oZXJlYAotIGB3cmFuZ2xlci50b21sYCB1bmRlciBgW3ZhcnNdYCBhcyBhIHBsYWNlaG9sZGVyIGNvbW1lbnQ6IGAjIFNFTlRSWV9EU04gPSAic2V0IHZpYSBDbG91ZGZsYXJlIGRhc2hib2FyZCJgCgoqKkNyaXRpY2FsOioqIHRoZSBhY3R1YWwgRFNOIHZhbHVlIG11c3QgbmV2ZXIgYXBwZWFyIGluIGFueSBjb21taXR0ZWQgZmlsZS4gSWYgYHdyYW5nbGVyLnRvbWxgIGFscmVhZHkgY29udGFpbnMgYSBgU0VOVFJZX0RTTmAgdmFsdWUsIHJlZGFjdCBpdCBhbmQgZG9jdW1lbnQgdGhlIHJlZGFjdGlvbiBpbiB0aGUgUFIgYm9keS4KCi0tLQoKIyMgVGFzayA0OiBJbXBsZW1lbnQgcmF0ZSBsaW1pdGluZyBtaWRkbGV3YXJlIChgc2VydmVyL2xpYi9yYXRlLWxpbWl0LnRzYCkKCkNyZWF0ZSBhIGNvbmZpZ3VyYWJsZSByYXRlIGxpbWl0IGZhY3RvcnkuIFRoZSBsaW1pdHMgYmVsb3cgYXJlIHN0YXJ0aW5nIHBvaW50cyBkZXJpdmVkIGZyb20gdGhlIGV4cGVjdGVkIHVzYWdlIHBhdHRlcm4gb2YgYSB3aW5lIGNsdWIgKHNlYXNvbmFsIHNwaWtlcywgbm90IHN1c3RhaW5lZCBoaWdoLWZyZXF1ZW5jeSBBUEkgdHJhZmZpYyk6CgpgYGB0eXBlc2NyaXB0CmltcG9ydCB7IFJhdGVsaW1pdCB9IGZyb20gJ0B1cHN0YXNoL3JhdGVsaW1pdCcgLy8gb3IgdGhlIHBhY2thZ2UgYWxyZWFkeSBpbiBwYWNrYWdlLmpzb24KLy8gSWYgdXNpbmcgQ2xvdWRmbGFyZSdzIGJ1aWx0LWluIHJhdGUgbGltaXRpbmcgS1YsIHVzZSB0aGF0IGluc3RlYWQKCmV4cG9ydCBmdW5jdGlvbiBjcmVhdGVSYXRlTGltaXRlcihjb25maWc6IHsKICB3aW5kb3dNczogbnVtYmVyCiAgbWF4OiBudW1iZXIKICBtZXNzYWdlOiBzdHJpbmcKfSkgewogIC8vIFJldHVybiBhbiBFeHByZXNzLWNvbXBhdGlibGUgbWlkZGxld2FyZQogIC8vIEltcGxlbWVudGF0aW9uIGRlcGVuZHMgb24gdGhlIHJhdGUgbGltaXRpbmcgcGFja2FnZSBhbHJlYWR5IGluIHRoZSBwcm9qZWN0CiAgLy8gUmVhZCBwYWNrYWdlLmpzb24gYmVmb3JlIHdyaXRpbmcgdGhpcyDigJQgdXNlIHdoYXQncyBhbHJlYWR5IGluc3RhbGxlZAp9CgovLyBQcmVzZXQgcmF0ZSBsaW1pdHMgZm9yIGRpZmZlcmVudCByb3V0ZSBncm91cHMKZXhwb3J0IGNvbnN0IHJhdGVMaW1pdHMgPSB7CiAgLy8gUHVibGljIGVuZHBvaW50cyDigJQgbW9zdCByZXN0cmljdGl2ZQogIGF1dGg6IGNyZWF0ZVJhdGVMaW1pdGVyKHsgd2luZG93TXM6IDE1ICogNjAgKiAxMDAwLCBtYXg6IDIwLCBtZXNzYWdlOiAnVG9vIG1hbnkgYXV0aCBhdHRlbXB0cycgfSksCiAgLy8gTWVtYmVyLWZhY2luZyBBUEkg4oCUIG1vZGVyYXRlCiAgYXBpOiBjcmVhdGVSYXRlTGltaXRlcih7IHdpbmRvd01zOiA2MCAqIDEwMDAsIG1heDogMTAwLCBtZXNzYWdlOiAnUmF0ZSBsaW1pdCBleGNlZWRlZCcgfSksCiAgLy8gV2ViaG9vayBlbmRwb2ludHMg4oCUIGdlbmVyb3VzIChTdHJpcGUvRWFzeVBvc3Qgc2VuZCBidXJzdHMpCiAgd2ViaG9va3M6IGNyZWF0ZVJhdGVMaW1pdGVyKHsgd2luZG93TXM6IDYwICogMTAwMCwgbWF4OiA1MDAsIG1lc3NhZ2U6ICdXZWJob29rIHJhdGUgbGltaXQgZXhjZWVkZWQnIH0pLAogIC8vIEFkbWluIGVuZHBvaW50cyDigJQgcmVzdHJpY3RpdmUgYnkgSVAKICBhZG1pbjogY3JlYXRlUmF0ZUxpbWl0ZXIoeyB3aW5kb3dNczogNjAgKiAxMDAwLCBtYXg6IDMwLCBtZXNzYWdlOiAnQWRtaW4gcmF0ZSBsaW1pdCBleGNlZWRlZCcgfSksCn0KYGBgCgotLS0KCiMjIFRhc2sgNTogSW1wbGVtZW50IGNlbnRyYWxpemVkIGVycm9yIGhhbmRsZXIgKGBzZXJ2ZXIvbGliL2Vycm9yLWhhbmRsZXIudHNgKQoKUmVwbGFjZSBhbnkgYWQtaG9jIHRyeS9jYXRjaCBlcnJvciByZXNwb25zZXMgc2NhdHRlcmVkIGFjcm9zcyByb3V0ZSBoYW5kbGVycyB3aXRoIGEgc2luZ2xlIEV4cHJlc3MgZXJyb3IgaGFuZGxlciB0aGF0OgoKMS4gTG9ncyB0byBTZW50cnkgd2l0aCB0aGUgcmVxdWVzdCBjb250ZXh0IChyb3V0ZSwgbWV0aG9kLCB1c2VyIElEIGlmIGF1dGhlbnRpY2F0ZWQg4oCUIG5vIFBJSSkKMi4gTWFwcyBlcnJvciB0eXBlcyB0byBIVFRQIHN0YXR1cyBjb2RlczoKICAgLSBgWm9kRXJyb3JgIOKGkiA0MDAgd2l0aCBzdHJ1Y3R1cmVkIGZpZWxkIGVycm9ycwogICAtIEF1dGhlbnRpY2F0aW9uIGVycm9ycyDihpIgNDAxCiAgIC0gQXV0aG9yaXphdGlvbiBlcnJvcnMg4oaSIDQwMwogICAtIGBSZWNvcmROb3RGb3VuZEVycm9yYCAoaWYgdGhpcyB0eXBlIGV4aXN0cykg4oaSIDQwNAogICAtIEFsbCBvdGhlcnMg4oaSIDUwMAozLiBSZXR1cm5zIGEgY29uc2lzdGVudCBKU09OIGVycm9yIGVudmVsb3BlOgoKYGBgdHlwZXNjcmlwdAp7CiAgZXJyb3I6IHsKICAgIGNvZGU6IHN0cmluZywgICAgICAgLy8gbWFjaGluZS1yZWFkYWJsZTogIlZBTElEQVRJT05fRVJST1IiLCAiTk9UX0ZPVU5EIiwgZXRjLgogICAgbWVzc2FnZTogc3RyaW5nLCAgICAvLyBodW1hbi1yZWFkYWJsZSwgc2FmZSB0byBkaXNwbGF5CiAgICByZXF1ZXN0SWQ6IHN0cmluZywgIC8vIGNvcnJlbGF0ZXMgd2l0aCBTZW50cnkgdHJhY2UKICAgIC8vIE5PIHN0YWNrIHRyYWNlcyBpbiBwcm9kdWN0aW9uIHJlc3BvbnNlcwogIH0KfQpgYGAKCi0tLQoKIyMgVGFzayA2OiBXaXJlIGludG8gYGFwcC50c2AKCkluIGBhcHAudHNgLCByZWdpc3RlciB0aGUgbWlkZGxld2FyZSBpbiBvcmRlcjoKCmBgYHR5cGVzY3JpcHQKaW1wb3J0IHsgaW5pdFNlbnRyeSB9IGZyb20gJy4vbGliL3NlbnRyeScKaW1wb3J0IHsgcmF0ZUxpbWl0cyB9IGZyb20gJy4vbGliL3JhdGUtbGltaXQnCmltcG9ydCB7IGVycm9ySGFuZGxlciB9IGZyb20gJy4vbGliL2Vycm9yLWhhbmRsZXInCgovLyAxLiBJbml0IFNlbnRyeSBmaXJzdCAoYmVmb3JlIHJvdXRlcykKaWYgKGVudi5TRU5UUllfRFNOKSB7CiAgaW5pdFNlbnRyeShlbnYuU0VOVFJZX0RTTiwgZW52LkVOVklST05NRU5UID8/ICdkZXZlbG9wbWVudCcpCn0KCi8vIDIuIEFwcGx5IHJhdGUgbGltaXRzIGJ5IHJvdXRlIGdyb3VwIChhZnRlciBhdXRoIG1pZGRsZXdhcmUgYnV0IGJlZm9yZSByb3V0ZSBoYW5kbGVycykKYXBwLnVzZSgnL2FwaS9hdXRoJywgcmF0ZUxpbWl0cy5hdXRoKQphcHAudXNlKCcvYXBpL3dlYmhvb2tzJywgcmF0ZUxpbWl0cy53ZWJob29rcykKYXBwLnVzZSgnL2FwaS9hZG1pbicsIHJhdGVMaW1pdHMuYWRtaW4pCmFwcC51c2UoJy9hcGknLCByYXRlTGltaXRzLmFwaSkKCi8vIC4uLiByb3V0ZSBtb3VudGluZyAoZnJvbSBCUy0wMikgLi4uCgovLyAzLiBDZW50cmFsaXplZCBlcnJvciBoYW5kbGVyIChtdXN0IGJlIHJlZ2lzdGVyZWQgTEFTVCkKYXBwLnVzZShlcnJvckhhbmRsZXIpCmBgYAoKKipDb29yZGluYXRpb24gbm90ZToqKiBpZiBCUy0wMiBpcyBub3QgeWV0IG1lcmdlZCwgYWRkIGEgY29tbWVudCBgLy8gVE9ETyhCUy0wMik6IG1vdW50IHJvdXRlcnMgaGVyZSBvbmNlIG1lcmdlZGAgaW4gcGxhY2Ugb2YgdGhlIHJvdXRlIG1vdW50aW5nIGJsb2NrLiBEbyBub3QgY3JlYXRlIGEgbWVyZ2UgZGVwZW5kZW5jeSDigJQgc2hpcCBlcnJvciBoYW5kbGluZyBpbmRlcGVuZGVudGx5LgoKLS0tCgojIyBUYXNrIDc6IENyZWF0ZSBgLmRldi52YXJzLmV4YW1wbGVgCgpJZiB0aGlzIGZpbGUgZG9lcyBub3QgYWxyZWFkeSBleGlzdCwgY3JlYXRlIGl0IGF0IHRoZSByZXBvIHJvb3QuIEl0IHByb3ZpZGVzIGxvY2FsIGRldmVsb3BlcnMgd2l0aCBhIHRlbXBsYXRlIG9mIHJlcXVpcmVkIGVudmlyb25tZW50IHZhcmlhYmxlcyB3aXRob3V0IGV4cG9zaW5nIHJlYWwgdmFsdWVzOgoKYGBgCiMgU2VudHJ5ClNFTlRSWV9EU049aHR0cHM6Ly95b3VyLWtleUBvWC5pbmdlc3Quc2VudHJ5LmlvL3lvdXItcHJvamVjdAoKIyBFbnZpcm9ubWVudApFTlZJUk9OTUVOVD1kZXZlbG9wbWVudAoKIyBBZGQgb3RoZXIgdmFyaWFibGVzIGZyb20gd3JhbmdsZXIudG9tbCBbdmFyc10gaGVyZQpgYGAKCkFkZCBgLmRldi52YXJzYCAod2l0aG91dCBgLmV4YW1wbGVgKSB0byBgLmdpdGlnbm9yZWAgaWYgbm90IGFscmVhZHkgcHJlc2VudC4KCi0tLQoKIyMgVGFzayA4OiBXcml0ZSB0ZXN0cyBmb3IgdGhlIGVycm9yIGhhbmRsZXIKCkFkZCBgdGVzdHMvdW5pdC9lcnJvci1oYW5kbGVyLnRlc3QudHNgOgoKLSBUZXN0IHRoYXQgYFpvZEVycm9yYCByZXR1cm5zIDQwMCB3aXRoIGZpZWxkLWxldmVsIGVycm9yIGRldGFpbAotIFRlc3QgdGhhdCBhbiB1bmtub3duIGBFcnJvcmAgcmV0dXJucyA1MDAgd2l0aG91dCBhIHN0YWNrIHRyYWNlIGluIHRoZSByZXNwb25zZSBib2R5Ci0gVGVzdCB0aGF0IHRoZSByZXNwb25zZSBib2R5IGFsd2F5cyBpbmNsdWRlcyBhIGByZXF1ZXN0SWRgIGZpZWxkCi0gVGVzdCB0aGF0IFNlbnRyeSBjYXB0dXJlIGlzIGNhbGxlZCBmb3IgNTAwLWxldmVsIGVycm9ycyAobW9jayBTZW50cnkgaW4gdGVzdHMpCgpNaW5pbXVtOiA0IHRlc3RzLiBUaGVzZSBtdXN0IHBhc3MgaW4gYG5wbSBydW4gdGVzdDp1bml0YC4KCi0tLQoKIyMgQ0hBTkdFTE9HIGVudHJ5CgpgYGBtYXJrZG93bgojIyMgQWRkZWQKLSBgc2VydmVyL2xpYi9zZW50cnkudHNgOiBTZW50cnkgQ2xvdWRmbGFyZSBTREsgaW5pdGlhbGl6YXRpb24sIGdhdGVkIG9uIGBTRU5UUllfRFNOYCBlbnYgdmFyCi0gYHNlcnZlci9saWIvcmF0ZS1saW1pdC50c2A6IENvbmZpZ3VyYWJsZSByYXRlIGxpbWl0aW5nIG1pZGRsZXdhcmUgd2l0aCBwcmVzZXRzIGZvciBhdXRoLCBBUEksIHdlYmhvb2ssIGFuZCBhZG1pbiByb3V0ZSBncm91cHMKLSBgc2VydmVyL2xpYi9lcnJvci1oYW5kbGVyLnRzYDogQ2VudHJhbGl6ZWQgRXhwcmVzcyBlcnJvciBoYW5kbGVyOyBtYXBzIFpvZEVycm9yIOKGkiA0MDAsIGF1dGggZXJyb3JzIOKGkiA0MDEvNDAzLCB1bmtub3duIGVycm9ycyDihpIgNTAwOyBjYXB0dXJlcyB0byBTZW50cnk7IHJldHVybnMgY29uc2lzdGVudCBKU09OIGVudmVsb3BlCi0gYC5kZXYudmFycy5leGFtcGxlYDogVGVtcGxhdGUgZm9yIGxvY2FsIGVudmlyb25tZW50IHZhcmlhYmxlcwotIGB0ZXN0cy91bml0L2Vycm9yLWhhbmRsZXIudGVzdC50c2A6IDQgdGVzdHMgY292ZXJpbmcgZXJyb3IgbWFwcGluZywgcmVzcG9uc2Ugc3RydWN0dXJlLCBhbmQgU2VudHJ5IGNhcHR1cmUKYGBgCgotLS0KCiMjIEFjY2VwdGFuY2UgY3JpdGVyaWEKCi0gWyBdIGBzZXJ2ZXIvbGliL3NlbnRyeS50c2AsIGBzZXJ2ZXIvbGliL3JhdGUtbGltaXQudHNgLCBgc2VydmVyL2xpYi9lcnJvci1oYW5kbGVyLnRzYCBhbGwgZXhpc3QKLSBbIF0gYFNFTlRSWV9EU05gIGlzIGluIGAuZGV2LnZhcnMuZXhhbXBsZWAgYW5kIGAuZ2l0aWdub3JlYCBibG9ja3MgYC5kZXYudmFyc2AKLSBbIF0gTm8gRFNOIHZhbHVlIGlzIGhhcmRjb2RlZCBpbiBhbnkgY29tbWl0dGVkIGZpbGUKLSBbIF0gUmF0ZSBsaW1pdHMgYXJlIGFwcGxpZWQgdG8gYC9hcGkvYXV0aGAsIGAvYXBpL3dlYmhvb2tzYCwgYC9hcGkvYWRtaW5gLCBgL2FwaWAgaW4gYGFwcC50c2AKLSBbIF0gYGVycm9ySGFuZGxlcmAgaXMgdGhlIGxhc3QgbWlkZGxld2FyZSByZWdpc3RlcmVkIGluIGBhcHAudHNgCi0gWyBdIGBucG0gcnVuIHR5cGVjaGVja2AgcGFzc2VzCi0gWyBdIGBucG0gcnVuIHRlc3Q6dW5pdGAgcGFzc2VzICgzNTIrIHRlc3RzIOKAlCBuZXcgdGVzdHMgYWRkZWQgaGVyZSkKLSBbIF0gYENIQU5HRUxPRy5tZGAgdXBkYXRlZAotIFsgXSBQUiBib2R5IGV4cGxhaW5zIHRoZSBvcmRlci1zZW5zaXRpdmUgbWlkZGxld2FyZSByZWdpc3RyYXRpb24gYW5kIHRoZSBTZW50cnkgZ2F0aW5nIGxvZ2ljCgotLS0KCiMjIEdyZXB0aWxlIHdvcmtmbG93CgpBZnRlciBvcGVuaW5nIHRoZSBQUjoKMS4gQ29tbWVudCBgQGdyZXB0aWxlYWkgY2hlY2sgdGhhdCBubyByZWFsIGNyZWRlbnRpYWxzIGFwcGVhciBpbiBhbnkgZmlsZSBpbiB0aGlzIGRpZmZgCjIuIENvbW1lbnQgYEBncmVwdGlsZWFpIHZlcmlmeSB0aGUgZXJyb3IgaGFuZGxlciBpcyByZWdpc3RlcmVkIGxhc3QgaW4gYXBwLnRzYAozLiBHcmVwdGlsZSB3aWxsIGFwcGx5IFJ1bGUgMyAobm8gcHJvdmlkZXIgc2VjcmV0cyBpbiBzb3VyY2UpIGZyb20gQlMtMDEncyBgLmdyZXB0aWxlL3J1bGVzLm1kYCDigJQgYW55IERTTiBvciBrZXkgdGhhdCBzbGlwcGVkIHRocm91Z2ggd2lsbCBiZSBjYXVnaHQ=
+# BS-04 — Observability Integration & API Rate Limiting
+
+**Wave:** 1 (start after BS-01 merges; runs concurrently with BS-02, BS-03)
+**Branch:** `feat/observability-and-rate-limiting`
+**Estimated duration:** 2–3 hours
+**Parallel-safe:** Yes — touches only `app.ts` middleware registration and new files; BS-02 touches route files only
+**Spawns subagents:** Optional — error tracking and rate limiting can be parallelized
+**Blocks:** Production readiness (BS-05 depends on a working error boundary for local dev)
+
+---
+
+## Mandatory pre-task reading
+
+1. `AGENTS.md`
+2. `CONTINUITY_BRIEF.md` — note the activation gate for the live Worker (Gate 1); observability must be wired before Gate 1 passes
+3. `docs/agent-workflow.md`
+4. `docs/codebase-assessment-2026-07-27.md` §4 — issues H-1 (observability), H-2 (rate limiting)
+5. `package.json` — verify which packages are already installed before adding dependencies
+
+---
+
+## Context: why this ships before activation
+
+The Vinifera Worker has no structured error capture today. When Gate 1 passes and real traffic hits the Worker, any unhandled exception becomes a silent 500 returned to a member with no visibility into what failed. Wiring Sentry (or equivalent) and rate limiting before activation means the first real error produces an actionable alert rather than a confused member.
+
+Rate limiting addresses a distinct risk: once the custom domain routes to the Worker, the API endpoints are publicly reachable without authentication. A misconfigured client or a bad actor can exhaust Cloudflare Worker invocation quota within minutes.
+
+---
+
+## Task 1: Install dependencies
+
+Check `package.json` to determine which packages are already present. Install only what is missing:
+
+```bash
+npm install @sentry/cloudflare hono-rate-limiter
+# or if a rate-limiting package already exists, do not install a duplicate
+```
+
+If `@sentry/cloudflare` is already listed, skip the install and proceed to configuration.
+
+---
+
+## Task 2: Create `server/lib/` directory
+
+This is a new directory for shared infrastructure utilities — not services (which are business logic), not routes (which are HTTP handlers). It holds middleware, error boundaries, and instrumentation.
+
+```
+server/lib/
+  sentry.ts         ← Sentry init and error handler
+  rate-limit.ts     ← rate limit middleware factory
+  error-handler.ts  ← centralized Express error handler
+```
+
+---
+
+## Task 3: Implement Sentry error tracking (`server/lib/sentry.ts`)
+
+```typescript
+import * as Sentry from '@sentry/cloudflare'
+
+export function initSentry(dsn: string, environment: string) {
+  Sentry.init({
+    dsn,
+    environment,
+    tracesSampleRate: environment === 'production' ? 0.1 : 1.0,
+    // Do not capture PII — vinifera handles member personal data
+    sendDefaultPii: false,
+  })
+}
+
+export { Sentry }
+```
+
+The DSN must come from an environment variable — never hardcoded. Use `SENTRY_DSN` as the variable name. Add it to:
+- `.dev.vars.example` (new file if absent) as `SENTRY_DSN=your-dsn-here`
+- `wrangler.toml` under `[vars]` as a placeholder comment: `# SENTRY_DSN = "set via Cloudflare dashboard"`
+
+**Critical:** the actual DSN value must never appear in any committed file. If `wrangler.toml` already contains a `SENTRY_DSN` value, redact it and document the redaction in the PR body.
+
+---
+
+## Task 4: Implement rate limiting middleware (`server/lib/rate-limit.ts`)
+
+Create a configurable rate limit factory. The limits below are starting points derived from the expected usage pattern of a wine club (seasonal spikes, not sustained high-frequency API traffic):
+
+```typescript
+import { Ratelimit } from '@upstash/ratelimit' // or the package already in package.json
+// If using Cloudflare's built-in rate limiting KV, use that instead
+
+export function createRateLimiter(config: {
+  windowMs: number
+  max: number
+  message: string
+}) {
+  // Return an Express-compatible middleware
+  // Implementation depends on the rate limiting package already in the project
+  // Read package.json before writing this — use what's already installed
+}
+
+// Preset rate limits for different route groups
+export const rateLimits = {
+  // Public endpoints — most restrictive
+  auth: createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20, message: 'Too many auth attempts' }),
+  // Member-facing API — moderate
+  api: createRateLimiter({ windowMs: 60 * 1000, max: 100, message: 'Rate limit exceeded' }),
+  // Webhook endpoints — generous (Stripe/EasyPost send bursts)
+  webhooks: createRateLimiter({ windowMs: 60 * 1000, max: 500, message: 'Webhook rate limit exceeded' }),
+  // Admin endpoints — restrictive by IP
+  admin: createRateLimiter({ windowMs: 60 * 1000, max: 30, message: 'Admin rate limit exceeded' }),
+}
+```
+
+---
+
+## Task 5: Implement centralized error handler (`server/lib/error-handler.ts`)
+
+Replace any ad-hoc try/catch error responses scattered across route handlers with a single Express error handler that:
+
+1. Logs to Sentry with the request context (route, method, user ID if authenticated — no PII)
+2. Maps error types to HTTP status codes:
+   - `ZodError` → 400 with structured field errors
+   - Authentication errors → 401
+   - Authorization errors → 403
+   - `RecordNotFoundError` (if this type exists) → 404
+   - All others → 500
+3. Returns a consistent JSON error envelope:
+
+```typescript
+{
+  error: {
+    code: string,       // machine-readable: "VALIDATION_ERROR", "NOT_FOUND", etc.
+    message: string,    // human-readable, safe to display
+    requestId: string,  // correlates with Sentry trace
+    // NO stack traces in production responses
+  }
+}
+```
+
+---
+
+## Task 6: Wire into `app.ts`
+
+In `app.ts`, register the middleware in order:
+
+```typescript
+import { initSentry } from './lib/sentry'
+import { rateLimits } from './lib/rate-limit'
+import { errorHandler } from './lib/error-handler'
+
+// 1. Init Sentry first (before routes)
+if (env.SENTRY_DSN) {
+  initSentry(env.SENTRY_DSN, env.ENVIRONMENT ?? 'development')
+}
+
+// 2. Apply rate limits by route group (after auth middleware but before route handlers)
+app.use('/api/auth', rateLimits.auth)
+app.use('/api/webhooks', rateLimits.webhooks)
+app.use('/api/admin', rateLimits.admin)
+app.use('/api', rateLimits.api)
+
+// ... route mounting (from BS-02) ...
+
+// 3. Centralized error handler (must be registered LAST)
+app.use(errorHandler)
+```
+
+**Coordination note:** if BS-02 is not yet merged, add a comment `// TODO(BS-02): mount routers here once merged` in place of the route mounting block. Do not create a merge dependency — ship error handling independently.
+
+---
+
+## Task 7: Create `.dev.vars.example`
+
+If this file does not already exist, create it at the repo root. It provides local developers with a template of required environment variables without exposing real values:
+
+```
+# Sentry
+SENTRY_DSN=https://your-key@oX.ingest.sentry.io/your-project
+
+# Environment
+ENVIRONMENT=development
+
+# Add other variables from wrangler.toml [vars] here
+```
+
+Add `.dev.vars` (without `.example`) to `.gitignore` if not already present.
+
+---
+
+## Task 8: Write tests for the error handler
+
+Add `tests/unit/error-handler.test.ts`:
+
+- Test that `ZodError` returns 400 with field-level error detail
+- Test that an unknown `Error` returns 500 without a stack trace in the response body
+- Test that the response body always includes a `requestId` field
+- Test that Sentry capture is called for 500-level errors (mock Sentry in tests)
+
+Minimum: 4 tests. These must pass in `npm run test:unit`.
+
+---
+
+## CHANGELOG entry
+
+```markdown
+### Added
+- `server/lib/sentry.ts`: Sentry Cloudflare SDK initialization, gated on `SENTRY_DSN` env var
+- `server/lib/rate-limit.ts`: Configurable rate limiting middleware with presets for auth, API, webhook, and admin route groups
+- `server/lib/error-handler.ts`: Centralized Express error handler; maps ZodError → 400, auth errors → 401/403, unknown errors → 500; captures to Sentry; returns consistent JSON envelope
+- `.dev.vars.example`: Template for local environment variables
+- `tests/unit/error-handler.test.ts`: 4 tests covering error mapping, response structure, and Sentry capture
+```
+
+---
+
+## Acceptance criteria
+
+- [ ] `server/lib/sentry.ts`, `server/lib/rate-limit.ts`, `server/lib/error-handler.ts` all exist
+- [ ] `SENTRY_DSN` is in `.dev.vars.example` and `.gitignore` blocks `.dev.vars`
+- [ ] No DSN value is hardcoded in any committed file
+- [ ] Rate limits are applied to `/api/auth`, `/api/webhooks`, `/api/admin`, `/api` in `app.ts`
+- [ ] `errorHandler` is the last middleware registered in `app.ts`
+- [ ] `npm run typecheck` passes
+- [ ] `npm run test:unit` passes (352+ tests — new tests added here)
+- [ ] `CHANGELOG.md` updated
+- [ ] PR body explains the order-sensitive middleware registration and the Sentry gating logic
+
+---
+
+## Greptile workflow
+
+After opening the PR:
+1. Comment `@greptileai check that no real credentials appear in any file in this diff`
+2. Comment `@greptileai verify the error handler is registered last in app.ts`
+3. Greptile will apply Rule 3 (no provider secrets in source) from BS-01's `.greptile/rules.md` — any DSN or key that slipped through will be caught
