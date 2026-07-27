@@ -7,6 +7,7 @@ import {
   runFailureIsolatedAnalyticsWrite,
 } from "../../server/lib/analytics-events";
 import {
+  aggregateAnalyticsDashboards,
   composeChurnIntelligenceDto,
   enforceModelGuardrails,
   mlArtifactHash,
@@ -998,6 +999,192 @@ describe("Phase 4 analytics boundaries", () => {
           order: 0,
           size: "half",
         },
+      ],
+    });
+  });
+
+  it("aggregates authorized brand analytics with weighted organization rates", () => {
+    const range = {
+      from: "2026-07-01",
+      preset: "30d" as const,
+      to: "2026-07-26",
+    };
+    const dashboard = aggregateAnalyticsDashboards(
+      [
+        {
+          brandId: "11111111-1111-4111-8111-111111111111",
+          brandName: "Estate",
+          payload: {
+            engagement: {
+              email_click_rate: 0.2,
+              email_open_rate: 0.5,
+              portal_logins: 10,
+              trend: [
+                {
+                  active_members: 100,
+                  email_clicks: 2,
+                  email_opens: 5,
+                  emails_sent: 10,
+                  loyalty_points_earned: 100,
+                  loyalty_points_redeemed: 10,
+                  metric_date: "2026-07-01",
+                  portal_logins: 10,
+                },
+              ],
+            },
+            members: {
+              active: 100,
+              average_ltv_cents: 50_000,
+              net_growth: 10,
+              trend: [
+                {
+                  active: 100,
+                  cancelled: 2,
+                  net_growth: 10,
+                  new_members: 12,
+                  period: "2026-07-01",
+                },
+              ],
+            },
+            revenue: {
+              arr_cents: 12_000_000,
+              mrr_cents: 1_000_000,
+              trend: [
+                {
+                  active_members: 100,
+                  mrr_cents: 1_000_000,
+                  period: "2026-07-01",
+                },
+              ],
+            },
+            shipments: {
+              attempted: 100,
+              decline_rate: 0.05,
+              fulfilled: 90,
+              fulfillment_rate: 0.9,
+              trend: [
+                {
+                  attempted_shipments: 100,
+                  declined_attempts: 5,
+                  fulfilled_shipments: 90,
+                  gross_revenue_cents: 1_000_000,
+                  period: "2026-07-01",
+                  shipment_value_cents: 900_000,
+                  shipping_cost_cents: 100_000,
+                },
+              ],
+            },
+          },
+        },
+        {
+          brandId: "22222222-2222-4222-8222-222222222222",
+          brandName: "Reserve",
+          payload: {
+            engagement: {
+              email_click_rate: 0.4,
+              email_open_rate: 0.75,
+              portal_logins: 5,
+              trend: [
+                {
+                  active_members: 50,
+                  email_clicks: 400,
+                  email_opens: 750,
+                  emails_sent: 1_000,
+                  loyalty_points_earned: 10,
+                  loyalty_points_redeemed: 5,
+                  metric_date: "2026-07-01",
+                  portal_logins: 5,
+                },
+              ],
+            },
+            members: {
+              active: 50,
+              average_ltv_cents: 80_000,
+              net_growth: 5,
+              trend: [
+                {
+                  active: 50,
+                  cancelled: 1,
+                  net_growth: 5,
+                  new_members: 6,
+                  period: "2026-07-01",
+                },
+              ],
+            },
+            revenue: {
+              arr_cents: 9_000_000,
+              mrr_cents: 750_000,
+              trend: [
+                {
+                  active_members: 50,
+                  mrr_cents: 750_000,
+                  period: "2026-07-01",
+                },
+              ],
+            },
+            shipments: {
+              attempted: 50,
+              decline_rate: 0.1,
+              fulfilled: 40,
+              fulfillment_rate: 0.8,
+              trend: [
+                {
+                  attempted_shipments: 50,
+                  declined_attempts: 5,
+                  fulfilled_shipments: 40,
+                  gross_revenue_cents: 500_000,
+                  period: "2026-07-01",
+                  shipment_value_cents: 800_000,
+                  shipping_cost_cents: 25_000,
+                },
+              ],
+            },
+          },
+        },
+      ],
+      range,
+    );
+
+    expect(dashboard.scope).toEqual(
+      expect.objectContaining({ brandCount: 2, type: "all" }),
+    );
+    expect(dashboard.summary).toMatchObject({
+      activeMembers: 150,
+      arrCents: 21_000_000,
+      averageLtvCents: 60_000,
+      mrrCents: 1_750_000,
+      portalLogins: 15,
+      portalLoginsPerMember: 0.1,
+    });
+    expect(
+      (dashboard.summary as Record<string, number>).emailOpenRate,
+    ).toBeCloseTo(755 / 1_010);
+    expect(
+      (dashboard.summary as Record<string, number>).loyaltyRedemptionRate,
+    ).toBeCloseTo(15 / 110);
+    expect(
+      (dashboard.summary as Record<string, number>)
+        .averageShipmentValueCents,
+    ).toBeCloseTo(1_700_000 / 130);
+    expect(
+      (dashboard.summary as Record<string, number>).shippingCostRatio,
+    ).toBeCloseTo(125_000 / 1_500_000);
+    expect(dashboard.members).toMatchObject({
+      trend: [
+        expect.objectContaining({
+          active: 150,
+          netGrowth: 15,
+          period: "2026-07-01",
+        }),
+      ],
+    });
+    expect(dashboard.shipments).toMatchObject({
+      trend: [
+        expect.objectContaining({
+          attempted: 150,
+          declined: 10,
+          fulfillmentRate: 130 / 150,
+        }),
       ],
     });
   });

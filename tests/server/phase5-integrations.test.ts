@@ -26,6 +26,7 @@ import {
   createApnsPushClient,
 } from "../../server/integrations/push";
 import {
+  constantTimeEqual,
   decryptIntegrationCredentials,
   encryptIntegrationCredentials,
   hmacSha256Hex,
@@ -38,6 +39,7 @@ import {
 } from "../../server/integrations/resend-domains";
 import {
   IntegrationProviderError,
+  MAX_INTEGRATION_RESPONSE_BYTES,
   providerRequest,
   requestIntegrationJson,
 } from "../../server/integrations/http";
@@ -64,6 +66,7 @@ import {
   providerTargetPolicy,
   sha256ProviderTarget,
 } from "../../server/provider-targets";
+import { assertQuickBooksRedirectUri } from "../../server/config";
 
 const organizationId = "10000000-0000-4000-8000-000000000001";
 const integrationId = "20000000-0000-4000-8000-000000000002";
@@ -305,6 +308,42 @@ async function testApnsPrivateKey(): Promise<string> {
 }
 
 describe("Phase 5 integration credential boundary", () => {
+  it("compares fixed-size signature digests for equal and malformed inputs", () => {
+    expect(constantTimeEqual("a".repeat(64), "a".repeat(64))).toBe(true);
+    expect(constantTimeEqual("a".repeat(64), "b".repeat(64))).toBe(false);
+    expect(constantTimeEqual("a".repeat(64), "")).toBe(false);
+    expect(constantTimeEqual("", "a".repeat(64))).toBe(false);
+  });
+
+  it("pins the QuickBooks OAuth callback to the canonical application origin", () => {
+    expect(
+      assertQuickBooksRedirectUri({
+        APP_ORIGIN: "https://vinifera.example",
+        QUICKBOOKS_REDIRECT_URI:
+          "https://vinifera.example/api/integrations/quickbooks/callback",
+      }),
+    ).toBe("https://vinifera.example/api/integrations/quickbooks/callback");
+    for (const QUICKBOOKS_REDIRECT_URI of [
+      "http://vinifera.example/api/integrations/quickbooks/callback",
+      "https://attacker.example/api/integrations/quickbooks/callback",
+      "https://vinifera.example:444/api/integrations/quickbooks/callback",
+      "https://vinifera.example/api/integrations/quickbooks/callback?next=evil",
+      "https://vinifera.example/api/integrations/quickbooks/other",
+    ]) {
+      expect(() =>
+        assertQuickBooksRedirectUri({
+          APP_ORIGIN: "https://vinifera.example",
+          QUICKBOOKS_REDIRECT_URI,
+        }),
+      ).toThrowError(
+        expect.objectContaining({
+          code: "activation_required",
+          status: 503,
+        }),
+      );
+    }
+  });
+
   it("round-trips AES-256-GCM credentials with key version and tenant AAD", async () => {
     const envelope = await encryptIntegrationCredentials(
       encryptionEnv,
@@ -381,6 +420,134 @@ describe("Phase 5 integration credential boundary", () => {
     ).resolves.toEqual({ accepted: true });
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(sleeps).toEqual([2_000]);
+  });
+
+  it("rejects oversized and invalid provider responses without retrying", async () => {
+    const oversizedFetcher = vi.fn(async () =>
+      new Response("not read", {
+        headers: {
+          "Content-Length": String(MAX_INTEGRATION_RESPONSE_BYTES + 1),
+        },
+      }),
+    );
+    await expect(
+      requestIntegrationJson({
+        attempts: 3,
+        fetcher: oversizedFetcher,
+        request: providerRequest("https://provider.example/oversized", {
+          method: "GET",
+        }),
+      }),
+    ).rejects.toMatchObject({
+      providerCode: "provider_response_too_large",
+      retryable: false,
+    });
+    expect(oversizedFetcher).toHaveBeenCalledTimes(1);
+
+    const streamedOversizedFetcher = vi.fn(async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(
+              new Uint8Array(MAX_INTEGRATION_RESPONSE_BYTES),
+            );
+            controller.enqueue(new Uint8Array([1]));
+            controller.close();
+          },
+        }),
+      ),
+    );
+    await expect(
+      requestIntegrationJson({
+        attempts: 3,
+        fetcher: streamedOversizedFetcher,
+        request: providerRequest(
+          "https://provider.example/streamed-oversized",
+          { method: "GET" },
+        ),
+      }),
+    ).rejects.toMatchObject({
+      providerCode: "provider_response_too_large",
+      retryable: false,
+    });
+    expect(streamedOversizedFetcher).toHaveBeenCalledTimes(1);
+
+    const invalidFetcher = vi.fn(async () =>
+      new Response("{invalid", {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    await expect(
+      requestIntegrationJson({
+        attempts: 3,
+        fetcher: invalidFetcher,
+        request: providerRequest("https://provider.example/invalid", {
+          method: "GET",
+        }),
+      }),
+    ).rejects.toMatchObject({
+      providerCode: "provider_invalid_response",
+      retryable: false,
+    });
+    expect(invalidFetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks redirects and bounds every provider attempt with a deadline", async () => {
+    const redirectRequest = () =>
+      providerRequest("https://provider.example/redirect", {
+        body: "refresh_token=never-forward",
+        headers: { Authorization: "Bearer never-forward" },
+        method: "POST",
+        redirect: "follow",
+      });
+    expect(redirectRequest().redirect).toBe("error");
+
+    for (const status of [302, 307]) {
+      const request = redirectRequest();
+      const redirectFetcher = vi.fn(async (attempt: Request) => {
+        expect(attempt.url).toBe("https://provider.example/redirect");
+        expect(attempt.redirect).toBe("error");
+        return new Response(null, {
+          headers: { Location: "https://attacker.example/collect" },
+          status,
+        });
+      });
+      await expect(
+        requestIntegrationJson({
+          attempts: 3,
+          fetcher: redirectFetcher,
+          request,
+        }),
+      ).rejects.toMatchObject({
+        providerCode: "provider_rejected_request",
+        retryable: false,
+      });
+      expect(redirectFetcher).toHaveBeenCalledTimes(1);
+    }
+
+    const request = redirectRequest();
+    const fetcher = vi.fn(
+      (attempt: Request) =>
+        new Promise<Response>((_resolve, reject) => {
+          attempt.signal.addEventListener(
+            "abort",
+            () => reject(attempt.signal.reason),
+            { once: true },
+          );
+        }),
+    );
+    await expect(
+      requestIntegrationJson({
+        attempts: 1,
+        fetcher,
+        request,
+        timeoutMs: 100,
+      }),
+    ).rejects.toMatchObject({
+      providerCode: "provider_timeout",
+      retryable: true,
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -940,6 +1107,7 @@ describe("Phase 5 provider clients", () => {
       executeIntegrationJob(
         {
           ...encryptionEnv,
+          APP_ORIGIN: "https://vinifera.test",
           QUICKBOOKS_CLIENT_ID: "quickbooks-client",
           QUICKBOOKS_CLIENT_SECRET: "quickbooks-secret",
           QUICKBOOKS_ENVIRONMENT: "sandbox",
@@ -957,6 +1125,7 @@ describe("Phase 5 provider clients", () => {
           integration_type: "quickbooks",
           job_id: "60000000-0000-4000-8000-000000000006",
           lease_token: "lease-token",
+          max_attempts: 8,
           organization_id: organizationId,
           payload: {
             change_type: "refund",
@@ -1089,6 +1258,7 @@ describe("Phase 5 provider clients", () => {
       executeIntegrationJob(
         {
           ...encryptionEnv,
+          APP_ORIGIN: "https://vinifera.test",
           QUICKBOOKS_CLIENT_ID: "quickbooks-client",
           QUICKBOOKS_CLIENT_SECRET: "quickbooks-secret",
           QUICKBOOKS_ENVIRONMENT: "sandbox",
@@ -1106,6 +1276,7 @@ describe("Phase 5 provider clients", () => {
           integration_type: "quickbooks",
           job_id: "60000000-0000-4000-8000-000000000006",
           lease_token: "job-lease-token",
+          max_attempts: 8,
           organization_id: organizationId,
           payload: {
             change_type: "refund",
@@ -1336,6 +1507,7 @@ describe("Phase 5 provider clients", () => {
         integration_type: "avalara",
         job_id: "60000000-0000-4000-8000-000000000006",
         lease_token: "lease-token",
+        max_attempts: 8,
         organization_id: organizationId,
         payload: {},
         sync_type: "filing.verify",
@@ -1492,6 +1664,7 @@ describe("Phase 5 provider clients", () => {
           integration_type: "avalara",
           job_id: "60000000-0000-4000-8000-000000000006",
           lease_token: "lease-token",
+          max_attempts: 8,
           organization_id: organizationId,
           payload: {
             refund_amount_cents: 5_363,
@@ -1647,6 +1820,7 @@ describe("Phase 5 provider clients", () => {
           integration_type: "avalara",
           job_id: "60000000-0000-4000-8000-000000000006",
           lease_token: "job-lease-token",
+          max_attempts: 8,
           organization_id: organizationId,
           payload: {
             refund_amount_cents: 5_363,
@@ -1875,6 +2049,40 @@ describe("Phase 5 provider clients", () => {
       "30000000-0000-4000-8000-000000000003",
     );
     expect(result.ownershipVerification?.type).toBe("txt");
+  });
+
+  it("does not retry or reconcile an ambiguous custom-hostname delete inline", async () => {
+    const requests: string[] = [];
+    const fetcher = vi.fn(async (request: Request) => {
+      requests.push(request.method);
+      throw new TypeError("response lost after remote commit");
+    });
+    const client = new CloudflareCustomHostnameClient(
+      {
+        appEnvironment: "test",
+        apiToken: "custom-hostname-only-token",
+        fallbackOrigin: "origin.vinifera.test",
+        targetPolicy: {
+          ...providerTargetPolicy,
+          cloudflareCustomHostnames: {
+            ...providerTargetPolicy.cloudflareCustomHostnames,
+            staging: {
+              fallbackOriginSha256: [
+                sha256ProviderTarget("origin.vinifera.test"),
+              ],
+              zoneIdSha256: [sha256ProviderTarget("a".repeat(32))],
+            },
+          },
+        },
+        zoneId: "a".repeat(32),
+      },
+      { fetcher },
+    );
+
+    await expect(client.deleteHostname("hostname-id")).rejects.toThrow(
+      /provider could not be reached/,
+    );
+    expect(requests).toEqual(["DELETE"]);
   });
 });
 

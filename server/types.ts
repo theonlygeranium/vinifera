@@ -73,6 +73,10 @@ export interface WorkerEnv {
   GOOGLE_OAUTH_ENABLED?: "true" | "false";
   INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION?: string;
   INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS?: string;
+  INTEGRATION_WAKE_QUEUE?: Queue<{
+    kind: "integration-drain";
+    requestedAt: string;
+  }>;
   LIVE_BILLING_ENABLED?: "true" | "false";
   QUICKBOOKS_CLIENT_ID?: string;
   QUICKBOOKS_CLIENT_SECRET?: string;
@@ -550,12 +554,14 @@ export interface AnalyticsService {
     input: {
       from?: string;
       range: AnalyticsRange;
+      scope?: "brand" | "all";
       to?: string;
     },
   ): Promise<{ contents: string; filename: string }>;
   getAnalyticsDashboard(input: {
     from?: string;
     range: AnalyticsRange;
+    scope?: "brand" | "all";
     to?: string;
   }): Promise<Record<string, unknown>>;
   getAnalyticsLayout(): Promise<Record<string, unknown>>;

@@ -18,6 +18,7 @@ describe("Phase 5 tax and accounting facts", () => {
   it("sends durable wine, shipping, customer, and exemption mappings to Avalara", async () => {
     const fetcher = vi.fn(async (request: Request) => {
       expect(request.method).toBe("POST");
+      expect(request.url).toContain("/transactions/createoradjust");
       const body = JSON.parse(await request.text());
       expect(body).toMatchObject({
         customerCode: "ava-customer-42",

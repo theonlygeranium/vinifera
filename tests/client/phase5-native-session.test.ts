@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const nativeMocks = vi.hoisted(() => ({
   authenticate: vi.fn(),
@@ -42,18 +42,27 @@ vi.mock("@capacitor/app", () => ({
 
 import {
   cacheMobileBootstrap,
+  getNativeAccessToken,
   getNativeDeviceFingerprint,
   initializeNativeSession,
+  lockNativeSession,
   readCachedMobileBootstrap,
 } from "../../src/client/mobile/native-session";
 
 describe("Phase 5 native session boundary", () => {
   beforeEach(() => {
+    vi.stubEnv("VITE_MOBILE_API_ORIGIN", "https://api.vinifera.test");
     nativeMocks.authenticate.mockReset();
     nativeMocks.checkBiometry.mockReset();
     nativeMocks.storage.clear();
+    lockNativeSession();
     window.localStorage.clear();
     window.localStorage.setItem("vinifera.native-session-present", "1");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it("falls back to a magic link when the device has no secure unlock", async () => {
@@ -131,5 +140,96 @@ describe("Phase 5 native session boundary", () => {
     await expect(readCachedMobileBootstrap()).resolves.toEqual(snapshot);
     expect(performance.now() - startedAt).toBeLessThan(500);
     expect(window.localStorage.getItem("member-bootstrap")).toBeNull();
+  });
+
+  it("opens a biometrically unlocked cached session on an offline cold start", async () => {
+    const now = Date.parse("2026-07-26T16:00:00.000Z");
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
+    nativeMocks.storage.set(
+      "member-session",
+      JSON.stringify({
+        accessToken: "expired-access",
+        expiresAt: new Date(now - 1_000).toISOString(),
+        member: { email: "member@example.test", id: "member-1" },
+        refreshToken: "offline-refresh",
+        tokenType: "bearer",
+      }),
+    );
+    nativeMocks.storage.set(
+      "member-bootstrap",
+      JSON.stringify({
+        cursor: null,
+        generatedAt: "2026-07-26T15:55:00.000Z",
+        loyaltyLedger: [],
+        member: { email: "member@example.test", id: "member-1" },
+        pendingActions: [],
+        recentShipments: [],
+      }),
+    );
+    nativeMocks.checkBiometry.mockResolvedValue({
+      deviceIsSecure: true,
+      isAvailable: true,
+    });
+    nativeMocks.authenticate.mockResolvedValue(undefined);
+    const fetchMock = vi.fn().mockRejectedValue(new Error("offline"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(initializeNativeSession()).resolves.toBe("cached");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    nowSpy.mockRestore();
+  });
+
+  it("single-flights concurrent refreshes of one rotating native session", async () => {
+    const now = Date.parse("2026-07-26T16:00:00.000Z");
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
+    const initial = {
+      accessToken: "access-before-rotation",
+      expiresAt: new Date(now + 60_000).toISOString(),
+      member: {
+        email: "member@example.test",
+        id: "member-1",
+      },
+      refreshToken: "single-use-refresh",
+      tokenType: "bearer",
+    };
+    nativeMocks.storage.set("member-session", JSON.stringify(initial));
+    nativeMocks.checkBiometry.mockResolvedValue({
+      deviceIsSecure: true,
+      isAvailable: true,
+    });
+    nativeMocks.authenticate.mockResolvedValue(undefined);
+    await expect(initializeNativeSession()).resolves.toBe("unlocked");
+
+    nowSpy.mockReturnValue(now + 40_000);
+    const refreshed = {
+      ...initial,
+      accessToken: "access-after-rotation",
+      expiresAt: new Date(now + 3_600_000).toISOString(),
+      refreshToken: "next-refresh-token",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ data: refreshed }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      Promise.all([
+        getNativeAccessToken(),
+        getNativeAccessToken(),
+        getNativeAccessToken(),
+      ]),
+    ).resolves.toEqual([
+      "access-after-rotation",
+      "access-after-rotation",
+      "access-after-rotation",
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(nativeMocks.storage.get("member-session")!)).toMatchObject({
+      refreshToken: "next-refresh-token",
+    });
+
+    nowSpy.mockRestore();
   });
 });

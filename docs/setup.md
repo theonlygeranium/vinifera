@@ -330,9 +330,17 @@ QUICKBOOKS_STATE_SIGNING_SECRET
 
 The returned QuickBooks access and rolling refresh tokens are encrypted per
 connection in the same database envelope boundary. They are not shared
-environment variables. QuickBooks transaction facts now expose the persisted
+environment variables. Refresh uses a database lease plus
+credential-generation compare-and-swap, so two Worker isolates cannot exchange
+the same rolling token. QuickBooks transaction facts expose the persisted
 shipping charge separately so mapped receipts do not silently classify freight
-as wine revenue.
+as wine revenue. The Integration page's account settings are persisted through
+tenant-safe mapping commands and drive receipt/refund execution.
+
+Klaviyo field and list settings use the same command boundary. Profile
+execution resolves configured churn and member fields, then persists explicit
+list additions and removals after the asynchronous import reaches a terminal
+state.
 
 Avalara activation requires brand-scoped wine and shipping tax-code mappings,
 current exemption/customer/entity-use references, nexus review, and a
@@ -363,9 +371,12 @@ A hostname is not active until Cloudflare reports both domain-control and
 certificate activation. Winery DNS changes remain human-controlled. Before any
 custom-hostname or FCM/ShipCompliant provider call, the normalized destination
 must match `config/provider-target-policy.json`; empty hash arrays deny the
-operation. Hostname create attempts also use a durable write ledger, and an
-unknown create result is looked up at Cloudflare before another create is
-allowed.
+operation. Hostname create attempts use a durable write ledger, and an unknown
+create result is looked up at Cloudflare before another create is allowed.
+Deletion uses a separate durable lease. A lost DELETE response is persisted as
+lookup-required, and another DELETE cannot run until a provider GET confirms
+the old hostname still exists. Confirmed provider absence and the local disable
+complete atomically and release the old hostname generation for safe reuse.
 
 Staff manage the brand theme, WCAG contrast, HTTPS logo, portal title, custom
 hostname, and transactional sender from the brand-scoped white-label page.
@@ -402,7 +413,7 @@ review remain activation evidence. See
 `docs/runbooks/mobile-store-release.md`.
 
 For the current architecture candidate, mobile identity, compile-only web
-preparation, and Capacitor Android synchronization pass. Local Gradle cannot
+preparation, and Capacitor Android/iOS synchronization pass. Local Gradle cannot
 start because this Mac has no Java runtime. Architecture commit `5d36471`
 passed the Java 21 Android lint/debug/minified release job in GitHub Actions
 run `30221722696`; documentation commit `0abeab1` passed the same gate in run
@@ -432,13 +443,14 @@ npm run build:mobile:web
 npm run build:mobile:android
 ```
 
-The current credential-independent architecture gate passes TypeScript,
-323/323 Vitest tests, Phase 1 92/92, Phase 2 231/231, Phase 3 199/199, Phase 4
-158/158, Phase 5 438/438 embedded PostgreSQL/pgTAP assertions, and 143/143
-Playwright tests with zero axe violations. Pages, Worker, and production Worker
-dry-run builds pass. The focused release controls pass 14/14, mobile-release
-controls 7/7, Stripe catalog controls 16/16, and mobile identity passes. These
-are local architecture results, not service-connection or hosted exit evidence.
+The current credential-independent architecture gate passes generated Worker
+types, TypeScript, 352/352 Vitest tests, Phase 1 92/92, Phase 2 231/231, Phase
+3 199/199, Phase 4 158/158, Phase 5 494/494 embedded PostgreSQL/pgTAP
+assertions, and 145/145 Playwright tests with zero axe violations. Pages plus
+development, staging, and production Worker dry-run builds pass. The focused
+release controls pass 14/14, mobile-release controls 7/7, Stripe catalog
+controls 16/16, and mobile identity passes. These are local architecture
+results, not service-connection or hosted exit evidence.
 
 `npm run build` runs Vite, then copies the marketing site, investor guide, and static metadata into `dist/`. The original `app` prototype is retained in source as a visual reference and is not included in the authenticated production bundle.
 

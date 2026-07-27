@@ -171,6 +171,7 @@ const analyticsRange = z.enum(["7d", "30d", "90d", "12m", "all", "custom"]);
 const analyticsRangeQuerySchema = z.object({
   from: z.iso.date().optional(),
   range: analyticsRange.default("30d"),
+  scope: z.enum(["brand", "all"]).default("brand"),
   to: z.iso.date().optional(),
 });
 const analyticsWidget = z.enum([

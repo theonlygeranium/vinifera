@@ -6,6 +6,7 @@ import {
 } from "../provider-targets";
 import type { WorkerEnv } from "../types";
 import {
+  IntegrationProviderError,
   providerRequest,
   requestIntegrationJson,
   type IntegrationRequestOptions,
@@ -211,23 +212,43 @@ export class CloudflareCustomHostnameClient {
     return normalizeHostname(payload.result);
   }
 
+  async findHostnameById(
+    externalId: string,
+  ): Promise<CustomHostnameResult | null> {
+    try {
+      return await this.getHostname(externalId);
+    } catch (error) {
+      if (error instanceof IntegrationProviderError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   async deleteHostname(externalId: string): Promise<void> {
-    const payload = await requestIntegrationJson<{ success?: boolean }>({
-      fetcher: this.options.fetcher,
-      request: providerRequest(
-        `https://api.cloudflare.com/client/v4/zones/${encodeURIComponent(
-          this.credentials.zoneId,
-        )}/custom_hostnames/${encodeURIComponent(externalId)}`,
-        { headers: this.headers(), method: "DELETE" },
-      ),
-      sleep: this.options.sleep,
-    });
-    if (!payload.success) {
+    try {
+      const payload = await requestIntegrationJson<{ success?: boolean }>({
+        attempts: 1,
+        fetcher: this.options.fetcher,
+        request: providerRequest(
+          `https://api.cloudflare.com/client/v4/zones/${encodeURIComponent(
+            this.credentials.zoneId,
+          )}/custom_hostnames/${encodeURIComponent(externalId)}`,
+          { headers: this.headers(), method: "DELETE" },
+        ),
+        sleep: this.options.sleep,
+      });
+      if (payload.success) return;
       throw new AppError(
         502,
         "upstream_error",
         "Cloudflare did not confirm custom-hostname removal.",
       );
+    } catch (error) {
+      if (error instanceof IntegrationProviderError && error.status === 404) {
+        return;
+      }
+      throw error;
     }
   }
 }

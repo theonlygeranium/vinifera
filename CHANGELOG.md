@@ -10,6 +10,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added tenant-free Cloudflare Queue wake signals with PostgreSQL-authoritative
+  claiming, duplicate-safe consumers, independent immediate-continuation and
+  delayed-retry scheduling, hourly recovery, isolated environment bindings,
+  and generated Worker type verification in CI.
+- Added migration 017 and a service-role-only custom-hostname deletion ledger.
+  Ambiguous DELETE results are lookup-gated, retries require proof the provider
+  target still exists, provider absence/local disable complete atomically, and
+  a deleted hostname generation can be safely reused.
+- Added Phase 5 provider-completion migration 016 with tenant-safe Klaviyo
+  field/list and QuickBooks account mapping commands, same-brand composite
+  integrity, database-backed QuickBooks refresh leases and credential
+  generations, persisted per-job attempt ceilings, and 35 focused pgTAP
+  assertions.
+- Wired the existing Integration page save contract to executable provider
+  mappings. Klaviyo bulk execution now uses configured profile properties,
+  churn score/level, provider profile IDs, and list add/remove transitions;
+  QuickBooks defaults produce persisted membership and shipping mappings.
+- Added cross-isolate QuickBooks refresh coordination tests and focused
+  Klaviyo mapping/list execution tests without contacting any provider.
 - Added the Phase 4 final-stack hardening migration and 37 current-stack
   assertions: brand-local operational analytics, true all-time ranges,
   refund-net LTV, de-duplicated engagement, all-brand benchmark authorization,
@@ -98,6 +117,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Aggregated organization-wide analytics from raw per-brand numerators and
+  denominators, including email, loyalty, shipment-value, and shipping-cost
+  rates, instead of weighting unrelated percentages.
+- Hardened provider transports with bounded response bodies, timeouts,
+  redirect rejection, fixed target validation, safe error classes, and
+  constant-time fixed-size secret comparisons.
+- Recorded the final credential-independent Phase 5 gate: audit 0, generated
+  Worker types and TypeScript green, Vitest 352/352, database gates
+  92/231/199/158/494, Playwright 145/145 with zero axe violations, 416 ms LCP,
+  CLS 0, 920 ms multi-brand readiness, 444.6 ms 100-member roster, Vite/Pages
+  and development/staging/production Worker dry runs, mobile identity/release
+  controls, compile-only preparation, and Android/iOS Capacitor sync.
+- Integration enqueue/runtime/claim paths now exclude inactive or suspended
+  brands, expired final-attempt jobs are dead-lettered during recovery, and
+  Avalara quote adjustment replaces only same-shipment temporary facts while
+  preserving provider-code uniqueness and committed immutability.
+- QuickBooks OAuth authorization, exchange, and worker runtime now share the
+  canonical HTTPS redirect assertion, and rolling token persistence uses a
+  database generation compare-and-swap before any refreshed access token is
+  used.
+- Made the staff tenant boundary remount brand-scoped operational state,
+  preserve explicit `scope=all` analytics URLs, suppress stale resource
+  responses, and fail closed behind a retryable brand-catalog gate. Native
+  member cold starts can now unlock minimized cached data in read-only mode
+  when token rotation is offline, refresh-token rotation is single-flight, and
+  sender verification persists the current draft before DNS activation.
 - Recorded the Phase 4 credential-independent gate: audit 0, TypeScript green,
   Vitest 323/323, database gates 92/231/199/158/438, Playwright 143/143
   (Phase 4 20/20) with zero axe violations, 13,846.77 ms 10,000-member
@@ -216,6 +261,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Prevented an indeterminate custom-hostname deletion from being replayed
+  blindly, prevented a provider-adjusted Avalara temporary quote from
+  conflicting with its stable provider transaction code, and preserved each
+  integration job's configured attempt ceiling beyond eight tries.
+- Fixed older Phase 2 browser fixtures to cross the new fail-closed brand
+  boundary without weakening production tenant isolation.
 - Prevented stale email Workers from finalizing reclaimed work, accepted-email
   retries from changing provider identity, early webhooks from being discarded,
   and out-of-order events from regressing terminal delivery state.
@@ -244,6 +295,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- Kept queue messages free of tenant, connection, provider, and customer
+  identifiers; all authoritative work and leases remain in PostgreSQL.
+- Required same-brand composite integrity and authorized mapping commands for
+  Klaviyo/QuickBooks configuration, and blocked suspended/inactive tenants at
+  enqueue, runtime credential resolution, and claim boundaries.
 - Preserved the server-BFF boundary by keeping every Phase 3 mutation,
   analytics, scheduler, and provider-reconciliation RPC service-role-only in
   the final stack.

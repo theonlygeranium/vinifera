@@ -11,6 +11,7 @@ import {
   type FormEvent,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -129,13 +130,17 @@ export function WhiteLabelPage() {
     kind: "success" | "error";
     message: string;
   } | null>(null);
+  const previousBrandId = useRef(brand?.id ?? null);
 
   useEffect(() => {
     if (!brand) return;
     setDraft(editableBrand(brand));
     setHostname(brand.customDomain ?? "");
-    setVerification(null);
-    setSenderVerification(null);
+    if (previousBrandId.current !== brand.id) {
+      setVerification(null);
+      setSenderVerification(null);
+    }
+    previousBrandId.current = brand.id;
   }, [brand]);
 
   const primaryContrast = useMemo(
@@ -220,15 +225,19 @@ export function WhiteLabelPage() {
   }
 
   async function verifySender() {
-    if (!brand) return;
+    if (!brand || !draft.emailSenderAddress) return;
     setBusy("sender");
     setFeedback(null);
     try {
+      await patchJson(`/api/brands/${brand.id}`, {
+        emailSenderAddress: draft.emailSenderAddress,
+        emailSenderName: draft.emailSenderName || brand.name,
+      });
       const result = await postJson<SenderVerification>(
         `/api/brands/${brand.id}/sender/verify`,
       );
-      setSenderVerification(result);
       await brandScope.refresh();
+      setSenderVerification(result);
       setFeedback({
         kind: "success",
         message:

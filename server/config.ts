@@ -235,6 +235,23 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
       }
     }
   }
+  const quickBooksOAuth = capability(env, [
+    "QUICKBOOKS_CLIENT_ID",
+    "QUICKBOOKS_CLIENT_SECRET",
+    "QUICKBOOKS_ENVIRONMENT",
+    "QUICKBOOKS_REDIRECT_URI",
+    "QUICKBOOKS_STATE_SIGNING_SECRET",
+  ]);
+  if (quickBooksOAuth.configured) {
+    try {
+      assertQuickBooksRedirectUri(env);
+    } catch {
+      quickBooksOAuth.configured = false;
+      if (!quickBooksOAuth.missing.includes("QUICKBOOKS_REDIRECT_URI")) {
+        quickBooksOAuth.missing.push("QUICKBOOKS_REDIRECT_URI");
+      }
+    }
+  }
   return {
     app: capability(env, ["APP_ORIGIN", "ALLOWED_ORIGINS"]),
     database: capability(env, [
@@ -271,13 +288,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
       "MOBILE_IOS_LATEST_VERSION",
       "MOBILE_IOS_MINIMUM_VERSION",
     ]),
-    quickBooksOAuth: capability(env, [
-      "QUICKBOOKS_CLIENT_ID",
-      "QUICKBOOKS_CLIENT_SECRET",
-      "QUICKBOOKS_ENVIRONMENT",
-      "QUICKBOOKS_REDIRECT_URI",
-      "QUICKBOOKS_STATE_SIGNING_SECRET",
-    ]),
+    quickBooksOAuth,
     push,
     shipping,
   };
@@ -306,6 +317,61 @@ export function assertProviderEnvironment(
       `${provider} production mode requires APP_ENV=production.`,
     );
   }
+}
+
+export function assertQuickBooksRedirectUri(
+  env: Pick<WorkerEnv, "APP_ORIGIN" | "QUICKBOOKS_REDIRECT_URI">,
+): string {
+  const appOriginValue = requireConfigured(env.APP_ORIGIN, "APP_ORIGIN");
+  const redirectValue = requireConfigured(
+    env.QUICKBOOKS_REDIRECT_URI,
+    "QUICKBOOKS_REDIRECT_URI",
+  );
+  let appOrigin: URL;
+  let redirect: URL;
+  try {
+    appOrigin = new URL(appOriginValue);
+    redirect = new URL(redirectValue);
+  } catch {
+    throw new AppError(
+      503,
+      "activation_required",
+      "The QuickBooks OAuth redirect URI is invalid.",
+    );
+  }
+  if (
+    appOrigin.protocol !== "https:" ||
+    appOrigin.username ||
+    appOrigin.password ||
+    appOrigin.port ||
+    appOrigin.pathname !== "/" ||
+    appOrigin.search ||
+    appOrigin.hash ||
+    redirect.protocol !== "https:" ||
+    redirect.username ||
+    redirect.password ||
+    redirect.port ||
+    redirect.search ||
+    redirect.hash
+  ) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "QuickBooks OAuth requires a canonical HTTPS application callback.",
+    );
+  }
+  const expected = new URL(
+    "/api/integrations/quickbooks/callback",
+    appOrigin,
+  );
+  if (redirect.href !== expected.href) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "The QuickBooks OAuth redirect URI does not match the application origin.",
+    );
+  }
+  return redirect.href;
 }
 
 export function stripeCredentialMode(env: WorkerEnv): StripeCredentialMode {

@@ -1,3 +1,8 @@
+import {
+  createHash,
+  timingSafeEqual as nodeTimingSafeEqual,
+} from "node:crypto";
+
 import { AppError, requireConfigured } from "../lib/errors";
 import type { WorkerEnv } from "../types";
 
@@ -37,7 +42,7 @@ export function resolveExternalIntegrationCredentials<T>(
       "The external integration credential reference is invalid.",
     );
   }
-  const binding = (env as unknown as Record<string, unknown>)[match[1]!];
+  const binding = Reflect.get(env, match[1]!);
   if (
     typeof binding !== "string" ||
     !binding ||
@@ -365,13 +370,24 @@ export async function hmacSha256Hex(
 }
 
 export function constantTimeEqual(left: string, right: string): boolean {
-  const leftBytes = Buffer.from(left);
-  const rightBytes = Buffer.from(right);
-  if (leftBytes.length !== rightBytes.length) return false;
-  let difference = 0;
-  for (let index = 0; index < leftBytes.length; index += 1) {
-    difference |=
-      (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0);
+  const leftDigest = createHash("sha256").update(left, "utf8").digest();
+  const rightDigest = createHash("sha256").update(right, "utf8").digest();
+  const subtleTimingSafeEqual = (
+    crypto.subtle as SubtleCrypto & {
+      timingSafeEqual?: (
+        left: ArrayBufferView,
+        right: ArrayBufferView,
+      ) => boolean;
+    }
+  ).timingSafeEqual;
+  if (typeof subtleTimingSafeEqual === "function") {
+    return subtleTimingSafeEqual.call(
+      crypto.subtle,
+      leftDigest,
+      rightDigest,
+    );
   }
-  return difference === 0;
+  // Node 22 does not expose the Workers-only SubtleCrypto extension used in
+  // production, so local Vitest uses the equivalent fixed-size primitive.
+  return nodeTimingSafeEqual(leftDigest, rightDigest);
 }

@@ -44,6 +44,7 @@ type BootstrapState =
 interface MobileRuntimeValue {
   native: boolean;
   online: boolean;
+  sessionUnlocked: boolean;
   bootstrap: BootstrapState;
   refreshBootstrap: () => Promise<void>;
 }
@@ -51,6 +52,7 @@ interface MobileRuntimeValue {
 const MobileRuntimeContext = createContext<MobileRuntimeValue>({
   native: false,
   online: true,
+  sessionUnlocked: true,
   bootstrap: { status: "idle", data: null },
   refreshBootstrap: async () => undefined,
 });
@@ -61,6 +63,7 @@ export function MobileRuntime({ children }: { children: ReactNode }) {
   const { navigate } = useRouter();
   const native = isNativeShell();
   const [ready, setReady] = useState(!native);
+  const [sessionUnlocked, setSessionUnlocked] = useState(!native);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [bootstrap, setBootstrap] = useState<BootstrapState>({
     status: "idle",
@@ -71,11 +74,10 @@ export function MobileRuntime({ children }: { children: ReactNode }) {
 
   const refreshBootstrap = useCallback(async () => {
     if (!native) return;
-    if (!(await getNativeAccessToken())) {
-      setBootstrap({ status: "unavailable", data: null });
-      return;
-    }
     try {
+      if (!(await getNativeAccessToken())) {
+        throw new Error("The native session is unavailable.");
+      }
       const next = await apiRequest<MobileBootstrap>("/api/mobile/bootstrap");
       await cacheMobileBootstrap(next);
       setBootstrap({ status: "live", data: next });
@@ -146,8 +148,9 @@ export function MobileRuntime({ children }: { children: ReactNode }) {
     let disposed = false;
     void initializeNativeSession().then((result) => {
       if (disposed) return;
+      setSessionUnlocked(result === "unlocked" || result === "cached");
       setReady(true);
-      if (result !== "unlocked") {
+      if (result !== "unlocked" && result !== "cached") {
         setBootstrap({ status: "unavailable", data: null });
       }
     });
@@ -174,12 +177,14 @@ export function MobileRuntime({ children }: { children: ReactNode }) {
         }
         if (shouldRelockAfterBackground(backgroundedAt.current, Date.now())) {
           lockNativeSession();
+          setSessionUnlocked(false);
           setReady(false);
           setBootstrap({ status: "unavailable", data: null });
           void initializeNativeSession().then((result) => {
+            setSessionUnlocked(result === "unlocked" || result === "cached");
             setReady(true);
             window.dispatchEvent(new Event("vinifera:member-auth-changed"));
-            if (result === "unlocked") {
+            if (result === "unlocked" || result === "cached") {
               void refreshBootstrap();
             } else {
               navigate("/portal/login", {
@@ -238,8 +243,14 @@ export function MobileRuntime({ children }: { children: ReactNode }) {
   ]);
 
   const value = useMemo(
-    () => ({ native, online, bootstrap, refreshBootstrap }),
-    [bootstrap, native, online, refreshBootstrap],
+    () => ({
+      native,
+      online,
+      sessionUnlocked,
+      bootstrap,
+      refreshBootstrap,
+    }),
+    [bootstrap, native, online, refreshBootstrap, sessionUnlocked],
   );
 
   if (!ready) {

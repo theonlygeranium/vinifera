@@ -54,6 +54,9 @@ export function MemberPortal() {
   const { navigate } = useRouter();
   const { session, clear } = useMemberSession();
   const mobile = useMobileRuntime();
+  const readOnlyMobile =
+    mobile.native &&
+    (!mobile.online || mobile.bootstrap.status === "cached");
   const loadShipments = useCallback(
     () => apiRequest<PortalShipment[]>("/api/member/shipments"),
     [],
@@ -197,7 +200,7 @@ export function MemberPortal() {
       </header>
 
       <main className="member-content">
-        {mobile.native && !mobile.online ? (
+        {readOnlyMobile ? (
           <aside className="mobile-connectivity-banner" role="status">
             <strong>Offline read-only mode</strong>
             <span>
@@ -339,7 +342,7 @@ export function MemberPortal() {
             <fieldset
               className="portal-actions"
               aria-labelledby="portal-actions-title"
-              disabled={mobile.native && !mobile.online}
+              disabled={readOnlyMobile}
             >
               <div className="panel-heading">
                 <div>

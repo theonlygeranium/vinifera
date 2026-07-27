@@ -193,7 +193,7 @@ export class AvalaraClient {
       attempts: 2,
       fetcher: this.options.fetcher,
       request: providerRequest(
-        `${this.baseUrl}/api/v2/transactions/create?$include=Summary,Addresses,Lines`,
+        `${this.baseUrl}/api/v2/transactions/createoradjust?$include=Summary,Addresses,Lines`,
         {
           body: JSON.stringify({
             addresses: {

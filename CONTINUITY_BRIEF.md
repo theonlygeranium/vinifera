@@ -54,10 +54,15 @@ connection-ready source architecture:
   compliance-input fingerprints, and durable EasyPost label recovery
 - Brand-scoped tenancy with forced RLS, restricted staff grants, explicit
   privileged all-brand aggregates, member brand binding, and shared or
-  independent billing state
+  independent billing state; the client tenant boundary remounts operational
+  state on scope changes, keeps explicit all-brand analytics in the URL, and
+  rejects late responses from a prior brand
 - A common leased/idempotent connector framework for Klaviyo, QuickBooks,
   Avalara, and Meta with encrypted credential envelopes, reconciliation, and
-  sanitized attempt logs
+  sanitized attempt logs; database generations serialize QuickBooks rolling
+  refresh tokens across Worker isolates, while authorized same-brand mapping
+  commands drive Klaviyo churn/list execution and QuickBooks membership and
+  shipping references from the existing Integration page
 - Stripe billing-subject Customer locks, opaque idempotent Checkout/portal
   attempts, one nonterminal Checkout per subject, and signed-webhook
   reconciliation from `awaiting_webhook`
@@ -75,7 +80,8 @@ connection-ready source architecture:
   per-brand Resend sender verification
 - Capacitor iOS/Android projects with secure mobile magic-link exchange,
   rotating sessions, biometric relock, APNs/FCM adapters, barcode scanning,
-  network recovery, offline read-only data, and store-directed updates
+  network recovery, single-flight token rotation, biometric offline cold-start
+  access to minimized read-only data, and store-directed updates
 - GitHub-hosted CI with conditional migrations, an isolated
   `vinifera-staging` Worker deployment, Android lint/debug/minified-release,
   and Playwright/axe QA
@@ -127,7 +133,7 @@ mobile/                 Native security and deep-link documentation
 mobile/app-identity.json Canonical cross-platform ID and version contract
 docs/decisions/         Architecture decisions
 docs/build-specs/       Sequential phase specifications and QA reports
-wrangler.jsonc          Worker/static assets/cron configuration
+wrangler.jsonc          Worker/static assets/cron/queue configuration
 ```
 
 The extensionless root `app` file is the accepted visual prototype. It is
@@ -144,9 +150,10 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 - `npm run qa:mobile:identity` enforces cross-platform application IDs,
   versions, link allowlists, APNs entitlement modes, Gradle integrity, privacy
   declarations, and replacement of the default Capacitor artwork.
-- CI is configured for Node 22.22.0, Phase 1–5 embedded database gates, Worker
-  dry-run, browser QA, Java 21/Android API 36 lint plus debug/R8 release APK
-  assembly, and pinned Supabase CLI 2.109.1.
+- CI is configured for Node 22.22.0, Phase 1–5 embedded database gates,
+  generated Worker type validation, Worker dry-run, browser QA, Java 21/Android
+  API 36 lint plus debug/R8 release APK assembly, and pinned Supabase CLI
+  2.109.1.
 - Optional Worker deployment targets only the isolated `vinifera-staging`
   environment, requires hash-authorized targets, runs hosted pgTAP/RLS, attaches
   available secrets atomically, and requires the core configuration report.
@@ -173,17 +180,17 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   are deferred, so no retry was attempted; reconcile the fixed lookup key only
   when activation is explicitly resumed.
 - The current credential-independent architecture gate passes: dependency
-  audit 0, TypeScript green, Vitest 323/323, Phase 1 database 92/92, Phase 2
-  231/231, Phase 3 199/199 (138 point-in-time plus 61 current-stack
-  hardening), Phase 4 158/158, Phase 5 438/438, and Playwright 143/143 with
-  Phase 4 at 20/20, zero axe violations, and 375/768/1440 coverage. Phase 3
-  scores 1,000 members in 155.11 ms and claims 100 emails in 7.48 ms; the
-  single-worker 100-member roster renders in 943.50 ms, latest LCP is 436 ms,
-  and CLS is 0. Phase 4 scores 10,000 members in 13,846.77 ms, renders the
-  365-day analytics query in 58.40 ms, and renders five charts 24.20 ms after
-  the response. Pages and default Worker dry-run builds pass, as do
-  production release 14/14, mobile release 7/7, Stripe catalog 16/16, mobile
-  identity, and compile-only Capacitor Android/iOS sync.
+  audit 0, generated Worker types and TypeScript green, Vitest 352/352,
+  database gates 92/231/199/158/494, and Playwright 145/145 with zero axe
+  violations and 360/375/412/430/768/1440 Phase 5 coverage. The single-worker
+  100-member roster renders in 444.6 ms, Phase 5 LCP is 416 ms, CLS is 0, and
+  multi-brand readiness is 920 ms. Phase 4 scores 10,000 members inside its
+  five-minute gate, renders its 365-day dashboard inside two seconds, and
+  renders five charts 24.20 ms after the response. Pages plus
+  development/staging/production Worker dry-run builds pass, as do production
+  release 14/14, mobile release 7/7, Stripe catalog 16/16, mobile identity, and
+  compile-only Capacitor Android/iOS sync. Provider transports remained
+  injected; no provider was contacted.
 - Architecture commit `5d36471` passed GitHub Actions run
   [`30221722696`](https://github.com/theonlygeranium/vinifera/actions/runs/30221722696):
   quality completed in 5m23s, Java 21 Android lint/debug/minified release

@@ -29,13 +29,13 @@ live provider or production-store result.
 
 | Gate | Result | Boundary |
 | --- | --- | --- |
-| Phase 5 embedded database | Pass — migrations 001–012 and pgTAP suites 013–022, 279/279 assertions | Hosted Supabase native pgcrypto/pgTAP remains deferred |
-| Prior-phase embedded database regression | Pass — Phase 2 145/145, Phase 3 138/138, Phase 4 121/121 | Hosted Supabase remains deferred |
-| Type, unit/integration, build, Worker package | Pass — TypeScript green, 245/245 Vitest, Vite/Pages/Worker/production dry runs green | No hosted Worker claim |
+| Phase 5 embedded database | Pass — migrations 001–017 and pgTAP suites 013–027, 494/494 assertions | Hosted Supabase native pgcrypto/pgTAP remains deferred |
+| Prior-phase embedded database regression | Pass — Phase 1 92/92, Phase 2 231/231, Phase 3 199/199, Phase 4 158/158 | Hosted Supabase remains deferred |
+| Type, unit/integration, build, Worker package | Pass — generated Worker types and TypeScript green, 352/352 Vitest, Vite/Pages plus development/staging/production Worker dry runs green | No hosted Worker claim or queue creation |
 | Dependency audit | Pass — zero vulnerabilities in production and full audits | Snapshot from this run |
-| Full responsive/axe browser suite | Pass — 123/123, zero axe violations | Local browser evidence; no hosted-provider claim |
+| Full responsive/axe browser suite | Pass — 145/145, zero axe violations | Local browser evidence; no hosted-provider claim |
 | Phase 5 visual review | Pass — six staff screenshots manually inspected | Physical-device and store screenshots remain deferred |
-| Mobile identity and native sync | Pass — identity, compile-only prep, and Android sync | Store signing remains deferred |
+| Mobile identity and native sync | Pass — identity, compile-only prep, and Android/iOS sync | Store signing remains deferred |
 | iOS simulator | Prior candidate pass — build, install, launch, zero build warnings | Not rerun for this architecture candidate; not a physical-device or TestFlight result |
 | Android | Pass — current Java 21 CI lint, debug APK, and minified release APK; local sync also passes | Local Gradle remains unavailable because this Mac has no Java; signing, FCM, and device/store proof remain deferred |
 | Static Pages rollback | Pass — source/artifact diff clean | Still the public production baseline |
@@ -52,15 +52,15 @@ live provider or production-store result.
 
 | Capability | Verified local architecture | Credential/authority state | Hosted result |
 | --- | --- | --- | --- |
-| Supabase Phase 5 migration | Migrations 001–012 and pgTAP suites 013–022 pass 279/279; Phase 2–4 regression gates also pass | Generic hosted Auth is reachable, but Phase 1/5 tables are absent and staging management credentials are unavailable | Deferred |
+| Supabase Phase 5 migration | Migrations 001–017 and pgTAP suites 013–027 pass 494/494, including provider mapping, credential-generation, persisted attempt-ceiling, job-eligibility, Avalara adjustment, and custom-hostname deletion invariants | Generic hosted Auth is reachable, but Phase 1/5 tables are absent and staging management credentials are unavailable | Deferred |
 | Cloudflare Worker | Build and production/staging dry-run package pass; isolated staging workflow configured | Generic token is valid but lacks Workers read capability; no staging-scoped token | Deferred |
 | Integration credential keyring | AES-256-GCM round trip, version, and authenticated context pass | Wrapping key not provisioned | `activation_required` |
-| Klaviyo | Adapter, jobs, signatures, polling fallback, and request construction pass | Private key/account unavailable | `activation_required` |
-| QuickBooks Online | OAuth state/refresh, SHA-256 request IDs, ambiguity handling, pagination, separately persisted shipping, durable refund checkpoints, and reconciliation pass | Intuit application/company unavailable | `activation_required` |
-| Avalara | Wine/shipping mappings, exemptions, filing snapshots, pre-charge quote, commit, durable refund checkpoint/return, liability, crash reconciliation, and fail-closed paths pass | AvaTax account/company and winery filing authority unavailable | `activation_required` |
+| Klaviyo | Adapter, jobs, signatures, polling fallback, executable field/churn/list mappings, provider-profile resolution, and membership transitions pass with injected transports | Private key/account unavailable | `activation_required` |
+| QuickBooks Online | OAuth state/refresh, database refresh lease and generation CAS, SHA-256 request IDs, ambiguity handling, pagination, persisted membership/shipping mappings, durable refund checkpoints, and reconciliation pass | Intuit application/company unavailable | `activation_required` |
+| Avalara | Wine/shipping mappings, temporary quote adjustment under an immutable provider code, committed-fact protection, exemptions, filing snapshots, commit, durable refund checkpoint/return, liability, crash reconciliation, and fail-closed paths pass | AvaTax account/company and winery filing authority unavailable | `activation_required` |
 | Meta CAPI | Consent, encrypted attribution, withdrawal redaction, credential rotation, hashing, event identity, and request construction pass | Dataset/token unavailable | `activation_required` |
 | Per-brand Resend | Staff sender/domain activation and verified-sender selection pass locally | Resend account and brand DNS unavailable | `activation_required` |
-| Custom hostname | Target hashes, least-privilege client, retry-safe write ledger, ownership/certificate state, host routing, and staff theme guards pass | Zone-scoped token and winery DNS unavailable | Deferred |
+| Custom hostname | Target hashes, least-privilege client, retry-safe create/delete ledgers, lookup-gated destructive retries, ownership/certificate state, host routing, and staff theme guards pass | Zone-scoped token and winery DNS unavailable | Deferred |
 | iOS | Identity, sync, simulator build/install/launch pass | Apple signing, APNs, and store authority unavailable | Deferred |
 | Android | Identity, compile-only prep, sync, Java 21 lint, debug APK, and minified release APK pass for architecture commit `5d36471` | Local Java unavailable; signing, FCM, and store authority unavailable | Deferred |
 | Stripe test/live mode | Subject locks, idempotent attempts, webhook-wait reconciliation, test catalog, and default-deny live control pass locally | Catalog run left one Price created-or-unknown; services are deferred; live additionally requires human approval | Deferred |
@@ -103,7 +103,13 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 - [x] Missing credentials return `activation_required` and transmit no data.
 - [x] Explicit opt-in is required before jobs can be claimed.
 - [x] Jobs are leased, idempotent, bounded, retryable, reconcilable, and moved
-      to a dead-letter outcome at the attempt ceiling.
+      to a dead-letter outcome at the persisted per-job attempt ceiling.
+- [x] Queue messages are tenant-free wake signals; PostgreSQL remains the
+      authoritative outbox/lease boundary, duplicate delivery is harmless, and
+      immediate continuation plus delayed retry wakes are independent.
+- [x] Suspended organizations and inactive or suspended brands cannot enqueue,
+      resolve runtime credentials, or claim jobs; expired final-attempt leases
+      recover directly to dead-letter.
 - [x] Logs contain counts, correlation/provider IDs, and safe error codes rather
       than raw payloads or credentials.
 - [x] Disconnect stops new disclosure and preserves minimized audit history.
@@ -113,6 +119,9 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 - [x] Initial profile sync uses the revisioned asynchronous bulk-import
       contract.
 - [x] Delta profile/list jobs are idempotent and bounded.
+- [x] The Integration page field and default-list settings persist through
+      tenant-safe mapping commands and drive churn properties plus explicit
+      list additions and removals.
 - [x] Engagement polling is cursor based.
 - [x] Signed webhooks reject missing, stale, mismatched, and tampered
       signatures.
@@ -126,7 +135,9 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 ### QuickBooks Online
 
 - [x] OAuth state is single-use and bound to the organization/brand.
-- [x] Rolling refresh tokens are serialized and durably replaced before use.
+- [x] Rolling refresh tokens use a database lease and credential-generation
+      compare-and-swap across Worker isolates and are durably replaced before
+      use.
 - [x] Receipt/refund writes use deterministic Intuit `requestid` values derived
       from the operation identity with SHA-256.
 - [x] Ambiguous writes query by document number before retrying.
@@ -136,6 +147,8 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
       Vinifera, QuickBooks, Meta, and refund handling.
 - [x] Persisted shipping charges remain a separate accounting fact for mapped
       freight items/accounts.
+- [x] Existing Integration page defaults persist fallback membership and
+      shipping account/item mappings through the authorized mapping command.
 - [x] QuickBooks and Avalara share a durable per-refund checkpoint. A crash
       after either provider write is reconciled and resumes only the incomplete
       side; the 4,863-cent and 4,862-cent increments converge exactly to the
@@ -150,6 +163,9 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 - [x] An opted-in connected-provider failure blocks the charge.
 - [x] The AvaTax sales transaction is `Saved` before charge and `Committed`
       only after success.
+- [x] Same-shipment temporary AvaTax quote adjustments replace the request
+      fingerprint and quote fields under one provider code; cross-shipment
+      rebinding and committed replacement are rejected.
 - [x] Partial and full refunds durably enqueue Avalara refund work and persist
       committed `ReturnInvoice` documents against the original transaction.
 - [x] Cross-provider refund progress is checkpointed before acknowledgement so
@@ -185,6 +201,10 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
       concrete brand.
 - [x] Restricted staff cannot access a sibling brand in the same organization.
 - [x] Owners/admins use explicit approved all-brand aggregates.
+- [x] The staff client treats a brand change as a tenant-boundary remount,
+      preserves explicit `scope=all` analytics URLs, clears that scope when a
+      concrete brand is selected, and ignores delayed responses from the prior
+      scope.
 - [x] Member access is forced to the member's operational brand.
 - [x] Suspended independent brands fail closed for member access, release
       claims, payment retries, integration access, and charge paths.
@@ -200,9 +220,13 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 - [x] Sender identities are unique per brand and may be safely replaced or
       disabled.
 - [x] Staff can configure and verify the exact per-brand Resend sender from the
-      white-label surface; an unverified sender cannot be used for delivery.
+      white-label surface; the current sender draft is persisted before
+      verification and an unverified sender cannot be used for delivery.
 - [x] Custom-hostname creates use a durable write ledger and provider lookup
       before retry after an indeterminate result.
+- [x] Custom-hostname deletes persist lookup-required state after an ambiguous
+      result, authorize another DELETE only after GET confirms the target still
+      exists, and atomically disable/release a confirmed-absent generation.
 - [ ] Hosted two-brand workflow: **Deferred**.
 - [ ] Live custom hostname/DNS/certificate: **Deferred**.
 
@@ -218,7 +242,8 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
       magic link.
 - [x] Foreground relock hides private content until unlock completes.
 - [x] Mobile magic-link exchange is single-use; rotating refresh-token reuse
-      revokes the token family.
+      revokes the token family, and concurrent refresh consumers share one
+      in-flight rotation.
 - [x] Magic-link redirects must match the canonical registered URI. A normalized
       `clubCode` selects a brand when an email belongs to multiple clubs;
       ambiguous or invalid selection fails closed.
@@ -227,6 +252,9 @@ See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 - [x] Push registration, foreground/background handling, camera scan, network
       restoration, minimized read-only offline data, and exact deep-link
       allowlists are wired.
+- [x] A successful biometric/device unlock may enter a minimized cached,
+      read-only portal on an offline cold start even when online token rotation
+      is unavailable; reconnection retains the guarded rotation path.
 - [x] App policy directs users to signed store releases and never downloads
       executable code.
 - [x] iOS simulator build/install/launch evidence is recorded below.
@@ -276,20 +304,21 @@ npm run qa:db:phase5
 Result:
 
 ```text
-PASS migrations 001–012
-PASS supabase/tests/013–022 (279/279)
-PASS Phase 5 embedded database verification (279/279)
-PASS Phase 2 embedded database verification (145/145)
-PASS Phase 3 embedded database verification (138/138)
-PASS Phase 4 embedded database verification (121/121)
+PASS migrations 001–017
+PASS supabase/tests/013–027 (494/494)
+PASS Phase 5 embedded database verification (494/494)
+PASS Phase 1 embedded database verification (92/92)
+PASS Phase 2 embedded database verification (231/231)
+PASS Phase 3 embedded database verification (199/199)
+PASS Phase 4 embedded database verification (158/158)
 ```
 
 Measured embedded-database performance:
 
 ```text
-Klaviyo 1,000-member source: 1.78 ms / 30,000 ms
-QuickBooks 100-transaction source: 1.09 ms / 60,000 ms
-10,000-member brand isolation query median: 4.49 ms / 2,000 ms
+Klaviyo 1,000-member source: 1.35 ms / 30,000 ms
+QuickBooks 100-transaction source: 0.69 ms / 60,000 ms
+10,000-member brand isolation query median: 3.78 ms / 2,000 ms
 ```
 
 This gate uses embedded PostgreSQL compatibility. Hosted Supabase must still run
@@ -300,28 +329,28 @@ verification.
 
 | Command/check | Result |
 | --- | --- |
-| `npm run check` | Pass — TypeScript zero errors, 245/245 Vitest tests, Vite build, Worker dry run |
+| `npm run check` | Pass — generated Worker types current, TypeScript zero errors, 352/352 Vitest tests, Vite build, Worker dry run |
 | `npm run qa:stripe-catalog` | Pass — 16/16 account, test-mode, allowlist, idempotency, drift, workflow, semantic-deploy, and sanitization tests |
 | `npm run qa:production-release` | Pass — 14/14 fail-closed production release/control tests |
 | `npm run qa:mobile-release` | Pass — 7/7 immutable signing and internal-store release tests |
 | `npm run build:worker:production` | Pass — route-free production Worker version dry run with live billing disabled |
 | `npm run build:pages` | Pass — rollback artifact diff clean |
 | `npm run qa:mobile:identity` | Pass |
-| Compile-only Capacitor preparation + Android sync | Pass |
+| Compile-only Capacitor preparation + Android/iOS sync | Pass |
 | Current local Gradle | Not run — no local Java runtime; superseded by the current Java 21 CI result below |
 | `npm audit --omit=dev --audit-level=moderate` | Pass — zero vulnerabilities |
 | `npm audit --audit-level=moderate` | Pass — zero vulnerabilities |
-| Full post-remediation browser suite | Pass — 123/123 |
-| Full-suite multi-brand performance assertion | Pass — 898.65 ms / 2,000 ms |
+| Full post-remediation browser suite | Pass — 145/145 |
+| Full-suite multi-brand performance assertion | Pass — 920 ms / 2,000 ms |
 | Full-suite axe scans | Pass — 0 WCAG 2.1 AA violations |
 | [GitHub Phase 5 workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30214620782) | Pass — quality 4m08s, Android 6m44s; hosted migration/deploy skipped while activation is off |
 | [GitHub post-hardening workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30217201984) | Pass — quality 5m18s, Android 6m54s; hosted migration/deploy skipped while activation is off |
 | [GitHub architecture completion workflow](https://github.com/theonlygeranium/vinifera/actions/runs/30221722696) | Pass — quality 5m23s, Android 4m37s; hosted migration/deploy skipped while activation is off |
 | [GET-only hosted readiness](https://github.com/theonlygeranium/vinifera/actions/runs/30217462802) | Pass — sanitized evidence artifact; no mutations |
 
-The current complete browser rerun passed all 123 tests with retries disabled,
-zero axe violations, LCP 476 ms, and CLS 0. The prior 122-test run and its
-loading-state stabilization remain historical evidence.
+The current complete browser rerun passed all 145 tests with retries disabled,
+zero axe violations, LCP 416 ms, CLS 0, and a 444.6 ms 100-member roster. The
+prior 123-test run remains historical evidence.
 
 ## Accessibility, responsive, and visual gate
 
@@ -355,12 +384,12 @@ not physical-device accessibility proof.
 
 | Check | Budget | Local result |
 | --- | ---: | ---: |
-| Integration-page LCP | < 2.5 s | Pass — 476 ms |
+| Integration-page LCP | < 2.5 s | Pass — 416 ms |
 | Integration-page CLS | < 0.1 | Pass — 0 |
-| Multi-brand dashboard usable | < 2 s | Pass — 898.65 ms |
-| Klaviyo 1,000-member source/request construction | < 30 s | Pass — 1.78 ms |
-| QuickBooks 100-transaction source/request construction | < 60 s | Pass — 1.09 ms |
-| 10,000-member brand-isolation query median | < 2 s | Pass — 4.49 ms |
+| Multi-brand dashboard usable | < 2 s | Pass — 920 ms |
+| Klaviyo 1,000-member source/request construction | < 30 s | Pass — 1.35 ms |
+| QuickBooks 100-transaction source/request construction | < 60 s | Pass — 0.69 ms |
+| 10,000-member brand-isolation query median | < 2 s | Pass — 3.78 ms |
 | Avalara application request construction | < 500 ms | Pass — 0.63 ms |
 | Meta conversion request construction | < 5 s | Pass — 1.57 ms |
 | iOS simulator cold launch tool envelope | < 3 s | Pass — 2.26 s |
@@ -486,6 +515,8 @@ Phase 5 tables in place.
 ## Deferred activation checklist
 
 - [ ] Apply all migrations and native pgcrypto/pgTAP checks to hosted Supabase.
+- [ ] Create the isolated development/staging/production integration wake
+      queues before the corresponding Worker deployment.
 - [ ] Deploy and validate the isolated staging Worker with real bindings.
 - [ ] Complete Klaviyo, QuickBooks, and Avalara or Meta provider round trips.
 - [ ] Prove two hosted brands, including suspended-brand and sibling isolation.

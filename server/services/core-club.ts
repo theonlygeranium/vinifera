@@ -1934,6 +1934,7 @@ export async function prepareAvalaraTax(
       (shipment.retry_count > 0 ? `-R${shipment.retry_count}` : ""),
     transactionDate: new Date().toISOString().slice(0, 10),
   };
+  const requestHash = await sha256(JSON.stringify(request));
   const client = new AvalaraClient(credentials);
   const { data: existing, error: existingError } = await admin
     .from("avalara_tax_calculations")
@@ -1952,58 +1953,70 @@ export async function prepareAvalaraTax(
     throw databaseError("The saved Avalara calculation could not be loaded.");
   }
   if (existing) {
-    if (
-      existing.document_status === "committed" &&
-      ["pending", "declined"].includes(shipment.status)
-    ) {
-      throw new AppError(
-        409,
-        "conflict",
-        "A committed Avalara transaction cannot be reused for an uncharged shipment.",
-      );
+    if (String(existing.request_hash) !== requestHash) {
+      if (existing.document_status === "committed") {
+        throw new AppError(
+          409,
+          "conflict",
+          "A committed Avalara transaction cannot be replaced after shipment inputs change.",
+        );
+      }
+    } else {
+      if (
+        existing.document_status === "committed" &&
+        ["pending", "declined"].includes(shipment.status)
+      ) {
+        throw new AppError(
+          409,
+          "conflict",
+          "A committed Avalara transaction cannot be reused for an uncharged shipment.",
+        );
+      }
+      const prepared: PreparedAvalaraTax = {
+        calculationId: String(existing.id),
+        client,
+        connectionId: String(connection.id),
+        quote: {
+          code: String(
+            existing.provider_transaction_code ?? existing.document_code,
+          ),
+          currencyCode: String(existing.currency_code ?? "USD"),
+          jurisdictionSummary: Array.isArray(existing.jurisdiction_summary)
+            ? existing.jurisdiction_summary
+            : [],
+          providerId: null,
+          exemptAmountCents: Number(existing.exempt_amount_cents ?? 0),
+          shippingTaxCents: Number(existing.shipping_tax_cents ?? 0),
+          status: "Saved",
+          taxCents: Number(existing.tax_amount_cents ?? 0),
+          totalCents:
+            shipmentSubtotalAmount(shipment) +
+            Number(existing.tax_amount_cents ?? 0),
+        },
+        requestHash: String(existing.request_hash),
+        status:
+          existing.document_status === "committed" ? "committed" : "temporary",
+      };
+      const { data: rebound, error: reboundError } = await admin
+        .from("shipments")
+        .update({
+          avalara_tax_calculation_id: prepared.calculationId,
+          tax_amount_cents: prepared.quote.taxCents,
+        })
+        .eq("id", shipment.id)
+        .eq("organization_id", shipment.organization_id)
+        .eq("brand_id", shipment.brand_id)
+        .in("status", ["pending", "declined"])
+        .select("id")
+        .maybeSingle();
+      if (reboundError || !rebound) {
+        throw databaseError(
+          "The saved Avalara calculation could not be rebound.",
+        );
+      }
+      shipment.tax_amount_cents = prepared.quote.taxCents;
+      return prepared;
     }
-    const prepared: PreparedAvalaraTax = {
-      calculationId: String(existing.id),
-      client,
-      connectionId: String(connection.id),
-      quote: {
-        code: String(
-          existing.provider_transaction_code ?? existing.document_code,
-        ),
-        currencyCode: String(existing.currency_code ?? "USD"),
-        jurisdictionSummary: Array.isArray(existing.jurisdiction_summary)
-          ? existing.jurisdiction_summary
-          : [],
-        providerId: null,
-        exemptAmountCents: Number(existing.exempt_amount_cents ?? 0),
-        shippingTaxCents: Number(existing.shipping_tax_cents ?? 0),
-        status: "Saved",
-        taxCents: Number(existing.tax_amount_cents ?? 0),
-        totalCents:
-          shipmentSubtotalAmount(shipment) +
-          Number(existing.tax_amount_cents ?? 0),
-      },
-      requestHash: String(existing.request_hash),
-      status:
-        existing.document_status === "committed" ? "committed" : "temporary",
-    };
-    const { data: rebound, error: reboundError } = await admin
-      .from("shipments")
-      .update({
-        avalara_tax_calculation_id: prepared.calculationId,
-        tax_amount_cents: prepared.quote.taxCents,
-      })
-      .eq("id", shipment.id)
-      .eq("organization_id", shipment.organization_id)
-      .eq("brand_id", shipment.brand_id)
-      .in("status", ["pending", "declined"])
-      .select("id")
-      .maybeSingle();
-    if (reboundError || !rebound) {
-      throw databaseError("The saved Avalara calculation could not be rebound.");
-    }
-    shipment.tax_amount_cents = prepared.quote.taxCents;
-    return prepared;
   }
   const quote = await client.createTaxQuote(request);
   const prepared: PreparedAvalaraTax = {
@@ -2011,7 +2024,7 @@ export async function prepareAvalaraTax(
     client,
     connectionId: String(connection.id),
     quote,
-    requestHash: await sha256(JSON.stringify(request)),
+    requestHash,
     status: "temporary",
   };
   prepared.calculationId = await persistAvalaraTaxStatus(

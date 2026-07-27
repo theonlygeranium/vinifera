@@ -438,6 +438,57 @@ export class KlaviyoClient {
     });
   }
 
+  async resolveProfileIds(
+    externalIds: string[],
+  ): Promise<Record<string, string>> {
+    const uniqueExternalIds = [...new Set(externalIds)];
+    if (
+      !uniqueExternalIds.length ||
+      uniqueExternalIds.length > 1_000 ||
+      uniqueExternalIds.some(
+        (externalId) =>
+          !/^[A-Za-z0-9_.:@-]{4,255}$/.test(externalId),
+      )
+    ) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "Klaviyo profile lookup input is invalid.",
+      );
+    }
+    const resolved: Record<string, string> = {};
+    for (let offset = 0; offset < uniqueExternalIds.length; offset += 100) {
+      const batch = uniqueExternalIds.slice(offset, offset + 100);
+      const url = new URL(`${KLAVIYO_API_ORIGIN}/api/profiles`);
+      url.searchParams.set(
+        "filter",
+        `any(external_id,[${batch
+          .map((externalId) => JSON.stringify(externalId))
+          .join(",")}])`,
+      );
+      url.searchParams.set("fields[profile]", "external_id");
+      url.searchParams.set("page[size]", "100");
+      const payload = await requestIntegrationJson<{
+        data?: Array<{
+          attributes?: { external_id?: string };
+          id?: string;
+        }>;
+      }>({
+        fetcher: this.options.fetcher,
+        request: providerRequest(url.toString(), {
+          headers: this.headers(),
+          method: "GET",
+        }),
+        sleep: this.options.sleep,
+      });
+      for (const profile of payload.data ?? []) {
+        const externalId = profile.attributes?.external_id;
+        if (externalId && profile.id) resolved[externalId] = profile.id;
+      }
+    }
+    return resolved;
+  }
+
   async getEngagementEvents(input: {
     cursor?: string | null;
     since: string;

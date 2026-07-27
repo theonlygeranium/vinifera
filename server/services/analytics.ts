@@ -1354,7 +1354,7 @@ export function normalizeAnalyticsDashboard(
         emailClickRate: ratio(row.emailClicks, row.emailsSent),
         emailOpenRate: ratio(row.emailOpens, row.emailsSent),
         loyaltyRedemptionRate: row.loyaltyRedemptionRate ?? null,
-        period: row.period ?? row.date,
+        period: row.period ?? row.date ?? row.metricDate,
         portalLoginsPerMember: ratio(row.portalLogins, row.activeMembers),
       })),
     },
@@ -1406,7 +1406,7 @@ export function normalizeAnalyticsDashboard(
           row.netGrowth ??
           numeric(row.newMembers) - numeric(row.cancelledMembers),
         newMembers: numeric(row.newMembers),
-        period: row.period ?? row.date,
+        period: row.period ?? row.date ?? row.metricDate,
       })),
     },
     range,
@@ -1428,7 +1428,7 @@ export function normalizeAnalyticsDashboard(
           row.arpmCents ?? ratio(row.mrrCents, row.activeMembers),
         arrCents: row.arrCents ?? numeric(row.mrrCents) * 12,
         mrrCents: numeric(row.mrrCents),
-        period: row.period ?? row.date,
+        period: row.period ?? row.date ?? row.metricDate,
         revenueChurnCents: row.revenueChurnCents ?? null,
       })),
     },
@@ -1453,7 +1453,7 @@ export function normalizeAnalyticsDashboard(
               charged: Math.max(0, rowAttempted - rowDeclined),
               declined: rowDeclined,
               fulfillmentRate: ratio(rowFulfilled, rowAttempted),
-              period: row.period ?? row.date,
+              period: row.period ?? row.date ?? row.metricDate,
               revenueCents: row.netRevenueCents ?? row.revenueCents ?? null,
               shippingCostCents: row.shippingCostCents ?? null,
             };
@@ -1523,6 +1523,610 @@ export function normalizeAnalyticsDashboard(
     },
   };
   return dashboard;
+}
+
+interface BrandAnalyticsDashboardInput {
+  brandId: string;
+  brandName: string;
+  payload: unknown;
+}
+
+interface WeightedValue {
+  denominator: number;
+  numerator: number;
+}
+
+function addWeightedValue(
+  current: WeightedValue | undefined,
+  value: unknown,
+  weight: unknown,
+): WeightedValue {
+  const normalizedWeight = Math.max(0, numeric(weight));
+  return {
+    denominator: (current?.denominator ?? 0) + normalizedWeight,
+    numerator:
+      (current?.numerator ?? 0) + numeric(value) * normalizedWeight,
+  };
+}
+
+function weightedAverage(value: WeightedValue | undefined): number {
+  return value && value.denominator > 0
+    ? value.numerator / value.denominator
+    : 0;
+}
+
+function analyticsSection(
+  dashboard: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> {
+  return objectValue(dashboard[key]);
+}
+
+/**
+ * Produces one privacy-safe, organization-level dashboard from already
+ * authorized brand snapshots. Counts and money are additive; rates and
+ * averages are weighted by the matching operational population.
+ */
+export function aggregateAnalyticsDashboards(
+  inputs: BrandAnalyticsDashboardInput[],
+  range: ResolvedAnalyticsRange,
+  savedLayout?: unknown,
+): Record<string, unknown> {
+  const dashboards = inputs.map((input) => ({
+    ...input,
+    dashboard: normalizeAnalyticsDashboard(input.payload, range),
+    raw: toPublicRecord(rpcRow(input.payload) ?? input.payload),
+  }));
+  const summaryTotals = {
+    activeMembers: 0,
+    arrCents: 0,
+    loyaltyPointsRedeemed: 0,
+    mrrCents: 0,
+    portalLogins: 0,
+    revenueChurnCents: 0,
+  };
+  let averageLtv: WeightedValue | undefined;
+  let averageShipmentValue: WeightedValue | undefined;
+  let declineRate: WeightedValue | undefined;
+  let emailClickRate: WeightedValue | undefined;
+  let emailOpenRate: WeightedValue | undefined;
+  let fulfillmentRate: WeightedValue | undefined;
+  let loyaltyRedemptionRate: WeightedValue | undefined;
+  let memberGrowthRate: WeightedValue | undefined;
+  let shippingCostRatio: WeightedValue | undefined;
+
+  const revenueByTier = new Map<
+    string,
+    {
+      arrCents: number;
+      ltv: WeightedValue;
+      memberCount: number;
+      mrrCents: number;
+      tierName: string;
+    }
+  >();
+  const revenueTrend = new Map<
+    string,
+    {
+      activeMembers: number;
+      arrCents: number;
+      mrrCents: number;
+      revenueChurnCents: number;
+    }
+  >();
+  const memberTrend = new Map<
+    string,
+    {
+      active: number;
+      cancelled: number;
+      netGrowth: number;
+      newMembers: number;
+    }
+  >();
+  const tenureDistribution = new Map<string, number>();
+  const shipmentTrend = new Map<
+    string,
+    {
+      attempted: number;
+      charged: number;
+      declined: number;
+      fulfilled: number;
+      grossRevenueCents: number;
+      revenueCents: number;
+      shipmentValueCents: number;
+      shippingCostCents: number;
+    }
+  >();
+  const declineReasons = new Map<string, number>();
+  const engagementTrend = new Map<
+    string,
+    {
+      activeMembers: number;
+      emailClicks: number;
+      emailOpens: number;
+      emailsSent: number;
+      loyaltyPointsEarned: number;
+      loyaltyPointsRedeemed: number;
+      portalLogins: number;
+    }
+  >();
+  const acquisition = new Map<
+    string,
+    {
+      cac: WeightedValue;
+      conversion: WeightedValue;
+      members: number;
+    }
+  >();
+  const cohorts: Array<Record<string, unknown>> = [];
+
+  for (const entry of dashboards) {
+    const summary = analyticsSection(entry.dashboard, "summary");
+    const activeMembers = numeric(summary.activeMembers);
+    summaryTotals.activeMembers += activeMembers;
+    summaryTotals.arrCents += numeric(summary.arrCents);
+    summaryTotals.loyaltyPointsRedeemed += numeric(
+      summary.loyaltyPointsRedeemed,
+    );
+    summaryTotals.mrrCents += numeric(summary.mrrCents);
+    summaryTotals.portalLogins += numeric(summary.portalLogins);
+    summaryTotals.revenueChurnCents += numeric(summary.revenueChurnCents);
+    averageLtv = addWeightedValue(
+      averageLtv,
+      summary.averageLtvCents,
+      activeMembers,
+    );
+    averageShipmentValue = addWeightedValue(
+      averageShipmentValue,
+      summary.averageShipmentValueCents,
+      activeMembers,
+    );
+    declineRate = addWeightedValue(
+      declineRate,
+      summary.declineRate,
+      activeMembers,
+    );
+    emailClickRate = addWeightedValue(
+      emailClickRate,
+      summary.emailClickRate,
+      activeMembers,
+    );
+    emailOpenRate = addWeightedValue(
+      emailOpenRate,
+      summary.emailOpenRate,
+      activeMembers,
+    );
+    fulfillmentRate = addWeightedValue(
+      fulfillmentRate,
+      summary.fulfillmentRate,
+      activeMembers,
+    );
+    loyaltyRedemptionRate = addWeightedValue(
+      loyaltyRedemptionRate,
+      summary.loyaltyRedemptionRate,
+      activeMembers,
+    );
+    memberGrowthRate = addWeightedValue(
+      memberGrowthRate,
+      summary.memberGrowthRate,
+      activeMembers,
+    );
+    shippingCostRatio = addWeightedValue(
+      shippingCostRatio,
+      summary.shippingCostRatio,
+      numeric(summary.arrCents),
+    );
+
+    const revenue = analyticsSection(entry.dashboard, "revenue");
+    const members = analyticsSection(entry.dashboard, "members");
+    const shipments = analyticsSection(entry.dashboard, "shipments");
+    const engagement = analyticsSection(entry.dashboard, "engagement");
+    const rawRevenue = objectValue(entry.raw.revenue);
+    const rawMetricsByPeriod = new Map<string, Record<string, unknown>>();
+    for (const section of [
+      rawRevenue,
+      objectValue(entry.raw.members),
+      objectValue(entry.raw.shipments),
+      objectValue(entry.raw.engagement),
+    ]) {
+      for (const row of objectRows(section.trend)) {
+        const period = String(
+          row.period ?? row.metricDate ?? row.date ?? "",
+        );
+        if (!period) continue;
+        rawMetricsByPeriod.set(period, {
+          ...(rawMetricsByPeriod.get(period) ?? {}),
+          ...row,
+        });
+      }
+    }
+    const ltvRows = objectRows(members.ltvByTier);
+    const ltvByTier = new Map(
+      ltvRows.map((row) => [
+        String(row.tierName ?? row.tierId ?? ""),
+        numeric(row.ltvCents),
+      ]),
+    );
+    for (const row of objectRows(revenue.byTier)) {
+      const tierName = String(row.tierName ?? "Unassigned");
+      const key = tierName.trim().toLocaleLowerCase("en-US");
+      const memberCount = numeric(row.memberCount);
+      const current = revenueByTier.get(key) ?? {
+        arrCents: 0,
+        ltv: { denominator: 0, numerator: 0 },
+        memberCount: 0,
+        mrrCents: 0,
+        tierName,
+      };
+      current.arrCents += numeric(row.arrCents);
+      current.memberCount += memberCount;
+      current.mrrCents += numeric(row.mrrCents);
+      current.ltv = addWeightedValue(
+        current.ltv,
+        ltvByTier.get(tierName) ?? ltvByTier.get(String(row.tierId ?? "")),
+        memberCount,
+      );
+      revenueByTier.set(key, current);
+    }
+
+    const activeByPeriod = new Map(
+      objectRows(members.trend).map((row) => [
+        String(row.period ?? ""),
+        numeric(row.active),
+      ]),
+    );
+    for (const row of objectRows(revenue.trend)) {
+      const period = String(row.period ?? "");
+      if (!period) continue;
+      const current = revenueTrend.get(period) ?? {
+        activeMembers: 0,
+        arrCents: 0,
+        mrrCents: 0,
+        revenueChurnCents: 0,
+      };
+      current.activeMembers += activeByPeriod.get(period) ?? 0;
+      current.arrCents += numeric(row.arrCents);
+      current.mrrCents += numeric(row.mrrCents);
+      current.revenueChurnCents += numeric(row.revenueChurnCents);
+      revenueTrend.set(period, current);
+    }
+    for (const row of objectRows(members.trend)) {
+      const period = String(row.period ?? "");
+      if (!period) continue;
+      const current = memberTrend.get(period) ?? {
+        active: 0,
+        cancelled: 0,
+        netGrowth: 0,
+        newMembers: 0,
+      };
+      current.active += numeric(row.active);
+      current.cancelled += numeric(row.cancelled);
+      current.netGrowth += numeric(row.netGrowth);
+      current.newMembers += numeric(row.newMembers);
+      memberTrend.set(period, current);
+    }
+    for (const row of objectRows(members.cohorts)) {
+      cohorts.push({
+        ...row,
+        brandId: entry.brandId,
+        brandName: entry.brandName,
+        cohort: `${entry.brandName} · ${String(row.cohort ?? "")}`,
+      });
+    }
+    for (const row of objectRows(members.tenureDistribution)) {
+      const bucket = String(row.bucket ?? "Unassigned");
+      tenureDistribution.set(
+        bucket,
+        (tenureDistribution.get(bucket) ?? 0) + numeric(row.members),
+      );
+    }
+
+    for (const row of objectRows(shipments.trend)) {
+      const period = String(row.period ?? "");
+      if (!period) continue;
+      const attempted = numeric(row.attempted);
+      const rawMetric = rawMetricsByPeriod.get(period) ?? {};
+      const fulfilled =
+        rawMetric.fulfilledShipments === undefined
+          ? numeric(row.fulfillmentRate) * attempted
+          : numeric(rawMetric.fulfilledShipments);
+      const current = shipmentTrend.get(period) ?? {
+        attempted: 0,
+        charged: 0,
+        declined: 0,
+        fulfilled: 0,
+        grossRevenueCents: 0,
+        revenueCents: 0,
+        shipmentValueCents: 0,
+        shippingCostCents: 0,
+      };
+      current.attempted += attempted;
+      current.charged += numeric(row.charged);
+      current.declined += numeric(row.declined);
+      current.fulfilled += fulfilled;
+      current.grossRevenueCents += numeric(rawMetric.grossRevenueCents);
+      current.revenueCents += numeric(
+        rawMetric.netRevenueCents ?? row.revenueCents,
+      );
+      current.shipmentValueCents += numeric(
+        rawMetric.shipmentValueCents,
+        numeric(row.averageValueCents) * fulfilled,
+      );
+      current.shippingCostCents += numeric(
+        rawMetric.shippingCostCents ?? row.shippingCostCents,
+      );
+      shipmentTrend.set(period, current);
+    }
+    for (const row of objectRows(shipments.declineReasons)) {
+      const reason = String(row.reason ?? "unknown");
+      declineReasons.set(
+        reason,
+        (declineReasons.get(reason) ?? 0) + numeric(row.count),
+      );
+    }
+
+    for (const row of objectRows(engagement.trend)) {
+      const period = String(row.period ?? "");
+      if (!period) continue;
+      const rawMetric = rawMetricsByPeriod.get(period) ?? {};
+      const active = numeric(
+        rawMetric.activeMembers,
+        activeByPeriod.get(period) ?? activeMembers,
+      );
+      const emailsSent = numeric(rawMetric.emailsSent);
+      const current = engagementTrend.get(period) ?? {
+        activeMembers: 0,
+        emailClicks: 0,
+        emailOpens: 0,
+        emailsSent: 0,
+        loyaltyPointsEarned: 0,
+        loyaltyPointsRedeemed: 0,
+        portalLogins: 0,
+      };
+      current.activeMembers += active;
+      current.emailClicks += numeric(
+        rawMetric.emailClicks,
+        numeric(row.emailClickRate) * emailsSent,
+      );
+      current.emailOpens += numeric(
+        rawMetric.emailOpens,
+        numeric(row.emailOpenRate) * emailsSent,
+      );
+      current.emailsSent += emailsSent;
+      current.loyaltyPointsEarned += numeric(
+        rawMetric.loyaltyPointsEarned,
+      );
+      current.loyaltyPointsRedeemed += numeric(
+        rawMetric.loyaltyPointsRedeemed,
+        numeric(row.loyaltyRedemptionRate) *
+          numeric(rawMetric.loyaltyPointsEarned),
+      );
+      current.portalLogins += numeric(
+        rawMetric.portalLogins,
+        numeric(row.portalLoginsPerMember) * active,
+      );
+      engagementTrend.set(period, current);
+    }
+    for (const row of objectRows(engagement.acquisition)) {
+      const source = String(row.source ?? "Unattributed");
+      const membersAcquired = numeric(row.members);
+      const current = acquisition.get(source) ?? {
+        cac: { denominator: 0, numerator: 0 },
+        conversion: { denominator: 0, numerator: 0 },
+        members: 0,
+      };
+      current.members += membersAcquired;
+      current.cac = addWeightedValue(
+        current.cac,
+        row.cacCents,
+        membersAcquired,
+      );
+      current.conversion = addWeightedValue(
+        current.conversion,
+        row.conversionRate,
+        membersAcquired,
+      );
+      acquisition.set(source, current);
+    }
+  }
+
+  const totalDeclines = [...declineReasons.values()].reduce(
+    (total, count) => total + count,
+    0,
+  );
+  const shipmentTotals = [...shipmentTrend.values()].reduce(
+    (totals, row) => ({
+      attempted: totals.attempted + row.attempted,
+      declined: totals.declined + row.declined,
+      fulfilled: totals.fulfilled + row.fulfilled,
+      grossRevenueCents:
+        totals.grossRevenueCents + row.grossRevenueCents,
+      revenueCents: totals.revenueCents + row.revenueCents,
+      shipmentValueCents:
+        totals.shipmentValueCents + row.shipmentValueCents,
+      shippingCostCents:
+        totals.shippingCostCents + row.shippingCostCents,
+    }),
+    {
+      attempted: 0,
+      declined: 0,
+      fulfilled: 0,
+      grossRevenueCents: 0,
+      revenueCents: 0,
+      shipmentValueCents: 0,
+      shippingCostCents: 0,
+    },
+  );
+  const engagementTotals = [...engagementTrend.values()].reduce(
+    (totals, row) => ({
+      activeMembers: totals.activeMembers + row.activeMembers,
+      emailClicks: totals.emailClicks + row.emailClicks,
+      emailOpens: totals.emailOpens + row.emailOpens,
+      emailsSent: totals.emailsSent + row.emailsSent,
+      loyaltyPointsEarned:
+        totals.loyaltyPointsEarned + row.loyaltyPointsEarned,
+      loyaltyPointsRedeemed:
+        totals.loyaltyPointsRedeemed + row.loyaltyPointsRedeemed,
+      portalLogins: totals.portalLogins + row.portalLogins,
+    }),
+    {
+      activeMembers: 0,
+      emailClicks: 0,
+      emailOpens: 0,
+      emailsSent: 0,
+      loyaltyPointsEarned: 0,
+      loyaltyPointsRedeemed: 0,
+      portalLogins: 0,
+    },
+  );
+  const generatedAt = dashboards
+    .map(({ dashboard }) => String(dashboard.generatedAt ?? ""))
+    .filter(Boolean)
+    .sort()
+    .at(-1) ?? null;
+  return {
+    availableWidgets: AVAILABLE_WIDGETS.map((widget) => ({ ...widget })),
+    engagement: {
+      acquisition: [...acquisition.entries()]
+        .map(([source, row]) => ({
+          cacCents: weightedAverage(row.cac),
+          conversionRate: weightedAverage(row.conversion),
+          members: row.members,
+          source,
+        }))
+        .sort((left, right) => right.members - left.members),
+      trend: [...engagementTrend.entries()]
+        .map(([period, row]) => ({
+          emailClickRate: ratio(row.emailClicks, row.emailsSent),
+          emailOpenRate: ratio(row.emailOpens, row.emailsSent),
+          loyaltyRedemptionRate: ratio(
+            row.loyaltyPointsRedeemed,
+            row.loyaltyPointsEarned,
+          ),
+          period,
+          portalLoginsPerMember: ratio(
+            row.portalLogins,
+            row.activeMembers,
+          ),
+        }))
+        .sort((left, right) => left.period.localeCompare(right.period)),
+    },
+    generatedAt,
+    layout: canonicalLayout(savedLayout),
+    members: {
+      cohorts,
+      ltvByTier: [...revenueByTier.entries()].map(([key, row]) => ({
+        ltvCents: weightedAverage(row.ltv),
+        tierId: `all:${key}`,
+        tierName: row.tierName,
+      })),
+      tenureDistribution: [...tenureDistribution.entries()].map(
+        ([bucket, members]) => ({ bucket, members }),
+      ),
+      trend: [...memberTrend.entries()]
+        .map(([period, row]) => ({ period, ...row }))
+        .sort((left, right) => left.period.localeCompare(right.period)),
+    },
+    range,
+    revenue: {
+      byTier: [...revenueByTier.entries()].map(([key, row]) => ({
+        arrCents: row.arrCents,
+        memberCount: row.memberCount,
+        mrrCents: row.mrrCents,
+        tierId: `all:${key}`,
+        tierName: row.tierName,
+      })),
+      trend: [...revenueTrend.entries()]
+        .map(([period, row]) => ({
+          arpmCents: ratio(row.mrrCents, row.activeMembers),
+          arrCents: row.arrCents,
+          mrrCents: row.mrrCents,
+          period,
+          revenueChurnCents: row.revenueChurnCents,
+        }))
+        .sort((left, right) => left.period.localeCompare(right.period)),
+    },
+    scope: {
+      brandCount: dashboards.length,
+      brands: dashboards.map(({ brandId, brandName }) => ({
+        id: brandId,
+        name: brandName,
+      })),
+      type: "all",
+    },
+    shipments: {
+      declineReasons: [...declineReasons.entries()].map(([reason, count]) => ({
+        count,
+        rate: ratio(count, totalDeclines),
+        reason,
+      })),
+      trend: [...shipmentTrend.entries()]
+        .map(([period, row]) => ({
+          attempted: row.attempted,
+          averageValueCents: ratio(
+            row.shipmentValueCents,
+            row.fulfilled,
+          ),
+          charged: row.charged,
+          declined: row.declined,
+          fulfillmentRate: ratio(row.fulfilled, row.attempted),
+          period,
+          revenueCents: row.revenueCents,
+          shippingCostCents: row.shippingCostCents,
+        }))
+        .sort((left, right) => left.period.localeCompare(right.period)),
+    },
+    summary: {
+      ...summaryTotals,
+      arpmCents: ratio(
+        summaryTotals.mrrCents,
+        summaryTotals.activeMembers,
+      ),
+      averageLtvCents: weightedAverage(averageLtv),
+      averageShipmentValueCents:
+        shipmentTotals.fulfilled > 0
+          ? ratio(
+              shipmentTotals.shipmentValueCents,
+              shipmentTotals.fulfilled,
+            )
+          : weightedAverage(averageShipmentValue),
+      declineRate:
+        shipmentTotals.attempted > 0
+          ? ratio(shipmentTotals.declined, shipmentTotals.attempted)
+          : weightedAverage(declineRate),
+      emailClickRate:
+        engagementTotals.emailsSent > 0
+          ? ratio(engagementTotals.emailClicks, engagementTotals.emailsSent)
+          : weightedAverage(emailClickRate),
+      emailOpenRate:
+        engagementTotals.emailsSent > 0
+          ? ratio(engagementTotals.emailOpens, engagementTotals.emailsSent)
+          : weightedAverage(emailOpenRate),
+      fulfillmentRate:
+        shipmentTotals.attempted > 0
+          ? ratio(shipmentTotals.fulfilled, shipmentTotals.attempted)
+          : weightedAverage(fulfillmentRate),
+      loyaltyRedemptionRate:
+        engagementTotals.loyaltyPointsEarned > 0
+          ? ratio(
+              engagementTotals.loyaltyPointsRedeemed,
+              engagementTotals.loyaltyPointsEarned,
+            )
+          : weightedAverage(loyaltyRedemptionRate),
+      memberGrowthRate: weightedAverage(memberGrowthRate),
+      portalLoginsPerMember: ratio(
+        summaryTotals.portalLogins,
+        summaryTotals.activeMembers,
+      ),
+      shippingCostRatio:
+        shipmentTotals.grossRevenueCents > 0
+          ? ratio(
+              shipmentTotals.shippingCostCents,
+              shipmentTotals.grossRevenueCents,
+            )
+          : weightedAverage(shippingCostRatio),
+    },
+  };
 }
 
 export function normalizeChurnBrowserDto(
@@ -1873,11 +2477,52 @@ export class ProductionAnalyticsService
   async getAnalyticsDashboard(input: {
     from?: string;
     range: AnalyticsRange;
+    scope?: "brand" | "all";
     to?: string;
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff();
-    const brandId = await this.activeBrandId(principal);
     const range = resolveAnalyticsRange(input.range, input);
+    if (input.scope === "all") {
+      await this.requireAllBrandBenchmarkAccess(principal);
+      const organizationId = this.organizationId(principal);
+      const { data: brands, error: brandsError } = await this.admin
+        .from("brands")
+        .select("id,name")
+        .eq("organization_id", organizationId)
+        .eq("active", true)
+        .order("name");
+      if (brandsError) {
+        throw databaseError("The organization analytics scope could not be loaded.");
+      }
+      const snapshots = await Promise.all(
+        (brands ?? []).map(async (brand) => ({
+          brandId: brand.id,
+          brandName: brand.name,
+          payload: await this.callRpc(
+            "get_brand_analytics_dashboard",
+            {
+              p_brand_id: brand.id,
+              p_from: range.from,
+              p_organization_id: organizationId,
+              p_to: range.to,
+            },
+            "The organization analytics dashboard could not be loaded.",
+          ),
+        })),
+      );
+      const dashboard = aggregateAnalyticsDashboards(snapshots, range);
+      await this.recordDomainAnalyticsEvent(principal, {
+        eventData: {
+          brand_count: snapshots.length,
+          range: range.preset,
+          scope: "all",
+        },
+        eventType: "analytics.dashboard_viewed",
+        requestKey: `dashboard:all:${range.preset}:${range.from ?? "all"}:${range.to}`,
+      });
+      return dashboard;
+    }
+    const brandId = await this.activeBrandId(principal);
     const [payload, layout] = await Promise.all([
       this.callRpc(
         "get_brand_analytics_dashboard",
@@ -1902,7 +2547,12 @@ export class ProductionAnalyticsService
 
   async exportAnalyticsWidget(
     widget: string,
-    input: { from?: string; range: AnalyticsRange; to?: string },
+    input: {
+      from?: string;
+      range: AnalyticsRange;
+      scope?: "brand" | "all";
+      to?: string;
+    },
   ): Promise<{ contents: string; filename: string }> {
     if (!REPORT_WIDGETS.has(widget)) {
       throw new AppError(400, "invalid_request", "The analytics widget is invalid.");
@@ -1910,15 +2560,18 @@ export class ProductionAnalyticsService
     const dashboard = await this.getAnalyticsDashboard(input);
     const range = resolveAnalyticsRange(input.range, input);
     const principal = await this.requireStaff();
-    const brandId = await this.activeBrandId(principal);
     await this.recordDomainAnalyticsEvent(principal, {
-      eventData: { range: range.preset, widget },
+      eventData: {
+        range: range.preset,
+        scope: input.scope ?? "brand",
+        widget,
+      },
       eventType: "analytics.widget_exported",
-      requestKey: `export:${widget}:${range.from ?? "all"}:${range.to}`,
+      requestKey: `export:${input.scope ?? "brand"}:${widget}:${range.from ?? "all"}:${range.to}`,
     });
     return {
       contents: encodeCsvRows(exportRows(widget, dashboard)),
-      filename: `vinifera-${widget}-${range.to}.csv`,
+      filename: `vinifera-${input.scope === "all" ? "all-brands-" : ""}${widget}-${range.to}.csv`,
     };
   }
 

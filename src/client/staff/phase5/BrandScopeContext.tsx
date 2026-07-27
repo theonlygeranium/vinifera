@@ -1,4 +1,5 @@
 import {
+  Fragment,
   createContext,
   type ReactNode,
   useCallback,
@@ -14,11 +15,14 @@ import {
 } from "../../api/client";
 import type { Brand } from "../../api/phase5";
 import { useRouter } from "../../routes/router";
+import { LoadingScreen } from "../../shared/LoadingScreen";
+import { ErrorBlock } from "../../shared/OperationalState";
 
 type BrandScopeStatus = "loading" | "ready" | "activation_required" | "error";
 
 interface BrandScopeValue {
   status: BrandScopeStatus;
+  error: unknown;
   brands: Brand[];
   activeBrandId: string | "all" | null;
   activeBrand: Brand | null;
@@ -29,8 +33,13 @@ interface BrandScopeValue {
 
 const BrandScopeContext = createContext<BrandScopeValue | null>(null);
 
+function permitsAllBrandScope(pathname: string) {
+  return pathname === "/app/brands" || pathname === "/app/analytics";
+}
+
 export function BrandScopeProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<BrandScopeStatus>("loading");
+  const [error, setError] = useState<unknown>(null);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [canViewAllBrands, setCanViewAllBrands] = useState(false);
   const [activeBrandId, setActiveBrandState] = useState<string | "all" | null>(
@@ -40,6 +49,7 @@ export function BrandScopeProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     setStatus("loading");
+    setError(null);
     try {
       const response = await apiRequest<{
         items: Brand[];
@@ -47,22 +57,28 @@ export function BrandScopeProvider({ children }: { children: ReactNode }) {
       }>("/api/brands");
       const nextBrands = response.items;
       const stored = readActiveBrandId();
-      const next =
-        nextBrands.find((brand) => brand.id === stored)?.id ??
-        nextBrands.find((brand) => brand.isDefault)?.id ??
-        nextBrands[0]?.id ??
-        null;
+      const requestedAll =
+        response.canViewAllBrands &&
+        permitsAllBrandScope(window.location.pathname) &&
+        new URLSearchParams(window.location.search).get("scope") === "all";
+      const next = requestedAll
+        ? "all"
+        : (nextBrands.find((brand) => brand.id === stored)?.id ??
+          nextBrands.find((brand) => brand.isDefault)?.id ??
+          nextBrands[0]?.id ??
+          null);
       setBrands(nextBrands);
       setCanViewAllBrands(response.canViewAllBrands);
       setActiveBrandState(next);
-      writeActiveBrandId(next);
+      writeActiveBrandId(next === "all" ? null : next);
       setStatus(nextBrands.length ? "ready" : "activation_required");
-    } catch (error) {
+    } catch (caught) {
       const activation =
-        error instanceof Error &&
-        "code" in error &&
-        (error as { code?: string }).code?.toUpperCase() ===
+        caught instanceof Error &&
+        "code" in caught &&
+        (caught as { code?: string }).code?.toUpperCase() ===
           "ACTIVATION_REQUIRED";
+      setError(caught);
       setStatus(activation ? "activation_required" : "error");
     }
   }, []);
@@ -76,21 +92,38 @@ export function BrandScopeProvider({ children }: { children: ReactNode }) {
       if (brandId === "all" && canViewAllBrands) {
         writeActiveBrandId(null);
         setActiveBrandState("all");
-        navigate("/app/brands?scope=all");
+        const targetPath = permitsAllBrandScope(location.pathname)
+          ? location.pathname
+          : "/app/brands";
+        const search = new URLSearchParams(
+          targetPath === location.pathname ? location.search : "",
+        );
+        search.set("scope", "all");
+        navigate(`${targetPath}?${search.toString()}`);
         return;
       }
       if (!brands.some((brand) => brand.id === brandId)) return;
       writeActiveBrandId(brandId);
       setActiveBrandState(brandId);
+      if (
+        permitsAllBrandScope(location.pathname) &&
+        new URLSearchParams(location.search).get("scope") === "all"
+      ) {
+        const search = new URLSearchParams(location.search);
+        search.delete("scope");
+        const query = search.toString();
+        navigate(`${location.pathname}${query ? `?${query}` : ""}`, {
+          replace: true,
+        });
+      }
     },
-    [brands, canViewAllBrands, navigate],
+    [brands, canViewAllBrands, location.pathname, location.search, navigate],
   );
 
   useEffect(() => {
     if (
       canViewAllBrands &&
-      (location.pathname === "/app/brands" ||
-        location.pathname === "/app/analytics") &&
+      permitsAllBrandScope(location.pathname) &&
       new URLSearchParams(location.search).get("scope") === "all"
     ) {
       writeActiveBrandId(null);
@@ -101,8 +134,7 @@ export function BrandScopeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (
       activeBrandId !== "all" ||
-      location.pathname === "/app/brands" ||
-      location.pathname === "/app/analytics"
+      permitsAllBrandScope(location.pathname)
     ) {
       return;
     }
@@ -115,6 +147,7 @@ export function BrandScopeProvider({ children }: { children: ReactNode }) {
   const value = useMemo<BrandScopeValue>(
     () => ({
       status,
+      error,
       brands,
       activeBrandId,
       activeBrand:
@@ -127,6 +160,7 @@ export function BrandScopeProvider({ children }: { children: ReactNode }) {
       activeBrandId,
       brands,
       canViewAllBrands,
+      error,
       refresh,
       setActiveBrandId,
       status,
@@ -135,7 +169,15 @@ export function BrandScopeProvider({ children }: { children: ReactNode }) {
 
   return (
     <BrandScopeContext.Provider value={value}>
-      {children}
+      {status === "loading" && brands.length === 0 ? (
+        <LoadingScreen label="Loading your brand workspace" />
+      ) : status === "error" ? (
+        <main className="staff-content">
+          <ErrorBlock error={error} onRetry={() => void refresh()} />
+        </main>
+      ) : (
+        <Fragment key={activeBrandId ?? status}>{children}</Fragment>
+      )}
     </BrandScopeContext.Provider>
   );
 }

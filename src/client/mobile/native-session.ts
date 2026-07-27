@@ -15,11 +15,10 @@ const SESSION_KEY = "member-session";
 const BOOTSTRAP_KEY = "member-bootstrap";
 const DEVICE_FINGERPRINT_KEY = "device-fingerprint";
 const SESSION_MARKER = "vinifera.native-session-present";
-const MOBILE_API_ORIGIN = import.meta.env.VITE_MOBILE_API_ORIGIN?.trim();
-
 let accessToken: string | null = null;
 let sessionExpiresAt = 0;
 let storageReady: Promise<void> | null = null;
+let sessionRotation: Promise<MobileSessionTokens> | null = null;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -80,10 +79,11 @@ function requireNative() {
 }
 
 function apiUrl(path: `/api/${string}`) {
-  if (!MOBILE_API_ORIGIN) {
+  const mobileApiOrigin = import.meta.env.VITE_MOBILE_API_ORIGIN?.trim();
+  if (!mobileApiOrigin) {
     throw new Error("The native API origin is not configured.");
   }
-  const origin = new URL(MOBILE_API_ORIGIN);
+  const origin = new URL(mobileApiOrigin);
   if (
     origin.protocol !== "https:" ||
     origin.username ||
@@ -166,6 +166,13 @@ async function rotateSession(session: MobileSessionTokens) {
   return refreshed;
 }
 
+async function rotateSessionOnce(session: MobileSessionTokens) {
+  sessionRotation ??= rotateSession(session).finally(() => {
+    sessionRotation = null;
+  });
+  return sessionRotation;
+}
+
 export function isNativeShell() {
   return Capacitor.isNativePlatform();
 }
@@ -193,7 +200,15 @@ export async function initializeNativeSession() {
     const session = await readSession();
     if (!session) return "magic_link_required" as const;
     if (Date.parse(session.expiresAt) <= Date.now() + 30_000) {
-      await rotateSession(session);
+      try {
+        await rotateSessionOnce(session);
+      } catch {
+        const cached = await readCachedMobileBootstrap().catch(() => null);
+        if (!cached) throw new Error("The native session could not be refreshed.");
+        accessToken = session.accessToken;
+        sessionExpiresAt = Date.parse(session.expiresAt);
+        return "cached" as const;
+      }
     } else {
       accessToken = session.accessToken;
       sessionExpiresAt = Date.parse(session.expiresAt);
@@ -228,7 +243,7 @@ export async function getNativeAccessToken() {
   if (sessionExpiresAt <= Date.now() + 30_000) {
     const session = await readSession();
     if (!session) return null;
-    await rotateSession(session);
+    await rotateSessionOnce(session);
   }
   return accessToken;
 }
@@ -236,6 +251,12 @@ export async function getNativeAccessToken() {
 export function lockNativeSession() {
   accessToken = null;
   sessionExpiresAt = 0;
+}
+
+export async function readCachedNativeMember() {
+  if (!isNativeShell()) return null;
+  const session = await readSession().catch(() => null);
+  return session?.member ?? null;
 }
 
 export async function getNativeDeviceFingerprint() {

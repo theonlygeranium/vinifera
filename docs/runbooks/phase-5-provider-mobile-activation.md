@@ -17,8 +17,20 @@ live payment, or store submission is authorized merely by this document.
 ## 1. Shared production prerequisites
 
 1. Apply every Supabase migration in order and run `npm run qa:db:phase5`.
-2. Deploy the Worker with the production Supabase bindings.
-3. Configure a versioned 256-bit AES-GCM credential-wrapping key:
+2. Create the tenant-free integration wake queues referenced by
+   `wrangler.jsonc` before the first Worker deployment:
+
+   ```text
+   npx wrangler queues create vinifera-integration-wake-development
+   npx wrangler queues create vinifera-integration-wake-staging
+   npx wrangler queues create vinifera-integration-wake-production
+   ```
+
+   Queue messages contain only a wake kind and timestamp. PostgreSQL remains
+   the authoritative job/outbox store. Do not add tenant, connection, member,
+   or provider identifiers to a queue message.
+3. Deploy the Worker with the production Supabase bindings.
+4. Configure a versioned 256-bit AES-GCM credential-wrapping key:
 
    - `INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS` is a JSON object whose keys are
      non-secret version names and whose values are base64-encoded 32-byte keys.
@@ -27,15 +39,15 @@ live payment, or store submission is authorized merely by this document.
    - Keep at least the active version and any version still referenced by a
      credential envelope.
 
-4. Confirm `/api/health` returns Worker JSON rather than the static Pages
+5. Confirm `/api/health` returns Worker JSON rather than the static Pages
    application shell.
-5. Confirm production rejects provider simulator flags.
-6. Confirm a staff user without a brand grant cannot access another brand in
+6. Confirm production rejects provider simulator flags.
+7. Confirm a staff user without a brand grant cannot access another brand in
    the same organization.
-7. Suspend one independent test brand and confirm member access, release/retry
+8. Suspend one independent test brand and confirm member access, release/retry
    claims, integration work, and new charge attempts fail closed for that brand
    without suspending an active sibling brand.
-8. Attempt every service-only privileged operation as a browser and ordinary
+9. Attempt every service-only privileged operation as a browser and ordinary
    authenticated role. Confirm each attempt is denied even with valid
    organization and brand identifiers.
 
@@ -250,7 +262,11 @@ Before Cloudflare receives a request, the zone and fallback origin must match
 the reviewed hashes in `config/provider-target-policy.json`. Hostname creation
 uses a durable attempt ledger. If the result is indeterminate, reconcile by
 hostname/brand lookup; do not issue another create until the provider identity
-is known.
+is known. Hostname deletion has its own durable ledger. After an indeterminate
+DELETE, retry through the staff surface so the server performs a GET-only
+reconciliation first. Another DELETE is allowed only if that lookup proves the
+provider object still exists. A provider 404 is finalized locally without
+replaying DELETE.
 
 Do not mark a hostname active based only on DNS propagation. Cloudflare
 hostname status and certificate status must both be active.

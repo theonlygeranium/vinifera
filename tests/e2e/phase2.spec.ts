@@ -6,6 +6,7 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 test.use({ video: "off" });
 
 const organizationId = "10000000-0000-4000-8000-000000000001";
+const brandId = "11000000-0000-4000-8000-000000000001";
 const memberId = "30000000-0000-4000-8000-000000000001";
 const tierId = "40000000-0000-4000-8000-000000000001";
 const releaseId = "50000000-0000-4000-8000-000000000001";
@@ -209,6 +210,26 @@ async function installMockApi(
 
     if (path === "/api/auth/staff/session") return json(route, staffSession);
     if (path === "/api/auth/member/session") return json(route, memberSession);
+    if (path === "/api/brands" && method === "GET") {
+      return json(route, {
+        canViewAllBrands: false,
+        items: [
+          {
+            billingMode: "shared",
+            customDomain: null,
+            description: null,
+            domainStatus: "unconfigured",
+            fontFamily: null,
+            id: brandId,
+            isDefault: true,
+            logoUrl: null,
+            name: staffSession.organization.name,
+            primaryColor: null,
+            secondaryColor: null,
+          },
+        ],
+      });
+    }
     if (path === "/api/club-tiers" && method === "GET") return json(route, [tier]);
     if (path === "/api/club-tiers" && method === "POST") return json(route, tier, 201);
     if (path === "/api/members" && method === "GET") {

@@ -47,6 +47,8 @@ const migrations = [
   "supabase/migrations/202607260013_phase_2_transactional_commands.sql",
   "supabase/migrations/202607260014_phase_3_brand_retention_hardening.sql",
   "supabase/migrations/202607260015_phase_4_analytics_current_stack_hardening.sql",
+  "supabase/migrations/202607260016_phase_5_backend_completion.sql",
+  "supabase/migrations/202607260017_custom_hostname_delete_safety.sql",
 ];
 const tests = [
   "supabase/tests/013_phase_5_schema.test.sql",
@@ -62,6 +64,8 @@ const tests = [
   "supabase/tests/023_phase_2_transactional_commands.test.sql",
   "supabase/tests/024_phase_3_current_stack_hardening.test.sql",
   "supabase/tests/025_phase_4_current_stack_hardening.test.sql",
+  "supabase/tests/026_phase_5_backend_completion.test.sql",
+  "supabase/tests/027_custom_hostname_delete_safety.test.sql",
 ];
 
 async function readRepositoryFile(relativeFile) {

@@ -39,6 +39,7 @@ import {
 import { StaffShell } from "../StaffShell";
 import { date, money } from "../phase2/format";
 import { useApiResource } from "../phase2/useApiResource";
+import { useBrandScope } from "../phase5/BrandScopeContext";
 import {
   AccessibleBarChart,
   AccessibleLineChart,
@@ -459,6 +460,8 @@ function ReportsDialog({
 }
 
 export function AnalyticsPage() {
+  const brandScope = useBrandScope();
+  const allBrands = brandScope.activeBrandId === "all";
   const [range, setRange] = useState<AnalyticsRange>({
     preset: "30d",
     from: null,
@@ -473,17 +476,23 @@ export function AnalyticsPage() {
     () =>
       apiRequest<unknown>(
         queryPath("/api/analytics/dashboard", {
+          scope: allBrands ? "all" : undefined,
           range: range.preset,
           from: range.preset === "custom" ? range.from ?? undefined : undefined,
           to: range.preset === "custom" ? range.to ?? undefined : undefined,
         }),
       ).then(normalizeAnalyticsDashboard),
-    [range],
+    [allBrands, brandScope.activeBrandId, range],
   );
   const dashboard = useApiResource(load, [load]);
   const loadReports = useCallback(
-    () => apiRequest<unknown>("/api/analytics/reports").then(normalizeScheduledReports),
-    [],
+    () =>
+      allBrands
+        ? Promise.resolve([])
+        : apiRequest<unknown>("/api/analytics/reports").then(
+            normalizeScheduledReports,
+          ),
+    [allBrands, brandScope.activeBrandId],
   );
   const reports = useApiResource(loadReports, [loadReports]);
   const visibleLayout = useMemo(() => {
@@ -499,6 +508,7 @@ export function AnalyticsPage() {
     try {
       await downloadApiFile(
         queryPath("/api/analytics/export", {
+          scope: allBrands ? "all" : undefined,
           widgetId,
           range: range.preset,
           from: range.preset === "custom" ? range.from ?? undefined : undefined,
@@ -524,11 +534,31 @@ export function AnalyticsPage() {
       eyebrow="Growth Intelligence"
       actions={
         <>
-          <button type="button" className="button button--secondary button--compact" onClick={() => setReportsOpen(true)}>
+          <button
+            type="button"
+            className="button button--secondary button--compact"
+            onClick={() => setReportsOpen(true)}
+            disabled={allBrands}
+            title={
+              allBrands
+                ? "Scheduled reports are configured inside one brand."
+                : undefined
+            }
+          >
             <MailCheck aria-hidden="true" />
             <span>Reports</span>
           </button>
-          <button type="button" className="button button--secondary button--compact" onClick={() => setSettingsOpen(true)} disabled={dashboard.state.status !== "ready"}>
+          <button
+            type="button"
+            className="button button--secondary button--compact"
+            onClick={() => setSettingsOpen(true)}
+            disabled={allBrands || dashboard.state.status !== "ready"}
+            title={
+              allBrands
+                ? "Dashboard layouts are configured inside one brand."
+                : undefined
+            }
+          >
             <LayoutGrid aria-hidden="true" />
             <span>Widgets</span>
           </button>
@@ -539,7 +569,11 @@ export function AnalyticsPage() {
         <div>
           <p className="eyebrow eyebrow--wine">Live winery performance</p>
           <h2>Growth at a glance</h2>
-          <p>Revenue, membership, shipments, and engagement from your organization’s production records.</p>
+          <p>
+            {allBrands
+              ? "Revenue, membership, shipments, and engagement aggregated across every authorized brand."
+              : "Revenue, membership, shipments, and engagement from the active brand’s production records."}
+          </p>
         </div>
         {dashboard.state.status === "ready" && dashboard.state.data.generatedAt ? (
           <span className="calculation-stamp">

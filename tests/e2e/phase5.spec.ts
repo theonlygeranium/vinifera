@@ -140,6 +140,7 @@ type CapturedRequest = {
   brandId: string | null;
   method: string;
   path: string;
+  search: string;
 };
 
 function json(route: Route, data: unknown, status = 200) {
@@ -167,6 +168,7 @@ async function installPhase5Api(
       brandId: request.headers()["x-vinifera-brand-id"] ?? null,
       method,
       path: url.pathname,
+      search: url.search,
     });
 
     if (url.pathname === "/api/auth/staff/session") {
@@ -180,6 +182,28 @@ async function installPhase5Api(
     }
     if (/^\/api\/brands\/[^/]+$/.test(url.pathname) && method === "PATCH") {
       return json(route, { ...brands[0], ...body });
+    }
+    if (
+      /^\/api\/brands\/[^/]+\/sender\/verify$/.test(url.pathname) &&
+      method === "POST"
+    ) {
+      return json(
+        route,
+        {
+          dnsRecords: [
+            {
+              name: "send.qa-winery.example",
+              record: "TXT",
+              status: "pending",
+              type: "TXT",
+              value: "resend-verification=qa-token",
+            },
+          ],
+          domain: "qa-winery.example",
+          status: "pending",
+        },
+        202,
+      );
     }
     if (
       /^\/api\/brands\/[^/]+\/domain$/.test(url.pathname) &&
@@ -225,6 +249,19 @@ async function installPhase5Api(
         monthlyRecurringRevenueCents: 5605000,
         shipmentsThisPeriod: 458,
       });
+    }
+    if (url.pathname === "/api/analytics/dashboard") {
+      return json(route, {
+        generatedAt: "2026-07-26T17:00:00.000Z",
+        range: {
+          from: "2026-06-27",
+          preset: "30d",
+          to: "2026-07-26",
+        },
+      });
+    }
+    if (url.pathname === "/api/analytics/reports") {
+      return json(route, { items: [] });
     }
     if (url.pathname === "/api/integrations" && method === "GET") {
       return json(route, integrations);
@@ -530,6 +567,44 @@ test.describe("Phase 5 provider and brand workflows", () => {
     ).toBe(true);
   });
 
+  test("all-brand Analytics stays on its route and refetches after selecting one brand", async ({
+    page,
+  }) => {
+    const capture: CapturedRequest[] = [];
+    await installPhase5Api(page, capture);
+    await page.goto("/app/analytics?scope=all");
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Analytics" }).first(),
+    ).toBeVisible();
+    await expect(page.getByLabel("Active brand")).toHaveValue("all");
+    await expect
+      .poll(
+        () =>
+          capture.some(
+            (entry) =>
+              entry.path === "/api/analytics/dashboard" &&
+              entry.brandId === null &&
+              new URLSearchParams(entry.search).get("scope") === "all",
+          ),
+      )
+      .toBe(true);
+
+    await page.getByLabel("Active brand").selectOption(secondBrandId);
+    await expect(page).toHaveURL(/\/app\/analytics$/);
+    await expect(page.getByLabel("Active brand")).toHaveValue(secondBrandId);
+    await expect
+      .poll(
+        () =>
+          capture.some(
+            (entry) =>
+              entry.path === "/api/analytics/dashboard" &&
+              entry.brandId === secondBrandId &&
+              !new URLSearchParams(entry.search).has("scope"),
+          ),
+      )
+      .toBe(true);
+  });
+
   test("QuickBooks reference IDs and exchange metadata persist through the exact PATCH contract", async ({
     page,
   }) => {
@@ -603,6 +678,35 @@ test.describe("Phase 5 provider and brand workflows", () => {
           entry.path === `/api/brands/${brandId}/domain`,
       )?.body,
     ).toEqual({ hostname: "members.qa-winery.example" });
+  });
+
+  test("sender verification persists the current draft before requesting DNS activation", async ({
+    page,
+  }) => {
+    const capture: CapturedRequest[] = [];
+    await installPhase5Api(page, capture);
+    await page.goto("/app/white-label");
+    await page
+      .getByLabel("Sender address")
+      .fill("members@qa-winery.example");
+    await page
+      .getByRole("button", { name: "Verify sender domain" })
+      .click();
+    await expect(page.getByText("resend-verification=qa-token")).toBeVisible();
+
+    const patchIndex = capture.findIndex(
+      (entry) =>
+        entry.method === "PATCH" &&
+        entry.path === `/api/brands/${brandId}` &&
+        entry.body?.emailSenderAddress === "members@qa-winery.example",
+    );
+    const verifyIndex = capture.findIndex(
+      (entry) =>
+        entry.method === "POST" &&
+        entry.path === `/api/brands/${brandId}/sender/verify`,
+    );
+    expect(patchIndex).toBeGreaterThan(-1);
+    expect(verifyIndex).toBeGreaterThan(patchIndex);
   });
 });
 

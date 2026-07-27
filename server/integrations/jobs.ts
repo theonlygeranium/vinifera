@@ -21,8 +21,11 @@ const SAFE_ERROR_CODES = new Set([
   "invalid_mapping",
   "provider_authentication_failed",
   "provider_conflict",
+  "provider_invalid_response",
   "provider_rate_limited",
   "provider_rejected_request",
+  "provider_response_too_large",
+  "provider_timeout",
   "provider_unavailable",
   "upstream_error",
 ]);

@@ -203,12 +203,22 @@ are Worker configuration; each winery's access and rolling refresh tokens are
 encrypted per connection. A connection may instead reference an environment
 binding through the exact `env://VINIFERA_INTEGRATION_SECRET_*` form; arbitrary
 vault schemes, paths, and browser-supplied environment names are rejected.
-Jobs are leased, idempotent, bounded, retryable, and reconcilable. A protected,
-resumable rotation controller covers integration, encrypted Meta-attribution,
-and mobile-push envelopes, and verifies that no source-version ciphertext
-remains before an old wrapping key can be retired. Logs contain sanitized
-correlation/provider identifiers rather than credentials or raw customer
-payloads.
+Jobs are leased, idempotent, bounded by their persisted attempt ceiling,
+retryable, and reconcilable. Cloudflare Queues carries only tenant-free wake
+signals; PostgreSQL remains the authoritative outbox and lease boundary, and
+the hourly cron remains the recovery sweep. Suspended organizations and
+inactive or suspended brands cannot enqueue, resolve credentials, or claim
+work. A protected, resumable rotation controller covers integration, encrypted
+Meta-attribution, and mobile-push envelopes, and verifies that no
+source-version ciphertext remains before an old wrapping key can be retired.
+Logs contain sanitized correlation/provider identifiers rather than
+credentials or raw customer payloads.
+
+QuickBooks rolling refresh tokens use a database refresh lease and credential
+generation compare-and-swap, so correctness does not depend on one Worker
+isolate. Klaviyo field/list mappings and QuickBooks account mappings are
+tenant-safe database commands reached by the existing Integration page and are
+used by provider execution rather than stored as display-only configuration.
 
 Avalara calculates tax before Stripe confirmation and fails a connected charge
 closed. A successful charge commits the matching tax transaction;
@@ -234,8 +244,18 @@ against WCAG normal-text contrast. Staff configure each brand's accessible
 theme, HTTPS logo, portal title, custom hostname, and transactional sender from
 one brand-scoped white-label surface. Resend domain creation/verification is
 per brand, and email delivery uses only a verified active sender. Cloudflare
-hostname creates are coordinated through a durable ledger; an indeterminate
-create must be reconciled by provider lookup before another create is allowed.
+hostname creates and deletes use separate durable external-write ledgers. An
+indeterminate create must be reconciled by provider lookup before another
+create is allowed. An indeterminate delete becomes lookup-required; another
+DELETE is authorized only after a provider GET proves the object still exists.
+Provider absence, the local disable, and release of the old hostname generation
+complete through one leased database transition.
+
+Brand changes remount the staff data boundary and discard stale in-flight
+responses. Explicit organization-wide analytics aggregates raw per-brand
+numerators and denominators on the server before calculating rates. The mobile
+shell serializes token rotation and can cold-start from encrypted cached member
+data only in a visibly read-only offline state.
 
 Capacitor wraps the built React application rather than creating a second UI.
 The native boundary adds Keychain/Keystore-backed session and offline storage,
@@ -257,8 +277,9 @@ dist/ + capacitor.config.json ─ Capacitor ──────── iOS / Andro
 ```
 
 GitHub-hosted CI uses Node 22.22.0 to install the lockfile, audit dependencies,
-type-check, run service/browser tests and Phase 2–5 database gates, build assets,
-and validate the Worker bundle. A separate Java 21/API 36 job synchronizes,
+verify generated Worker binding types, type-check, run service/browser tests
+and Phase 2–5 database gates, build assets, and validate the Worker bundle. A
+separate Java 21/API 36 job synchronizes,
 lints, and assembles Android debug and R8-minified release shells. On `main`,
 CI conditionally applies migrations with pinned Supabase CLI 2.109.1, then runs
 the linked native pgTAP/RLS suite. Optional deployment targets the isolated

@@ -19,10 +19,38 @@
   },
   "observability": {
     "enabled": true,
-    "head_sampling_rate": 1
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.05,
+      "persist": true
+    }
   },
   "triggers": {
     "crons": ["0 * * * *"]
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "INTEGRATION_WAKE_QUEUE",
+        "queue": "vinifera-integration-wake-development"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "vinifera-integration-wake-development",
+        "max_batch_size": 10,
+        "max_batch_timeout": 1,
+        "max_retries": 3,
+        "max_concurrency": 5,
+        "retry_delay": 5
+      }
+    ]
   },
   "env": {
     "production": {
@@ -35,6 +63,24 @@
         "html_handling": "none",
         "not_found_handling": "none",
         "run_worker_first": true
+      },
+      "queues": {
+        "producers": [
+          {
+            "binding": "INTEGRATION_WAKE_QUEUE",
+            "queue": "vinifera-integration-wake-production"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "vinifera-integration-wake-production",
+            "max_batch_size": 10,
+            "max_batch_timeout": 1,
+            "max_retries": 3,
+            "max_concurrency": 5,
+            "retry_delay": 5
+          }
+        ]
       },
       "vars": {
         "APP_ENV": "production",
@@ -51,6 +97,24 @@
         "html_handling": "none",
         "not_found_handling": "none",
         "run_worker_first": true
+      },
+      "queues": {
+        "producers": [
+          {
+            "binding": "INTEGRATION_WAKE_QUEUE",
+            "queue": "vinifera-integration-wake-staging"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "vinifera-integration-wake-staging",
+            "max_batch_size": 10,
+            "max_batch_timeout": 1,
+            "max_retries": 3,
+            "max_concurrency": 5,
+            "retry_delay": 5
+          }
+        ]
       },
       "vars": {
         "APP_ENV": "staging",

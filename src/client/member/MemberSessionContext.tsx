@@ -9,8 +9,14 @@ import {
 } from "react";
 import { apiRequest } from "../api/client";
 import type { MemberSession } from "../api/types";
+import { useMobileRuntime } from "../mobile/MobileRuntime";
+import { readCachedNativeMember } from "../mobile/native-session";
 
-type SessionState = "loading" | "authenticated" | "unauthenticated";
+type SessionState =
+  | "loading"
+  | "authenticated"
+  | "cached"
+  | "unauthenticated";
 
 interface MemberSessionValue {
   state: SessionState;
@@ -22,6 +28,7 @@ interface MemberSessionValue {
 const MemberSessionContext = createContext<MemberSessionValue | null>(null);
 
 export function MemberSessionProvider({ children }: { children: ReactNode }) {
+  const mobile = useMobileRuntime();
   const [state, setState] = useState<SessionState>("loading");
   const [session, setSession] = useState<MemberSession | null>(null);
 
@@ -39,11 +46,31 @@ export function MemberSessionProvider({ children }: { children: ReactNode }) {
       setState("unauthenticated");
       return null;
     } catch {
+      if (
+        mobile.native &&
+        mobile.sessionUnlocked &&
+        mobile.bootstrap.status === "cached"
+      ) {
+        const cachedMember = await readCachedNativeMember();
+        if (cachedMember) {
+          const cachedSession: MemberSession = {
+            authenticated: true,
+            user: cachedMember,
+          };
+          setSession(cachedSession);
+          setState("cached");
+          return cachedSession;
+        }
+      }
       setSession(null);
       setState("unauthenticated");
       return null;
     }
-  }, []);
+  }, [
+    mobile.bootstrap.status,
+    mobile.native,
+    mobile.sessionUnlocked,
+  ]);
 
   const clear = useCallback(() => {
     setSession(null);
@@ -51,8 +78,20 @@ export function MemberSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (
+      mobile.native &&
+      mobile.sessionUnlocked &&
+      mobile.bootstrap.status === "idle"
+    ) {
+      return;
+    }
     void refresh();
-  }, [refresh]);
+  }, [
+    mobile.bootstrap.status,
+    mobile.native,
+    mobile.sessionUnlocked,
+    refresh,
+  ]);
 
   useEffect(() => {
     const handleNativeAuth = () => void refresh();

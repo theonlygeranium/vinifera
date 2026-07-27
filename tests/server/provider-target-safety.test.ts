@@ -4,6 +4,11 @@ import {
   type CustomHostnameResult,
 } from "../../server/integrations/cloudflare-domains";
 import {
+  executeRetrySafeCustomHostnameDelete,
+  type CustomHostnameDeleteClaim,
+  type CustomHostnameDeleteStore,
+} from "../../server/integrations/custom-hostname-deletes";
+import {
   executeRetrySafeCustomHostnameWrite,
   type CustomHostnameWriteClaim,
   type CustomHostnameWriteStore,
@@ -362,5 +367,190 @@ describe("retry-safe Cloudflare custom-hostname writes", () => {
     expect(client.getHostname).toHaveBeenCalledOnce();
     expect(store.recordProviderResult).toHaveBeenCalledOnce();
     expect(store.complete).toHaveBeenCalledWith(attemptId, leaseTwo);
+  });
+});
+
+describe("retry-safe Cloudflare custom-hostname deletions", () => {
+  it("turns an ambiguous DELETE into durable lookup-only reconciliation", async () => {
+    let state: "new" | "lookup" | "provider_absent" | "completed" = "new";
+    const store: CustomHostnameDeleteStore = {
+      authorizeDeleteAfterLookup: vi.fn(async () => undefined),
+      claim: vi.fn(async (): Promise<CustomHostnameDeleteClaim> => {
+        if (state === "new") {
+          return {
+            attemptId,
+            disposition: "delete",
+            leaseToken: leaseOne,
+          };
+        }
+        if (state === "lookup") {
+          return {
+            attemptId,
+            disposition: "lookup",
+            leaseToken: leaseTwo,
+          };
+        }
+        if (state === "provider_absent") {
+          return {
+            attemptId,
+            disposition: "reconcile",
+            leaseToken: leaseTwo,
+          };
+        }
+        return {
+          attemptId,
+          disposition: "completed",
+          leaseToken: null,
+        };
+      }),
+      complete: vi.fn(async () => {
+        state = "completed";
+      }),
+      markLookupRequired: vi.fn(async () => {
+        state = "lookup";
+      }),
+      recordProviderAbsent: vi.fn(async () => {
+        state = "provider_absent";
+      }),
+      releaseLookup: vi.fn(async () => undefined),
+    };
+    const client = {
+      deleteHostname: vi.fn(async () => {
+        throw new Error("response lost after remote commit");
+      }),
+      findHostnameById: vi.fn(async () => null),
+    };
+    const execute = () =>
+      executeRetrySafeCustomHostnameDelete({
+        brandId,
+        client,
+        hostname: hostnameResult.hostname,
+        leaseOwner: "hostname-delete:test",
+        organizationId,
+        providerHostnameId: hostnameResult.externalId,
+        store,
+      });
+
+    await expect(execute()).rejects.toThrow(/requires provider reconciliation/);
+    await expect(execute()).resolves.toBeUndefined();
+    expect(client.deleteHostname).toHaveBeenCalledOnce();
+    expect(client.findHostnameById).toHaveBeenCalledOnce();
+    expect(store.markLookupRequired).toHaveBeenCalledWith(
+      attemptId,
+      leaseOne,
+      "DELETE_RESULT_UNKNOWN",
+    );
+    expect(store.recordProviderAbsent).toHaveBeenCalledWith(
+      attemptId,
+      leaseTwo,
+    );
+    expect(store.complete).toHaveBeenCalledWith(attemptId, leaseTwo);
+  });
+
+  it("retries DELETE only after a provider lookup confirms the target remains", async () => {
+    let state: "new" | "lookup" | "provider_absent" | "completed" = "new";
+    const store: CustomHostnameDeleteStore = {
+      authorizeDeleteAfterLookup: vi.fn(async () => undefined),
+      claim: vi.fn(async (): Promise<CustomHostnameDeleteClaim> =>
+        state === "new"
+          ? {
+              attemptId,
+              disposition: "delete",
+              leaseToken: leaseOne,
+            }
+          : {
+              attemptId,
+              disposition: "lookup",
+              leaseToken: leaseTwo,
+            }),
+      complete: vi.fn(async () => {
+        state = "completed";
+      }),
+      markLookupRequired: vi.fn(async () => {
+        state = "lookup";
+      }),
+      recordProviderAbsent: vi.fn(async () => {
+        state = "provider_absent";
+      }),
+      releaseLookup: vi.fn(async () => undefined),
+    };
+    const client = {
+      deleteHostname: vi
+        .fn<() => Promise<void>>()
+        .mockRejectedValueOnce(new Error("response lost"))
+        .mockResolvedValueOnce(),
+      findHostnameById: vi.fn(async () => hostnameResult),
+    };
+    const execute = () =>
+      executeRetrySafeCustomHostnameDelete({
+        brandId,
+        client,
+        hostname: hostnameResult.hostname,
+        leaseOwner: "hostname-delete:test",
+        organizationId,
+        providerHostnameId: hostnameResult.externalId,
+        store,
+      });
+
+    await expect(execute()).rejects.toThrow(/requires provider reconciliation/);
+    await expect(execute()).resolves.toBeUndefined();
+    expect(client.findHostnameById).toHaveBeenCalledOnce();
+    expect(store.authorizeDeleteAfterLookup).toHaveBeenCalledWith(
+      attemptId,
+      leaseTwo,
+    );
+    expect(client.deleteHostname).toHaveBeenCalledTimes(2);
+  });
+
+  it("reconciles local persistence without another provider request", async () => {
+    let state: "new" | "provider_absent" | "completed" = "new";
+    let completionAttempts = 0;
+    const store: CustomHostnameDeleteStore = {
+      authorizeDeleteAfterLookup: vi.fn(async () => undefined),
+      claim: vi.fn(async (): Promise<CustomHostnameDeleteClaim> =>
+        state === "new"
+          ? {
+              attemptId,
+              disposition: "delete",
+              leaseToken: leaseOne,
+            }
+          : {
+              attemptId,
+              disposition: "reconcile",
+              leaseToken: leaseTwo,
+            }),
+      complete: vi.fn(async () => {
+        completionAttempts += 1;
+        if (completionAttempts === 1) {
+          throw new Error("database unavailable");
+        }
+        state = "completed";
+      }),
+      markLookupRequired: vi.fn(async () => undefined),
+      recordProviderAbsent: vi.fn(async () => {
+        state = "provider_absent";
+      }),
+      releaseLookup: vi.fn(async () => undefined),
+    };
+    const client = {
+      deleteHostname: vi.fn(async () => undefined),
+      findHostnameById: vi.fn(async () => null),
+    };
+    const execute = () =>
+      executeRetrySafeCustomHostnameDelete({
+        brandId,
+        client,
+        hostname: hostnameResult.hostname,
+        leaseOwner: "hostname-delete:test",
+        organizationId,
+        providerHostnameId: hostnameResult.externalId,
+        store,
+      });
+
+    await expect(execute()).rejects.toThrow(/database unavailable/);
+    await expect(execute()).resolves.toBeUndefined();
+    expect(client.deleteHostname).toHaveBeenCalledOnce();
+    expect(client.findHostnameById).not.toHaveBeenCalled();
+    expect(store.complete).toHaveBeenCalledTimes(2);
   });
 });

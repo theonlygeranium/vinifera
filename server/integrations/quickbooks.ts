@@ -52,11 +52,19 @@ export interface QuickBooksReceipt {
   transactionDate: string;
 }
 
+export interface QuickBooksRefreshLease {
+  credentialGeneration: number;
+  leaseToken: string;
+}
+
 interface QuickBooksClientOptions {
+  claimRefreshLease?: () => Promise<QuickBooksRefreshLease>;
   fetcher?: (input: Request) => Promise<Response>;
   persistRotatedCredentials: (
     credentials: QuickBooksCredentials,
+    lease?: QuickBooksRefreshLease,
   ) => Promise<void>;
+  releaseRefreshLease?: (lease: QuickBooksRefreshLease) => Promise<void>;
   sleep?: IntegrationRequestOptions["sleep"];
 }
 
@@ -116,52 +124,61 @@ export class QuickBooksClient {
     const existing = refreshLocks.get(this.integrationId);
     if (existing) return existing;
     const refresh = (async () => {
-      const response = await requestIntegrationJson<{
-        access_token: string;
-        expires_in: number;
-        refresh_token: string;
-        x_refresh_token_expires_in?: number;
-      }>({
-        attempts: 1,
-        fetcher: this.options.fetcher,
-        request: providerRequest(
-          "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
-          {
-            body: new URLSearchParams({
-              grant_type: "refresh_token",
-              refresh_token: this.credentials.refreshToken,
-            }),
-            headers: {
-              Accept: "application/json",
-              Authorization: `Basic ${Buffer.from(
-                `${this.configuration.clientId}:${this.configuration.clientSecret}`,
-              ).toString("base64")}`,
-              "Content-Type": "application/x-www-form-urlencoded",
+      const lease = await this.options.claimRefreshLease?.();
+      try {
+        const response = await requestIntegrationJson<{
+          access_token: string;
+          expires_in: number;
+          refresh_token: string;
+          x_refresh_token_expires_in?: number;
+        }>({
+          attempts: 1,
+          fetcher: this.options.fetcher,
+          request: providerRequest(
+            "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
+            {
+              body: new URLSearchParams({
+                grant_type: "refresh_token",
+                refresh_token: this.credentials.refreshToken,
+              }),
+              headers: {
+                Accept: "application/json",
+                Authorization: `Basic ${Buffer.from(
+                  `${this.configuration.clientId}:${this.configuration.clientSecret}`,
+                ).toString("base64")}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+              },
+              method: "POST",
             },
-            method: "POST",
-          },
-        ),
-        sleep: this.options.sleep,
-      });
-      const now = Date.now();
-      const rotated: QuickBooksCredentials = {
-        ...this.credentials,
-        accessToken: response.access_token,
-        accessTokenExpiresAt: new Date(
-          now + Math.max(60, response.expires_in) * 1_000,
-        ).toISOString(),
-        refreshToken: response.refresh_token,
-        refreshTokenExpiresAt: response.x_refresh_token_expires_in
-          ? new Date(
-              now + response.x_refresh_token_expires_in * 1_000,
-            ).toISOString()
-          : this.credentials.refreshTokenExpiresAt,
-      };
-      // Rolling refresh tokens must be durably replaced before any caller uses
-      // the new access token. A persistence failure leaves this client unusable.
-      await this.options.persistRotatedCredentials(rotated);
-      this.credentials = rotated;
-      return rotated;
+          ),
+          sleep: this.options.sleep,
+        });
+        const now = Date.now();
+        const rotated: QuickBooksCredentials = {
+          ...this.credentials,
+          accessToken: response.access_token,
+          accessTokenExpiresAt: new Date(
+            now + Math.max(60, response.expires_in) * 1_000,
+          ).toISOString(),
+          refreshToken: response.refresh_token,
+          refreshTokenExpiresAt: response.x_refresh_token_expires_in
+            ? new Date(
+                now + response.x_refresh_token_expires_in * 1_000,
+              ).toISOString()
+            : this.credentials.refreshTokenExpiresAt,
+        };
+        // Rolling refresh tokens must be durably replaced before any caller
+        // uses the new access token. The database lease and generation make
+        // that replacement safe across Worker isolates.
+        await this.options.persistRotatedCredentials(rotated, lease);
+        this.credentials = rotated;
+        return rotated;
+      } catch (error) {
+        if (lease && this.options.releaseRefreshLease) {
+          await this.options.releaseRefreshLease(lease).catch(() => undefined);
+        }
+        throw error;
+      }
     })();
     refreshLocks.set(this.integrationId, refresh);
     try {

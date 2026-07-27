@@ -1,5 +1,7 @@
 import { AppError } from "../lib/errors";
 
+export const MAX_INTEGRATION_RESPONSE_BYTES = 2 * 1024 * 1024;
+
 export interface IntegrationTransport {
   fetch(input: Request): Promise<Response>;
 }
@@ -10,6 +12,7 @@ export interface IntegrationRequestOptions {
   fetcher?: (input: Request) => Promise<Response>;
   request: Request;
   sleep?: (milliseconds: number) => Promise<void>;
+  timeoutMs?: number;
 }
 
 export class IntegrationProviderError extends Error {
@@ -43,13 +46,66 @@ function providerErrorCode(response: Response): string {
   return "provider_rejected_request";
 }
 
+async function boundedResponseText(
+  response: Response,
+  maxBytes = MAX_INTEGRATION_RESPONSE_BYTES,
+): Promise<string> {
+  const declaredLength = response.headers.get("content-length");
+  if (declaredLength) {
+    const bytes = Number(declaredLength);
+    if (Number.isFinite(bytes) && bytes > maxBytes) {
+      throw new IntegrationProviderError(
+        "provider_response_too_large",
+        502,
+        false,
+      );
+    }
+  }
+  if (!response.body) return "";
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      receivedBytes += value.byteLength;
+      if (receivedBytes > maxBytes) {
+        try {
+          await reader.cancel("Integration response exceeded the byte limit.");
+        } catch {
+          // The bounded read still fails closed if the upstream stream rejects cancellation.
+        }
+        throw new IntegrationProviderError(
+          "provider_response_too_large",
+          502,
+          false,
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(receivedBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(body);
+}
+
 export async function requestIntegrationJson<T>(
   options: IntegrationRequestOptions,
 ): Promise<T> {
   const attempts = Math.min(5, Math.max(1, options.attempts ?? 3));
   const baseDelayMs = Math.max(1, options.baseDelayMs ?? 250);
+  const timeoutMs = Math.min(30_000, Math.max(100, options.timeoutMs ?? 15_000));
   const fetcher: (input: Request) => Promise<Response> =
-    options.fetcher ?? ((request) => fetch(request as never));
+    options.fetcher ?? ((request) => fetch(request));
   const sleep =
     options.sleep ??
     ((milliseconds: number) =>
@@ -57,11 +113,28 @@ export async function requestIntegrationJson<T>(
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const response = await fetcher(options.request.clone() as never);
+      const response = await fetcher(
+        new Request(options.request, {
+          redirect: "error",
+          signal: AbortSignal.any([
+            options.request.signal,
+            AbortSignal.timeout(timeoutMs),
+          ]),
+        }),
+      );
       if (response.ok) {
         if (response.status === 204) return undefined as T;
-        const body = await response.text();
-        return body ? (JSON.parse(body) as T) : (undefined as T);
+        const body = await boundedResponseText(response);
+        if (!body) return undefined as T;
+        try {
+          return JSON.parse(body) as T;
+        } catch {
+          throw new IntegrationProviderError(
+            "provider_invalid_response",
+            502,
+            false,
+          );
+        }
       }
       const retryable = response.status === 429 || response.status >= 500;
       const error = new IntegrationProviderError(
@@ -77,16 +150,27 @@ export async function requestIntegrationJson<T>(
           Math.min(30_000, baseDelayMs * 2 ** (attempt - 1)),
       );
     } catch (error) {
-      if (error instanceof IntegrationProviderError) {
-        lastError = error;
-        if (!error.retryable || attempt === attempts) throw error;
+      const normalizedError =
+        error instanceof DOMException &&
+        (error.name === "AbortError" || error.name === "TimeoutError")
+          ? new IntegrationProviderError(
+              "provider_timeout",
+              504,
+              true,
+            )
+          : error;
+      if (normalizedError instanceof IntegrationProviderError) {
+        lastError = normalizedError;
+        if (!normalizedError.retryable || attempt === attempts) {
+          throw normalizedError;
+        }
         await sleep(
-          error.retryAfterMs ??
+          normalizedError.retryAfterMs ??
             Math.min(30_000, baseDelayMs * 2 ** (attempt - 1)),
         );
         continue;
       }
-      lastError = error;
+      lastError = normalizedError;
       if (attempt === attempts) break;
       await sleep(Math.min(30_000, baseDelayMs * 2 ** (attempt - 1)));
     }
@@ -118,5 +202,8 @@ export function providerRequest(
       "Integration providers must use HTTPS.",
     );
   }
-  return new Request(parsed, init);
+  return new Request(parsed, {
+    ...init,
+    redirect: "error",
+  });
 }

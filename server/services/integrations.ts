@@ -3,6 +3,7 @@ import mobileIdentity from "../../mobile/app-identity.json";
 import {
   assertAvalaraBaseUrlEnvironment,
   assertProviderEnvironment,
+  assertQuickBooksRedirectUri,
 } from "../config";
 import { AppError, requireConfigured } from "../lib/errors";
 import type {
@@ -16,6 +17,10 @@ import {
   CloudflareCustomHostnameClient,
   type CustomHostnameResult,
 } from "../integrations/cloudflare-domains";
+import {
+  executeRetrySafeCustomHostnameDelete,
+  type CustomHostnameDeleteClaim,
+} from "../integrations/custom-hostname-deletes";
 import {
   executeRetrySafeCustomHostnameWrite,
   type CustomHostnameWriteClaim,
@@ -31,6 +36,7 @@ import {
   QuickBooksClient,
   quickBooksAuthorizationUrl,
   type QuickBooksOAuthConfiguration,
+  type QuickBooksRefreshLease,
 } from "../integrations/quickbooks";
 import {
   buildHashedMetaUserData,
@@ -281,6 +287,7 @@ interface IntegrationConnectionRow {
 interface IntegrationRuntimeRow {
   brand_id: string | null;
   connection_id: string;
+  credential_generation: number;
   credential_ciphertext: string | null;
   algorithm: "A256GCM" | null;
   credential_iv: string | null;
@@ -349,6 +356,135 @@ function hasSecretKey(value: unknown): boolean {
 
 function byteLength(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value), "utf8");
+}
+
+const PROVIDER_MAPPING_ID = /^[A-Za-z0-9_.:-]{1,255}$/;
+const KLAVIYO_PROPERTY = /^[A-Za-z_][A-Za-z0-9_.]{0,99}$/;
+const KLAVIYO_LIST_ID = /^[A-Za-z0-9_-]{4,128}$/;
+
+function configuredMappingValue(
+  config: Record<string, unknown>,
+  key: string,
+  fallback: string,
+  pattern: RegExp,
+): string {
+  const value =
+    typeof config[key] === "string" ? config[key].trim() : fallback;
+  if (!pattern.test(value)) {
+    throw new AppError(
+      400,
+      "invalid_request",
+      `The ${key} provider mapping is invalid.`,
+    );
+  }
+  return value;
+}
+
+export function providerMappingsFromSyncConfig(
+  type: IntegrationType,
+  config: Record<string, unknown>,
+): {
+  accountMappings: Array<Record<string, unknown>>;
+  fieldMappings: Array<Record<string, unknown>>;
+  listMappings: Array<Record<string, unknown>>;
+} {
+  if (type === "klaviyo") {
+    const email = configuredMappingValue(
+      config,
+      "memberEmailField",
+      "email",
+      KLAVIYO_PROPERTY,
+    );
+    const tier = configuredMappingValue(
+      config,
+      "memberTierField",
+      "club_tier",
+      KLAVIYO_PROPERTY,
+    );
+    const churn = configuredMappingValue(
+      config,
+      "churnRiskField",
+      "churn_risk",
+      KLAVIYO_PROPERTY,
+    );
+    const riskLevel = `${churn}_level`;
+    if (!KLAVIYO_PROPERTY.test(riskLevel)) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "The churnRiskField provider mapping is too long.",
+      );
+    }
+    const listId =
+      typeof config.listId === "string" && config.listId.trim()
+        ? config.listId.trim()
+        : null;
+    if (listId && !KLAVIYO_LIST_ID.test(listId)) {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "The Klaviyo default member list ID is invalid.",
+      );
+    }
+    return {
+      accountMappings: [],
+      fieldMappings: [
+        ["email", email],
+        ["first_name", "first_name"],
+        ["last_name", "last_name"],
+        ["club_tier_id", tier],
+        ["joined_on", "joined_on"],
+        ["lifetime_value_cents", "lifetime_value_cents"],
+        ["membership_status", "membership_status"],
+        ["churn_risk_score", churn],
+        ["churn_risk_level", riskLevel],
+        ["vinifera_deleted", "vinifera_deleted"],
+      ].map(([vinifera_field, klaviyo_property]) => ({
+        enabled: true,
+        klaviyo_property,
+        vinifera_field,
+      })),
+      listMappings: listId
+        ? [
+            {
+              club_tier_id: null,
+              enabled: true,
+              list_id: listId,
+              membership_status: null,
+            },
+          ]
+        : [],
+    };
+  }
+  if (type === "quickbooks") {
+    const accountId = configuredMappingValue(
+      config,
+      "depositAccountRef",
+      "",
+      PROVIDER_MAPPING_ID,
+    );
+    const itemId = configuredMappingValue(
+      config,
+      "defaultItemRef",
+      "",
+      PROVIDER_MAPPING_ID,
+    );
+    return {
+      accountMappings: ["membership", "shipping"].map((mapping_kind) => ({
+        club_tier_id: null,
+        mapping_kind,
+        quickbooks_account_id: accountId,
+        quickbooks_item_id: itemId,
+      })),
+      fieldMappings: [],
+      listMappings: [],
+    };
+  }
+  return {
+    accountMappings: [],
+    fieldMappings: [],
+    listMappings: [],
+  };
 }
 
 async function sha256(value: string): Promise<string> {
@@ -552,10 +688,7 @@ function qboConfiguration(env: WorkerEnv): QuickBooksOAuthConfiguration {
       "QUICKBOOKS_CLIENT_SECRET",
     ),
     environment,
-    redirectUri: requireConfigured(
-      env.QUICKBOOKS_REDIRECT_URI,
-      "QUICKBOOKS_REDIRECT_URI",
-    ),
+    redirectUri: assertQuickBooksRedirectUri(env),
   };
 }
 
@@ -1156,6 +1289,35 @@ export class ProductionIntegrationService
     }
   }
 
+  private async persistProviderMappings(
+    type: IntegrationType,
+    connectionId: string,
+    syncConfig: Record<string, unknown>,
+  ): Promise<void> {
+    const mappings = providerMappingsFromSyncConfig(type, syncConfig);
+    if (type === "klaviyo") {
+      const { error } = await this.admin.rpc("replace_klaviyo_mappings", {
+        p_connection_id: connectionId,
+        p_field_mappings: mappings.fieldMappings,
+        p_list_mappings: mappings.listMappings,
+      });
+      if (error) {
+        throw databaseError("The Klaviyo field and list mappings could not be saved.");
+      }
+    } else if (type === "quickbooks") {
+      const { error } = await this.admin.rpc(
+        "replace_quickbooks_account_mappings",
+        {
+          p_connection_id: connectionId,
+          p_mappings: mappings.accountMappings,
+        },
+      );
+      if (error) {
+        throw databaseError("The QuickBooks account mappings could not be saved.");
+      }
+    }
+  }
+
   async listIntegrations(): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff();
     const brandId = await this.activeBrandId(principal);
@@ -1282,6 +1444,7 @@ export class ProductionIntegrationService
     const row = rpcRow(configured);
     const connectionId = String(row?.id ?? "");
     assertUuid(connectionId, "Integration connection");
+    await this.persistProviderMappings(type, connectionId, config);
     if (input.credentials && Object.keys(input.credentials).length) {
       const credentials = this.validateCredentials(
         type,
@@ -1390,6 +1553,11 @@ export class ProductionIntegrationService
         },
       );
       if (error) throw databaseError("The integration configuration could not be updated.");
+      await this.persistProviderMappings(
+        type,
+        existing.id,
+        effectiveSyncConfig,
+      );
     }
     if (input.credentials && Object.keys(input.credentials).length) {
       const credentials = this.validateCredentials(
@@ -2615,7 +2783,7 @@ export class ProductionIntegrationService
     await this.activeBrandId(principal, brandId);
     const { data: domain, error: loadError } = await this.admin
       .from("brand_custom_domains")
-      .select("provider_hostname_id")
+      .select("hostname,provider_hostname_id")
       .eq("organization_id", this.organizationId(principal))
       .eq("brand_id", brandId)
       .neq("status", "disabled")
@@ -2629,13 +2797,142 @@ export class ProductionIntegrationService
         "The custom domain provider identity is missing.",
       );
     }
-    await this.customHostnameClient().deleteHostname(domain.provider_hostname_id);
-    const { error } = await this.admin
-      .from("brand_custom_domains")
-      .update({ status: "disabled" })
-      .eq("organization_id", this.organizationId(principal))
-      .eq("brand_id", brandId);
-    if (error) throw databaseError("The custom domain could not be disabled.");
+    if (typeof domain.hostname !== "string") {
+      throw databaseError("The custom domain identity is invalid.");
+    }
+    const store = {
+      authorizeDeleteAfterLookup: async (
+        attemptId: string,
+        leaseToken: string,
+      ): Promise<void> => {
+        const { error } = await this.admin.rpc(
+          "authorize_custom_hostname_delete_after_lookup",
+          {
+            p_attempt_id: attemptId,
+            p_lease_token: leaseToken,
+          },
+        );
+        if (error) {
+          throw databaseError(
+            "The custom-hostname deletion retry could not be authorized.",
+          );
+        }
+      },
+      claim: async (): Promise<CustomHostnameDeleteClaim> => {
+        const { data, error } = await this.admin.rpc(
+          "claim_custom_hostname_delete_attempt",
+          {
+            p_brand_id: brandId,
+            p_hostname: domain.hostname,
+            p_lease_owner: `hostname-delete:${principal.user.id}`,
+            p_lease_seconds: 120,
+            p_organization_id: this.organizationId(principal),
+            p_provider_hostname_id: domain.provider_hostname_id,
+          },
+        );
+        const row = Array.isArray(data) ? data[0] : data;
+        if (
+          error ||
+          !row ||
+          typeof row.attempt_id !== "string" ||
+          !["busy", "completed", "delete", "lookup", "reconcile"].includes(
+            String(row.disposition),
+          )
+        ) {
+          throw databaseError(
+            "The custom-hostname deletion could not be claimed.",
+          );
+        }
+        return {
+          attemptId: row.attempt_id,
+          disposition:
+            row.disposition as CustomHostnameDeleteClaim["disposition"],
+          leaseToken:
+            typeof row.lease_token === "string" ? row.lease_token : null,
+        };
+      },
+      complete: async (
+        attemptId: string,
+        leaseToken: string,
+      ): Promise<void> => {
+        const { error } = await this.admin.rpc(
+          "complete_custom_hostname_delete_attempt",
+          {
+            p_attempt_id: attemptId,
+            p_lease_token: leaseToken,
+          },
+        );
+        if (error) {
+          throw databaseError(
+            "The custom-hostname deletion could not be completed.",
+          );
+        }
+      },
+      markLookupRequired: async (
+        attemptId: string,
+        leaseToken: string,
+        errorCode: string,
+      ): Promise<void> => {
+        const { error } = await this.admin.rpc(
+          "mark_custom_hostname_delete_lookup_required",
+          {
+            p_attempt_id: attemptId,
+            p_error_code: errorCode,
+            p_lease_token: leaseToken,
+          },
+        );
+        if (error) {
+          throw databaseError(
+            "The custom-hostname deletion lookup state could not be saved.",
+          );
+        }
+      },
+      recordProviderAbsent: async (
+        attemptId: string,
+        leaseToken: string,
+      ): Promise<void> => {
+        const { error } = await this.admin.rpc(
+          "record_custom_hostname_delete_provider_absent",
+          {
+            p_attempt_id: attemptId,
+            p_lease_token: leaseToken,
+          },
+        );
+        if (error) {
+          throw databaseError(
+            "The custom-hostname deletion result could not be saved.",
+          );
+        }
+      },
+      releaseLookup: async (
+        attemptId: string,
+        leaseToken: string,
+        errorCode: string,
+      ): Promise<void> => {
+        const { error } = await this.admin.rpc(
+          "release_custom_hostname_delete_lookup",
+          {
+            p_attempt_id: attemptId,
+            p_error_code: errorCode,
+            p_lease_token: leaseToken,
+          },
+        );
+        if (error) {
+          throw databaseError(
+            "The custom-hostname deletion lookup could not be released.",
+          );
+        }
+      },
+    };
+    await executeRetrySafeCustomHostnameDelete({
+      brandId,
+      client: this.customHostnameClient(),
+      hostname: domain.hostname,
+      leaseOwner: `hostname-delete:${principal.user.id}`,
+      organizationId: this.organizationId(principal),
+      providerHostnameId: domain.provider_hostname_id,
+      store,
+    });
   }
 
   async requestMobileMagicLink(input: {
@@ -3336,6 +3633,7 @@ interface ClaimedIntegrationJob {
   integration_type: IntegrationType;
   job_id: string;
   lease_token: string;
+  max_attempts: number;
   organization_id: string;
   payload: Record<string, unknown>;
   sync_type: string;
@@ -3469,6 +3767,7 @@ async function integrationRuntimeForJob(
   admin: SupabaseClient,
   job: ClaimedIntegrationJob,
 ): Promise<{
+  credentialGeneration: number;
   credentials: Record<string, unknown>;
   storageMode: "encrypted_envelope" | "external_reference";
   syncConfig: Record<string, unknown>;
@@ -3524,7 +3823,19 @@ async function integrationRuntimeForJob(
       "The integration runtime credentials are unavailable.",
     );
   }
+  const credentialGeneration =
+    row.credential_generation === undefined
+      ? 1
+      : Number(row.credential_generation);
+  if (!Number.isSafeInteger(credentialGeneration) || credentialGeneration < 1) {
+    throw new AppError(
+      503,
+      "activation_required",
+      "The integration credential generation is unavailable.",
+    );
+  }
   return {
+    credentialGeneration,
     credentials,
     storageMode: row.storage_mode as
       | "encrypted_envelope"
@@ -3543,6 +3854,7 @@ async function persistQuickBooksRotation(
   admin: SupabaseClient,
   job: ClaimedIntegrationJob,
   credentials: Record<string, unknown>,
+  lease: QuickBooksRefreshLease,
 ): Promise<void> {
   const envelope = await encryptIntegrationCredentials(
     env,
@@ -3553,18 +3865,75 @@ async function persistQuickBooksRotation(
     },
     credentials,
   );
-  const { error } = await admin.rpc("store_integration_credentials", {
-    p_algorithm: envelope.algorithm,
+  const { data, error } = await admin.rpc(
+    "complete_quickbooks_refresh_lease",
+    {
+      p_algorithm: envelope.algorithm,
+      p_connection_id: job.connection_id,
+      p_credential_ciphertext: envelope.ciphertext,
+      p_credential_iv: envelope.iv,
+      p_envelope_version: envelope.version,
+      p_expected_generation: lease.credentialGeneration,
+      p_key_version: envelope.keyVersion,
+      p_lease_token: lease.leaseToken,
+    },
+  );
+  if (
+    error ||
+    !Number.isSafeInteger(Number(data)) ||
+    Number(data) !== lease.credentialGeneration + 1
+  ) {
+    throw databaseError(
+      "The rotated QuickBooks credentials could not be persisted.",
+    );
+  }
+}
+
+async function claimQuickBooksRefreshLease(
+  admin: SupabaseClient,
+  job: ClaimedIntegrationJob,
+  credentialGeneration: number,
+): Promise<QuickBooksRefreshLease> {
+  const { data, error } = await admin.rpc(
+    "claim_quickbooks_refresh_lease",
+    {
+      p_connection_id: job.connection_id,
+      p_expected_generation: credentialGeneration,
+      p_lease_owner: `job:${job.job_id}`,
+      p_lease_seconds: 120,
+    },
+  );
+  const row = rpcRow(data);
+  if (error || !row) {
+    throw databaseError("The QuickBooks refresh lease could not be acquired.");
+  }
+  if (row.disposition !== "acquired" || typeof row.lease_token !== "string") {
+    const retryAt = Date.parse(String(row.retry_after ?? ""));
+    throw new IntegrationProviderError(
+      "provider_conflict",
+      409,
+      true,
+      Number.isFinite(retryAt) ? Math.max(1_000, retryAt - Date.now()) : 1_000,
+    );
+  }
+  return {
+    credentialGeneration: Number(row.credential_generation),
+    leaseToken: row.lease_token,
+  };
+}
+
+async function releaseQuickBooksRefreshLease(
+  admin: SupabaseClient,
+  job: ClaimedIntegrationJob,
+  lease: QuickBooksRefreshLease,
+): Promise<void> {
+  const { error } = await admin.rpc("release_quickbooks_refresh_lease", {
     p_connection_id: job.connection_id,
-    p_credential_ciphertext: envelope.ciphertext,
-    p_credential_iv: envelope.iv,
-    p_envelope_version: envelope.version,
-    p_external_secret_ref: null,
-    p_key_version: envelope.keyVersion,
-    p_storage_mode: "encrypted_envelope",
+    p_expected_generation: lease.credentialGeneration,
+    p_lease_token: lease.leaseToken,
   });
   if (error) {
-    throw databaseError("The rotated QuickBooks credentials could not be persisted.");
+    throw databaseError("The QuickBooks refresh lease could not be released.");
   }
 }
 
@@ -3606,7 +3975,21 @@ async function providerForJob(
         runtime.credentials as never,
         qboConfiguration(env),
         {
-          persistRotatedCredentials: (credentials) => {
+          claimRefreshLease: () => {
+            if (runtime.storageMode === "external_reference") {
+              throw new AppError(
+                503,
+                "activation_required",
+                "QuickBooks rolling OAuth tokens require encrypted credential storage.",
+              );
+            }
+            return claimQuickBooksRefreshLease(
+              admin,
+              job,
+              runtime.credentialGeneration,
+            );
+          },
+          persistRotatedCredentials: (credentials, lease) => {
             if (runtime.storageMode === "external_reference") {
               throw new AppError(
                 503,
@@ -3614,13 +3997,23 @@ async function providerForJob(
                 "QuickBooks rotated credentials must be updated in the external integration binding.",
               );
             }
+            if (!lease) {
+              throw new AppError(
+                503,
+                "activation_required",
+                "QuickBooks refresh lease coordination is unavailable.",
+              );
+            }
             return persistQuickBooksRotation(
               env,
               admin,
               job,
               credentials as unknown as Record<string, unknown>,
+              lease,
             );
           },
+          releaseRefreshLease: (lease) =>
+            releaseQuickBooksRefreshLease(admin, job, lease),
         },
       ),
       syncConfig: runtime.syncConfig,
@@ -3716,6 +4109,127 @@ async function executeConnectionValidation(
   return successfulIntegrationJob({ processed: 1 });
 }
 
+export interface KlaviyoFieldMapping {
+  enabled: boolean;
+  klaviyo_property: string;
+  vinifera_field: string;
+}
+
+export interface KlaviyoListMapping {
+  club_tier_id: string | null;
+  enabled: boolean;
+  list_id: string;
+  membership_status: string | null;
+}
+
+function klaviyoChurnRiskLevel(row: Record<string, unknown>): string | null {
+  if (typeof row.churn_risk_level === "string") {
+    return row.churn_risk_level;
+  }
+  const score = Number(row.churn_risk_score);
+  if (!Number.isFinite(score)) return null;
+  return score <= 30 ? "low" : score <= 60 ? "medium" : "high";
+}
+
+function klaviyoSourceValue(
+  row: Record<string, unknown>,
+  field: string,
+): string | number | boolean | null {
+  if (field === "email") return String(row.email ?? "");
+  if (field === "membership_status") return String(row.status ?? "");
+  if (field === "churn_risk_level") return klaviyoChurnRiskLevel(row);
+  if (field === "vinifera_deleted") return Boolean(row.deleted_at);
+  if (field === "lifetime_value_cents") {
+    return Number(row.lifetime_value_cents ?? 0);
+  }
+  if (field === "churn_risk_score") {
+    const score = Number(row.churn_risk_score);
+    return Number.isFinite(score) ? score : null;
+  }
+  const value = row[field];
+  return typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+    ? value
+    : null;
+}
+
+export function buildConfiguredKlaviyoProfile(
+  row: Record<string, unknown>,
+  mappings: KlaviyoFieldMapping[],
+): KlaviyoProfile {
+  const properties: KlaviyoProfile["properties"] = {};
+  let firstName: string | null = null;
+  let lastName: string | null = null;
+  for (const mapping of mappings) {
+    if (!mapping.enabled) continue;
+    const value = klaviyoSourceValue(row, mapping.vinifera_field);
+    if (
+      mapping.vinifera_field === "email" &&
+      mapping.klaviyo_property === "email"
+    ) {
+      continue;
+    }
+    if (
+      mapping.vinifera_field === "first_name" &&
+      mapping.klaviyo_property === "first_name"
+    ) {
+      firstName = typeof value === "string" ? value : null;
+      continue;
+    }
+    if (
+      mapping.vinifera_field === "last_name" &&
+      mapping.klaviyo_property === "last_name"
+    ) {
+      lastName = typeof value === "string" ? value : null;
+      continue;
+    }
+    properties[mapping.klaviyo_property] = value;
+  }
+  return {
+    email: String(row.email ?? ""),
+    externalId: String(row.member_id ?? row.id ?? ""),
+    firstName,
+    lastName,
+    properties,
+  };
+}
+
+export function configuredKlaviyoListIds(
+  row: Record<string, unknown>,
+  mappings: KlaviyoListMapping[],
+): string[] {
+  if (row.deleted_at) return [];
+  const tierId =
+    typeof row.club_tier_id === "string" ? row.club_tier_id : null;
+  const status = typeof row.status === "string" ? row.status : null;
+  return [
+    ...new Set(
+      mappings
+        .filter(
+          (mapping) =>
+            mapping.enabled &&
+            (mapping.club_tier_id === null ||
+              mapping.club_tier_id === tierId) &&
+            (mapping.membership_status === null ||
+              mapping.membership_status === status),
+        )
+        .map((mapping) => mapping.list_id),
+    ),
+  ].sort();
+}
+
+export function unexplainedKlaviyoMissingProfiles(
+  memberIds: string[],
+  providerProfileIds: Record<string, string>,
+  failedProfiles: number,
+): string[] {
+  const unresolved = memberIds.filter(
+    (memberId) => !providerProfileIds[memberId],
+  );
+  return unresolved.slice(Math.max(0, failedProfiles));
+}
+
 async function executeKlaviyoProfiles(
   env: WorkerEnv,
   admin: SupabaseClient,
@@ -3758,16 +4272,103 @@ async function executeKlaviyoProfiles(
       !Array.isArray(job.cursor_data.payloadHashes)
         ? (job.cursor_data.payloadHashes as Record<string, unknown>)
         : {};
-    for (const memberId of memberIds) {
+    const desiredListIds =
+      job.cursor_data.desiredListIds &&
+      typeof job.cursor_data.desiredListIds === "object" &&
+      !Array.isArray(job.cursor_data.desiredListIds)
+        ? (job.cursor_data.desiredListIds as Record<string, unknown>)
+        : {};
+    const providerProfileIds = memberIds.length
+      ? await klaviyo.resolveProfileIds(memberIds)
+      : {};
+    const unexplainedMissing = unexplainedKlaviyoMissingProfiles(
+      memberIds,
+      providerProfileIds,
+      status.failedProfiles,
+    );
+    if (unexplainedMissing.length) {
+      throw new IntegrationProviderError(
+        "provider_unavailable",
+        503,
+        true,
+        5_000,
+      );
+    }
+    const resolvedMemberIds = memberIds.filter(
+      (memberId) => Boolean(providerProfileIds[memberId]),
+    );
+    const { data: existingMappings, error: existingError } =
+      resolvedMemberIds.length
+      ? await admin
+          .from("klaviyo_profile_mappings")
+          .select("member_id,list_ids")
+          .eq("connection_id", job.connection_id)
+          .in("member_id", resolvedMemberIds)
+      : { data: [], error: null };
+    if (existingError) {
+      throw databaseError(
+        "The prior Klaviyo list memberships could not be loaded.",
+      );
+    }
+    const priorLists = new Map(
+      (existingMappings ?? []).map((mapping) => [
+        String(mapping.member_id),
+        Array.isArray(mapping.list_ids)
+          ? mapping.list_ids.filter(
+              (value): value is string => typeof value === "string",
+            )
+          : [],
+      ]),
+    );
+    const additions = new Map<string, string[]>();
+    const removals = new Map<string, string[]>();
+    for (const memberId of resolvedMemberIds) {
+      const profileId = providerProfileIds[memberId]!;
+      const desired = Array.isArray(desiredListIds[memberId])
+        ? (desiredListIds[memberId] as unknown[]).filter(
+            (value): value is string =>
+              typeof value === "string" && KLAVIYO_LIST_ID.test(value),
+          )
+        : [];
+      const previous = priorLists.get(memberId) ?? [];
+      for (const listId of desired.filter(
+        (listId) => !previous.includes(listId),
+      )) {
+        additions.set(listId, [...(additions.get(listId) ?? []), profileId]);
+      }
+      for (const listId of previous.filter(
+        (listId) => !desired.includes(listId),
+      )) {
+        removals.set(listId, [...(removals.get(listId) ?? []), profileId]);
+      }
+    }
+    for (const [listId, profileIds] of additions) {
+      await klaviyo.updateListMembership(listId, profileIds, true);
+    }
+    for (const [listId, profileIds] of removals) {
+      await klaviyo.updateListMembership(listId, profileIds, false);
+    }
+    for (const memberId of resolvedMemberIds) {
       const hash = payloadHashes[memberId];
       if (typeof hash !== "string" || !/^[a-f0-9]{64}$/.test(hash)) continue;
+      const desired = Array.isArray(desiredListIds[memberId])
+        ? (desiredListIds[memberId] as unknown[]).filter(
+            (value): value is string =>
+              typeof value === "string" && KLAVIYO_LIST_ID.test(value),
+          )
+        : [];
       const { error } = await admin.rpc("upsert_klaviyo_profile_mapping", {
         p_connection_id: job.connection_id,
-        p_external_profile_id: memberId,
+        p_external_profile_id: providerProfileIds[memberId],
+        p_list_ids: desired,
         p_member_id: memberId,
         p_payload_hash: hash,
       });
-      if (error) throw databaseError("The Klaviyo profile mapping could not be persisted.");
+      if (error) {
+        throw databaseError(
+          "The Klaviyo profile mapping could not be persisted.",
+        );
+      }
     }
     const afterMemberId =
       typeof job.cursor_data.afterMemberId === "string"
@@ -3788,7 +4389,11 @@ async function executeKlaviyoProfiles(
           p_sync_type: "profiles.page",
         },
       );
-      if (nextError) throw databaseError("The next Klaviyo profile page could not be queued.");
+      if (nextError) {
+        throw databaseError(
+          "The next Klaviyo profile page could not be queued.",
+        );
+      }
     }
     return successfulIntegrationJob({
       failed: status.failedProfiles,
@@ -3811,7 +4416,7 @@ async function executeKlaviyoProfiles(
     ? await admin
         .from("members")
         .select(
-          "id,email,first_name,last_name,status,club_tier_id,lifetime_value_cents,joined_on,updated_at,deleted_at",
+          "id,email,first_name,last_name,status,club_tier_id,lifetime_value_cents,joined_on,churn_risk_score,updated_at,deleted_at",
         )
         .eq("id", deltaMemberId)
         .eq("organization_id", job.organization_id)
@@ -3842,20 +4447,41 @@ async function executeKlaviyoProfiles(
       providerCursor: { afterMemberId: after },
     });
   }
-  const profiles: KlaviyoProfile[] = rows.map((row) => ({
-    email: String(row.email),
-    externalId: String(row.member_id),
-    firstName: typeof row.first_name === "string" ? row.first_name : null,
-    lastName: typeof row.last_name === "string" ? row.last_name : null,
-    properties: {
-      club_tier_id:
-        typeof row.club_tier_id === "string" ? row.club_tier_id : null,
-      joined_on: typeof row.joined_on === "string" ? row.joined_on : null,
-      lifetime_value_cents: Number(row.lifetime_value_cents ?? 0),
-      membership_status: String(row.status ?? ""),
-      vinifera_deleted: Boolean(row.deleted_at),
-    },
-  }));
+  const [
+    { data: fieldMappings, error: fieldMappingError },
+    { data: listMappings, error: listMappingError },
+  ] = await Promise.all([
+    admin
+      .from("klaviyo_field_mappings")
+      .select("vinifera_field,klaviyo_property,enabled")
+      .eq("connection_id", job.connection_id)
+      .eq("brand_id", job.brand_id)
+      .eq("enabled", true),
+    admin
+      .from("klaviyo_list_mappings")
+      .select("club_tier_id,membership_status,list_id,enabled")
+      .eq("connection_id", job.connection_id)
+      .eq("brand_id", job.brand_id)
+      .eq("enabled", true),
+  ]);
+  if (fieldMappingError || listMappingError) {
+    throw databaseError("The configured Klaviyo mappings could not be loaded.");
+  }
+  const profiles = rows.map((row) =>
+    buildConfiguredKlaviyoProfile(
+      row,
+      (fieldMappings ?? []) as KlaviyoFieldMapping[],
+    ),
+  );
+  const desiredLists = Object.fromEntries(
+    rows.map((row) => [
+      String(row.member_id),
+      configuredKlaviyoListIds(
+        row,
+        (listMappings ?? []) as KlaviyoListMapping[],
+      ),
+    ]),
+  );
   const lastMemberId = String(rows.at(-1)?.member_id ?? after ?? "");
   const result = await klaviyo.bulkImportProfiles(
     profiles,
@@ -3872,6 +4498,7 @@ async function executeKlaviyoProfiles(
       bulkJobId: result.jobId,
       hasNextPage: !deltaMemberId && rows.length === 1_000,
       memberIds: rows.map((row) => String(row.member_id)),
+      desiredListIds: desiredLists,
       payloadHashes: Object.fromEntries(
         await Promise.all(
           profiles.map(async (profile) => [
@@ -5482,29 +6109,85 @@ async function enqueueScheduledIntegrationWork(
 export async function runIntegrationSchedule(
   env: WorkerEnv,
   asOf = new Date(),
-): Promise<{ deadLettered: number; processed: number; retried: number }> {
+): Promise<IntegrationDrainReport> {
   const admin = integrationAdmin(env);
   await enqueueScheduledIntegrationWork(admin, asOf);
+  return drainIntegrationJobs(env, asOf, admin);
+}
+
+export interface IntegrationDrainReport {
+  claimed: number;
+  continueImmediately: boolean;
+  deadLettered: number;
+  nextWakeDelaySeconds: number | null;
+  processed: number;
+  retried: number;
+}
+
+export const INTEGRATION_DRAIN_CLAIM_LIMIT = 1;
+
+export function integrationWakeDelaySeconds(input: {
+  asOf: Date;
+  retryTimes: string[];
+}): number | null {
+  const nextRetryAt = input.retryTimes
+    .map((value) => Date.parse(value))
+    .filter(Number.isFinite)
+    .sort((left, right) => left - right)[0];
+  if (nextRetryAt === undefined) return null;
+  return Math.min(
+    12 * 60 * 60,
+    Math.max(0, Math.ceil((nextRetryAt - input.asOf.getTime()) / 1_000)),
+  );
+}
+
+export function failedClaimedIntegrationJob(
+  job: { attempt_count: number; max_attempts: number },
+  error: unknown,
+  asOf: Date,
+): IntegrationJobCompletion {
+  return failedIntegrationJob({
+    asOf,
+    attempt: job.attempt_count,
+    error,
+    maxAttempts: job.max_attempts,
+  });
+}
+
+export async function drainIntegrationJobs(
+  env: WorkerEnv,
+  asOf = new Date(),
+  admin = integrationAdmin(env),
+  claimLimit = INTEGRATION_DRAIN_CLAIM_LIMIT,
+): Promise<IntegrationDrainReport> {
+  // Queue messages are intentionally only wake signals. Every invocation must
+  // claim the authoritative PostgreSQL rows so duplicate delivery is harmless.
+  // Claiming one provider job per invocation prevents a serial batch from
+  // holding leases that can expire before later jobs begin.
   const { data, error } = await admin.rpc("claim_integration_sync_jobs", {
     p_as_of: asOf.toISOString(),
     p_lease_seconds: 120,
-    p_limit: 25,
+    p_limit: claimLimit,
     p_worker: "vinifera-phase5-integrations",
   });
   if (error) throw databaseError("Integration jobs could not be claimed.");
-  const report = { deadLettered: 0, processed: 0, retried: 0 };
-  for (const job of (data ?? []) as ClaimedIntegrationJob[]) {
+  const claimedJobs = (data ?? []) as ClaimedIntegrationJob[];
+  const retryTimes: string[] = [];
+  const report: IntegrationDrainReport = {
+    claimed: claimedJobs.length,
+    continueImmediately: false,
+    deadLettered: 0,
+    nextWakeDelaySeconds: null,
+    processed: 0,
+    retried: 0,
+  };
+  for (const job of claimedJobs) {
     const started = Date.now();
     let completion: IntegrationJobCompletion;
     try {
       completion = await executeIntegrationJob(env, admin, job);
     } catch (jobError) {
-      completion = failedIntegrationJob({
-        asOf,
-        attempt: job.attempt_count,
-        error: jobError,
-        maxAttempts: 8,
-      });
+      completion = failedClaimedIntegrationJob(job, jobError, asOf);
       if (job.sync_type === "connection.validate") {
         await admin.rpc("set_integration_health", {
           p_connection_id: job.connection_id,
@@ -5533,9 +6216,17 @@ export async function runIntegrationSchedule(
       throw databaseError("The integration job outcome could not be persisted.");
     }
     report.processed += completion.processed;
-    if (completion.outcome === "retry") report.retried += 1;
+    if (completion.outcome === "retry") {
+      report.retried += 1;
+      if (completion.nextAttemptAt) retryTimes.push(completion.nextAttemptAt);
+    }
     if (completion.outcome === "dead_letter") report.deadLettered += 1;
   }
+  report.continueImmediately = claimedJobs.length >= claimLimit;
+  report.nextWakeDelaySeconds = integrationWakeDelaySeconds({
+    asOf: new Date(),
+    retryTimes,
+  });
   return report;
 }
 

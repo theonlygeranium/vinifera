@@ -8,14 +8,21 @@ import { runCoreClubSchedule } from "./services/core-club";
 import { reconcileSubscriptionAccess } from "./services/production-foundation";
 import { runRetentionSchedule } from "./services/retention";
 import {
+  drainIntegrationJobs,
   runIntegrationSchedule,
   runMobilePushSchedule,
 } from "./services/integrations";
+import {
+  consumeIntegrationWakeBatch,
+  enqueueIntegrationWake,
+  shouldWakeIntegrationDrain,
+  type IntegrationWakeMessage,
+} from "./integrations/wake-queue";
 import type { WorkerEnv } from "./types";
 
 const API_PORT = 8788;
 const app = createApp({
-  getEnv: () => env as WorkerEnv,
+  getEnv: () => env,
 });
 const server = createServer(app);
 server.listen(API_PORT);
@@ -92,10 +99,11 @@ async function serveStaticAsset(
 export default {
   async fetch(
     request: Request,
-    workerEnv: WorkerEnv,
+    workerEnv: Env,
     context: ExecutionContext,
   ): Promise<Response> {
     const { pathname } = new URL(request.url);
+    const requestMethod = request.method;
     let response: Response;
 
     if (
@@ -114,11 +122,24 @@ export default {
       response = await serveStaticAsset(request, workerEnv);
     }
 
+    if (shouldWakeIntegrationDrain(requestMethod, pathname, response.status)) {
+      context.waitUntil(
+        enqueueIntegrationWake(workerEnv).catch((error) => {
+          console.error(
+            JSON.stringify({
+              event: "integration.wake_enqueue_failed",
+              errorClass:
+                error instanceof Error ? error.name : "UnknownError",
+            }),
+          );
+        }),
+      );
+    }
     return withSecurityHeaders(response);
   },
   async scheduled(
     _controller: ScheduledController,
-    workerEnv: WorkerEnv,
+    workerEnv: Env,
     context: ExecutionContext,
   ): Promise<void> {
     context.waitUntil(
@@ -126,7 +147,21 @@ export default {
         runAnalyticsSchedule(workerEnv),
         reconcileSubscriptionAccess(workerEnv),
         runCoreClubSchedule(workerEnv),
-        runIntegrationSchedule(workerEnv),
+        runIntegrationSchedule(workerEnv).then((report) =>
+          Promise.all([
+            ...(report.continueImmediately
+              ? [enqueueIntegrationWake(workerEnv)]
+              : []),
+            ...(report.nextWakeDelaySeconds === null
+              ? []
+              : [
+                  enqueueIntegrationWake(
+                    workerEnv,
+                    report.nextWakeDelaySeconds,
+                  ),
+                ]),
+          ]),
+        ),
         runMobilePushSchedule(workerEnv),
         runRetentionSchedule(workerEnv),
       ]).then((results) => {
@@ -152,4 +187,16 @@ export default {
       }),
     );
   },
-};
+  async queue(
+    batch: MessageBatch<IntegrationWakeMessage>,
+    workerEnv: Env,
+    _context: ExecutionContext,
+  ): Promise<void> {
+    await consumeIntegrationWakeBatch({
+      batch,
+      drain: () => drainIntegrationJobs(workerEnv),
+      enqueueDelayedWake: (delaySeconds) =>
+        enqueueIntegrationWake(workerEnv, delaySeconds),
+    });
+  },
+} satisfies ExportedHandler<Env, IntegrationWakeMessage>;
