@@ -125,6 +125,15 @@ HTTP Request
 protected, `/api` fallback, and centralized error-handler mounts. The error
 handler is registered last.
 
+The service layer is split into domain owners with an explicit acyclic
+dependency direction. `core-club.ts` and `integrations.ts` remain export-only
+compatibility barrels, while production callers import the extracted owner
+directly. The rationale, compatibility boundary, and consequences are recorded
+in the
+[domain service decomposition ADR](./decisions/2026-07-27-domain-service-decomposition.md);
+the symbol-level mapping is maintained in the
+[service manifest](./build-specs/service-manifest.md).
+
 ---
 
 ## Core club loop

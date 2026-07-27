@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../lib/errors";
+import {
+  INTEGRATION_UUID_PATTERN,
+  KLAVIYO_LIST_ID_PATTERN,
+} from "../lib/integration-constants";
 import { sha256 } from "../lib/utils";
 import type { WorkerEnv } from "../types";
 import {
@@ -25,10 +29,6 @@ import {
   providerForJob,
   type ClaimedIntegrationJob,
 } from "./integration-runtime";
-
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const KLAVIYO_LIST_ID = /^[A-Za-z0-9_-]{4,128}$/;
 
 export interface KlaviyoFieldMapping {
   enabled: boolean;
@@ -184,7 +184,7 @@ export async function executeKlaviyoProfiles(
     const memberIds = Array.isArray(job.cursor_data.memberIds)
       ? job.cursor_data.memberIds.filter(
           (value): value is string =>
-            typeof value === "string" && UUID.test(value),
+            typeof value === "string" && INTEGRATION_UUID_PATTERN.test(value),
         )
       : [];
     const payloadHashes =
@@ -248,7 +248,7 @@ export async function executeKlaviyoProfiles(
       const desired = Array.isArray(desiredListIds[memberId])
         ? (desiredListIds[memberId] as unknown[]).filter(
             (value): value is string =>
-              typeof value === "string" && KLAVIYO_LIST_ID.test(value),
+              typeof value === "string" && KLAVIYO_LIST_ID_PATTERN.test(value),
           )
         : [];
       const previous = priorLists.get(memberId) ?? [];
@@ -275,7 +275,7 @@ export async function executeKlaviyoProfiles(
       const desired = Array.isArray(desiredListIds[memberId])
         ? (desiredListIds[memberId] as unknown[]).filter(
             (value): value is string =>
-              typeof value === "string" && KLAVIYO_LIST_ID.test(value),
+              typeof value === "string" && KLAVIYO_LIST_ID_PATTERN.test(value),
           )
         : [];
       const { error } = await admin.rpc("upsert_klaviyo_profile_mapping", {
@@ -523,7 +523,10 @@ export async function runMobilePushSchedule(
   try {
     apns = createApnsPushClient(env);
     fcm = createPushClient(env);
-  } catch {
+  } catch (error) {
+    if (!(error instanceof AppError) || error.code !== "activation_required") {
+      throw error;
+    }
     // Do not claim or burn attempts while deployment credentials are pending.
     return { activationRequired: true, failed: 0, sent: 0 };
   }

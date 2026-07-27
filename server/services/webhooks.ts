@@ -2,6 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import mobileIdentity from "../../mobile/app-identity.json";
 import { assertProviderEnvironment } from "../config";
 import { AppError, requireConfigured } from "../lib/errors";
+import {
+  INTEGRATION_UUID_PATTERN,
+  KLAVIYO_LIST_ID_PATTERN,
+} from "../lib/integration-constants";
 import { assertUuid, camelKey, sha256 } from "../lib/utils";
 import type {
   IntegrationService,
@@ -76,8 +80,6 @@ import {
   type ShipmentPaymentRow,
 } from "./stripe";
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_FONT_FAMILIES = new Set([
   "Arial",
   "Georgia",
@@ -303,8 +305,8 @@ interface IntegrationRuntimeRow {
   sync_config: Record<string, unknown>;
 }
 
-function toPublicValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(toPublicValue);
+function toRedactedPublicValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(toRedactedPublicValue);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
@@ -314,12 +316,12 @@ function toPublicValue(value: unknown): unknown {
             key,
           ),
       )
-      .map(([key, nested]) => [camelKey(key), toPublicValue(nested)]),
+      .map(([key, nested]) => [camelKey(key), toRedactedPublicValue(nested)]),
   );
 }
 
-function toPublicRecord(value: unknown): Record<string, unknown> {
-  return (toPublicValue(value) ?? {}) as Record<string, unknown>;
+function toRedactedPublicRecord(value: unknown): Record<string, unknown> {
+  return (toRedactedPublicValue(value) ?? {}) as Record<string, unknown>;
 }
 
 function hasSecretKey(value: unknown): boolean {
@@ -339,8 +341,6 @@ function byteLength(value: unknown): number {
 
 const PROVIDER_MAPPING_ID = /^[A-Za-z0-9_.:-]{1,255}$/;
 const KLAVIYO_PROPERTY = /^[A-Za-z_][A-Za-z0-9_.]{0,99}$/;
-const KLAVIYO_LIST_ID = /^[A-Za-z0-9_-]{4,128}$/;
-
 function configuredMappingValue(
   config: Record<string, unknown>,
   key: string,
@@ -398,7 +398,7 @@ export function providerMappingsFromSyncConfig(
       typeof config.listId === "string" && config.listId.trim()
         ? config.listId.trim()
         : null;
-    if (listId && !KLAVIYO_LIST_ID.test(listId)) {
+    if (listId && !KLAVIYO_LIST_ID_PATTERN.test(listId)) {
       throw new AppError(
         400,
         "invalid_request",
@@ -1061,7 +1061,7 @@ export class ProductionIntegrationService
     if (error) {
       throw databaseError("The Meta attribution report could not be loaded.");
     }
-    return toPublicRecord(data);
+    return toRedactedPublicRecord(data);
   }
 
   protected async activeBrandId(
@@ -1442,7 +1442,7 @@ export class ProductionIntegrationService
       credentials_configured: Boolean(input.credentials),
       opted_in: input.optedIn,
     });
-    return toPublicRecord(rpcRow(consent) ?? {});
+    return toRedactedPublicRecord(rpcRow(consent) ?? {});
   }
 
   async updateIntegration(
@@ -1530,7 +1530,7 @@ export class ProductionIntegrationService
       if (error) throw databaseError("The integration consent could not be updated.");
     }
     const refreshed = await this.connection(principal, type);
-    return toPublicRecord(refreshed ?? {});
+    return toRedactedPublicRecord(refreshed ?? {});
   }
 
   async disconnectIntegration(type: IntegrationType): Promise<void> {
@@ -1859,7 +1859,7 @@ export class ProductionIntegrationService
       .order("period_end", { ascending: false })
       .limit(24);
     if (error) throw databaseError("QuickBooks reconciliation could not be loaded.");
-    return { items: toPublicValue(data ?? []) };
+    return { items: toRedactedPublicValue(data ?? []) };
   }
 
   async getAvalaraLiability(): Promise<Record<string, unknown>> {
@@ -2261,7 +2261,7 @@ export class ProductionIntegrationService
     await this.audit(principal, "brand.created", "brand", data.id, {
       billing_mode: input.billingMode,
     });
-    return toPublicRecord(data);
+    return toRedactedPublicRecord(data);
   }
 
   async updateBrand(
@@ -2379,7 +2379,10 @@ export class ProductionIntegrationService
           : []),
       ],
     });
-    return { ...toPublicRecord(data), contrast: theme.contrast ?? null };
+    return {
+      ...toRedactedPublicRecord(data),
+      contrast: theme.contrast ?? null,
+    };
   }
 
   async activateBrandSender(
@@ -2439,7 +2442,7 @@ export class ProductionIntegrationService
       },
     );
     return {
-      ...toPublicRecord(rpcRow(saved) ?? {}),
+      ...toRedactedPublicRecord(rpcRow(saved) ?? {}),
       dnsRecords: activation.dnsRecords,
       domain: activation.domain,
       status: activation.status,
@@ -3027,9 +3030,9 @@ export class ProductionIntegrationService
     if (
       !/^[a-f0-9]{64}$/.test(fingerprintHash) ||
       !/^[A-Za-z0-9_-]{20,512}$/.test(input.tokenHash) ||
-      !UUID.test(stateOrganizationId) ||
-      !UUID.test(stateBrandId) ||
-      !UUID.test(stateMemberId)
+      !INTEGRATION_UUID_PATTERN.test(stateOrganizationId) ||
+      !INTEGRATION_UUID_PATTERN.test(stateBrandId) ||
+      !INTEGRATION_UUID_PATTERN.test(stateMemberId)
     ) {
       throw new AppError(401, "unauthorized", "The mobile sign-in link is invalid.");
     }
@@ -3431,7 +3434,7 @@ export class ProductionIntegrationService
         : null,
       cursor: (shipments ?? [])[0]?.created_at ?? null,
       generatedAt: new Date().toISOString(),
-      loyaltyLedger: toPublicValue(ledger ?? []),
+      loyaltyLedger: toRedactedPublicValue(ledger ?? []),
       member: {
         firstName: member.first_name,
         id: member.id,
@@ -3516,7 +3519,7 @@ export class ProductionIntegrationService
         storage_mode: "encrypted_envelope",
       });
     if (secretError) throw databaseError("The mobile push token could not be stored.");
-    return toPublicRecord(device);
+    return toRedactedPublicRecord(device);
   }
 
   async unregisterMobileDevice(deviceFingerprint: string): Promise<void> {
@@ -5337,12 +5340,25 @@ export async function drainIntegrationJobs(
     } catch (jobError) {
       completion = failedClaimedIntegrationJob(job, jobError, asOf);
       if (job.sync_type === "connection.validate") {
-        await admin.rpc("set_integration_health", {
-          p_connection_id: job.connection_id,
-          p_error_code:
-            completion.errorCode?.toUpperCase() ?? "UPSTREAM_ERROR",
-          p_status: "degraded",
-        });
+        const { error: healthError } = await admin.rpc(
+          "set_integration_health",
+          {
+            p_connection_id: job.connection_id,
+            p_error_code:
+              completion.errorCode?.toUpperCase() ?? "UPSTREAM_ERROR",
+            p_status: "degraded",
+          },
+        );
+        if (healthError) {
+          console.error(
+            JSON.stringify({
+              code: healthError.code ?? "upstream_error",
+              connectionId: job.connection_id,
+              event: "integration.health_update_failed",
+              jobId: job.job_id,
+            }),
+          );
+        }
       }
     }
     const { error: completeError } = await admin.rpc(

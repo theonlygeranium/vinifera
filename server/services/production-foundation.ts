@@ -16,6 +16,9 @@ import {
 import { assertStaffRole } from "../lib/authorization";
 import { AppError, requireConfigured } from "../lib/errors";
 import {
+  createSupabaseAdminClient as createAdminClient,
+} from "../lib/supabase-admin";
+import {
   clearMemberAuthLinkContextCookie,
   clearMemberBrandContextCookie,
   issueMemberAuthLinkContext,
@@ -96,13 +99,6 @@ function getPublicKey(env: WorkerEnv): string {
   );
 }
 
-function getSecretKey(env: WorkerEnv): string {
-  return requireConfigured(
-    env.SUPABASE_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY,
-    "SUPABASE_SECRET_KEY",
-  );
-}
-
 function appendAuthCookie(
   response: Response,
   env: WorkerEnv,
@@ -170,16 +166,6 @@ function createSurfaceClient(
           appendAuthCookie(response, env, cookie.name, cookie.value, cookie.options);
         }
       },
-    },
-  });
-}
-
-function createAdminClient(env: WorkerEnv): SupabaseClient {
-  return createClient(requireConfigured(env.SUPABASE_URL, "SUPABASE_URL"), getSecretKey(env), {
-    auth: {
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      persistSession: false,
     },
   });
 }

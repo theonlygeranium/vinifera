@@ -354,12 +354,22 @@ export class EasyPostShippingProvider implements ShippingProvider {
             to_address: toEasyPostAddress(input.toAddress, input.toContact),
           },
         });
+    const persistedRate = recovery?.externalRateId
+      ? [
+          shipment.selected_rate,
+          shipment.lowest_rate,
+          ...(shipment.rates ?? []),
+        ].find((candidate) => candidate?.id === recovery.externalRateId)
+      : undefined;
+    if (recovery?.externalRateId && !persistedRate) {
+      throw new AppError(
+        502,
+        "upstream_error",
+        "The carrier did not return the persisted rate.",
+      );
+    }
     const rate =
-      shipment.rates?.find((candidate) =>
-        recovery?.externalRateId
-          ? candidate.id === recovery.externalRateId
-          : false,
-      ) ??
+      persistedRate ??
       shipment.selected_rate ??
       shipment.lowest_rate ??
       [...(shipment.rates ?? [])].sort(

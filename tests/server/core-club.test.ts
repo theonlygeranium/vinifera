@@ -859,7 +859,9 @@ describe("Phase 2 shipping provider boundary", () => {
     expect(admin.rpc).toHaveBeenCalledWith(
       "apply_member_portal_address_command",
       expect.objectContaining({
+        p_auth_user_id: memberPrincipal.user.authUserId,
         p_command_id: commandId,
+        p_member_id: memberPrincipal.user.id,
         p_validated_address: address,
       }),
     );

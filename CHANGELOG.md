@@ -10,6 +10,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Refactored
 
+- **What changed:** Exact-head review cleanup moved the shared bounded
+  concurrency helper, integration UUID/Klaviyo patterns, and Supabase admin
+  client into `server/lib/concurrency.ts`,
+  `server/lib/integration-constants.ts`, and
+  `server/lib/supabase-admin.ts`. The extracted analytics, communications,
+  integration-runtime, member, order, foundation, retention, Stripe, and
+  webhook services now reuse those neutral owners without introducing a
+  service cycle; the Stripe compatibility export remains available. Three
+  caller-free release helpers were removed, and webhook serialization helpers
+  were renamed to make their redaction behavior explicit. **Why:** CodeRabbit
+  identified duplicate primitives, ambiguous redaction names, and dead
+  post-extraction code that could drift independently. **Deployment impact:**
+  Internal service organization only; no route, database migration, provider
+  activation, secret, Pages, or hosted state changes. **Verification:**
+  TypeScript, 386/386 Vitest tests, Vite and Worker builds, `git diff --check`,
+  18-service/37-edge graph audit with zero cycles, and zero route imports from
+  the compatibility integration barrel.
 - **What changed:** Integrated the verified review-hardening `main` baseline
   into BS-03 and transplanted its release-wine identity/replay update from the
   retired service monolith into `server/services/orders.ts`, while keeping
@@ -45,6 +62,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Exact-head review hardening now defers mobile push only for
+  `activation_required` and surfaces APNs configuration mismatches; requires
+  EasyPost recovery to find the exact persisted rate; rejects invalid
+  QuickBooks refresh-lease generations; passes the authenticated Supabase user
+  ID to the member-address command; and records a structured error when an
+  integration-health downgrade fails without blocking job completion. Focused
+  regressions were added to `tests/server/core-club.test.ts`,
+  `tests/server/phase4-services.test.ts`, and
+  `tests/server/phase5-integrations.test.ts`. **Why:** CodeRabbit found five
+  fail-open, reconciliation, identity, or observability defects in the
+  extracted owners. **Deployment impact:** Worker error handling and
+  fail-closed provider behavior change for misconfiguration and invalid
+  recovery state; no migration, secret value, provider activation, Pages
+  route, or hosted mutation is required. **Verification:** Focused service
+  tests 114/114, full Vitest 386/386, TypeScript, Vite build, Worker dry run,
+  and fresh exact-head automated reviews.
 - Updated the preserved BS-02 route manifest to include BS-04's path-specific
   rate-limit layer in registration order, and added an explicit BS-03 change
   record to the compatibility-barrel Greptile guidance.
@@ -179,6 +212,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added the domain-service decomposition ADR and linked architecture guidance,
+  documenting extracted ownership, dependency direction, neutral shared
+  primitives, compatibility barrels, and the requirement to review behavioral
+  changes separately from structural moves.
 - Added the BS-03 `server/services/` extraction skeleton for members, clubs,
   orders, Stripe, EasyPost, communications, webhooks, and the service barrel;
   the pre-existing analytics module remains intact.

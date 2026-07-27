@@ -235,6 +235,17 @@ The extraction is integrated with the BS-02 route layer, BS-04 observability
 and rate-limit boundary, and BS-06 tenancy hardening. `core-club.ts` and
 `integrations.ts` contain only compatibility exports; production runtime and
 route code imports the extracted owner directly. The only intentional
-post-extraction service-body change is BS-06's five
-`getMobileBootstrap()` organization/brand predicates in `webhooks.ts`, backed
-by the focused cross-organization and same-organization/cross-brand test.
+post-extraction tenant-query change is BS-06's five `getMobileBootstrap()`
+organization/brand predicates in `webhooks.ts`, backed by the focused
+cross-organization and same-organization/cross-brand test.
+
+Exact-head review subsequently moved byte-identical concurrency,
+integration-pattern, and Supabase-admin primitives into neutral `server/lib/`
+owners, removed three proven caller-free release helpers, and clarified the
+name of the webhook-only redacting serializers. Five separately tested
+correctness changes surface APNs configuration errors, require the persisted
+EasyPost recovery rate, validate QuickBooks lease generations, pass the
+authenticated user identifier to the member-address command, and log a failed
+integration-health downgrade without blocking job completion. These reviewed
+changes are recorded separately from the extraction so the structural
+equivalence claim remains auditable.

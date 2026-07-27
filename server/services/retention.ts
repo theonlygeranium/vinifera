@@ -1,6 +1,7 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Request, Response } from "express";
 import { AppError, requireConfigured } from "../lib/errors";
+import { createSupabaseAdminClient } from "../lib/supabase-admin";
 import { assertUuid, camelKey, sha256 } from "../lib/utils";
 import { getConfigurationReport } from "../config";
 import type {
@@ -96,21 +97,6 @@ export interface ChurnScore {
   contributingFactors: ChurnFactor[];
   riskLevel: "low" | "medium" | "high";
   score: number;
-}
-
-function createAdminClient(env: WorkerEnv): SupabaseClient {
-  const url = requireConfigured(env.SUPABASE_URL, "SUPABASE_URL");
-  const secret = requireConfigured(
-    env.SUPABASE_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY,
-    "SUPABASE_SECRET_KEY",
-  );
-  return createClient(url, secret, {
-    auth: {
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      persistSession: false,
-    },
-  });
 }
 
 function databaseError(message: string): AppError {
@@ -2957,7 +2943,7 @@ export async function runRetentionSchedule(
   loyaltyEventsProcessed: number;
   membersResumed: number;
 }> {
-  const admin = dependencies.admin ?? createAdminClient(env);
+  const admin = dependencies.admin ?? createSupabaseAdminClient(env);
   const failures: string[] = [];
   const { error: enqueueError } = await admin.rpc("enqueue_due_email_triggers", {
     p_as_of: asOf.toISOString(),

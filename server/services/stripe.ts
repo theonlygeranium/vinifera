@@ -12,6 +12,7 @@ import {
   assertStripeBillingAuthority,
   stripeCredentialMode,
 } from "../config";
+import { mapConcurrent } from "../lib/concurrency";
 import { AppError, requireConfigured } from "../lib/errors";
 import { assertUuid, sha256 } from "../lib/utils";
 import type {
@@ -41,6 +42,7 @@ export {
   brandAllowsOperationalAccess,
   type ShipmentPaymentRow,
 } from "./members";
+export { mapConcurrent } from "../lib/concurrency";
 
 const STRIPE_API_VERSION = "2026-02-25.clover";
 
@@ -1665,7 +1667,6 @@ export async function requeueSystemAttempt(
   }
 }
 
-
 export async function executeScheduledRetry(
   retry: ScheduledRetryRow,
   charge: () => Promise<"charged" | "declined">,
@@ -1677,27 +1678,4 @@ export async function executeScheduledRetry(
     await requeue(retry);
     return "failed";
   }
-}
-
-
-export async function mapConcurrent<T, R>(
-  values: T[],
-  concurrency: number,
-  operation: (value: T) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(values.length);
-  let cursor = 0;
-  const worker = async (): Promise<void> => {
-    while (cursor < values.length) {
-      const index = cursor;
-      cursor += 1;
-      const value = values[index];
-      if (value === undefined) return;
-      results[index] = await operation(value);
-    }
-  };
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, values.length) }, () => worker()),
-  );
-  return results;
 }

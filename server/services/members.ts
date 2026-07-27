@@ -9,6 +9,7 @@ import {
   usesSecureCookies,
 } from "../config";
 import { assertStaffRole } from "../lib/authorization";
+import { mapConcurrent } from "../lib/concurrency";
 import {
   ANALYTICS_EVENT_TYPES,
   analyticsEventIdempotencyKey,
@@ -17,6 +18,7 @@ import {
 import { encodeCsvCell } from "../lib/csv";
 import { AppError, requireConfigured } from "../lib/errors";
 import { assertUuid, camelKey, sha256 } from "../lib/utils";
+import { createSupabaseAdminClient } from "../lib/supabase-admin";
 import {
   readMemberBrandContextCookie,
   verifyMemberBrandContext,
@@ -146,20 +148,7 @@ function normalizeEmail(value: string): string {
   return value.trim().toLocaleLowerCase("en-US");
 }
 
-export function createAdminClient(env: WorkerEnv): SupabaseClient {
-  const url = requireConfigured(env.SUPABASE_URL, "SUPABASE_URL");
-  const secret = requireConfigured(
-    env.SUPABASE_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY,
-    "SUPABASE_SECRET_KEY",
-  );
-  return createClient(url, secret, {
-    auth: {
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      persistSession: false,
-    },
-  });
-}
+export const createAdminClient = createSupabaseAdminClient;
 
 function createSurfaceClient(
   env: WorkerEnv,
@@ -2218,7 +2207,7 @@ export class CoreClubMemberService {
     const { data, error } = await this.admin.rpc(
       "apply_member_portal_address_command",
       {
-        p_auth_user_id: principal.user.id,
+        p_auth_user_id: principal.user.authUserId,
         p_brand_id: principal.brand.id,
         p_command_id: commandId,
         p_member_id: principal.user.id,
@@ -2266,26 +2255,4 @@ export class CoreClubMemberService {
       valid: result.valid,
     };
   }
-}
-
-async function mapConcurrent<T, R>(
-  values: T[],
-  concurrency: number,
-  operation: (value: T) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(values.length);
-  let cursor = 0;
-  const worker = async (): Promise<void> => {
-    while (cursor < values.length) {
-      const index = cursor;
-      cursor += 1;
-      const value = values[index];
-      if (value === undefined) return;
-      results[index] = await operation(value);
-    }
-  };
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, values.length) }, () => worker()),
-  );
-  return results;
 }

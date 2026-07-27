@@ -1,8 +1,9 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Request, Response } from "express";
 import { getConfigurationReport } from "../config";
 import { encodeCsvRows } from "../lib/csv";
-import { AppError, requireConfigured } from "../lib/errors";
+import { AppError } from "../lib/errors";
+import { createSupabaseAdminClient } from "../lib/supabase-admin";
 import { assertUuid, camelKey, numeric, sha256 } from "../lib/utils";
 import {
   ANALYTICS_EVENT_TYPES,
@@ -75,23 +76,6 @@ interface DueBenchmarkReport {
   sample_count_band?: string | null;
   schedule_id: string;
   staff_user_id: string;
-}
-
-function createAdminClient(env: WorkerEnv): SupabaseClient {
-  return createClient(
-    requireConfigured(env.SUPABASE_URL, "SUPABASE_URL"),
-    requireConfigured(
-      env.SUPABASE_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY,
-      "SUPABASE_SECRET_KEY",
-    ),
-    {
-      auth: {
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-        persistSession: false,
-      },
-    },
-  );
 }
 
 function databaseError(message: string): AppError {
@@ -561,7 +545,7 @@ export async function runProductionMlTraining(
   trainingRunId: string | null;
 }> {
   const asOf = input.asOf ?? new Date();
-  const admin = createAdminClient(env);
+  const admin = createSupabaseAdminClient(env);
   // Outcomes need a complete 90-day observation window. The holdout period is
   // therefore cut off 90 days before execution to prevent future leakage.
   const holdoutEnd = isoDateOffset(asOf, -90);
@@ -827,7 +811,7 @@ export async function recordMlTrainingSourceQualification(
       "The ML dataset hash must be a lowercase SHA-256 value.",
     );
   }
-  const admin = createAdminClient(env);
+  const admin = createSupabaseAdminClient(env);
   const { data: actor, error: actorError } = await admin
     .from("platform_users")
     .select("id")
@@ -3168,7 +3152,7 @@ export async function runAnalyticsSchedule(
   predictions: number;
   reportsQueued: number;
 }> {
-  const admin = createAdminClient(env);
+  const admin = createSupabaseAdminClient(env);
   let reportsQueued = 0;
   let featureSnapshots = 0;
   let predictions = 0;

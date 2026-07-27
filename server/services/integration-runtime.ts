@@ -1,10 +1,11 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   assertAvalaraBaseUrlEnvironment,
   assertProviderEnvironment,
   assertQuickBooksRedirectUri,
 } from "../config";
 import { AppError, requireConfigured } from "../lib/errors";
+import { createSupabaseAdminClient } from "../lib/supabase-admin";
 import type {
   IntegrationType,
   WorkerEnv,
@@ -78,22 +79,7 @@ export interface ClaimedIntegrationJob {
   sync_type: string;
 }
 
-export function integrationAdmin(env: WorkerEnv): SupabaseClient {
-  return createClient(
-    requireConfigured(env.SUPABASE_URL, "SUPABASE_URL"),
-    requireConfigured(
-      env.SUPABASE_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY,
-      "SUPABASE_SECRET_KEY",
-    ),
-    {
-      auth: {
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-        persistSession: false,
-      },
-    },
-  );
-}
+export const integrationAdmin = createSupabaseAdminClient;
 
 async function integrationRuntimeForJob(
   env: WorkerEnv,
@@ -250,8 +236,20 @@ async function claimQuickBooksRefreshLease(
       Number.isFinite(retryAt) ? Math.max(1_000, retryAt - Date.now()) : 1_000,
     );
   }
+  const leaseCredentialGeneration = Number(row.credential_generation);
+  if (
+    !Number.isSafeInteger(leaseCredentialGeneration) ||
+    leaseCredentialGeneration < 1
+  ) {
+    throw new IntegrationProviderError(
+      "provider_conflict",
+      409,
+      true,
+      1_000,
+    );
+  }
   return {
-    credentialGeneration: Number(row.credential_generation),
+    credentialGeneration: leaseCredentialGeneration,
     leaseToken: row.lease_token,
   };
 }

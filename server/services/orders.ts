@@ -1,4 +1,5 @@
 import { assertStripeBillingAuthority } from "../config";
+import { mapConcurrent } from "../lib/concurrency";
 import { AppError } from "../lib/errors";
 import { assertUuid } from "../lib/utils";
 import type {
@@ -44,7 +45,6 @@ import {
   CoreClubStripeService,
   createStripe,
   executeScheduledRetry,
-  mapConcurrent,
   payableShipmentAmount,
   paymentIdempotencyKey,
   processMemberSideEffects,
@@ -1342,134 +1342,6 @@ export class ProductionCoreClubService
     return { id: shipmentId, status: result };
   }
 
-  private async assertTenantEntity(
-    table: string,
-    id: string,
-    organizationId: string,
-    brandId: string,
-    label: string,
-  ): Promise<void> {
-    assertUuid(id, label);
-    const { data, error } = await this.admin
-      .from(table)
-      .select("id")
-      .eq("id", id)
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .maybeSingle();
-    if (error) throw databaseError(`${label} could not be validated.`);
-    if (!data) throw new AppError(404, "not_found", `${label} not found.`);
-  }
-
-  private async assertReleaseTiers(
-    input: ReleaseInput,
-    organizationId: string,
-    brandId: string,
-  ): Promise<void> {
-    const uniqueTierIds = new Set(input.tierIds);
-    if (uniqueTierIds.size !== input.tierIds.length) {
-      throw new AppError(400, "invalid_request", "Release tiers must be unique.");
-    }
-    if (new Set(input.tierPrices.map((price) => price.tierId)).size !== uniqueTierIds.size) {
-      throw new AppError(
-        400,
-        "invalid_request",
-        "Each participating tier needs one release price.",
-      );
-    }
-    if (
-      input.tierPrices.some((price) => !uniqueTierIds.has(price.tierId))
-    ) {
-      throw new AppError(
-        400,
-        "invalid_request",
-        "Release prices must belong to participating tiers.",
-      );
-    }
-    const { data, error } = await this.admin
-      .from("club_tiers")
-      .select("id")
-      .eq("organization_id", organizationId)
-      .eq("brand_id", brandId)
-      .in("id", input.tierIds);
-    if (error) throw databaseError("Release tiers could not be validated.");
-    if ((data ?? []).length !== uniqueTierIds.size) {
-      throw new AppError(404, "not_found", "One or more club tiers were not found.");
-    }
-  }
-
-  private async replaceReleaseChildren(
-    releaseId: string,
-    organizationId: string,
-    brandId: string,
-    input: ReleaseInput,
-  ): Promise<void> {
-    const tables = ["release_tier_items", "release_wines", "release_tiers"];
-    for (const table of tables) {
-      const { error } = await this.admin
-        .from(table)
-        .delete()
-        .eq("organization_id", organizationId)
-        .eq("brand_id", brandId)
-        .eq("release_id", releaseId);
-      if (error) throw databaseError("Release details could not be replaced.");
-    }
-    const { data: releaseTiers, error: tiersError } = await this.admin
-      .from("release_tiers")
-      .insert(
-        input.tierIds.map((tierId) => ({
-          brand_id: brandId,
-          organization_id: organizationId,
-          release_id: releaseId,
-          tier_id: tierId,
-        })),
-      )
-      .select("id,tier_id");
-    if (tiersError || !releaseTiers) {
-      throw databaseError("Release tiers could not be saved.");
-    }
-    for (const price of input.tierPrices) {
-      const { error } = await this.admin
-        .from("release_tiers")
-        .update({ price_cents: price.priceCents })
-        .eq("release_id", releaseId)
-        .eq("tier_id", price.tierId)
-        .eq("organization_id", organizationId)
-        .eq("brand_id", brandId);
-      if (error) throw databaseError("Release tier pricing could not be saved.");
-    }
-    const { data: releaseWines, error: winesError } = await this.admin
-      .from("release_wines")
-      .insert(
-        input.wines.map((wine) => ({
-          brand_id: brandId,
-          organization_id: organizationId,
-          release_id: releaseId,
-          wine_name: wine.wineName,
-        })),
-      )
-      .select("id,wine_name");
-    if (winesError || !releaseWines) {
-      throw databaseError("Release wines could not be saved.");
-    }
-    const tierItems = releaseTiers.flatMap((releaseTier) =>
-      releaseWines.map((releaseWine, index) => ({
-        brand_id: brandId,
-        organization_id: organizationId,
-        quantity: input.wines[index]?.quantity ?? 1,
-        release_id: releaseId,
-        release_tier_id: releaseTier.id,
-        release_wine_id: releaseWine.id,
-        unit_price_cents: input.wines[index]?.priceCents ?? 0,
-      })),
-    );
-    const { error: itemError } = await this.admin
-      .from("release_tier_items")
-      .insert(tierItems);
-    if (itemError) {
-      throw databaseError("Release tier items could not be saved.");
-    }
-  }
 }
 
 export async function resumeProcessingReleaseShipments(

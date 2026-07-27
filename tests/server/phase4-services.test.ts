@@ -371,6 +371,56 @@ describe("Phase 4 compliance controls", () => {
     expect(result.trackingNumber).toBe("RECOVERED123");
   });
 
+  it("refuses to substitute a different EasyPost rate during recovery", async () => {
+    const calls: string[] = [];
+    const fetcher = (async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      calls.push(`${init?.method ?? "GET"} ${String(input)}`);
+      return new Response(
+        JSON.stringify({
+          id: "shp_stored123",
+          rates: [
+            {
+              carrier: "UPS",
+              id: "rate_repriced",
+              rate: "18.50",
+              service: "Ground",
+            },
+          ],
+          selected_rate: {
+            carrier: "UPS",
+            id: "rate_repriced",
+            rate: "18.50",
+            service: "Ground",
+          },
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+    const provider = new EasyPostShippingProvider(
+      "EZTKtestcredential",
+      fetcher,
+    );
+
+    await expect(
+      provider.createLabel(labelRequest, {
+        externalRateId: "rate_persisted",
+        externalShipmentId: "shp_stored123",
+        persistExternalShipment: async () => {
+          throw new Error("Recovery must not persist a different rate.");
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "upstream_error",
+      message: "The carrier did not return the persisted rate.",
+    });
+    expect(calls).toEqual([
+      "GET https://api.easypost.com/v2/shipments/shp_stored123",
+    ]);
+  });
+
   it("uses the durable attempt callback for simulated labels too", async () => {
     const provider = new SimulatedShippingProvider();
     await expect(provider.createLabel(labelRequest)).rejects.toThrow(
