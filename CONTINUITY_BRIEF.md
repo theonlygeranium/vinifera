@@ -142,6 +142,17 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- BS-06 audits every database-calling function in `server/services/` against
+  the final 21-migration tenancy model. It adds explicit organization and brand
+  predicates to all mobile offline-bootstrap reads, a focused cross-brand
+  query assertion, CODEOWNERS, a PR template, governance and Greptile guidance,
+  and current architecture documentation with all 20 activation gates still
+  pending. The branch is integrated with the direct-push guard and BS-02/BS-04
+  route and observability baseline. The integrated branch passes the direct-push
+  policy 9/9, dependency audit 0, Worker type generation, TypeScript, Vitest
+  378/378, database gates 92/231/199/158/494, Vite and Pages rollback builds,
+  development/staging/production Worker dry runs, and Playwright/axe 145/145.
+  No provider, hosted database, Worker, or production activation state changed.
 - BS-02 decomposes all 129 Express registrations from the monolithic
   `server/app.ts` into domain-scoped `server/routes/` modules. The 82-line app
   entry point now retains only global middleware and ordered route mounting.
