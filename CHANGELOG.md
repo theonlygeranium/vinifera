@@ -23,6 +23,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added the route-layer decomposition ADR documenting domain router
+  boundaries, the public/protected/fallback mount-order contract, and the
+  request-scoped `RouteContext` service-selector pattern.
 - Added the BS-02 route manifest covering all 129 Express route registrations,
   middleware chains, inline-logic flags, direct-database-access audit, and
   domain extraction ownership before route code is moved.
