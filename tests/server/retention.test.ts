@@ -849,7 +849,6 @@ describe("Phase 3 HTTP contracts", () => {
       { UNSUBSCRIBE_SIGNING_SECRET: signingSecret },
       { memberId, organizationId },
     );
-    const app = retentionApp(service);
     const confirmation = await request(publicRetentionRouteApp(service)).get(
       `/api/communications/unsubscribe?token=${encodeURIComponent(token)}`,
     );
@@ -868,10 +867,12 @@ describe("Phase 3 HTTP contracts", () => {
     expect(invalid.headers["referrer-policy"]).toBe("no-referrer");
     expect(service.applyUnsubscribe).not.toHaveBeenCalled();
 
-    const oneClick = await request(app).post(
+    const oneClick = await request(publicRetentionRouteApp(service)).post(
       `/api/communications/unsubscribe?token=${encodeURIComponent(token)}`,
     );
     expect(oneClick.status).toBe(200);
+    expect(oneClick.headers["cache-control"]).toBe("no-store");
+    expect(oneClick.headers["referrer-policy"]).toBe("no-referrer");
     expect(service.applyUnsubscribe).toHaveBeenCalledWith(token);
   });
 

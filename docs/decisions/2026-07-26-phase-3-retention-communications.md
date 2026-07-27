@@ -62,7 +62,7 @@ tokens are not stored. Signing and expiration timestamps are persisted with
 the outbox row, making the rendered request body deterministic across retries.
 Unsubscribe affects optional transactional communications while legally and
 operationally required messages remain separately classifiable.
-The confirmation route sets `Cache-Control: no-store` and
+The confirmation and mutation routes set `Cache-Control: no-store` and
 `Referrer-Policy: no-referrer` before parsing or verifying the token, so valid,
 expired, and invalid token-bearing responses cannot be cached or leak their
 URL through a referrer even if the router is mounted without global security
@@ -162,7 +162,7 @@ winery DNS, and the staging Worker are connected.
   permission tests
 - Lease-owned outbox claim/send/retry and verified webhook convergence tests
 - Six trigger, sanitizer, preview, test-send, and unsubscribe-expiry tests
-- Direct-router unsubscribe confirmation and invalid-token privacy-header tests
+- Direct-router unsubscribe GET/POST and invalid-token privacy-header tests
 - Rules factor, threshold, nightly batch, and 1,000-member performance tests
 - Four-step cancel-flow snapshot, interruption/completion, expiry, and
   analytics tests

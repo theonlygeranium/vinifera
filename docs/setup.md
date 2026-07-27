@@ -52,8 +52,9 @@ Then merge only the values needed for the local capability you are activating:
 4. Keep `SENTRY_DSN=` empty unless a real local project DSN is available.
 
 Do not copy `.env.example` over `.dev.vars`, append the entire inventory, or
-edit either tracked example with local values. `.dev.vars`, `.env`, and
-`.env.*` are ignored. Never commit them or paste their values into logs.
+edit either tracked example with local values. Local `.dev.vars`, `.env`, and
+`.env.*` files are ignored; the documented `.env.example` exception remains
+tracked. Never commit local environment files or paste their values into logs.
 
 Required Phase 1 runtime values:
 

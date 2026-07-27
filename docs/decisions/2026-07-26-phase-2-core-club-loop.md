@@ -54,6 +54,11 @@ Malformed direct RPC payloads, including JSON `null` for required scalar,
 tier-price, quantity, or wine-price fields, fail with the command contract's
 controlled validation errors before any aggregate mutation is attempted.
 
+Deployment impact: Supabase must apply forward migration
+`202607260022_release_wine_identity_replay.sql` before the updated release PATCH
+contract is activated in a hosted Worker. No Pages, provider credential, secret,
+or provider activation change is required.
+
 Staff commands carry UUID idempotency keys and canonical SHA-256 request
 fingerprints. PostgreSQL records the command, business mutation, audit row,
 result, and any provider side-effect request in one transaction. Provider calls

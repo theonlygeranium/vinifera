@@ -23,6 +23,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Both the GET confirmation and POST mutation responses for
+  token-bearing unsubscribe URLs now set route-owned `Cache-Control: no-store`
+  and `Referrer-Policy: no-referrer` headers before token handling; direct-router
+  tests cover the POST response without relying on global middleware. The
+  Phase 2 ADR now states the required forward-migration deployment impact, and
+  setup guidance distinguishes ignored local environment files from the
+  tracked `.env.example` exception. **Why:** Hosted Greptile and unresolved
+  CodeRabbit threads identified the POST privacy gap and two documentation
+  ambiguities. **Deployment impact:** Worker response headers change on the
+  unsubscribe POST; the existing pending release-identity migration remains
+  required, with no additional migration, Pages, provider, secret, or
+  activation change. **Verification:** Focused retention HTTP contracts,
+  TypeScript, `git diff --check`, and fresh exact-head reviews.
 - **What changed:** The forward release-identity command migration now rejects
   JSON `null` required scalars, tier prices, wine quantities, and wine prices
   before mutation, with pgTAP proving that rejected commands leave no replay
