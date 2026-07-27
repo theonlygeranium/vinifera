@@ -26,6 +26,7 @@ claim that Stripe moved test money or that EasyPost created a test label.
 | Cross-phase database regression | Pass locally; hosted pending | Phase 1 92/92, Phase 3 138/138, Phase 4 121/121, and Phase 5 340/340 |
 | Release controls | Pass | production release 14/14, mobile release 7/7, Stripe catalog 16/16 |
 | Native preparation | Pass compile-only | Capacitor web preparation and Android/iOS sync with the non-routable compile-only origin |
+| GitHub CI | Pass | commit `15c9942`, run `30226397256`: quality 5m15s, Android 3m39s; hosted mutation jobs skipped |
 | Accessibility | Pass | axe WCAG 2.1 AA, zero violations across the full browser suite |
 | Responsive layout | Pass | 375, 768, and 1440 |
 | Performance | Pass locally | single-worker 100-member roster 941.7 ms; release RPC 10.76 ms; import RPC 338.85 ms; LCP 712 ms; CLS 0 |
@@ -174,3 +175,10 @@ Capacitor preparation is intentionally fail-closed without a mobile API origin.
 The compile-only profile uses `https://unconfigured.invalid`, which cannot route
 to a provider, and verifies that both Android and iOS native shells can be
 synchronized without activating services.
+
+GitHub Actions run
+[`30226397256`](https://github.com/theonlygeranium/vinifera/actions/runs/30226397256)
+verified the pushed Phase 2 commit. The quality job completed in 5m15s, the
+Android lint/debug/minified-release job completed in 3m39s, QA and native
+artifacts uploaded, and the credential-gated Supabase migration and Worker
+deployment jobs skipped as designed.

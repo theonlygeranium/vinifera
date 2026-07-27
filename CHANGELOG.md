@@ -64,6 +64,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Recorded Phase 2 architecture closure commit `15c9942` and GitHub Actions run
+  `30226397256`: quality passed in 5m15s, Android in 3m39s, evidence uploaded,
+  and credential-gated Supabase/Worker mutation jobs skipped.
 - Recorded the current credential-independent gate: audit 0, TypeScript green,
   Vitest 290/290 (focused Phase 2 72/72), database gates
   92/231/138/121/340, Playwright 136/136 (Phase 2 38/38) with zero axe
