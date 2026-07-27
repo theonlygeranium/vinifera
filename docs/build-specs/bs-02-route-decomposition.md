@@ -1,1 +1,192 @@
-IyBCUy0wMiDigJQgUm91dGUgTGF5ZXIgRGVjb21wb3NpdGlvbiAoZnJvbSBgYXBwLnRzYCkKCioqV2F2ZToqKiAxIChzdGFydCBhZnRlciBCUy0wMSBtZXJnZXMpCioqQnJhbmNoOioqIGByZWZhY3Rvci9yb3V0ZS1sYXllci1kZWNvbXBvc2l0aW9uYAoqKkVzdGltYXRlZCBkdXJhdGlvbjoqKiAz4oCTNCBob3VycwoqKlBhcmFsbGVsLXNhZmU6KiogWWVzIOKAlCBydW5zIGNvbmN1cnJlbnRseSB3aXRoIEJTLTAzLCBCUy0wNAoqKlNwYXducyBzdWJhZ2VudHM6KiogUmVjb21tZW5kZWQg4oCUIG9uZSBzdWJhZ2VudCBwZXIgcm91dGUgZG9tYWluIChzZWUgwqdTdWJhZ2VudCBzdHJhdGVneSkKKipCbG9ja3M6KiogQlMtMDUgKGxvY2FsIGRldiByZWFkaW5lc3MgZGVwZW5kcyBvbiBhIGNsZWFuIGBhcHAudHNgKQoKLS0tCgojIyBNYW5kYXRvcnkgcHJlLXRhc2sgcmVhZGluZwoKMS4gYEFHRU5UUy5tZGAKMi4gYENPTlRJTlVJVFlfQlJJRUYubWRgCjMuIGBkb2NzL2FnZW50LXdvcmtmbG93Lm1kYAo0LiBgZG9jcy9jb2RlYmFzZS1hc3Nlc3NtZW50LTIwMjYtMDctMjcubWRgIMKnMyAoIk1vbm9saXRoaWMgZmlsZXMiKSBhbmQgwqc0IChCLTEpCgotLS0KCiMjIENvbnRleHQ6IHRoZSBwcm9ibGVtCgpgYXBwLnRzYCBpcyB+NjkgS0IgYW5kIHJlZ2lzdGVycyBhbGwgRXhwcmVzcyByb3V0ZXMgaW5saW5lLiBUaGlzIGlzIHRoZSBsb3dlc3QtcmlzayBtb25vbGl0aCB0byBicmVhayBhcGFydCBiZWNhdXNlIHJvdXRlIGZpbGVzIGFyZSB0aGluIGJ5IGRlc2lnbiDigJQgdGhleSB2YWxpZGF0ZSBpbnB1dHMgd2l0aCBab2QsIGNhbGwgc2VydmljZSBmdW5jdGlvbnMsIGFuZCByZXR1cm4gcmVzcG9uc2VzLiBUaGV5IHNob3VsZCBub3QgY29udGFpbiBidXNpbmVzcyBsb2dpYy4gVGhlIGdvYWwgb2YgdGhpcyBzcGVjIGlzIHRvIGV4dHJhY3QgZXZlcnkgcm91dGUgZG9tYWluIGludG8gYSBkZWRpY2F0ZWQgZmlsZSB1bmRlciBgc2VydmVyL3JvdXRlcy9gLCBsZWF2aW5nIGBhcHAudHNgIGFzIGEgcHVyZSBtb3VudGluZyBmaWxlLgoKVGhpcyB1bmxvY2tzOgotIE11bHRpcGxlIENvZGV4IGFnZW50cyBlZGl0aW5nIGRpZmZlcmVudCByb3V0ZXMgc2ltdWx0YW5lb3VzbHkgd2l0aG91dCBtZXJnZSBjb25mbGljdHMKLSBHcmVwdGlsZSdzIHBlci1kaXJlY3RvcnkgYC5ncmVwdGlsZS9ydWxlcy5tZGAgcnVsZXMgKGZyb20gQlMtMDEpIGFwcGx5aW5nIGNsZWFubHkgdG8gZWFjaCByb3V0ZSBmaWxlCi0gRmFzdGVyIENJIGJlY2F1c2Ugb25seSBjaGFuZ2VkIHJvdXRlIGZpbGVzIGFyZSByZS10eXBlY2hlY2tlZAoKLS0tCgojIyBTdWJhZ2VudCBzdHJhdGVneQoKVGhlIHByaW1hcnkgYWdlbnQgc2hvdWxkIHJlYWQgYGFwcC50c2AsIGlkZW50aWZ5IGFsbCByb3V0ZSBncm91cHMsIGFuZCBjcmVhdGUgYSBkaXNwYXRjaCBwbGFuLiBSZWNvbW1lbmRlZCBncm91cGluZ3MgZm9yIHN1YmFnZW50cyAoYWRqdXN0IGlmIHRoZSBhY3R1YWwgZmlsZSBkaWZmZXJzKToKCnwgU3ViYWdlbnQgfCBSb3V0ZSBwcmVmaXggfCBCcmFuY2ggc3VmZml4IHwKfC0tLS0tLS0tLS18LS0tLS0tLS0tLS0tLXwtLS0tLS0tLS0tLS0tLS18CnwgU3ViLUEgfCBgL2FwaS9tZW1iZXJzYCwgYC9hcGkvYXV0aGAgfCBgcm91dGVzLW1lbWJlcnMtYXV0aGAgfAp8IFN1Yi1CIHwgYC9hcGkvY2x1YnNgLCBgL2FwaS90aWVyc2AgfCBgcm91dGVzLWNsdWJzLXRpZXJzYCB8CnwgU3ViLUMgfCBgL2FwaS9vcmRlcnNgLCBgL2FwaS9mdWxmaWxsbWVudGAgfCBgcm91dGVzLW9yZGVycy1mdWxmaWxsbWVudGAgfAp8IFN1Yi1EIHwgYC9hcGkvYW5hbHl0aWNzYCwgYC9hcGkvd2ViaG9va3NgIHwgYHJvdXRlcy1hbmFseXRpY3Mtd2ViaG9va3NgIHwKfCBTdWItRSB8IEFsbCByZW1haW5pbmcgcm91dGVzICsgYGFwcC50c2AgbW91bnQgcmVmYWN0b3IgfCBgcm91dGVzLW1pc2MtbW91bnRgIHwKCkVhY2ggc3ViYWdlbnQgb3BlbnMgaXRzIG93biBQUi4gVGhlIHByaW1hcnkgYWdlbnQgdGhlbiBvcGVucyBhIGZpbmFsIGludGVncmF0aW9uIFBSLgoKKipDb29yZGluYXRpb24gcnVsZToqKiBzdWJhZ2VudHMgbXVzdCBub3QgdG91Y2ggYGFwcC50c2AgZGlyZWN0bHkuIFRoZXkgY3JlYXRlIHRoZWlyIHJvdXRlIGZpbGUgYW5kIGV4cG9ydCBhIHJvdXRlci4gT25seSBTdWItRSB0b3VjaGVzIGBhcHAudHNgIHRvIG1vdW50IHRoZSByb3V0ZXJzLgoKLS0tCgojIyBUYXNrIDE6IEF1ZGl0IGBhcHAudHNgIGFuZCBwcm9kdWNlIHJvdXRlIG1hbmlmZXN0CgpSZWFkIGBzZXJ2ZXIvYXBwLnRzYCBpbiBmdWxsLiBQcm9kdWNlIGEgZmlsZSBgZG9jcy9idWlsZC1zcGVjcy9yb3V0ZS1tYW5pZmVzdC5tZGAgbGlzdGluZzoKLSBFdmVyeSByb3V0ZSByZWdpc3RyYXRpb246IG1ldGhvZCwgcGF0aCwgaGFuZGxlciBmdW5jdGlvbiBuYW1lLCBtaWRkbGV3YXJlIGNoYWluCi0gQW55IGlubGluZSBidXNpbmVzcyBsb2dpYyAoYSByb3V0ZSB0aGF0IGRvZXMgbW9yZSB0aGFuIHZhbGlkYXRlICsgY2FsbCBzZXJ2aWNlID0gZmxhZ2dlZCkKLSBBbnkgZGlyZWN0IFN1cGFiYXNlIGNhbGxzIGluc2lkZSByb3V0ZSBoYW5kbGVycyAodmlvbGF0ZXMgYC5ncmVwdGlsZS9ydWxlcy5tZGAgUnVsZSAxIGZyb20gQlMtMDEpCgpEbyBub3QgYmVnaW4gZGVjb21wb3NpdGlvbiB1bnRpbCB0aGlzIG1hbmlmZXN0IGlzIGNvbW1pdHRlZC4KCi0tLQoKIyMgVGFzayAyOiBDcmVhdGUgdGhlIGBzZXJ2ZXIvcm91dGVzL2AgZGlyZWN0b3J5IHN0cnVjdHVyZQoKQ3JlYXRlIHRoZSBkaXJlY3Rvcnkgc2tlbGV0b246CgpgYGAKc2VydmVyL3JvdXRlcy8KICBpbmRleC50cyAgICAgICAgICDihpAgYWdncmVnYXRlcyBhbmQgcmUtZXhwb3J0cyBhbGwgcm91dGVycwogIG1lbWJlcnMudHMKICBhdXRoLnRzCiAgY2x1YnMudHMKICB0aWVycy50cwogIG9yZGVycy50cwogIGZ1bGZpbGxtZW50LnRzCiAgYW5hbHl0aWNzLnRzCiAgd2ViaG9va3MudHMKICBhZG1pbi50cyAgICAgICAgICDihpAgaWYgYWRtaW4gcm91dGVzIGV4aXN0CmBgYAoKRWFjaCByb3V0ZSBmaWxlIG11c3QgZm9sbG93IHRoaXMgZXhhY3QgdGVtcGxhdGUgc3RydWN0dXJlOgoKYGBgdHlwZXNjcmlwdAppbXBvcnQgeyBSb3V0ZXIgfSBmcm9tICdleHByZXNzJwppbXBvcnQgeyB6IH0gZnJvbSAnem9kJwovLyBpbXBvcnQgc2VydmljZSBmdW5jdGlvbnMgaGVyZSDigJQgbm8gZGlyZWN0IHN1cGFiYXNlIGltcG9ydHMKCmNvbnN0IHJvdXRlciA9IFJvdXRlcigpCgovLyAtLS0gc2NoZW1hcyAtLS0KLy8gQWxsIFpvZCBzY2hlbWFzIGZvciB0aGlzIHJvdXRlIGdyb3VwIGRlZmluZWQgaGVyZQoKLy8gLS0tIHJvdXRlcyAtLS0KLy8gcm91dGVyLmdldCguLi4pCi8vIHJvdXRlci5wb3N0KC4uLikKCmV4cG9ydCBkZWZhdWx0IHJvdXRlcgpgYGAKCi0tLQoKIyMgVGFzayAzOiBNaWdyYXRlIHJvdXRlcyBkb21haW4gYnkgZG9tYWluCgpGb3IgZWFjaCByb3V0ZSBncm91cDoKCjEuIENvcHkgcm91dGUgaGFuZGxlcnMgZnJvbSBgYXBwLnRzYCBpbnRvIHRoZSBjb3JyZXNwb25kaW5nIGBzZXJ2ZXIvcm91dGVzLzxkb21haW4+LnRzYCBmaWxlCjIuIFZlcmlmeSBhbGwgWm9kIHZhbGlkYXRpb24gaXMgcHJlc2VydmVkIOKAlCBkbyBub3QgcmVsYXggaW5wdXQgdmFsaWRhdGlvbgozLiBSZXBsYWNlIGFueSBtaWRkbGV3YXJlIHRoYXQgd2FzIGFwcGxpZWQgZ2xvYmFsbHkgaW4gYGFwcC50c2AgYnV0IG9ubHkgYXBwbGllcyB0byBhIGRvbWFpbiB3aXRoIGV4cGxpY2l0IHBlci1yb3V0ZXIgYHJvdXRlci51c2UoKWAgY2FsbHMKNC4gRXhwb3J0IGBkZWZhdWx0IHJvdXRlcmAKCioqQ3JpdGljYWw6IGR1cmluZyBtaWdyYXRpb24sIGRvIG5vdCByZWZhY3RvciBsb2dpYy4qKiBJZiBhIHJvdXRlIGhhbmRsZXIgaGFzIGlubGluZSBidXNpbmVzcyBsb2dpYywgY29weSBpdCBhcy1pcyBhbmQgYWRkIGEgYC8vIFRPRE8oQlMtMDMpOiBtb3ZlIGxvZ2ljIHRvIHNlcnZpY2UgbGF5ZXJgIGNvbW1lbnQuIFRoYXQgcmVmYWN0b3IgYmVsb25ncyB0byBCUy0wMywgbm90IGhlcmUuIE1peGluZyBzdHJ1Y3R1cmFsIGNoYW5nZXMgd2l0aCBsb2dpYyBjaGFuZ2VzIGNyZWF0ZXMgdW50ZXN0YWJsZSBkaWZmcy4KCi0tLQoKIyMgVGFzayA0OiBSZWZhY3RvciBgYXBwLnRzYCB0byBhIG1vdW50aW5nIGZpbGUKCkFmdGVyIGFsbCByb3V0ZSBmaWxlcyBleGlzdCwgYGFwcC50c2Agc2hvdWxkIGJlY29tZSBhIHB1cmUgbW91bnRpbmcgZmlsZToKCmBgYHR5cGVzY3JpcHQKaW1wb3J0IG1lbWJlcnNSb3V0ZXIgZnJvbSAnLi9yb3V0ZXMvbWVtYmVycycKaW1wb3J0IGF1dGhSb3V0ZXIgZnJvbSAnLi9yb3V0ZXMvYXV0aCcKaW1wb3J0IGNsdWJzUm91dGVyIGZyb20gJy4vcm91dGVzL2NsdWJzJwovLyAuLi4gZXRjCgphcHAudXNlKCcvYXBpL21lbWJlcnMnLCBtZW1iZXJzUm91dGVyKQphcHAudXNlKCcvYXBpL2F1dGgnLCBhdXRoUm91dGVyKQphcHAudXNlKCcvYXBpL2NsdWJzJywgY2x1YnNSb3V0ZXIpCi8vIC4uLiBldGMKYGBgCgpHbG9iYWwgbWlkZGxld2FyZSAoQ09SUywgY29va2llLXBhcnNlciwgcmF0ZSBsaW1pdGVycyBmcm9tIEJTLTA0KSBzdGF5cyBpbiBgYXBwLnRzYC4gUm91dGUtc3BlY2lmaWMgbWlkZGxld2FyZSBtb3ZlcyB0byB0aGUgcm91dGUgZmlsZS4KClRhcmdldCBzaXplIGZvciBgYXBwLnRzYCBhZnRlciByZWZhY3RvcjogdW5kZXIgMTAwIGxpbmVzLgoKLS0tCgojIyBUYXNrIDU6IFJ1biB0aGUgZnVsbCB0ZXN0IHN1aXRlCgpgYGBiYXNoCm5wbSBydW4gdGVzdDp1bml0Cm5wbSBydW4gdGVzdDplMmUKbnBtIHJ1biB0eXBlY2hlY2sKYGBgCgpBbGwgMzUyIFZpdGVzdCB0ZXN0cyBhbmQgMTQ1IFBsYXl3cmlnaHQgdGVzdHMgbXVzdCBwYXNzLiBaZXJvIHJlZ3Jlc3Npb25zIGFyZSBhY2NlcHRhYmxlLiBJZiBhIHRlc3QgZmFpbHMsIGZpeCB0aGUgaW1wb3J0IHBhdGggb3IgZXhwb3J0IOKAlCBkbyBub3QgbW9kaWZ5IHRlc3QgYXNzZXJ0aW9ucy4KCi0tLQoKIyMgVGFzayA2OiBVcGRhdGUgYHNlcnZlci9yb3V0ZXMvaW5kZXgudHNgCgpFeHBvcnQgYSBgbW91bnRSb3V0ZXMoYXBwOiBFeHByZXNzKWAgZnVuY3Rpb24gdGhhdCBhcHBsaWVzIGFsbCByb3V0ZXJzLiBUaGlzIG1ha2VzIGBhcHAudHNgIGEgc2luZ2xlIGZ1bmN0aW9uIGNhbGw6CgpgYGB0eXBlc2NyaXB0Ci8vIGFwcC50cwppbXBvcnQgeyBtb3VudFJvdXRlcyB9IGZyb20gJy4vcm91dGVzJwptb3VudFJvdXRlcyhhcHApCmBgYAoKLS0tCgojIyBDSEFOR0VMT0cgZW50cnkKCmBgYG1hcmtkb3duCiMjIyBSZWZhY3RvcmVkCi0gRXh0cmFjdGVkIGFsbCByb3V0ZSBoYW5kbGVycyBmcm9tIG1vbm9saXRoaWMgYGFwcC50c2AgaW50byBkb21haW4tc2NvcGVkIGZpbGVzIHVuZGVyIGBzZXJ2ZXIvcm91dGVzL2AKLSBgYXBwLnRzYCByZWR1Y2VkIHRvIGEgbW91bnRpbmcgZmlsZSB1bmRlciAxMDAgbGluZXMKLSBDcmVhdGVkIGBzZXJ2ZXIvcm91dGVzL2luZGV4LnRzYCB3aXRoIGBtb3VudFJvdXRlcygpYCBmdW5jdGlvbgotIFByb2R1Y2VkIGBkb2NzL2J1aWxkLXNwZWNzL3JvdXRlLW1hbmlmZXN0Lm1kYCBkb2N1bWVudGluZyBhbGwgcm91dGVzLCBtaWRkbGV3YXJlIGNoYWlucywgYW5kIGZsYWdnZWQgaW5saW5lIGxvZ2ljCmBgYAoKLS0tCgojIyBBY2NlcHRhbmNlIGNyaXRlcmlhCgotIFsgXSBgc2VydmVyL3JvdXRlcy9gIGRpcmVjdG9yeSBleGlzdHMgd2l0aCBvbmUgZmlsZSBwZXIgZG9tYWluCi0gWyBdIGBhcHAudHNgIGlzIHVuZGVyIDEwMCBsaW5lcwotIFsgXSBgc2VydmVyL3JvdXRlcy9pbmRleC50c2AgZXhwb3J0cyBgbW91bnRSb3V0ZXMoKWAKLSBbIF0gYG5wbSBydW4gdHlwZWNoZWNrYCBwYXNzZXMgd2l0aCB6ZXJvIGVycm9ycwotIFsgXSBgbnBtIHJ1biB0ZXN0OnVuaXRgIHBhc3NlcyAoMzUyLzM1MikKLSBbIF0gYG5wbSBydW4gdGVzdDplMmVgIHBhc3NlcyAoMTQ1LzE0NSkKLSBbIF0gTm8gcm91dGUgZmlsZSBpbXBvcnRzIGBAc3VwYWJhc2Uvc3VwYWJhc2UtanNgIGRpcmVjdGx5IChlbmZvcmNlIHZpYSBgZ3JlcCAtciAiY3JlYXRlQ2xpZW50IiBzZXJ2ZXIvcm91dGVzL2ApCi0gWyBdIGBkb2NzL2J1aWxkLXNwZWNzL3JvdXRlLW1hbmlmZXN0Lm1kYCBjb21taXR0ZWQKLSBbIF0gYENIQU5HRUxPRy5tZGAgdXBkYXRlZAotIFsgXSBQUiBib2R5IGxpc3RzIGFsbCBleHRyYWN0ZWQgcm91dGUgZG9tYWlucwoKLS0tCgojIyBHcmVwdGlsZSB3b3JrZmxvdwoKQWZ0ZXIgb3BlbmluZyB0aGUgUFI6CjEuIENvbW1lbnQgYEBncmVwdGlsZWFpIHJldmlldyBvbmx5IHRoZSByb3V0ZSBsYXllciBjaGFuZ2VzYCB0byB0YXJnZXQgdGhlIHJldmlldwoyLiBHcmVwdGlsZSB3aWxsIGFwcGx5IFJ1bGUgMSAobm8gZGlyZWN0IERCIGluIHJvdXRlcykgYW5kIFJ1bGUgMiAobm8gY2lyY3VsYXIgaW1wb3J0cykgZnJvbSBCUy0wMSdzIGAuZ3JlcHRpbGUvcnVsZXMubWRgCjMuIEFkZHJlc3MgYWxsIEdyZXB0aWxlIGZpbmRpbmdzIGJlZm9yZSBtYXJraW5nIFBSIHJlYWR5CjQuIFVzZSBgQGdyZXB0aWxlYWkgc3VnZ2VzdCBhbm90aGVyIGFwcHJvYWNoYCBpZiBhIHN1Z2dlc3RlZCBmaXggbG9va3Mgd3JvbmcgZm9yIHRoaXMgY29kZWJhc2U=
+# BS-02 — Route Layer Decomposition (from `app.ts`)
+
+**Wave:** 1 (start after BS-01 merges)
+**Branch:** `refactor/route-layer-decomposition`
+**Estimated duration:** 3–4 hours
+**Parallel-safe:** Yes — runs concurrently with BS-03, BS-04
+**Spawns subagents:** Recommended — one subagent per route domain (see §Subagent strategy)
+**Blocks:** BS-05 (local dev readiness depends on a clean `app.ts`)
+
+---
+
+## Mandatory pre-task reading
+
+1. `AGENTS.md`
+2. `CONTINUITY_BRIEF.md`
+3. `docs/agent-workflow.md`
+4. `docs/codebase-assessment-2026-07-27.md` §3 ("Monolithic files") and §4 (B-1)
+
+---
+
+## Context: the problem
+
+`app.ts` is ~69 KB and registers all Express routes inline. This is the lowest-risk monolith to break apart because route files are thin by design — they validate inputs with Zod, call service functions, and return responses. They should not contain business logic. The goal of this spec is to extract every route domain into a dedicated file under `server/routes/`, leaving `app.ts` as a pure mounting file.
+
+This unlocks:
+- Multiple Codex agents editing different routes simultaneously without merge conflicts
+- Greptile's per-directory `.greptile/rules.md` rules (from BS-01) applying cleanly to each route file
+- Faster CI because only changed route files are re-typechecked
+
+---
+
+## Subagent strategy
+
+The primary agent should read `app.ts`, identify all route groups, and create a dispatch plan. Recommended groupings for subagents (adjust if the actual file differs):
+
+| Subagent | Route prefix | Branch suffix |
+|----------|-------------|---------------|
+| Sub-A | `/api/members`, `/api/auth` | `routes-members-auth` |
+| Sub-B | `/api/clubs`, `/api/tiers` | `routes-clubs-tiers` |
+| Sub-C | `/api/orders`, `/api/fulfillment` | `routes-orders-fulfillment` |
+| Sub-D | `/api/analytics`, `/api/webhooks` | `routes-analytics-webhooks` |
+| Sub-E | All remaining routes + `app.ts` mount refactor | `routes-misc-mount` |
+
+Each subagent opens its own PR. The primary agent then opens a final integration PR.
+
+**Coordination rule:** subagents must not touch `app.ts` directly. They create their route file and export a router. Only Sub-E touches `app.ts` to mount the routers.
+
+---
+
+## Task 1: Audit `app.ts` and produce route manifest
+
+Read `server/app.ts` in full. Produce a file `docs/build-specs/route-manifest.md` listing:
+- Every route registration: method, path, handler function name, middleware chain
+- Any inline business logic (a route that does more than validate + call service = flagged)
+- Any direct Supabase calls inside route handlers (violates `.greptile/rules.md` Rule 1 from BS-01)
+
+Do not begin decomposition until this manifest is committed.
+
+---
+
+## Task 2: Create the `server/routes/` directory structure
+
+Create the directory skeleton:
+
+```
+server/routes/
+  index.ts          ← aggregates and re-exports all routers
+  members.ts
+  auth.ts
+  clubs.ts
+  tiers.ts
+  orders.ts
+  fulfillment.ts
+  analytics.ts
+  webhooks.ts
+  admin.ts          ← if admin routes exist
+```
+
+Each route file must follow this exact template structure:
+
+```typescript
+import { Router } from 'express'
+import { z } from 'zod'
+// import service functions here — no direct supabase imports
+
+const router = Router()
+
+// --- schemas ---
+// All Zod schemas for this route group defined here
+
+// --- routes ---
+// router.get(...)
+// router.post(...)
+
+export default router
+```
+
+---
+
+## Task 3: Migrate routes domain by domain
+
+For each route group:
+
+1. Copy route handlers from `app.ts` into the corresponding `server/routes/<domain>.ts` file
+2. Verify all Zod validation is preserved — do not relax input validation
+3. Replace any middleware that was applied globally in `app.ts` but only applies to a domain with explicit per-router `router.use()` calls
+4. Export `default router`
+
+**Critical: during migration, do not refactor logic.** If a route handler has inline business logic, copy it as-is and add a `// TODO(BS-03): move logic to service layer` comment. That refactor belongs to BS-03, not here. Mixing structural changes with logic changes creates untestable diffs.
+
+---
+
+## Task 4: Refactor `app.ts` to a mounting file
+
+After all route files exist, `app.ts` should become a pure mounting file:
+
+```typescript
+import membersRouter from './routes/members'
+import authRouter from './routes/auth'
+import clubsRouter from './routes/clubs'
+// ... etc
+
+app.use('/api/members', membersRouter)
+app.use('/api/auth', authRouter)
+app.use('/api/clubs', clubsRouter)
+// ... etc
+```
+
+Global middleware (CORS, cookie-parser, rate limiters from BS-04) stays in `app.ts`. Route-specific middleware moves to the route file.
+
+Target size for `app.ts` after refactor: under 100 lines.
+
+---
+
+## Task 5: Run the full test suite
+
+```bash
+npm run test:unit
+npm run test:e2e
+npm run typecheck
+```
+
+All 352 Vitest tests and 145 Playwright tests must pass. Zero regressions are acceptable. If a test fails, fix the import path or export — do not modify test assertions.
+
+---
+
+## Task 6: Update `server/routes/index.ts`
+
+Export a `mountRoutes(app: Express)` function that applies all routers. This makes `app.ts` a single function call:
+
+```typescript
+// app.ts
+import { mountRoutes } from './routes'
+mountRoutes(app)
+```
+
+---
+
+## CHANGELOG entry
+
+```markdown
+### Refactored
+- Extracted all route handlers from monolithic `app.ts` into domain-scoped files under `server/routes/`
+- `app.ts` reduced to a mounting file under 100 lines
+- Created `server/routes/index.ts` with `mountRoutes()` function
+- Produced `docs/build-specs/route-manifest.md` documenting all routes, middleware chains, and flagged inline logic
+```
+
+---
+
+## Acceptance criteria
+
+- [ ] `server/routes/` directory exists with one file per domain
+- [ ] `app.ts` is under 100 lines
+- [ ] `server/routes/index.ts` exports `mountRoutes()`
+- [ ] `npm run typecheck` passes with zero errors
+- [ ] `npm run test:unit` passes (352/352)
+- [ ] `npm run test:e2e` passes (145/145)
+- [ ] No route file imports `@supabase/supabase-js` directly (enforce via `grep -r "createClient" server/routes/`)
+- [ ] `docs/build-specs/route-manifest.md` committed
+- [ ] `CHANGELOG.md` updated
+- [ ] PR body lists all extracted route domains
+
+---
+
+## Greptile workflow
+
+After opening the PR:
+1. Comment `@greptileai review only the route layer changes` to target the review
+2. Greptile will apply Rule 1 (no direct DB in routes) and Rule 2 (no circular imports) from BS-01's `.greptile/rules.md`
+3. Address all Greptile findings before marking PR ready
+4. Use `@greptileai suggest another approach` if a suggested fix looks wrong for this codebase
