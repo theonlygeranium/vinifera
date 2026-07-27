@@ -25,8 +25,12 @@ repository's `main` branch and whose `merge_commit_sha` exactly matches the
 pushed SHA. The verifier follows no more than ten pagination links after
 confirming each retains the first request's origin and path. If complete
 pagination returns no match, it retries twice at ten-second intervals to absorb
-GitHub's normal post-merge indexing delay. Forced updates and unavailable,
-untrusted, or malformed GitHub evidence fail closed.
+GitHub's normal post-merge indexing delay. Every GitHub request is bounded by a
+five-second `AbortController` deadline. A request timeout consumes that evidence
+attempt and follows the same ten-second retry backoff; three timed-out attempts
+fail closed. Forced updates and unavailable, untrusted, or malformed GitHub
+evidence also fail closed. The workflow checkout does not persist its GitHub
+credential because the guard only reads the checked-out source.
 
 Keep branch protection as the pre-push enforcement boundary. The push workflow
 is a post-update audit and cannot undo a direct push.
@@ -62,6 +66,8 @@ authorizing a direct update.
   evidence.
 - A normal association-index delay receives three total evidence checks over
   20 seconds; longer delays still fail closed and may require a manual rerun.
+- Each GitHub request is capped at five seconds; repeated timeouts receive the
+  same two bounded backoffs and then fail closed with a timeout-specific error.
 - GitHub API outages and pagination beyond ten pages fail the post-push audit
   closed and may require rerunning the job after service recovery.
 - Repository branch protection must require PRs and apply to administrators;

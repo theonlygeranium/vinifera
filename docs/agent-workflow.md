@@ -110,9 +110,11 @@ The `Block direct push to main` job runs in two modes:
   merge result of a closed, merged pull request targeting this repository's
   `main` branch. This supports GitHub merge commits, squash merges, and rebase
   merges without trusting commit-message text. The verifier follows at most
-  ten same-origin API pages and makes up to three evidence checks over 20
-  seconds to absorb normal GitHub indexing delay; it still fails closed if
-  exact evidence never appears.
+  ten same-origin API pages. Every GitHub request has a five-second
+  `AbortController` deadline. A timeout consumes the current evidence attempt
+  and uses the same ten-second backoff as an indexing miss; the verifier makes
+  at most three evidence attempts over two backoff intervals and still fails
+  closed if exact evidence never appears.
 
 The push-side run is a fail-closed audit after Git has already updated the
 branch. Branch protection must require pull requests, require the

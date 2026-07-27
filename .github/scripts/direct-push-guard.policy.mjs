@@ -183,6 +183,78 @@ test("retries missing merge evidence with an injected zero-delay wait", async ()
   assert.deepEqual(delays, [10_000, 10_000]);
 });
 
+test("retries a bounded GitHub request timeout and then accepts exact evidence", async () => {
+  let requests = 0;
+  let timers = 0;
+  const delays = [];
+  const signals = [];
+
+  const evidence = await verifyMainPush({
+    clearTimeoutImplementation() {},
+    delayImplementation: async (milliseconds) => {
+      delays.push(milliseconds);
+    },
+    environment: pushEnvironment(),
+    fetchImplementation: async (_url, options) => {
+      requests += 1;
+      signals.push(options.signal);
+      if (requests === 1) {
+        assert.equal(options.signal.aborted, true);
+        throw new Error("aborted by deterministic test timeout");
+      }
+      assert.equal(options.signal.aborted, false);
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => [pullRequest()],
+      };
+    },
+    output: { log() {} },
+    requestTimeoutMs: 25,
+    setTimeoutImplementation: (callback) => {
+      timers += 1;
+      if (timers === 1) callback();
+      return timers;
+    },
+  });
+
+  assert.equal(evidence.number, 42);
+  assert.equal(requests, 2);
+  assert.equal(signals.length, 2);
+  assert.deepEqual(delays, [10_000]);
+});
+
+test("fails closed after three deterministic GitHub request timeouts", async () => {
+  let requests = 0;
+  const delays = [];
+
+  await assert.rejects(
+    verifyMainPush({
+      clearTimeoutImplementation() {},
+      delayImplementation: async (milliseconds) => {
+        delays.push(milliseconds);
+      },
+      environment: pushEnvironment(),
+      fetchImplementation: async (_url, options) => {
+        requests += 1;
+        assert.equal(options.signal.aborted, true);
+        throw new Error("aborted by deterministic test timeout");
+      },
+      output: { log() {} },
+      requestTimeoutMs: 25,
+      setTimeoutImplementation: (callback) => {
+        callback();
+        return requests;
+      },
+    }),
+    /requests timed out after 3 attempts/,
+  );
+
+  assert.equal(requests, 3);
+  assert.deepEqual(delays, [10_000, 10_000]);
+});
+
 test("rejects a direct push even when its commit message could be conventional", async () => {
   await assert.rejects(
     verifyMainPush({

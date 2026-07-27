@@ -23,6 +23,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** The direct-push guard now gives every GitHub
+  associated-pull-request request a five-second `AbortController` deadline,
+  treats request timeouts as bounded evidence attempts with the existing
+  ten-second backoff, and fails closed after three timeouts. Two deterministic
+  policy tests cover timeout recovery and exhaustion, and checkout no longer
+  persists its GitHub credential. **Why:** An indefinitely pending GitHub
+  request could consume the entire workflow without a policy result, while
+  persisted checkout credentials exceeded this read-only job's needs.
+  **Deployment impact:** GitHub Actions enforcement only; application,
+  database, Worker, Pages, and provider behavior are unchanged.
+  **Verification:** `node --test
+  .github/scripts/direct-push-guard.policy.mjs` (11 tests) and
+  `git diff --check`.
 - **What changed:** Release PATCH requests now reject empty bodies, direct
   status changes, ambiguous tier aliases, and unpaired tier IDs/prices; omit
   absent nested fields; and reconcile an omitted existing-wine price only by

@@ -5,6 +5,14 @@ const SHA_PATTERN = /^[0-9a-f]{40}$/i;
 const MAX_PAGES = 10;
 const MAX_EVIDENCE_ATTEMPTS = 3;
 const EVIDENCE_RETRY_DELAY_MS = 10_000;
+const GITHUB_REQUEST_TIMEOUT_MS = 5_000;
+
+class GitHubRequestTimeoutError extends Error {
+  constructor(timeoutMs) {
+    super(`GitHub associated-pull-request request timed out after ${timeoutMs}ms.`);
+    this.name = "GitHubRequestTimeoutError";
+  }
+}
 
 function requireValue(environment, name) {
   const value = environment[name]?.trim();
@@ -46,16 +54,44 @@ export function findNextPage(linkHeader) {
 }
 
 async function fetchMergeEvidence({
+  clearTimeoutImplementation,
   endpoint,
   fetchImplementation,
   headers,
   match,
+  requestTimeoutMs,
+  setTimeoutImplementation,
 }) {
   const firstPage = new URL(endpoint);
   let pageUrl = firstPage.href;
 
   for (let page = 1; page <= MAX_PAGES; page += 1) {
-    const response = await fetchImplementation(pageUrl, { headers });
+    const controller = new AbortController();
+    const timeoutError = new GitHubRequestTimeoutError(requestTimeoutMs);
+    let timeout;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeout = setTimeoutImplementation(() => {
+        controller.abort();
+        reject(timeoutError);
+      }, requestTimeoutMs);
+    });
+    let response;
+    try {
+      response = await Promise.race([
+        fetchImplementation(pageUrl, {
+          headers,
+          signal: controller.signal,
+        }),
+        timeoutPromise,
+      ]);
+    } catch (error) {
+      if (error === timeoutError || controller.signal.aborted) {
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      clearTimeoutImplementation(timeout);
+    }
     if (!response.ok) {
       throw new Error(
         `Direct Push Guard could not verify associated pull requests (GitHub API ${response.status}).`,
@@ -94,6 +130,9 @@ export async function verifyMainPush({
   delayImplementation = (milliseconds) =>
     new Promise((resolve) => setTimeout(resolve, milliseconds)),
   output = console,
+  requestTimeoutMs = GITHUB_REQUEST_TIMEOUT_MS,
+  setTimeoutImplementation = setTimeout,
+  clearTimeoutImplementation = clearTimeout,
 } = {}) {
   const eventName = requireValue(environment, "GITHUB_EVENT_NAME");
   if (eventName !== "push") {
@@ -143,12 +182,24 @@ export async function verifyMainPush({
   };
 
   for (let attempt = 1; attempt <= MAX_EVIDENCE_ATTEMPTS; attempt += 1) {
-    const evidence = await fetchMergeEvidence({
-      endpoint,
-      fetchImplementation,
-      headers,
-      match,
-    });
+    let evidence;
+    let timeoutError;
+    try {
+      evidence = await fetchMergeEvidence({
+        clearTimeoutImplementation,
+        endpoint,
+        fetchImplementation,
+        headers,
+        match,
+        requestTimeoutMs,
+        setTimeoutImplementation,
+      });
+    } catch (error) {
+      if (!(error instanceof GitHubRequestTimeoutError)) {
+        throw error;
+      }
+      timeoutError = error;
+    }
 
     if (evidence) {
       output.log(
@@ -159,10 +210,16 @@ export async function verifyMainPush({
 
     if (attempt < MAX_EVIDENCE_ATTEMPTS) {
       output.log(
-        `Merge evidence is not indexed yet; retrying in ${EVIDENCE_RETRY_DELAY_MS / 1_000} seconds ` +
+        `${timeoutError ? timeoutError.message : "Merge evidence is not indexed yet;"} ` +
+          `retrying in ${EVIDENCE_RETRY_DELAY_MS / 1_000} seconds ` +
           `(attempt ${attempt + 1}/${MAX_EVIDENCE_ATTEMPTS}).`,
       );
       await delayImplementation(EVIDENCE_RETRY_DELAY_MS);
+    } else if (timeoutError) {
+      throw new Error(
+        `Direct Push Guard could not retrieve merge evidence because GitHub requests timed out ` +
+          `after ${MAX_EVIDENCE_ATTEMPTS} attempts.`,
+      );
     }
   }
 
