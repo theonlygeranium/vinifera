@@ -136,6 +136,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Integrated the repaired direct-push guard from `main` into the BS-04 branch
+  while preserving the observability and rate-limit implementation. This merge
+  changes no runtime route or activation state; verify with the guard policy
+  tests and the complete BS-04 quality suite before merge.
 - Review follow-up hashes complete rate-limit composites into Cloudflare's
   64-byte key maximum, derives tenant budgets from the edge-routed host instead
   of client-selected brand or forwarded-host headers, uses the Cloudflare
@@ -152,6 +156,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Existing API fixtures now inject deterministic allow-only rate-limit
   bindings so production-mode route assertions continue exercising their
   intended auth and activation behavior.
+- Reworked the direct-push guard to produce its required check on pull
+  requests and to verify `main` updates using the exact merge result returned
+  by GitHub's associated-pull-request API. Conventional commit messages no
+  longer bypass the guard; merge, squash, and rebase strategies remain
+  supported, and focused policy tests fail closed on forced pushes, missing
+  evidence, or API errors. Associated-PR lookup follows bounded, validated
+  same-origin pagination and retries routine indexing delay twice before its
+  final rejection.
 - Local `typecheck`, `lint`, and aggregate `check` commands now regenerate the
   ignored Worker binding declaration before TypeScript reads it, so a fresh
   checkout no longer depends on a previously generated local file.
