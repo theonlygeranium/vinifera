@@ -143,17 +143,42 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 ## Release evidence
 
 - BS-02 decomposes all 129 Express registrations from the monolithic
-  `server/app.ts` into domain-scoped `server/routes/` modules. The 73-line app
-  entry point now retains only global middleware and ordered route mounting;
-  mechanical route/schema/handler comparison, TypeScript, 354 Vitest tests,
-  and 145 Playwright/axe tests pass with no runtime, deployment, or provider
-  activation behavior change.
+  `server/app.ts` into domain-scoped `server/routes/` modules. The 82-line app
+  entry point now retains only global middleware and ordered route mounting.
+  BS-04 rate limits execute before every public/raw-webhook and protected route,
+  and the centralized BS-04 error handler is the final middleware after the
+  `/api` 404 boundary. Mechanical route/schema/handler comparison and the full
+  credential-independent verification suite pass with no route, deployment, or
+  provider activation behavior change. The integrated branch passed the
+  direct-push policy 9/9, dependency audit 0, generated Worker binding check,
+  TypeScript, Vitest 367/367, database gates 92/231/199/158/494, Vite and Pages
+  rollback builds, development/staging/production Worker dry runs, and
+  Playwright/axe 145/145.
+- Direct-push governance now supplies the required
+  `Block direct push to main` context on pull requests and verifies each
+  resulting `main` push against GitHub's associated-pull-request evidence. It
+  requires the exact recorded merge result for a closed PR targeting `main`,
+  supports merge, squash, and rebase strategies, and rejects forced updates,
+  conventional-commit heuristics, missing evidence, and API errors. Branch
+  protection remains the pre-push enforcement boundary. Associated-PR lookup
+  follows up to ten validated same-origin pages and retries missing index
+  evidence twice over 20 seconds before failing closed.
 - BS-01 repository hygiene migrates Greptile review policy from the legacy
   root JSON file to scoped `.greptile/` configuration and rules, removes the
   generated Worker declaration from version control while regenerating it
   before CI verification/typecheck, and records the Phase 5 closure evidence
   plus all 20 still-pending activation gates. These changes do not alter
   runtime routes, provider activation, or the static production baseline.
+- BS-04 adds a credential-independent error-observability and API-abuse
+  boundary: optional PII-minimized Sentry capture at the Worker entry point, a
+  centralized request-correlated Express error handler registered last, and
+  native Cloudflare rate limits scoped by normalized route plus tenant and
+  hashed actor. Sentry remains inactive without its Worker secret; the static
+  production baseline remains unchanged.
+  Local verification passed audit 0, generated Worker types, TypeScript,
+  367/367 Vitest tests, Vite and Pages builds, development/staging/production
+  Worker dry runs, and 145/145 Playwright/axe cases including 375-pixel and
+  touch-target coverage.
 - The BS-01 review follow-up makes fresh-checkout local validation
   self-generating, restores public browser bootstrap for the existing member
   authentication endpoints without weakening protected-route enforcement, and

@@ -1,11 +1,6 @@
-import type {
-  Express,
-  NextFunction,
-  Request,
-  Response,
-} from "express";
-import { z } from "zod";
-import { AppError, asAppError } from "../lib/errors";
+import type { Express } from "express";
+import { errorHandler } from "../lib/error-handler";
+import { AppError } from "../lib/errors";
 import createAnalyticsRouter from "./analytics";
 import createAuthRouter from "./auth";
 import createBillingRouter from "./billing";
@@ -67,49 +62,5 @@ export function mountRouteErrors(app: Express): void {
     );
   });
 
-  app.use(
-    (
-      error: unknown,
-      request: Request,
-      response: Response,
-      _next: NextFunction,
-    ) => {
-      const appError =
-        error instanceof z.ZodError
-          ? new AppError(400, "invalid_request", "The request is invalid.")
-          : asAppError(error);
-      const requestId = request.get("cf-ray") ?? crypto.randomUUID();
-
-      if (appError.status >= 500) {
-        console.error(
-          JSON.stringify({
-            code: appError.code,
-            method: request.method,
-            path: request.path,
-            requestId,
-            status: appError.status,
-          }),
-        );
-      } else if (appError.status >= 400) {
-        console.warn(
-          JSON.stringify({
-            code: appError.code,
-            method: request.method,
-            path: request.path,
-            requestId,
-            status: appError.status,
-          }),
-        );
-      }
-
-      response.status(appError.status).json({
-        error: {
-          code: appError.code,
-          fieldErrors: appError.fieldErrors,
-          message: appError.message,
-          requestId,
-        },
-      });
-    },
-  );
+  app.use(errorHandler);
 }

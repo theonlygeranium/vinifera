@@ -3,6 +3,7 @@ import express from "express";
 import helmet from "helmet";
 import { requireAuthPresence } from "./lib/auth-presence";
 import { AppError } from "./lib/errors";
+import { createRateLimits } from "./lib/rate-limit";
 import {
   assertTrustedOrigin,
   CONTENT_SECURITY_POLICY,
@@ -20,6 +21,7 @@ import {
 
 export function createApp(options: AppOptions): express.Express {
   const app = express();
+  const rateLimits = createRateLimits(options.getEnv);
   const routeContext = createRouteContext(options);
 
   app.disable("x-powered-by");
@@ -59,6 +61,13 @@ export function createApp(options: AppOptions): express.Express {
       });
     }),
   );
+
+  app.use("/api/auth", rateLimits.auth);
+  app.use("/api/webhooks", rateLimits.webhooks);
+  app.use("/api/email/webhook", rateLimits.webhooks);
+  app.use("/api/billing/webhook", rateLimits.webhooks);
+  app.use("/api/admin", rateLimits.admin);
+  app.use("/api", rateLimits.api);
 
   mountPublicRoutes(app, routeContext);
 
