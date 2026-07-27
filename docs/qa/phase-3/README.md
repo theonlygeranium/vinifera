@@ -17,3 +17,9 @@ Phase 3 gate is 27/27 and also covers unsaved-draft test delivery, current-tier
 downgrade comparison, resumed cancellation steps, snapshot-keyset loyalty
 ledgers, tenant-scoped retained command UUIDs across transient failure, reload,
 and brand switches, and the direct rules-based churn surface.
+
+Architecture commit `3b01c3a` passed GitHub Actions run
+[`30229260377`](https://github.com/theonlygeranium/vinifera/actions/runs/30229260377).
+Quality, Android lint/debug/minified release assembly, QA evidence upload, and
+the Pages rollback artifact all passed; hosted mutation jobs remained
+activation-gated.

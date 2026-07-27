@@ -2,6 +2,8 @@
 
 **Date:** 2026-07-26
 **Candidate:** Phase 3 production architecture
+**Architecture commit:** `3b01c3a`
+**GitHub Actions:** [run 30229260377](https://github.com/theonlygeranium/vinifera/actions/runs/30229260377)
 **Gate status:** Architecture/local QA pass; hosted email and real-tenant exit
 proof are deferred pending provider activation.
 
@@ -31,6 +33,7 @@ prove DNS reputation, provider delivery, or a live webhook.
 | TypeScript | Pass | `npm run typecheck` |
 | API/unit integration | Pass | Vitest 301/301 across 25 files; focused app/retention 63/63 |
 | Browser QA | Pass | Phase 3 27/27; complete repository regression 141/141 |
+| GitHub Actions | Pass | quality 6m22s; Android lint/debug/minified release 4m25s; evidence uploaded |
 | Worker packaging | Pass | default and production Wrangler dry runs |
 | Database migration | Pass locally; hosted pending | fresh embedded database applies migrations 001–014 |
 | Database assertions | Pass locally; hosted pending | Phase 3 199/199; final Phase 5 stack 401/401 |
