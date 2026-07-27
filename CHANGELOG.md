@@ -23,6 +23,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Local setup now begins from `.dev.vars.example`, gives an
+  exact selective merge sequence from the comprehensive `.env.example`
+  inventory, keeps the tracked Sentry placeholder blank, and requires separate
+  environment-scoped Sentry secret commands for staging and production.
+  **Why:** The previous copy command contradicted the minimal Worker template
+  and the unscoped secret command could target the wrong Worker environment.
+  **Deployment impact:** Documentation and tracked local template only; no
+  secret is created, no hosted environment is mutated, and runtime behavior is
+  unchanged until an operator follows the activation steps. **Verification:**
+  setup/template review, `git diff --check`, and the full
+  credential-independent repository gate recorded in the continuity brief.
 - **What changed:** The direct-push guard now gives every GitHub
   associated-pull-request request a five-second `AbortController` deadline,
   treats request timeouts as bounded evidence attempts with the existing

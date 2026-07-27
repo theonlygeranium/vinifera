@@ -34,18 +34,26 @@ Do not put secrets in Vite-prefixed variables. The frontend intentionally has no
 
 ## Local environment
 
-Copy the template only when activating provider-backed behavior:
+Start from the minimal Worker template:
 
 ```bash
-cp .env.example .dev.vars
+cp .dev.vars.example .dev.vars
 chmod 600 .dev.vars
 ```
 
-`.dev.vars`, `.env`, and `.env.*` are ignored. Never commit them or paste their values into logs.
+Then merge only the values needed for the local capability you are activating:
 
-The repository also includes `.dev.vars.example`, a minimal Worker-oriented
-template. Keep `SENTRY_DSN` empty or replace only the local ignored copy with a
-real value; never commit the DSN.
+1. Open `.env.example` as the comprehensive variable inventory and the ignored
+   `.dev.vars` copy side by side.
+2. Copy each required assignment into `.dev.vars`, remove its leading comment
+   marker when present, and replace the placeholder only in `.dev.vars`.
+3. If the key already exists in `.dev.vars`, edit that one assignment instead
+   of adding a duplicate.
+4. Keep `SENTRY_DSN=` empty unless a real local project DSN is available.
+
+Do not copy `.env.example` over `.dev.vars`, append the entire inventory, or
+edit either tracked example with local values. `.dev.vars`, `.env`, and
+`.env.*` are ignored. Never commit them or paste their values into logs.
 
 Required Phase 1 runtime values:
 
@@ -76,11 +84,17 @@ curl http://localhost:8787/api/health/configuration
 
 The Worker entry point is wrapped with `@sentry/cloudflare`, but the SDK is
 initialized only when the server-only `SENTRY_DSN` binding exists. Configure it
-as a Wrangler secret or in the Cloudflare dashboard for each environment:
+separately for each named Wrangler environment (or in the matching Cloudflare
+dashboard environment):
 
 ```bash
-npx wrangler secret put SENTRY_DSN
+npx wrangler secret put SENTRY_DSN --env staging
+npx wrangler secret put SENTRY_DSN --env production
 ```
+
+Run both commands when both environments are being activated. Local
+development reads only the ignored `.dev.vars`; do not use an unscoped
+`wrangler secret put` command as a substitute for the two named secrets.
 
 Do not store the DSN in `wrangler.jsonc`, `.env.example`, logs, issue text, or
 screenshots. Sentry is configured to exclude cookies, bodies, query strings,
