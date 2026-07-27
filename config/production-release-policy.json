@@ -11,8 +11,12 @@
     "restore-pages": "RESTORE VINIFERA DOMAIN TO PAGES"
   },
   "targetHashes": {
-    "cloudflareAccountIdSha256": [],
-    "cloudflareZoneIdSha256": [],
+    "cloudflareAccountIdSha256": [
+      "9255ff49245aa55fe0593dd098290d4f31928f5607b79d3a8633579c1695dd01"
+    ],
+    "cloudflareZoneIdSha256": [
+      "d8bfc8811122cbf36c32b7aee8bed7129e3c5b72a22483eb64dfde9a4e1a5d91"
+    ],
     "pagesProjectNameSha256": [
       "46137f70f603721b44582f51743bdf2dea974b70111c7cd539d8cf613a453303"
     ],
@@ -22,7 +26,9 @@
     "workerNameSha256": [
       "be82de059c089a036247e5744a20e32fc5b9bd9bb3c575b3826f12a77271ad2e"
     ],
-    "workerOriginSha256": []
+    "workerOriginSha256": [
+      "caf6355586c77198ebc2f72422bd622a11f22a32c0df77395dd0d8f3cbb745de"
+    ]
   },
   "requiredSecrets": [
     "MEMBER_BRAND_CONTEXT_SECRET",

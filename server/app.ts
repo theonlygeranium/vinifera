@@ -2293,6 +2293,16 @@ export function createApp(options: AppOptions): express.Express {
             status: appError.status,
           }),
         );
+      } else if (appError.status >= 400) {
+        console.warn(
+          JSON.stringify({
+            code: appError.code,
+            method: request.method,
+            path: request.path,
+            requestId,
+            status: appError.status,
+          }),
+        );
       }
 
       response.status(appError.status).json({

@@ -36,11 +36,34 @@ function readLocation(): RouterLocation {
   };
 }
 
+/**
+ * Move focus to the page's main content container after a route change so
+ * keyboard and screen-reader users do not lose context.  The element is made
+ * programmatically focusable via tabindex="-1" if it does not already have
+ * a tabindex set.
+ */
+function focusMainContent(): void {
+  const main =
+    document.querySelector("main") ??
+    document.querySelector<HTMLElement>("[role='main']") ??
+    document.querySelector("h1");
+
+  if (main instanceof HTMLElement) {
+    if (!main.hasAttribute("tabindex")) {
+      main.setAttribute("tabindex", "-1");
+    }
+    main.focus({ preventScroll: true });
+  }
+}
+
 export function RouterProvider({ children }: { children: ReactNode }) {
   const [location, setLocation] = useState<RouterLocation>(readLocation);
 
   useEffect(() => {
-    const update = () => setLocation(readLocation());
+    const update = () => {
+      setLocation(readLocation());
+      focusMainContent();
+    };
     window.addEventListener("popstate", update);
     return () => window.removeEventListener("popstate", update);
   }, []);
@@ -60,6 +83,7 @@ export function RouterProvider({ children }: { children: ReactNode }) {
     }
     setLocation(readLocation());
     window.scrollTo({ top: 0, behavior: "auto" });
+    focusMainContent();
   }, []);
 
   const value = useMemo(() => ({ location, navigate }), [location, navigate]);
