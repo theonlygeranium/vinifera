@@ -66,16 +66,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   fractional, and non-finite concurrency limits and passes `undefined` array
   elements to the operation instead of treating them as worker exhaustion.
   `tests/unit/concurrency.test.ts` proves validation, complete processing, and
-  result ordering. The service ADR now defines its dependency arrows against
-  the implemented import graph and includes explicit deployment and
-  verification sections. **Why:** Fresh exact-head CodeRabbit review found
-  that invalid limits could silently skip a batch, `undefined` data could
-  truncate one worker, and the original ADR arrow direction was ambiguous.
+  result ordering. `server/services/index.ts` now explicitly resolves the two
+  member symbols also re-exported by Stripe to their canonical member binding,
+  with a runtime identity assertion in the Phase 5 service suite. The service
+  ADR now defines its dependency arrows against the implemented import graph
+  and includes explicit deployment and verification sections. **Why:** Fresh
+  exact-head reviews found that invalid limits could silently skip a batch,
+  `undefined` data could truncate one worker, the original ADR arrow direction
+  was ambiguous, and relying on star-export resolution made two public barrel
+  symbols unnecessarily subtle. Explicit exports remove that ambiguity.
   **Deployment impact:** Worker batch helpers now fail fast on programmer
-  configuration errors; public routes, database migrations, provider
-  activation, secrets, Pages, and hosted state are unchanged.
+  configuration errors, while the public service barrel retains its intended
+  names deterministically; routes, database migrations, provider activation,
+  secrets, Pages, and hosted state are unchanged.
   **Verification:** Concurrency unit tests 2/2, TypeScript, full Vitest
-  388/388, `git diff --check`, and fresh exact-head review.
+  388/388, public-barrel binding identity, `git diff --check`, and fresh
+  exact-head review.
 - **What changed:** Exact-head review hardening now defers mobile push only for
   `activation_required` and surfaces APNs configuration mismatches; requires
   EasyPost recovery to find the exact persisted rate; rejects invalid

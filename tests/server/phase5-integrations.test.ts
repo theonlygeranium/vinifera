@@ -65,6 +65,9 @@ import {
 import { ProductionIntegrationService } from "../../server/services/webhooks";
 import { providerForJob } from "../../server/services/integration-runtime";
 import { brandAllowsOperationalAccess } from "../../server/services/core-club";
+import {
+  brandAllowsOperationalAccess as indexedBrandAllowsOperationalAccess,
+} from "../../server/services";
 import type { WorkerEnv } from "../../server/types";
 import {
   providerTargetPolicy,
@@ -2445,6 +2448,9 @@ describe("Phase 5 job, theme, and native delivery controls", () => {
   });
 
   it("allows charges only for active or grace brand billing access", () => {
+    expect(indexedBrandAllowsOperationalAccess).toBe(
+      brandAllowsOperationalAccess,
+    );
     expect(
       brandAllowsOperationalAccess({
         active: true,
