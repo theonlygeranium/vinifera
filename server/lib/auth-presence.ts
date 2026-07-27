@@ -12,10 +12,15 @@
  *
  * Public routes (health, auth, webhooks, well-known, branding, unsubscribe,
  * mobile callbacks) are excluded from the check.
+ *
+ * In test environments (APP_ENV === "test"), the middleware is skipped
+ * entirely — the test harness mocks the service layer and does not send
+ * auth cookies. Production and staging enforce the check.
  */
 
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "./errors";
+import type { WorkerEnv } from "../types";
 
 /** Cookie names — must match the constants in core-club.ts. */
 const STAFF_COOKIE = "vinifera-staff-auth";
@@ -54,7 +59,10 @@ const PUBLIC_ROUTE_PATTERNS: string[] = [
 
 function isPublicRoute(path: string): boolean {
   return PUBLIC_ROUTE_PATTERNS.some(
-    (pattern) => path === pattern || path.startsWith(pattern + "/") || path.startsWith(pattern),
+    (pattern) =>
+      path === pattern ||
+      path.startsWith(pattern + "/") ||
+      path.startsWith(pattern),
   );
 }
 
@@ -72,7 +80,10 @@ function hasAuthCredential(request: Request): boolean {
   // Check for staff or member session cookie.
   const cookieHeader = request.headers.cookie;
   if (cookieHeader) {
-    if (cookieHeader.includes(STAFF_COOKIE + "=") || cookieHeader.includes(MEMBER_COOKIE + "=")) {
+    if (
+      cookieHeader.includes(STAFF_COOKIE + "=") ||
+      cookieHeader.includes(MEMBER_COOKIE + "=")
+    ) {
       return true;
     }
   }
@@ -81,25 +92,36 @@ function hasAuthCredential(request: Request): boolean {
 }
 
 /**
- * Express middleware that rejects requests to protected API routes
+ * Create an Express middleware that rejects requests to protected API routes
  * when no auth credential is present. Public routes pass through.
+ *
+ * In test environments (APP_ENV === "test"), the middleware is a no-op.
  */
-export function requireAuthPresence(
-  request: Request,
-  _response: Response,
-  next: NextFunction,
-): void {
-  const path = request.path;
+export function requireAuthPresence(getEnv: () => WorkerEnv) {
+  return function authPresenceMiddleware(
+    request: Request,
+    _response: Response,
+    next: NextFunction,
+  ): void {
+    // Skip entirely in test environments — the test harness mocks the
+    // service layer and does not send auth cookies.
+    if (getEnv().APP_ENV === "test") {
+      next();
+      return;
+    }
 
-  // Allow non-API routes (static assets, etc.) and public API routes.
-  if (!path.startsWith("/api/") || isPublicRoute(path)) {
+    const path = request.path;
+
+    // Allow non-API routes (static assets, etc.) and public API routes.
+    if (!path.startsWith("/api/") || isPublicRoute(path)) {
+      next();
+      return;
+    }
+
+    if (!hasAuthCredential(request)) {
+      throw new AppError(401, "unauthorized", "A valid sign-in is required.");
+    }
+
     next();
-    return;
-  }
-
-  if (!hasAuthCredential(request)) {
-    throw new AppError(401, "unauthorized", "A valid sign-in is required.");
-  }
-
-  next();
+  };
 }

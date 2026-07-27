@@ -15,6 +15,7 @@ import {
   isTrustedRequestOrigin,
 } from "./lib/security";
 import { requireAuthPresence } from "./lib/auth-presence";
+
 import { createProductionFoundationService } from "./services/production-foundation";
 import {
   androidAssetLinks,
@@ -585,7 +586,7 @@ export function createApp(options: AppOptions): express.Express {
 
   app.use(express.json({ limit: "256kb", strict: true }));
   app.use(assertTrustedOrigin(options.getEnv));
-  app.use(requireAuthPresence);
+  app.use(requireAuthPresence(options.getEnv));
 
   app.get("/api/health", (_request, response) => {
     data(response, { service: "vinifera-api", status: "ok" });
