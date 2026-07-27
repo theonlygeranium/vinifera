@@ -1,1 +1,237 @@
-IyBCUy0wNSDigJQgTG9jYWwgRGV2IEVudmlyb25tZW50ICsgVUkgUGxhdGZvcm0gUmVhZGluZXNzCgoqKldhdmU6KiogMiAoc3RhcnQgYWZ0ZXIgQlMtMDEgbWVyZ2VzOyBpZGVhbGx5IGFmdGVyIEJTLTAyIGFuZCBCUy0wMyBhcmUgbWVyZ2VkIG9yIGluLWZsaWdodCkKKipCcmFuY2g6KiogYGZlYXQvbG9jYWwtZGV2LWFuZC11aS1yZWFkaW5lc3NgCioqRXN0aW1hdGVkIGR1cmF0aW9uOioqIDTigJM1IGhvdXJzCioqUGFyYWxsZWwtc2FmZToqKiBZZXMg4oCUIG5vIGZpbGUgb3ZlcmxhcCB3aXRoIEJTLTAzLCBCUy0wNCBpbiBXYXZlIDIKKipTcGF3bnMgc3ViYWdlbnRzOioqIFJlY29tbWVuZGVkIOKAlCBzZWVkIGRhdGEgYW5kIFVJIHdpcmluZyBjYW4gcnVuIGNvbmN1cnJlbnRseQoqKkdvYWw6KiogUHJvZHVjZSBhIHdvcmtpbmcgbG9jYWwgZW52aXJvbm1lbnQgd2hlcmUgdGhlIGFjdHVhbCBWaW5pZmVyYSBwbGF0Zm9ybSBVSSByZW5kZXJzLCBhdXRoZW50aWNhdGVzLCBhbmQgZGlzcGxheXMgcmVhbCBzZWVkZWQgZGF0YSDigJQgbm90IHRoZSBzdGF0aWMgcHJvdG90eXBlCgotLS0KCiMjIE1hbmRhdG9yeSBwcmUtdGFzayByZWFkaW5nCgoxLiBgQUdFTlRTLm1kYAoyLiBgQ09OVElOVUlUWV9CUklFRi5tZGAg4oCUIHJlYWQgdGhlIDIwIGFjdGl2YXRpb24gZ2F0ZXMgYW5kIGlkZW50aWZ5IHdoaWNoIGdhdGVzIGNhbiBiZSBzaW11bGF0ZWQgbG9jYWxseSB3aXRob3V0IGxpdmUgY3JlZGVudGlhbHMKMy4gYGRvY3MvYWdlbnQtd29ya2Zsb3cubWRgCjQuIGBkb2NzL2NvZGViYXNlLWFzc2Vzc21lbnQtMjAyNi0wNy0yNy5tZGAgwqc1IOKAlCAiVUkgcmVhZGluZXNzIiBhbmQgbG9jYWwgZGV2IGdhcHMKNS4gYHBhY2thZ2UuanNvbmAg4oCUIHVuZGVyc3RhbmQgZXhpc3RpbmcgZGV2IHNjcmlwdHMKNi4gQWxsIHNlZWQgZGF0YSBmaWxlcyB1bmRlciBgc3VwYWJhc2UvYCBpZiB0aGV5IGV4aXN0CjcuIGB3cmFuZ2xlci50b21sYCDigJQgbm90ZSB0aGUgYFtkZXZdYCBzZWN0aW9uIGZvciBsb2NhbCBXb3JrZXIgY29uZmlndXJhdGlvbgoKLS0tCgojIyBDb250ZXh0OiB3aGF0ICJVSSByZWFkaW5lc3MiIG1lYW5zCgpUaGUgVmluaWZlcmEgY29kZWJhc2UgcGFzc2VzIDE0NSBQbGF5d3JpZ2h0IHRlc3RzIGFuZCBhbGwgQ0kgY2hlY2tzLiBIb3dldmVyLCB0aGUgY3VzdG9tIGRvbWFpbiBzdGlsbCBzZXJ2ZXMgdGhlIHN0YXRpYyBQYWdlcyBwcm90b3R5cGUg4oCUIHRoZSBhY3R1YWwgcGxhdGZvcm0gVUkgKG1lbWJlcnMgZGFzaGJvYXJkLCBjbHViIGFkbWluIHBhbmVsLCB0aWVyIG1hbmFnZW1lbnQsIG9yZGVyIGhpc3RvcnkpIGhhcyBuZXZlciBiZWVuIHJlbmRlcmVkIGFnYWluc3QgYSBsaXZlIFdvcmtlci4gVGhpcyBzcGVjJ3Mgam9iIGlzIHRvIGNsb3NlIHRoYXQgZ2FwIGxvY2FsbHkgc28gdGhlIGZpbmFsIGFjdGl2YXRpb24gaGFuZG9mZiAoVHJhY2sgQSkgY29ubmVjdHMgdG8gYSB2YWxpZGF0ZWQgVUksIG5vdCBhIHRoZW9yZXRpY2FsIG9uZS4KClRoZSB0ZXN0IGlzIHNpbXBsZTogYWZ0ZXIgY29tcGxldGluZyB0aGlzIHNwZWMsIGFuIGFnZW50IG9yIGh1bWFuIHNob3VsZCBiZSBhYmxlIHRvIHJ1biBgbnBtIHJ1biBkZXZgIChvciBlcXVpdmFsZW50KSwgbmF2aWdhdGUgdG8gYGh0dHA6Ly9sb2NhbGhvc3Q6ODc4OGAsIGF1dGhlbnRpY2F0ZSBhcyBhIHNlZWRlZCBtZW1iZXIsIGFuZCBzZWUgYSBwb3B1bGF0ZWQgZGFzaGJvYXJkIHdpdGggcmVhbCBkYXRhIGZsb3dpbmcgZnJvbSB0aGUgbG9jYWwgV29ya2VyIHRocm91Z2ggU3VwYWJhc2UgbG9jYWwgdG8gdGhlIFJlYWN0IGZyb250ZW5kLiBBY3RpdmF0aW9uIEdhdGUgMSBjYW5ub3QgYmUgY2FsbGVkICJwYXNzZWQiIHVudGlsIHRoaXMgaXMgZGVtb25zdHJhYmx5IHRydWUuCgotLS0KCiMjIFRhc2sgMTogQXVkaXQgYW5kIGZpeCB0aGUgbG9jYWwgZGV2IHN0YXJ0dXAgc2VxdWVuY2UKClJlYWQgYHBhY2thZ2UuanNvbmAgYW5kIGFsbCBzY3JpcHRzLiBNYXAgdGhlIGV4YWN0IGNvbW1hbmQgc2VxdWVuY2UgbmVlZGVkIHRvIHN0YXJ0IHRoZSBmdWxsIHN0YWNrIGxvY2FsbHk6CjEuIFN1cGFiYXNlIGxvY2FsICh2aWEgU3VwYWJhc2UgQ0xJKQoyLiBXcmFuZ2xlciBkZXYgc2VydmVyCjMuIEZyb250ZW5kIGRldiBzZXJ2ZXIgKFZpdGUgb3IgZXF1aXZhbGVudCkKCklmIHRoZXNlIHRocmVlIGNhbm5vdCBiZSBzdGFydGVkIHdpdGggYSBzaW5nbGUgY29tbWFuZCwgY3JlYXRlIGBzY3JpcHRzL2Rldi5zaGA6CgpgYGBiYXNoCiMhL3Vzci9iaW4vZW52IGJhc2gKc2V0IC1lCgplY2hvICJTdGFydGluZyBWaW5pZmVyYSBsb2NhbCBkZXYgc3RhY2suLi4iCgojIDEuIFN1cGFiYXNlIGxvY2FsCmVjaG8gIlsxLzNdIFN0YXJ0aW5nIFN1cGFiYXNlIGxvY2FsLi4uIgpzdXBhYmFzZSBzdGFydAoKIyAyLiBTZWVkIGRhdGFiYXNlIChpZGVtcG90ZW50KQplY2hvICJbMi8zXSBTZWVkaW5nIGRhdGFiYXNlLi4uIgpzdXBhYmFzZSBkYiBzZWVkCgojIDMuIFdvcmtlciArIEZyb250ZW5kICh2aWEgd3JhbmdsZXIgZGV2IG9yIHR1cmJvL2NvbmN1cnJlbnRseSkKZWNobyAiWzMvM10gU3RhcnRpbmcgV29ya2VyICsgRnJvbnRlbmQuLi4iCm5weCBjb25jdXJyZW50bHkgXAogICJ3cmFuZ2xlciBkZXYgLS1sb2NhbCIgXAogICJucG0gcnVuIGRldjpmcm9udGVuZCIKYGBgCgpNYWtlIGBzY3JpcHRzL2Rldi5zaGAgZXhlY3V0YWJsZSAoYGNobW9kICt4YCkuIERvY3VtZW50IGl0IGluIGBSRUFETUUubWRgIHVuZGVyIGEgbmV3ICJMb2NhbCBEZXZlbG9wbWVudCIgc2VjdGlvbi4KCi0tLQoKIyMgVGFzayAyOiBDcmVhdGUgY29tcHJlaGVuc2l2ZSBzZWVkIGRhdGEKClRoaXMgaXMgdGhlIG1vc3QgaW1wb3J0YW50IHRhc2sgaW4gdGhpcyBzcGVjLiBXaXRob3V0IHJlYWxpc3RpYyBzZWVkIGRhdGEsIHRoZSBVSSBjYW5ub3QgYmUgbWVhbmluZ2Z1bGx5IHRlc3RlZC4KCkNyZWF0ZSBvciBleHBhbmQgYHN1cGFiYXNlL3NlZWQuc3FsYCB0byBpbmNsdWRlOgoKIyMjIEJyYW5kcyAobXVsdGktdGVuYW50IHRlc3QgZGF0YSkKYGBgc3FsCi0tIFR3byB0ZXN0IGJyYW5kcyBmb3IgbXVsdGktdGVuYW50IGlzb2xhdGlvbiB0ZXN0aW5nCklOU0VSVCBJTlRPIGJyYW5kcyAoaWQsIG5hbWUsIHNsdWcsIGRvbWFpbiwgc3RyaXBlX2FjY291bnRfaWQpClZBTFVFUyAKICAoJ2JyYW5kLXRlc3QtMDAxJywgJ1N1bnJpc2UgVmFsbGV5IFdpbmUgQ2x1YicsICdzdW5yaXNlLXZhbGxleScsICdsb2NhbGhvc3QnLCAnYWNjdF90ZXN0X3N1bnJpc2UnKSwKICAoJ2JyYW5kLXRlc3QtMDAyJywgJ1BhY2lmaWMgQ3Jlc3QgQ2VsbGFyJywgJ3BhY2lmaWMtY3Jlc3QnLCAnbG9jYWxob3N0LTInLCAnYWNjdF90ZXN0X3BhY2lmaWMnKQpPTiBDT05GTElDVCAoaWQpIERPIE5PVEhJTkc7CmBgYAoKIyMjIE1lbWJlcnMgKHZhcmllZCBzdGF0ZXMpCkNyZWF0ZSBhdCBtaW5pbXVtOgotIDUgYWN0aXZlIG1lbWJlcnMgd2l0aCBwYWlkIHN1YnNjcmlwdGlvbnMgZm9yIGBicmFuZC10ZXN0LTAwMWAKLSAyIG1lbWJlcnMgaW4gYHBlbmRpbmdgIHN0YXRlIChlbnJvbGxlZCBidXQgbm90IHlldCBjaGFyZ2VkKQotIDEgbWVtYmVyIHdpdGggYSBsYXBzZWQvY2FuY2VsbGVkIHN1YnNjcmlwdGlvbgotIDEgbWVtYmVyIHdpdGggYSBmYWlsZWQgcGF5bWVudCAodG8gdGVzdCBlcnJvciBzdGF0ZXMgaW4gdGhlIFVJKQotIDIgbWVtYmVycyBmb3IgYGJyYW5kLXRlc3QtMDAyYCAodG8gdmVyaWZ5IHRlbmFudCBpc29sYXRpb24g4oCUIHRoZXkgbXVzdCBub3QgYXBwZWFyIGluIGJyYW5kLTAwMSB2aWV3cykKCkFsbCBtZW1iZXJzIG11c3QgdXNlIGBAZXhhbXBsZS5jb21gIGVtYWlsIGFkZHJlc3Nlcy4gTm8gcmVhbCBwZXJzb25hbCBkYXRhLgoKIyMjIFRpZXJzCkNyZWF0ZSAzIHRpZXJzIGZvciBgYnJhbmQtdGVzdC0wMDFgOgotIGBFc3NlbnRpYWxgIOKAlCAyIGJvdHRsZXMvcXVhcnRlciwgJDg5Ci0gYFJlc2VydmVgIOKAlCA0IGJvdHRsZXMvcXVhcnRlciwgJDE1OQotIGBDb2xsZWN0b3JgIOKAlCA2IGJvdHRsZXMvcXVhcnRlciwgJDI0OQoKIyMjIE9yZGVycwpDcmVhdGUgYXQgbWluaW11bToKLSAzIGZ1bGZpbGxlZCBvcmRlcnMgKHN0YXR1czogYHNoaXBwZWRgKSB3aXRoIHRyYWNraW5nIG51bWJlcnMgKGBFWkRFTU8xMjM0NTZgKQotIDIgb3JkZXJzIGluIGBwcm9jZXNzaW5nYCBzdGF0ZQotIDEgb3JkZXIgaW4gYGZhaWxlZGAgc3RhdGUKCiMjIyBDbHVicwpBdCBtaW5pbXVtIG9uZSBjbHViIHBlciBicmFuZCB3aXRoIHRoZSBjb3JyZWN0IGBicmFuZF9pZGAgZm9yZWlnbiBrZXkuCgotLS0KCiMjIFRhc2sgMzogVmVyaWZ5IFN1cGFiYXNlIGxvY2FsIG1pZ3JhdGlvbnMgcnVuIGNsZWFubHkKCmBgYGJhc2gKc3VwYWJhc2UgZGIgcmVzZXQKc3VwYWJhc2UgZGIgc2VlZApgYGAKCkJvdGggY29tbWFuZHMgbXVzdCBjb21wbGV0ZSB3aXRob3V0IGVycm9ycy4gSWYgYW55IG1pZ3JhdGlvbiBmYWlscyBsb2NhbGx5IHRoYXQgcGFzc2VzIGluIENJLCBpZGVudGlmeSB0aGUgZGlzY3JlcGFuY3kgYW5kIGZpeCBpdC4gRG9jdW1lbnQgYW55IGRpdmVyZ2VuY2UgYmV0d2VlbiBsb2NhbCBhbmQgQ0kgbWlncmF0aW9uIHN0YXRlIGluIGBkb2NzL2J1aWxkLXNwZWNzL2xvY2FsLWRldi1ub3Rlcy5tZGAuCgotLS0KCiMjIFRhc2sgNDogVmVyaWZ5IFdvcmtlciBib290IGFnYWluc3QgbG9jYWwgU3VwYWJhc2UKClN0YXJ0IHRoZSBXb3JrZXIgaW4gbG9jYWwgbW9kZToKYGBgYmFzaAp3cmFuZ2xlciBkZXYgLS1sb2NhbCAtLXBlcnNpc3QKYGBgCgpNYWtlIHRoZSBmb2xsb3dpbmcgSFRUUCByZXF1ZXN0cyBhbmQgY29uZmlybSByZXNwb25zZXM6Cgp8IFJlcXVlc3QgfCBFeHBlY3RlZCByZXNwb25zZSB8CnwtLS0tLS0tLS18LS0tLS0tLS0tLS0tLS0tLS0tfAp8IGBHRVQgL2FwaS9oZWFsdGhgIHwgYDIwMCB7IHN0YXR1czogIm9rIiB9YCB8CnwgYEdFVCAvYXBpL21lbWJlcnNgIChubyBhdXRoKSB8IGA0MDEgVW5hdXRob3JpemVkYCB8CnwgYFBPU1QgL2FwaS9hdXRoL2xvZ2luYCAoc2VlZGVkIG1lbWJlciBjcmVkcykgfCBgMjAwYCB3aXRoIHNlc3Npb24gY29va2llIHwKfCBgR0VUIC9hcGkvbWVtYmVyc2AgKHdpdGggc2Vzc2lvbiBjb29raWUpIHwgYDIwMGAgd2l0aCBtZW1iZXIgYXJyYXkgfAp8IGBHRVQgL2FwaS9tZW1iZXJzYCAoYnJhbmQtMDAyIGNvb2tpZSBvbiBicmFuZC0wMDEgZW5kcG9pbnQpIHwgYDQwM2Agb3IgZW1wdHkgYXJyYXkgKHRlbmFudCBpc29sYXRpb24pIHwKCkRvY3VtZW50IHRoZSByZXN1bHRzIGluIGBkb2NzL2J1aWxkLXNwZWNzL2xvY2FsLWRldi1ub3Rlcy5tZGAuIElmIGFueSByZXF1ZXN0IHJldHVybnMgYW4gdW5leHBlY3RlZCByZXN1bHQsIGZpeCBpdCDigJQgZG8gbm90IGRvY3VtZW50IGEgZmFpbHVyZSBhcyBhY2NlcHRhYmxlLgoKLS0tCgojIyBUYXNrIDU6IFdpcmUgdGhlIGZyb250ZW5kIHRvIHRoZSBsb2NhbCBXb3JrZXIKClJlYWQgdGhlIGZyb250ZW5kIGVudHJ5IHBvaW50IChsaWtlbHkgYHNyYy9tYWluLnRzeGAgb3IgZXF1aXZhbGVudCkuIElkZW50aWZ5IHdoZXJlIHRoZSBBUEkgYmFzZSBVUkwgaXMgY29uZmlndXJlZC4gVmVyaWZ5OgoKMS4gSW4gYGRldmVsb3BtZW50YCBtb2RlLCB0aGUgZnJvbnRlbmQgY2FsbHMgYGh0dHA6Ly9sb2NhbGhvc3Q6ODc4OGAgKG9yIHRoZSB3cmFuZ2xlciBkZXYgcG9ydCkKMi4gSW4gYHByb2R1Y3Rpb25gIG1vZGUsIGl0IGNhbGxzIHRoZSBjb25maWd1cmVkIHByb2R1Y3Rpb24gZG9tYWluCjMuIFRoZXJlIGlzIG5vIGhhcmRjb2RlZCBwcm9kdWN0aW9uIFVSTCBpbiB0aGUgZGV2ZWxvcG1lbnQgYnVpbGQKCklmIGEgYC5lbnYubG9jYWxgIGZpbGUgZG9lcyBub3QgZXhpc3QsIGNyZWF0ZSBgLmVudi5sb2NhbC5leGFtcGxlYDoKYGBgClZJVEVfQVBJX0JBU0VfVVJMPWh0dHA6Ly9sb2NhbGhvc3Q6ODc4OApWSVRFX1NVUEFCQVNFX1VSTD1odHRwOi8vbG9jYWxob3N0OjU0MzIxClZJVEVfU1VQQUJBU0VfQU5PTl9LRVk9eW91ci1sb2NhbC1hbm9uLWtleS1mcm9tLXN1cGFiYXNlLXN0YXJ0CmBgYAoKQWRkIGAuZW52LmxvY2FsYCB0byBgLmdpdGlnbm9yZWAgaWYgbm90IGFscmVhZHkgcHJlc2VudC4KCi0tLQoKIyMgVGFzayA2OiBSdW4gYSBmdWxsIFVJIHNtb2tlIHRlc3QKClVzaW5nIFBsYXl3cmlnaHQgKGRvIG5vdCB3cml0ZSBuZXcgdGVzdHMg4oCUIHVzZSB0aGUgZXhpc3RpbmcgMTQ1KToKCmBgYGJhc2gKbnBtIHJ1biB0ZXN0OmUyZQpgYGAKCkFsbCAxNDUgdGVzdHMgbXVzdCBwYXNzIGFnYWluc3QgdGhlIGxvY2FsIHN0YWNrLiBJZiBhbnkgdGVzdCB0aGF0IHByZXZpb3VzbHkgcGFzc2VkIGluIENJIG5vdyBmYWlscyBsb2NhbGx5LCB0aGUgbG9jYWwgZW52aXJvbm1lbnQgaGFzIGEgY29uZmlndXJhdGlvbiBnYXAg4oCUIGZpeCB0aGUgZ2FwLCBub3QgdGhlIHRlc3QuCgpJZiBheGUtY29yZSBhY2Nlc3NpYmlsaXR5IHRlc3RzIGFyZSBwYXJ0IG9mIHRoZSBFMkUgc3VpdGUgKHRoZXkgYXJlLCBwZXIgQ09OVElOVUlUWV9CUklFRi5tZCksIHRoZXkgbXVzdCBhbHNvIHBhc3Mgd2l0aCB6ZXJvIHZpb2xhdGlvbnMuCgotLS0KCiMjIFRhc2sgNzogQ3JlYXRlIGEgYGRvY3MvbG9jYWwtZGV2LXF1aWNrc3RhcnQubWRgIGd1aWRlCgpXcml0ZSBhIGNvbmNpc2UgZ3VpZGUgKHVuZGVyIDUwMCB3b3JkcykgdGhhdCBjb3ZlcnMgdGhlIGV4YWN0IHN0ZXBzIHRvIGdvIGZyb20gYSBmcmVzaCBjbG9uZSB0byBhIHJ1bm5pbmcgbG9jYWwgc3RhY2sgd2l0aCBwb3B1bGF0ZWQgZGF0YS4gVGFyZ2V0IGF1ZGllbmNlOiBhIENvZGV4IGFnZW50IHRoYXQgaGFzIG5ldmVyIHdvcmtlZCBvbiB0aGlzIHJlcG8uIEluY2x1ZGU6CgoxLiBQcmVyZXF1aXNpdGVzIChgbm9kZWAsIGBzdXBhYmFzZSBDTElgLCBgd3JhbmdsZXIgQ0xJYCwgdmVyc2lvbnMpCjIuIFJ1biBgc2NyaXB0cy9kZXYuc2hgCjMuIENyZWRlbnRpYWxzIGZvciBzZWVkZWQgdGVzdCBhY2NvdW50cwo0LiBIb3cgdG8gdmVyaWZ5IHRoZSBzdGFjayBpcyB3b3JraW5nIChoaXQgYC9hcGkvaGVhbHRoYCkKNS4gS25vd24gaXNzdWVzIGFuZCB3b3JrYXJvdW5kcyBkaXNjb3ZlcmVkIGR1cmluZyB0aGlzIHNwZWMKCi0tLQoKIyMgVGFzayA4OiBEb2N1bWVudCBhY3RpdmF0aW9uIHJlYWRpbmVzcwoKQ3JlYXRlIGBkb2NzL2J1aWxkLXNwZWNzL2FjdGl2YXRpb24tcmVhZGluZXNzLm1kYC4gVGhpcyBmaWxlIHdpbGwgYmUgdGhlIGxpdmluZyBjaGVja2xpc3QgdXNlZCBkdXJpbmcgVHJhY2sgQSAoU3RhZ2VkIEFjdGl2YXRpb24pLiBJdCBzaG91bGQgbGlzdCBhbGwgMjAgZ2F0ZXMgZnJvbSBgQ09OVElOVUlUWV9CUklFRi5tZGAgd2l0aDoKCi0gR2F0ZSBudW1iZXIgYW5kIGRlc2NyaXB0aW9uCi0gQ3VycmVudCBzdGF0dXM6IGBwZW5kaW5nYCwgYGxvY2FsLXZlcmlmaWVkYCwgb3IgYGxpdmUtcGFzc2VkYAotIFdoYXQgZXZpZGVuY2UgaXMgcmVxdWlyZWQgdG8gbWFyayBpdCBgbGl2ZS1wYXNzZWRgCi0gV2hpY2ggYnVpbGQgc3BlYyBvciBUcmFjayBBIHRhc2sgaXMgcmVzcG9uc2libGUKCkFmdGVyIGNvbXBsZXRpbmcgdGhpcyBzcGVjLCBtYXJrIGFueSBnYXRlIHRoYXQgd2FzIHZlcmlmaWVkIGxvY2FsbHkgKFRhc2sgNCByZXN1bHRzKSBhcyBgbG9jYWwtdmVyaWZpZWRgLiBBbGwgb3RoZXJzIHJlbWFpbiBgcGVuZGluZ2AuCgotLS0KCiMjIENIQU5HRUxPRyBlbnRyeQoKYGBgbWFya2Rvd24KIyMjIEFkZGVkCi0gYHNjcmlwdHMvZGV2LnNoYDogU2luZ2xlLWNvbW1hbmQgbG9jYWwgZGV2IHN0YWNrIHN0YXJ0dXAgKFN1cGFiYXNlICsgV3JhbmdsZXIgKyBGcm9udGVuZCkKLSBgc3VwYWJhc2Uvc2VlZC5zcWxgOiBDb21wcmVoZW5zaXZlIHNlZWQgZGF0YSDigJQgMiBicmFuZHMsIDgrIG1lbWJlcnMgd2l0aCB2YXJpZWQgc3RhdGVzLCAzIHRpZXJzLCA2IG9yZGVycwotIGBkb2NzL2xvY2FsLWRldi1xdWlja3N0YXJ0Lm1kYDogU3RlcC1ieS1zdGVwIGxvY2FsIGRldiBndWlkZSBmb3IgYWdlbnRzIGFuZCBjb250cmlidXRvcnMKLSBgZG9jcy9idWlsZC1zcGVjcy9sb2NhbC1kZXYtbm90ZXMubWRgOiBXb3JrZXIgLyBTdXBhYmFzZSBsb2NhbCB2ZXJpZmljYXRpb24gcmVzdWx0cwotIGBkb2NzL2J1aWxkLXNwZWNzL2FjdGl2YXRpb24tcmVhZGluZXNzLm1kYDogMjAtZ2F0ZSBhY3RpdmF0aW9uIGNoZWNrbGlzdCB3aXRoIGxvY2FsL2xpdmUgc3RhdHVzIHRyYWNraW5nCi0gYC5lbnYubG9jYWwuZXhhbXBsZWA6IEZyb250ZW5kIGVudmlyb25tZW50IHZhcmlhYmxlIHRlbXBsYXRlCgojIyMgRml4ZWQKLSBGcm9udGVuZCBBUEkgYmFzZSBVUkwgbm93IGNvcnJlY3RseSB1c2VzIGBWSVRFX0FQSV9CQVNFX1VSTGAgaW4gZGV2ZWxvcG1lbnQgKG5vIGhhcmRjb2RlZCBwcm9kdWN0aW9uIFVSTHMpCmBgYAoKLS0tCgojIyBBY2NlcHRhbmNlIGNyaXRlcmlhCgotIFsgXSBgc2NyaXB0cy9kZXYuc2hgIGV4aXN0cywgaXMgZXhlY3V0YWJsZSwgYW5kIHN0YXJ0cyB0aGUgZnVsbCBzdGFjayB3aXRob3V0IG1hbnVhbCBzdGVwcwotIFsgXSBgc3VwYWJhc2Uvc2VlZC5zcWxgIGNvbnRhaW5zIDIgYnJhbmRzLCA4KyBtZW1iZXJzLCAzIHRpZXJzLCA2IG9yZGVycwotIFsgXSBgc3VwYWJhc2UgZGIgcmVzZXQgJiYgc3VwYWJhc2UgZGIgc2VlZGAgY29tcGxldGVzIHdpdGhvdXQgZXJyb3JzCi0gWyBdIEFsbCA1IEhUVFAgc21va2UgdGVzdHMgaW4gVGFzayA0IHBhc3Mgd2l0aCBleHBlY3RlZCByZXNwb25zZXMKLSBbIF0gVGVuYW50IGlzb2xhdGlvbiB2ZXJpZmllZDogYnJhbmQtMDAyIG1lbWJlciBjYW5ub3Qgc2VlIGJyYW5kLTAwMSBkYXRhCi0gWyBdIEZyb250ZW5kIGNhbGxzIGBodHRwOi8vbG9jYWxob3N0Ojg3ODhgIGluIGRldmVsb3BtZW50IG1vZGUgKG5vIGhhcmRjb2RlZCBwcm9kIFVSTHMpCi0gWyBdIGBucG0gcnVuIHRlc3Q6ZTJlYCBwYXNzZXMgKDE0NS8xNDUpIGFnYWluc3QgbG9jYWwgc3RhY2sKLSBbIF0gWmVybyBheGUgdmlvbGF0aW9ucyBpbiBsb2NhbCBFMkUgcnVuCi0gWyBdIGBkb2NzL2xvY2FsLWRldi1xdWlja3N0YXJ0Lm1kYCBleGlzdHMgYW5kIGlzIHVuZGVyIDUwMCB3b3JkcwotIFsgXSBgZG9jcy9idWlsZC1zcGVjcy9hY3RpdmF0aW9uLXJlYWRpbmVzcy5tZGAgZXhpc3RzIHdpdGggYWxsIDIwIGdhdGVzIGxpc3RlZAotIFsgXSBgQ0hBTkdFTE9HLm1kYCB1cGRhdGVkCgotLS0KCiMjIEdyZXB0aWxlIHdvcmtmbG93CgpBZnRlciBvcGVuaW5nIHRoZSBQUjoKMS4gQ29tbWVudCBgQGdyZXB0aWxlYWkgdmVyaWZ5IHRlbmFudCBpc29sYXRpb24gaXMgZW5mb3JjZWQgaW4gYWxsIHNlZWRlZCBxdWVyaWVzIGFuZCBzbW9rZSB0ZXN0IGFzc2VydGlvbnNgCjIuIENvbW1lbnQgYEBncmVwdGlsZWFpIGNoZWNrIHRoYXQgbm8gcmVhbCBjcmVkZW50aWFscyBvciBEU04gdmFsdWVzIGFwcGVhciBpbiAuZW52LmxvY2FsLmV4YW1wbGVgCjMuIEdyZXB0aWxlIGhhcyBjb250ZXh0IGZyb20gQ09OVElOVUlUWV9CUklFRi5tZCAodmlhIGAuZ3JlcHRpbGUvZmlsZXMuanNvbmAgZnJvbSBCUy0wMSkgYW5kIHdpbGwgaWRlbnRpZnkgaWYgYW55IGFjdGl2YXRpb24gZ2F0ZSBsb2dpYyBpbiB0aGUgV29ya2VyIGxvb2tzIGluY29uc2lzdGVudCB3aXRoIHRoZSBzbW9rZSB0ZXN0IHJlc3VsdHM=
+# BS-05 — Local Dev Environment + UI Platform Readiness
+
+**Wave:** 2 (start after BS-01 merges; ideally after BS-02 and BS-03 are merged or in-flight)
+**Branch:** `feat/local-dev-and-ui-readiness`
+**Estimated duration:** 4–5 hours
+**Parallel-safe:** Yes — no file overlap with BS-03, BS-04 in Wave 2
+**Spawns subagents:** Recommended — seed data and UI wiring can run concurrently
+**Goal:** Produce a working local environment where the actual Vinifera platform UI renders, authenticates, and displays real seeded data — not the static prototype
+
+---
+
+## Mandatory pre-task reading
+
+1. `AGENTS.md`
+2. `CONTINUITY_BRIEF.md` — read the 20 activation gates and identify which gates can be simulated locally without live credentials
+3. `docs/agent-workflow.md`
+4. `docs/codebase-assessment-2026-07-27.md` §5 — "UI readiness" and local dev gaps
+5. `package.json` — understand existing dev scripts
+6. All seed data files under `supabase/` if they exist
+7. `wrangler.toml` — note the `[dev]` section for local Worker configuration
+
+---
+
+## Context: what "UI readiness" means
+
+The Vinifera codebase passes 145 Playwright tests and all CI checks. However, the custom domain still serves the static Pages prototype — the actual platform UI (members dashboard, club admin panel, tier management, order history) has never been rendered against a live Worker. This spec's job is to close that gap locally so the final activation handoff (Track A) connects to a validated UI, not a theoretical one.
+
+The test is simple: after completing this spec, an agent or human should be able to run `npm run dev` (or equivalent), navigate to `http://localhost:8788`, authenticate as a seeded member, and see a populated dashboard with real data flowing from the local Worker through Supabase local to the React frontend. Activation Gate 1 cannot be called "passed" until this is demonstrably true.
+
+---
+
+## Task 1: Audit and fix the local dev startup sequence
+
+Read `package.json` and all scripts. Map the exact command sequence needed to start the full stack locally:
+1. Supabase local (via Supabase CLI)
+2. Wrangler dev server
+3. Frontend dev server (Vite or equivalent)
+
+If these three cannot be started with a single command, create `scripts/dev.sh`:
+
+```bash
+#!/usr/bin/env bash
+set -e
+
+echo "Starting Vinifera local dev stack..."
+
+# 1. Supabase local
+echo "[1/3] Starting Supabase local..."
+supabase start
+
+# 2. Seed database (idempotent)
+echo "[2/3] Seeding database..."
+supabase db seed
+
+# 3. Worker + Frontend (via wrangler dev or turbo/concurrently)
+echo "[3/3] Starting Worker + Frontend..."
+npx concurrently \
+  "wrangler dev --local" \
+  "npm run dev:frontend"
+```
+
+Make `scripts/dev.sh` executable (`chmod +x`). Document it in `README.md` under a new "Local Development" section.
+
+---
+
+## Task 2: Create comprehensive seed data
+
+This is the most important task in this spec. Without realistic seed data, the UI cannot be meaningfully tested.
+
+Create or expand `supabase/seed.sql` to include:
+
+### Brands (multi-tenant test data)
+```sql
+-- Two test brands for multi-tenant isolation testing
+INSERT INTO brands (id, name, slug, domain, stripe_account_id)
+VALUES 
+  ('brand-test-001', 'Sunrise Valley Wine Club', 'sunrise-valley', 'localhost', 'acct_test_sunrise'),
+  ('brand-test-002', 'Pacific Crest Cellar', 'pacific-crest', 'localhost-2', 'acct_test_pacific')
+ON CONFLICT (id) DO NOTHING;
+```
+
+### Members (varied states)
+Create at minimum:
+- 5 active members with paid subscriptions for `brand-test-001`
+- 2 members in `pending` state (enrolled but not yet charged)
+- 1 member with a lapsed/cancelled subscription
+- 1 member with a failed payment (to test error states in the UI)
+- 2 members for `brand-test-002` (to verify tenant isolation — they must not appear in brand-001 views)
+
+All members must use `@example.com` email addresses. No real personal data.
+
+### Tiers
+Create 3 tiers for `brand-test-001`:
+- `Essential` — 2 bottles/quarter, $89
+- `Reserve` — 4 bottles/quarter, $159
+- `Collector` — 6 bottles/quarter, $249
+
+### Orders
+Create at minimum:
+- 3 fulfilled orders (status: `shipped`) with tracking numbers (`EZDEMO123456`)
+- 2 orders in `processing` state
+- 1 order in `failed` state
+
+### Clubs
+At minimum one club per brand with the correct `brand_id` foreign key.
+
+---
+
+## Task 3: Verify Supabase local migrations run cleanly
+
+```bash
+supabase db reset
+supabase db seed
+```
+
+Both commands must complete without errors. If any migration fails locally that passes in CI, identify the discrepancy and fix it. Document any divergence between local and CI migration state in `docs/build-specs/local-dev-notes.md`.
+
+---
+
+## Task 4: Verify Worker boot against local Supabase
+
+Start the Worker in local mode:
+```bash
+wrangler dev --local --persist
+```
+
+Make the following HTTP requests and confirm responses:
+
+| Request | Expected response |
+|---------|------------------|
+| `GET /api/health` | `200 { status: "ok" }` |
+| `GET /api/members` (no auth) | `401 Unauthorized` |
+| `POST /api/auth/login` (seeded member creds) | `200` with session cookie |
+| `GET /api/members` (with session cookie) | `200` with member array |
+| `GET /api/members` (brand-002 cookie on brand-001 endpoint) | `403` or empty array (tenant isolation) |
+
+Document the results in `docs/build-specs/local-dev-notes.md`. If any request returns an unexpected result, fix it — do not document a failure as acceptable.
+
+---
+
+## Task 5: Wire the frontend to the local Worker
+
+Read the frontend entry point (likely `src/main.tsx` or equivalent). Identify where the API base URL is configured. Verify:
+
+1. In `development` mode, the frontend calls `http://localhost:8788` (or the wrangler dev port)
+2. In `production` mode, it calls the configured production domain
+3. There is no hardcoded production URL in the development build
+
+If a `.env.local` file does not exist, create `.env.local.example`:
+```
+VITE_API_BASE_URL=http://localhost:8788
+VITE_SUPABASE_URL=http://localhost:54321
+VITE_SUPABASE_ANON_KEY=your-local-anon-key-from-supabase-start
+```
+
+Add `.env.local` to `.gitignore` if not already present.
+
+---
+
+## Task 6: Run a full UI smoke test
+
+Using Playwright (do not write new tests — use the existing 145):
+
+```bash
+npm run test:e2e
+```
+
+All 145 tests must pass against the local stack. If any test that previously passed in CI now fails locally, the local environment has a configuration gap — fix the gap, not the test.
+
+If axe-core accessibility tests are part of the E2E suite (they are, per CONTINUITY_BRIEF.md), they must also pass with zero violations.
+
+---
+
+## Task 7: Create a `docs/local-dev-quickstart.md` guide
+
+Write a concise guide (under 500 words) that covers the exact steps to go from a fresh clone to a running local stack with populated data. Target audience: a Codex agent that has never worked on this repo. Include:
+
+1. Prerequisites (`node`, `supabase CLI`, `wrangler CLI`, versions)
+2. Run `scripts/dev.sh`
+3. Credentials for seeded test accounts
+4. How to verify the stack is working (hit `/api/health`)
+5. Known issues and workarounds discovered during this spec
+
+---
+
+## Task 8: Document activation readiness
+
+Create `docs/build-specs/activation-readiness.md`. This file will be the living checklist used during Track A (Staged Activation). It should list all 20 gates from `CONTINUITY_BRIEF.md` with:
+
+- Gate number and description
+- Current status: `pending`, `local-verified`, or `live-passed`
+- What evidence is required to mark it `live-passed`
+- Which build spec or Track A task is responsible
+
+After completing this spec, mark any gate that was verified locally (Task 4 results) as `local-verified`. All others remain `pending`.
+
+---
+
+## CHANGELOG entry
+
+```markdown
+### Added
+- `scripts/dev.sh`: Single-command local dev stack startup (Supabase + Wrangler + Frontend)
+- `supabase/seed.sql`: Comprehensive seed data — 2 brands, 8+ members with varied states, 3 tiers, 6 orders
+- `docs/local-dev-quickstart.md`: Step-by-step local dev guide for agents and contributors
+- `docs/build-specs/local-dev-notes.md`: Worker / Supabase local verification results
+- `docs/build-specs/activation-readiness.md`: 20-gate activation checklist with local/live status tracking
+- `.env.local.example`: Frontend environment variable template
+
+### Fixed
+- Frontend API base URL now correctly uses `VITE_API_BASE_URL` in development (no hardcoded production URLs)
+```
+
+---
+
+## Acceptance criteria
+
+- [ ] `scripts/dev.sh` exists, is executable, and starts the full stack without manual steps
+- [ ] `supabase/seed.sql` contains 2 brands, 8+ members, 3 tiers, 6 orders
+- [ ] `supabase db reset && supabase db seed` completes without errors
+- [ ] All 5 HTTP smoke tests in Task 4 pass with expected responses
+- [ ] Tenant isolation verified: brand-002 member cannot see brand-001 data
+- [ ] Frontend calls `http://localhost:8788` in development mode (no hardcoded prod URLs)
+- [ ] `npm run test:e2e` passes (145/145) against local stack
+- [ ] Zero axe violations in local E2E run
+- [ ] `docs/local-dev-quickstart.md` exists and is under 500 words
+- [ ] `docs/build-specs/activation-readiness.md` exists with all 20 gates listed
+- [ ] `CHANGELOG.md` updated
+
+---
+
+## Greptile workflow
+
+After opening the PR:
+1. Comment `@greptileai verify tenant isolation is enforced in all seeded queries and smoke test assertions`
+2. Comment `@greptileai check that no real credentials or DSN values appear in .env.local.example`
+3. Greptile has context from CONTINUITY_BRIEF.md (via `.greptile/files.json` from BS-01) and will identify if any activation gate logic in the Worker looks inconsistent with the smoke test results
