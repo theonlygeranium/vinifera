@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { assertSecuritySecretSeparation } from "./security-secret-guard.mjs";
 
 const SHA256 = /^[0-9a-f]{64}$/;
 const GIT_SHA = /^[0-9a-f]{40}$/;
@@ -192,6 +193,7 @@ export function buildProductionSecretBundle(environment, policy) {
       throw new Error(`Required ${group.label} is missing.`);
     }
   }
+  assertSecuritySecretSeparation(environment);
   if (!String(environment.STRIPE_SECRET_KEY).startsWith("sk_test_")) {
     throw new Error(
       "Production Worker upload remains Stripe test-mode only until a separate live-billing release is approved.",

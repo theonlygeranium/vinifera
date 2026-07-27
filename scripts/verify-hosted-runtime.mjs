@@ -8,6 +8,7 @@ const DEFAULT_REQUIRED_CAPABILITIES = Object.freeze([
   "app",
   "database",
   "billing",
+  "security",
   "webhook",
 ]);
 

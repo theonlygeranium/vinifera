@@ -18,6 +18,7 @@ import { AppError, requireConfigured } from "../lib/errors";
 import {
   createSupabaseAdminClient as createAdminClient,
 } from "../lib/supabase-admin";
+import { requireSecuritySecrets } from "../lib/security-secrets";
 import {
   clearMemberAuthLinkContextCookie,
   clearMemberBrandContextCookie,
@@ -717,11 +718,8 @@ export class ProductionFoundationService
   }): Promise<void> {
     this.requireAuthEmail();
     const email = normalizeEmail(input.email);
-    const pepper =
-      this.env.RATE_LIMIT_PEPPER ??
-      this.env.SUPABASE_SECRET_KEY ??
-      this.env.SUPABASE_SERVICE_ROLE_KEY;
-    const ipHash = await sha256(`${pepper ?? "unconfigured"}:${input.ipAddress}`);
+    const { rateLimitPepper } = requireSecuritySecrets(this.env);
+    const ipHash = await sha256(`${rateLimitPepper}:${input.ipAddress}`);
     const { data: rateRows, error: rateError } = await this.admin.rpc(
       "record_magic_link_request",
       {

@@ -228,11 +228,18 @@ jobs:
           COMPLIANCE_PROVIDER: ${{ secrets.STAGING_COMPLIANCE_PROVIDER }}
           EASYPOST_API_KEY: ${{ secrets.STAGING_EASYPOST_API_KEY }}
           FCM_PROJECT_ID: ${{ secrets.STAGING_FCM_PROJECT_ID }}
+          MEMBER_BRAND_CONTEXT_SECRET: ${{ secrets.STAGING_MEMBER_BRAND_CONTEXT_SECRET }}
           QUICKBOOKS_ENVIRONMENT: ${{ secrets.STAGING_QUICKBOOKS_ENVIRONMENT }}
+          RATE_LIMIT_PEPPER: ${{ secrets.STAGING_RATE_LIMIT_PEPPER }}
           SHIPCOMPLIANT_BASE_URL: ${{ secrets.STAGING_SHIPCOMPLIANT_BASE_URL }}
           SHIPCOMPLIANT_ENDPOINT_MODE: ${{ secrets.STAGING_SHIPCOMPLIANT_ENDPOINT_MODE }}
           STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
         run: |
+          node --input-type=module <<'NODE'
+          import { assertSecuritySecretSeparation } from "./scripts/lib/security-secret-guard.mjs";
+          assertSecuritySecretSeparation(process.env);
+          console.log("Verified independent staging security-secret bindings.");
+          NODE
           if [[ -n "$STRIPE_SECRET_KEY" && "$STRIPE_SECRET_KEY" != sk_test_* ]]; then
             echo "::error::The staging Worker accepts only a Stripe sk_test_* secret."
             exit 1
@@ -510,7 +517,7 @@ jobs:
           echo "### Staging Worker" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL: $staging_url" >> "$GITHUB_STEP_SUMMARY"
           echo "- Runtime secrets uploaded with this version: ${{ steps.worker-secrets.outputs.count }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Core app, database, Stripe test billing, and webhook capabilities: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Core app, database, Stripe test billing, security-secret separation, and webhook capabilities: passed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Native hosted pgTAP/RLS gate: passed in the database job" >> "$GITHUB_STEP_SUMMARY"
           echo "- Production custom-domain cutover: deferred and human-controlled" >> "$GITHUB_STEP_SUMMARY"
 

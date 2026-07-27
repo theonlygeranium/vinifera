@@ -123,6 +123,7 @@
     "app",
     "database",
     "billing",
+    "security",
     "webhook"
   ],
   "cutoverHealthCapabilities": [
@@ -138,6 +139,7 @@
     "integrationEncryption",
     "mobile",
     "quickBooksOAuth",
+    "security",
     "push",
     "shipping"
   ],

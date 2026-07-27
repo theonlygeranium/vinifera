@@ -249,3 +249,10 @@ authenticated user identifier to the member-address command, and log a failed
 integration-health downgrade without blocking job completion. These reviewed
 changes are recorded separately from the extraction so the structural
 equivalence claim remains auditable.
+
+Issue #11 follow-up adds `server/lib/security-secrets.ts` as a neutral
+configuration owner consumed by `member-brand-context.ts`,
+`production-foundation.ts`, and `webhooks.ts`. It introduces no service-to-
+service edge: the helper only validates the two purpose-specific security
+bindings and fails closed before the extracted services perform a dependent
+operation.

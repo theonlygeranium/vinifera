@@ -49,6 +49,12 @@ project and Stripe test mode.
    STAGING_MOBILE_AUTH_STATE_SIGNING_SECRET
    ```
 
+   Generate `STAGING_RATE_LIMIT_PEPPER` and
+   `STAGING_MEMBER_BRAND_CONTEXT_SECRET` independently. Each must contain at
+   least 32 UTF-8 bytes, have no surrounding whitespace, and differ from the
+   other. The staging deployment guard rejects the release before upload if
+   either binding violates this contract.
+
 5. Run the read-only hosted-readiness workflow. Save its redacted report and
    confirm it identifies only the staging target. A present secret name or
    valid token does not by itself authorize mutation.

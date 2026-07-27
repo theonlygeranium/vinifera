@@ -1,8 +1,9 @@
 import { parseCookieHeader, serializeCookieHeader } from "@supabase/ssr";
 import type { Request, Response } from "express";
 import type { WorkerEnv } from "../types";
-import { AppError, requireConfigured } from "./errors";
+import { AppError } from "./errors";
 import { usesSecureCookies } from "../config";
+import { requireSecuritySecrets } from "./security-secrets";
 
 export const MEMBER_BRAND_CONTEXT_COOKIE = "vinifera-member-brand";
 export const MEMBER_AUTH_LINK_CONTEXT_COOKIE = "vinifera-member-auth-link";
@@ -27,11 +28,7 @@ export interface MemberAuthLinkContext {
 }
 
 function contextSecret(env: WorkerEnv): string {
-  return requireConfigured(
-    env.MEMBER_BRAND_CONTEXT_SECRET ??
-      env.RATE_LIMIT_PEPPER,
-    "MEMBER_BRAND_CONTEXT_SECRET",
-  );
+  return requireSecuritySecrets(env).memberBrandContextSecret;
 }
 
 function base64url(value: Uint8Array | string): string {

@@ -21,6 +21,11 @@ than the Worker JSON health contract, so the production application has not
 replaced that baseline. Version 0.5.0 contains the complete Phase 1–5
 connection-ready source architecture:
 
+- Runtime signing/hash material is purpose-separated: rate-limit hashing and
+  member-brand context signing require distinct, independently generated
+  32-byte-or-longer secrets. Runtime configuration, staging activation, and
+  production release guards all fail closed when either binding is missing,
+  weak, whitespace-padded, or equal; no Supabase or static fallback remains.
 - React 19 + Tailwind/Vite staff and member applications
 - Express 5 API in a Cloudflare Worker with Static Assets
 - Supabase Auth/PostgreSQL migration with forced tenant RLS

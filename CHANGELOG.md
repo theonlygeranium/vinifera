@@ -8,6 +8,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+
+- **What changed:** Review follow-up made the staging guard-order test require
+  both workflow markers before comparing them, centralized the configuration
+  test on the isolated security fixture, and added a recursive source-policy
+  test that confines direct binding access to the Worker type and neutral
+  security-secret owner. Templates and deployment guidance now state the
+  whitespace rule consistently, the staging health capability uses its exact
+  `billing` name, and the ADR describes behavior-level fallback proof instead
+  of a narrow regex. **Why:** Hosted and independent reviews identified places
+  where a missing marker, duplicated fixture, or imprecise wording could weaken
+  future regression detection or operator understanding. **Deployment impact:**
+  No runtime, route, schema, provider, Pages, or secret-value change; the
+  existing fail-closed deployment contract is documented and tested more
+  precisely. **Verification:** Run the focused security/configuration/activation
+  suites, `npm run check`, `npm run qa:production-release`,
+  `npm run build:worker:production`, `npm audit --audit-level=moderate`, and
+  `git diff --check`.
+- **What changed:** Rate-limit IP hashing and member-brand context signing now
+  require separate `RATE_LIMIT_PEPPER` and `MEMBER_BRAND_CONTEXT_SECRET`
+  bindings. A neutral runtime validator rejects missing, whitespace-padded,
+  shorter-than-32-byte, or equal values; the configuration health report
+  exposes a sanitized `security` capability; staging and production release
+  guards enforce the same contract; templates, setup/runbook guidance, and
+  explicit test fixtures document the deployment boundary. **Why:** Reusing a
+  Supabase credential, a static fallback, or one application secret for both
+  cryptographic purposes created avoidable coupling and could conceal an
+  incomplete deployment. **Deployment impact:** Staging and production Worker
+  deployments must provide independently generated values for both bindings.
+  Existing deployments that relied on fallback behavior now fail closed with
+  a sanitized configuration error until the dedicated secrets are installed;
+  Pages, routes, database schema, and provider endpoints are unchanged.
+  **Verification:** Run `npm run check`, the focused runtime and release-guard
+  suites, `npm run qa:production-release`, `npm audit --audit-level=moderate`,
+  and the fallback/secret scans documented in the security-secret separation
+  ADR.
+
 ### Refactored
 
 - **What changed:** Exact-head review cleanup moved the shared bounded

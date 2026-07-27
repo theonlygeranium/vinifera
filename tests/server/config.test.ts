@@ -9,6 +9,7 @@ import {
   usesSecureCookies,
   type ProtectedProvider,
 } from "../../server/config";
+import { securitySecretTestFixture } from "../fixtures/security-secrets";
 
 describe("hosted environment security boundaries", () => {
   it("uses secure cookies for staging and production only", () => {
@@ -123,6 +124,35 @@ describe("hosted environment security boundaries", () => {
     expect(report.billing).toEqual({
       configured: false,
       missing: ["LIVE_BILLING_ENABLED"],
+    });
+  });
+
+  it("reports only independently configured security secrets as ready", () => {
+    const secret = "test-reused-security-secret-9a58cbec-cd8d";
+    const missing = getConfigurationReport({});
+    const reused = getConfigurationReport({
+      MEMBER_BRAND_CONTEXT_SECRET: secret,
+      RATE_LIMIT_PEPPER: secret,
+    });
+    const configured = getConfigurationReport(securitySecretTestFixture());
+
+    expect(missing.security).toEqual({
+      configured: false,
+      missing: [
+        "RATE_LIMIT_PEPPER",
+        "MEMBER_BRAND_CONTEXT_SECRET",
+      ],
+    });
+    expect(reused.security).toEqual({
+      configured: false,
+      missing: [
+        "RATE_LIMIT_PEPPER",
+        "MEMBER_BRAND_CONTEXT_SECRET",
+      ],
+    });
+    expect(configured.security).toEqual({
+      configured: true,
+      missing: [],
     });
   });
 
