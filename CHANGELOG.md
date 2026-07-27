@@ -23,6 +23,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Direct-router retention coverage now proves malformed-token
+  POST responses retain `no-store` and `no-referrer` before the service is
+  invoked, and the agent workflow records the reason, operational impact, and
+  focused verification for bounded GitHub evidence requests. **Why:** Final
+  exact-head CodeRabbit review identified an unproved unsubscribe error path
+  and incomplete local workflow rationale. **Deployment impact:** Test and
+  workflow documentation only; the already-implemented POST headers, guard,
+  application, database, Pages, providers, secrets, and activation state are
+  unchanged. **Verification:** Retention HTTP contracts 31/31, direct-push
+  policy 12/12, TypeScript, `git diff --check`, and fresh exact-head review.
 - **What changed:** The release command RPC now scopes allowed payload fields by
   operation: only create accepts `initial_status`, update accepts aggregate
   fields without create-only state, and schedule requires an empty payload.

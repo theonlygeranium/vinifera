@@ -116,6 +116,14 @@ The `Block direct push to main` job runs in two modes:
   at most three evidence attempts over two backoff intervals and still fails
   closed if exact evidence never appears.
 
+This timing policy prevents a stalled GitHub response body from consuming the
+entire job without producing a governance decision, while retaining bounded
+retries for normal associated-PR indexing delay. Its operational impact is
+limited to the GitHub Actions evidence check: application, Pages, Worker,
+database, provider, and activation behavior are unchanged. The focused policy
+suite verifies timeout recovery, a timeout during JSON parsing, three-timeout
+exhaustion, exact backoff counts, and fail-closed behavior (12/12).
+
 The push-side run is a fail-closed audit after Git has already updated the
 branch. Branch protection must require pull requests, require the
 `Block direct push to main` check, and disallow administrator bypass to prevent

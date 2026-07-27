@@ -867,6 +867,14 @@ describe("Phase 3 HTTP contracts", () => {
     expect(invalid.headers["referrer-policy"]).toBe("no-referrer");
     expect(service.applyUnsubscribe).not.toHaveBeenCalled();
 
+    const invalidPost = await request(publicRetentionRouteApp(service)).post(
+      `/api/communications/unsubscribe?token=${"x".repeat(31)}`,
+    );
+    expect(invalidPost.status).toBe(400);
+    expect(invalidPost.headers["cache-control"]).toBe("no-store");
+    expect(invalidPost.headers["referrer-policy"]).toBe("no-referrer");
+    expect(service.applyUnsubscribe).not.toHaveBeenCalled();
+
     const oneClick = await request(publicRetentionRouteApp(service)).post(
       `/api/communications/unsubscribe?token=${encodeURIComponent(token)}`,
     );
