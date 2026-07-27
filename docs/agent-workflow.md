@@ -109,7 +109,10 @@ The `Block direct push to main` job runs in two modes:
   for the pushed commit. It passes only when the pushed SHA is the recorded
   merge result of a closed, merged pull request targeting this repository's
   `main` branch. This supports GitHub merge commits, squash merges, and rebase
-  merges without trusting commit-message text.
+  merges without trusting commit-message text. The verifier follows at most
+  ten same-origin API pages and makes up to three evidence checks over 20
+  seconds to absorb normal GitHub indexing delay; it still fails closed if
+  exact evidence never appears.
 
 The push-side run is a fail-closed audit after Git has already updated the
 branch. Branch protection must require pull requests, require the

@@ -2,6 +2,9 @@ import { pathToFileURL } from "node:url";
 
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/i;
+const MAX_PAGES = 10;
+const MAX_EVIDENCE_ATTEMPTS = 3;
+const EVIDENCE_RETRY_DELAY_MS = 10_000;
 
 function requireValue(environment, name) {
   const value = environment[name]?.trim();
@@ -27,9 +30,69 @@ export function findMergeEvidence(pullRequests, { repository, targetBranch, push
   );
 }
 
+export function findNextPage(linkHeader) {
+  if (typeof linkHeader !== "string" || linkHeader.length === 0) {
+    return undefined;
+  }
+
+  for (const link of linkHeader.split(",")) {
+    const match = link.trim().match(/^<([^>]+)>;\s*rel="([^"]+)"$/);
+    if (match?.[2].split(/\s+/).includes("next")) {
+      return match[1];
+    }
+  }
+
+  return undefined;
+}
+
+async function fetchMergeEvidence({
+  endpoint,
+  fetchImplementation,
+  headers,
+  match,
+}) {
+  const firstPage = new URL(endpoint);
+  let pageUrl = firstPage.href;
+
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const response = await fetchImplementation(pageUrl, { headers });
+    if (!response.ok) {
+      throw new Error(
+        `Direct Push Guard could not verify associated pull requests (GitHub API ${response.status}).`,
+      );
+    }
+
+    const pullRequests = await response.json();
+    const evidence = findMergeEvidence(pullRequests, match);
+    if (evidence) {
+      return evidence;
+    }
+
+    const nextPage = findNextPage(response.headers?.get?.("link"));
+    if (!nextPage) {
+      return undefined;
+    }
+
+    const parsedNextPage = new URL(nextPage);
+    if (
+      parsedNextPage.origin !== firstPage.origin ||
+      parsedNextPage.pathname !== firstPage.pathname
+    ) {
+      throw new Error("GitHub returned an invalid associated-pull-request pagination link.");
+    }
+    pageUrl = parsedNextPage.href;
+  }
+
+  throw new Error(
+    `Direct Push Guard exceeded its ${MAX_PAGES}-page associated-pull-request limit.`,
+  );
+}
+
 export async function verifyMainPush({
   environment = process.env,
   fetchImplementation = globalThis.fetch,
+  delayImplementation = (milliseconds) =>
+    new Promise((resolve) => setTimeout(resolve, milliseconds)),
   output = console,
 } = {}) {
   const eventName = requireValue(environment, "GITHUB_EVENT_NAME");
@@ -68,38 +131,45 @@ export async function verifyMainPush({
   const endpoint =
     `${apiRoot}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}` +
     `/commits/${encodeURIComponent(pushedSha)}/pulls?per_page=100`;
-
-  const response = await fetchImplementation(endpoint, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Direct Push Guard could not verify associated pull requests (GitHub API ${response.status}).`,
-    );
-  }
-
-  const pullRequests = await response.json();
-  const evidence = findMergeEvidence(pullRequests, {
+  const headers = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  const match = {
     repository,
     targetBranch,
     pushedSha,
-  });
+  };
 
-  if (!evidence) {
-    throw new Error(
-      `Direct Push Guard found no merged pull request whose ${targetBranch} merge result is ${pushedSha}.`,
-    );
+  for (let attempt = 1; attempt <= MAX_EVIDENCE_ATTEMPTS; attempt += 1) {
+    const evidence = await fetchMergeEvidence({
+      endpoint,
+      fetchImplementation,
+      headers,
+      match,
+    });
+
+    if (evidence) {
+      output.log(
+        `Verified ${pushedSha} as the merge result of pull request #${evidence.number}: ${evidence.html_url}`,
+      );
+      return evidence;
+    }
+
+    if (attempt < MAX_EVIDENCE_ATTEMPTS) {
+      output.log(
+        `Merge evidence is not indexed yet; retrying in ${EVIDENCE_RETRY_DELAY_MS / 1_000} seconds ` +
+          `(attempt ${attempt + 1}/${MAX_EVIDENCE_ATTEMPTS}).`,
+      );
+      await delayImplementation(EVIDENCE_RETRY_DELAY_MS);
+    }
   }
 
-  output.log(
-    `Verified ${pushedSha} as the merge result of pull request #${evidence.number}: ${evidence.html_url}`,
+  throw new Error(
+    `Direct Push Guard found no merged pull request whose ${targetBranch} merge result is ${pushedSha} ` +
+      `after ${MAX_EVIDENCE_ATTEMPTS} attempts.`,
   );
-  return evidence;
 }
 
 const invokedAsScript =

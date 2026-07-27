@@ -148,7 +148,9 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   requires the exact recorded merge result for a closed PR targeting `main`,
   supports merge, squash, and rebase strategies, and rejects forced updates,
   conventional-commit heuristics, missing evidence, and API errors. Branch
-  protection remains the pre-push enforcement boundary.
+  protection remains the pre-push enforcement boundary. Associated-PR lookup
+  follows up to ten validated same-origin pages and retries missing index
+  evidence twice over 20 seconds before failing closed.
 - BS-01 repository hygiene migrates Greptile review policy from the legacy
   root JSON file to scoped `.greptile/` configuration and rules, removes the
   generated Worker declaration from version control while regenerating it

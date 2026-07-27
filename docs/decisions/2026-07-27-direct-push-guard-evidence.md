@@ -22,8 +22,11 @@ status context. On pushes, query GitHub's
 list-pull-requests-associated-with-a-commit endpoint for the pushed SHA and
 pass only when one response is a closed, merged pull request whose base is this
 repository's `main` branch and whose `merge_commit_sha` exactly matches the
-pushed SHA. Forced updates and unavailable or malformed GitHub evidence fail
-closed.
+pushed SHA. The verifier follows no more than ten pagination links after
+confirming each retains the first request's origin and path. If complete
+pagination returns no match, it retries twice at ten-second intervals to absorb
+GitHub's normal post-merge indexing delay. Forced updates and unavailable,
+untrusted, or malformed GitHub evidence fail closed.
 
 Keep branch protection as the pre-push enforcement boundary. The push workflow
 is a post-update audit and cannot undo a direct push.
@@ -57,8 +60,10 @@ authorizing a direct update.
 - Pull requests now receive the required status context.
 - Merge commits, squash merges, and GitHub rebase merges are accepted from API
   evidence.
-- GitHub API outages fail the post-push audit closed and may require rerunning
-  the job after service recovery.
+- A normal association-index delay receives three total evidence checks over
+  20 seconds; longer delays still fail closed and may require a manual rerun.
+- GitHub API outages and pagination beyond ten pages fail the post-push audit
+  closed and may require rerunning the job after service recovery.
 - Repository branch protection must require PRs and apply to administrators;
   that external setting is intentionally not changed by this ADR.
 
