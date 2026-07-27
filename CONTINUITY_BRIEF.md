@@ -148,6 +148,16 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   before CI verification/typecheck, and records the Phase 5 closure evidence
   plus all 20 still-pending activation gates. These changes do not alter
   runtime routes, provider activation, or the static production baseline.
+- BS-04 adds a credential-independent error-observability and API-abuse
+  boundary: optional PII-minimized Sentry capture at the Worker entry point, a
+  centralized request-correlated Express error handler registered last, and
+  native Cloudflare rate limits scoped by normalized route plus tenant and
+  hashed actor. Sentry remains inactive without its Worker secret; the static
+  production baseline remains unchanged.
+  Local verification passed audit 0, generated Worker types, TypeScript,
+  367/367 Vitest tests, Vite and Pages builds, development/staging/production
+  Worker dry runs, and 145/145 Playwright/axe cases including 375-pixel and
+  touch-target coverage.
 - The BS-01 review follow-up makes fresh-checkout local validation
   self-generating, restores public browser bootstrap for the existing member
   authentication endpoints without weakening protected-route enforcement, and

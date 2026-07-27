@@ -1,6 +1,5 @@
 import cors from "cors";
 import express, {
-  type NextFunction,
   type Request,
   type Response,
 } from "express";
@@ -8,7 +7,9 @@ import helmet from "helmet";
 import { z, type ZodType } from "zod";
 import mobileIdentity from "../mobile/app-identity.json";
 import { getConfigurationReport } from "./config";
-import { AppError, asAppError } from "./lib/errors";
+import { errorHandler } from "./lib/error-handler";
+import { AppError } from "./lib/errors";
+import { createRateLimits } from "./lib/rate-limit";
 import {
   assertTrustedOrigin,
   CONTENT_SECURITY_POLICY,
@@ -355,6 +356,7 @@ function parseMultipartForm(request: Request): MultipartPart[] {
 
 export function createApp(options: AppOptions): express.Express {
   const app = express();
+  const rateLimits = createRateLimits(options.getEnv);
   const createService =
     options.createService ??
     ((request, response) =>
@@ -450,6 +452,12 @@ export function createApp(options: AppOptions): express.Express {
       });
     }),
   );
+  app.use("/api/auth", rateLimits.auth);
+  app.use("/api/webhooks", rateLimits.webhooks);
+  app.use("/api/email/webhook", rateLimits.webhooks);
+  app.use("/api/billing/webhook", rateLimits.webhooks);
+  app.use("/api/admin", rateLimits.admin);
+  app.use("/api", rateLimits.api);
 
   app.get("/.well-known/apple-app-site-association", (_request, response) => {
     response
@@ -2273,51 +2281,7 @@ export function createApp(options: AppOptions): express.Express {
     );
   });
 
-  app.use(
-    (
-      error: unknown,
-      request: Request,
-      response: Response,
-      _next: NextFunction,
-    ) => {
-      const appError =
-        error instanceof z.ZodError
-          ? new AppError(400, "invalid_request", "The request is invalid.")
-          : asAppError(error);
-      const requestId = request.get("cf-ray") ?? crypto.randomUUID();
-
-      if (appError.status >= 500) {
-        console.error(
-          JSON.stringify({
-            code: appError.code,
-            method: request.method,
-            path: request.path,
-            requestId,
-            status: appError.status,
-          }),
-        );
-      } else if (appError.status >= 400) {
-        console.warn(
-          JSON.stringify({
-            code: appError.code,
-            method: request.method,
-            path: request.path,
-            requestId,
-            status: appError.status,
-          }),
-        );
-      }
-
-      response.status(appError.status).json({
-        error: {
-          code: appError.code,
-          fieldErrors: appError.fieldErrors,
-          message: appError.message,
-          requestId,
-        },
-      });
-    },
-  );
+  app.use(errorHandler);
 
   return app;
 }

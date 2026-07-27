@@ -31,6 +31,28 @@
       "persist": true
     }
   },
+  "ratelimits": [
+    {
+      "name": "AUTH_RATE_LIMITER",
+      "namespace_id": "10401",
+      "simple": { "limit": 20, "period": 60 }
+    },
+    {
+      "name": "API_RATE_LIMITER",
+      "namespace_id": "10402",
+      "simple": { "limit": 100, "period": 60 }
+    },
+    {
+      "name": "WEBHOOK_RATE_LIMITER",
+      "namespace_id": "10403",
+      "simple": { "limit": 500, "period": 60 }
+    },
+    {
+      "name": "ADMIN_RATE_LIMITER",
+      "namespace_id": "10404",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ],
   "triggers": {
     "crons": ["0 * * * *"]
   },
@@ -64,6 +86,28 @@
         "not_found_handling": "none",
         "run_worker_first": true
       },
+      "ratelimits": [
+        {
+          "name": "AUTH_RATE_LIMITER",
+          "namespace_id": "12401",
+          "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "API_RATE_LIMITER",
+          "namespace_id": "12402",
+          "simple": { "limit": 100, "period": 60 }
+        },
+        {
+          "name": "WEBHOOK_RATE_LIMITER",
+          "namespace_id": "12403",
+          "simple": { "limit": 500, "period": 60 }
+        },
+        {
+          "name": "ADMIN_RATE_LIMITER",
+          "namespace_id": "12404",
+          "simple": { "limit": 30, "period": 60 }
+        }
+      ],
       "queues": {
         "producers": [
           {
@@ -98,6 +142,28 @@
         "not_found_handling": "none",
         "run_worker_first": true
       },
+      "ratelimits": [
+        {
+          "name": "AUTH_RATE_LIMITER",
+          "namespace_id": "11401",
+          "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "API_RATE_LIMITER",
+          "namespace_id": "11402",
+          "simple": { "limit": 100, "period": 60 }
+        },
+        {
+          "name": "WEBHOOK_RATE_LIMITER",
+          "namespace_id": "11403",
+          "simple": { "limit": 500, "period": 60 }
+        },
+        {
+          "name": "ADMIN_RATE_LIMITER",
+          "namespace_id": "11404",
+          "simple": { "limit": 30, "period": 60 }
+        }
+      ],
       "queues": {
         "producers": [
           {

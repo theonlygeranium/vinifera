@@ -10,6 +10,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Added `@sentry/cloudflare` at the Worker entry boundary, gated on the
+  server-only `SENTRY_DSN` secret and configured to exclude request PII,
+  bodies, query strings, database query data, stack-frame variables, and
+  exception/log messages.
+- Added `server/lib/error-handler.ts` with request-correlated structured logs,
+  safe Zod/auth/authz/not-found/unknown mappings, a consistent JSON envelope,
+  and Sentry capture for 5xx exceptions.
+- Added `server/lib/rate-limit.ts` and four native Cloudflare Rate Limiting
+  bindings for auth, general API, webhook, and admin routes. Policies consume
+  both normalized route/tenant and route/hashed-actor counters and fail closed
+  when a production binding is unavailable.
+- Added `.dev.vars.example`, focused Sentry/error/rate-limit unit tests, the
+  observability and rate-limiting ADR, and a BS-04 QA report recording audit 0,
+  aggregate checks, TypeScript and generated bindings, 367/367 Vitest tests,
+  Vite/Pages and all Worker dry runs, 145/145 Playwright/axe cases, and a clean
+  changed-file credential scan.
 - `.greptile/rules.md`: 10 architectural boundary rules encoding vinifera's service, security, and tenancy patterns
 - `.greptile/files.json`: Greptile context files for every PR review
 - `docs/build-specs/phase-5-qa-report.md`: Phase 5 closure evidence with all 20 activation gates listed as pending
@@ -120,6 +136,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Registered specialized rate limits before API handlers and the centralized
+  error handler last. Wrangler development, staging, and production
+  environments now declare the four native rate-limit bindings. This changes
+  Worker build/runtime configuration but does not deploy the Worker, activate
+  Sentry, change static Pages routing, or contact a provider. Verify with
+  Worker type generation, TypeScript, unit/browser tests, dependency audit,
+  Vite/Pages and Worker builds, secret scanning, and middleware-order review.
+  Existing API fixtures now inject deterministic allow-only rate-limit
+  bindings so production-mode route assertions continue exercising their
+  intended auth and activation behavior.
 - Local `typecheck`, `lint`, and aggregate `check` commands now regenerate the
   ignored Worker binding declaration before TypeScript reads it, so a fresh
   checkout no longer depends on a previously generated local file.

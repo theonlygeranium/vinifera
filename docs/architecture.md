@@ -1,6 +1,6 @@
 # Architecture — Vinifera
 
-**Last updated:** 2026-07-26
+**Last updated:** 2026-07-27
 **Maintainer:** Any agent (must reflect actual deployment state)
 
 ## System overview
@@ -22,13 +22,15 @@ Cloudflare Worker + Static Assets
   ├── / and /guide/* ───────────── static marketing and guide
   ├── /app/* and /portal/* ────── React/Vite application shell
   └── /api/* ──────────────────── Express 5 BFF
-                                      ├── Supabase Auth/PostgreSQL
-                                      ├── Stripe Billing + PaymentIntents
-                                      ├── EasyPost labels + tracking
-                                      ├── Resend transactional delivery
-                                      ├── ShipCompliant legality checks
-                                      ├── Klaviyo / QuickBooks / Avalara / Meta
-                                      └── Cloudflare custom hostnames + mobile push
+        ├── native route/tenant/actor rate limits
+        ├── centralized correlated error boundary
+        ├── Supabase Auth/PostgreSQL
+        ├── Stripe Billing + PaymentIntents
+        ├── EasyPost labels + tracking
+        ├── Resend transactional delivery
+        ├── ShipCompliant legality checks
+        ├── Klaviyo / QuickBooks / Avalara / Meta
+        └── Cloudflare custom hostnames + mobile push
 ```
 
 The existing Pages custom-domain deployment remains the live baseline until the
@@ -43,6 +45,23 @@ Cloudflare Pages injects `CF_PAGES=1`. In that environment the build also copies
 the original extensionless `app` prototype, so the Git-integrated Pages project
 continues serving the verified rollback surface. Worker builds omit that file
 and route `/app/*` to the React shell.
+
+The Worker entry point is the outer Sentry boundary. It produces SDK options
+only when the server-only `SENTRY_DSN` secret is present; without that secret,
+the integration is inert. Express registers CORS, specialized route-group rate
+limits, route handlers, and then the centralized error handler in that order.
+The error boundary logs a request-correlated safe event, maps known failures to
+a stable JSON envelope, and captures only 5xx exceptions. Sentry collection is
+configured to exclude cookies, bodies, URL query strings, default user data,
+database query data, and stack-frame variables, and its final event hook strips
+exception and log messages while retaining error types and stack locations.
+
+Cloudflare native Rate Limiting bindings enforce 20/minute for auth,
+100/minute for the general API, 500/minute for webhooks, and 30/minute for
+admin routes. Each request consumes both a normalized route/tenant counter and
+a normalized route/hashed-actor counter. The service is an eventually
+consistent, per-location abuse control; durable authorization, billing quotas,
+and the longer-window member magic-link policy remain in PostgreSQL.
 
 ### Pages
 
