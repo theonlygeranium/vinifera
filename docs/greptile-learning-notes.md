@@ -5,6 +5,17 @@ negative reaction is appropriate only when the comment matches one of these
 documented cases exactly; a real security, tenancy, or correctness finding must
 still be fixed.
 
+## Change record
+
+BS-03 replaced the historical service monoliths with domain modules and retained
+the original paths as re-export-only compatibility barrels so downstream test
+imports remain stable. The change reduces service-layer merge conflicts without
+changing provider activation, deployment configuration, or the static
+production surface. Verification covers named-export parity, direct runtime
+imports, import-cycle detection, TypeScript, 388/388 Vitest tests, and the full
+credential-independent build/QA matrix. The combined release record is in
+[`CHANGELOG.md`](../CHANGELOG.md) and [`CONTINUITY_BRIEF.md`](../CONTINUITY_BRIEF.md).
+
 ## HTTP-only cookie authentication
 
 Vinifera deliberately uses separate secure, HTTP-only cookies for staff and
@@ -38,7 +49,8 @@ follow-up query not bound to its claimed tenant are valid and should be fixed.
 
 ## Compatibility service files and `any`
 
-The current `core-club.ts` and `integrations.ts` monoliths contain no TypeScript
-`any` annotations. BS-03 decomposes them without changing behavior. Do not
-suppress a real `any` introduced in either an extracted service or a changed
-legacy file; `.greptile/rules.md` Rule 10 applies to all new server code.
+The current `core-club.ts` and `integrations.ts` files are re-export-only
+compatibility barrels. Their extracted owners under `server/services/` contain
+no TypeScript `any` annotations. Do not suppress a real `any` introduced in an
+extracted service or compatibility file; `.greptile/rules.md` Rule 10 applies
+to all new server code.

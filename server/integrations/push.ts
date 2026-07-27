@@ -330,7 +330,7 @@ export function createApnsPushClient(env: WorkerEnv): ApnsPushClient {
   if (bundleId !== mobileBundleId) {
     throw new AppError(
       503,
-      "activation_required",
+      "configuration_error",
       "APNS_BUNDLE_ID must match MOBILE_IOS_BUNDLE_ID.",
     );
   }
@@ -344,7 +344,7 @@ export function createApnsPushClient(env: WorkerEnv): ApnsPushClient {
   ) {
     throw new AppError(
       503,
-      "activation_required",
+      "configuration_error",
       "APNS_ENVIRONMENT must be sandbox or production.",
     );
   }

@@ -123,6 +123,7 @@ web/                    Vite entry
 src/client/             React application
 server/                 Express API, provider adapters, Worker entry
 server/integrations/    Provider, domains, mobile auth, and push transports
+server/services/        Domain services plus compatibility and public barrels
 supabase/migrations/    PostgreSQL source of truth
 supabase/tests/         pgTAP schema, RLS, and RPC suites
 tests/server/           API integration tests
@@ -142,6 +143,29 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- BS-03 decomposes the two service monoliths into member, club, order,
+  analytics, Stripe, EasyPost, communications, webhook, and shared
+  provider-runtime modules. `core-club.ts` and `integrations.ts` are now
+  re-export-only compatibility barrels, and internal runtime consumers plus
+  the system association route use direct domain imports. The integration
+  preserves the complete 129-route BS-02 manifest, BS-04 Sentry/rate-limit
+  middleware boundaries, and BS-06 mobile-bootstrap organization/brand
+  predicates. This extraction changes no provider activation, deployment
+  configuration, or static production surface. The integrated branch passes
+  the direct-push policy 12/12, dependency audit 0, generated Worker type check,
+  TypeScript, Vitest 388/388, database gates 92/250/199/158/513, Vite and Pages
+  builds, default/staging/production Worker dry runs, Playwright/axe 145/145,
+  mobile identity, mobile-release controls 7/7, and a non-routable compile-only
+  Capacitor web bundle plus Android sync. Exact-head review additionally
+  centralizes neutral concurrency, integration-pattern, and Supabase-admin
+  primitives; narrows APNs activation deferral; binds EasyPost recovery to the
+  persisted rate; validates QuickBooks lease generations; corrects the member
+  address auth-user identity; and preserves integration-job completion while
+  logging health-update failures. Focused review regressions pass 114/114 and
+  the shared concurrency helper now rejects invalid limits without skipping
+  `undefined` inputs. The 18-service/37-edge graph remains acyclic. This Mac has
+  no Java runtime, so Android lint/assemble remains CI evidence rather than a
+  local claim.
 - The review-hardening branch closes the remaining aggregate-integrity,
   unsubscribe-privacy, direct-push timeout, checkout-credential, and setup
   documentation findings without changing provider activation. Release PATCH

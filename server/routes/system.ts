@@ -3,7 +3,7 @@ import { getConfigurationReport } from "../config";
 import {
   androidAssetLinks,
   appleAppSiteAssociation,
-} from "../services/integrations";
+} from "../services/webhooks";
 import { data, type RouteContext } from "./shared";
 
 export function createPublicSystemRouter(context: RouteContext): Router {

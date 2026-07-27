@@ -10,6 +10,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Refactored
 
+- **What changed:** Exact-head review cleanup moved the shared bounded
+  concurrency helper, integration UUID/Klaviyo patterns, and Supabase admin
+  client into `server/lib/concurrency.ts`,
+  `server/lib/integration-constants.ts`, and
+  `server/lib/supabase-admin.ts`. The extracted analytics, communications,
+  integration-runtime, member, order, foundation, retention, Stripe, and
+  webhook services now reuse those neutral owners without introducing a
+  service cycle; the Stripe compatibility export remains available. Three
+  caller-free release helpers were removed, and webhook serialization helpers
+  were renamed to make their redaction behavior explicit. **Why:** CodeRabbit
+  identified duplicate primitives, ambiguous redaction names, and dead
+  post-extraction code that could drift independently. **Deployment impact:**
+  Internal service organization only; no route, database migration, provider
+  activation, secret, Pages, or hosted state changes. **Verification:**
+  TypeScript, 386/386 Vitest tests, Vite and Worker builds, `git diff --check`,
+  18-service/37-edge graph audit with zero cycles, and zero route imports from
+  the compatibility integration barrel.
+- **What changed:** Integrated the verified review-hardening `main` baseline
+  into BS-03 and transplanted its release-wine identity/replay update from the
+  retired service monolith into `server/services/orders.ts`, while keeping
+  `core-club.ts` re-export-only. **Why:** BS-03 must preserve the review fixes
+  without reversing the behavior-preserving service decomposition.
+  **Deployment impact:** The pending forward release-identity migration and
+  hardened route/guard behavior are preserved; no provider, hosted database,
+  Worker, Pages, secret, or activation mutation is performed by this
+  integration. **Verification:** Direct-push policy, dependency audit,
+  generated Worker bindings, TypeScript, Vitest, all embedded database phases,
+  Pages and Worker builds/dry runs, Playwright/axe, and structural service
+  audits are rerun on the integrated head before publication.
+- Decomposed `core-club.ts` into domain-scoped member, club, order, Stripe,
+  and EasyPost services while preserving its prior public API through re-exports.
+- Decomposed `integrations.ts` into communications and webhook services, with
+  an unchanged shared provider-runtime extraction that prevents circular
+  imports between those domains.
+- Added the complete `server/services/index.ts` barrel and moved internal
+  service consumers and BS-02 system route to their direct domain imports.
+- Remapped architecture, tenancy-audit, setup, and automated-review guidance
+  from the historical service monoliths to the extracted domain owners while
+  preserving the original audit revision as provenance.
 - Extracted all 129 Express route registrations from `server/app.ts` into
   domain-scoped modules under `server/routes/`, preserving the original route
   paths, middleware order, schemas, service calls, and response behavior.
@@ -23,6 +62,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** `server/lib/concurrency.ts` now rejects non-positive,
+  fractional, and non-finite concurrency limits and passes `undefined` array
+  elements to the operation instead of treating them as worker exhaustion.
+  `tests/unit/concurrency.test.ts` proves validation, complete processing, and
+  result ordering. `server/services/index.ts` now explicitly resolves the two
+  member symbols also re-exported by Stripe to their canonical member binding,
+  with a runtime identity assertion in the Phase 5 service suite. The service
+  ADR now defines its dependency arrows against the implemented import graph
+  and includes explicit deployment and verification sections. **Why:** Fresh
+  exact-head reviews found that invalid limits could silently skip a batch,
+  `undefined` data could truncate one worker, the original ADR arrow direction
+  was ambiguous, and relying on star-export resolution made two public barrel
+  symbols unnecessarily subtle. Explicit exports remove that ambiguity.
+  **Deployment impact:** Worker batch helpers now fail fast on programmer
+  configuration errors, while the public service barrel retains its intended
+  names deterministically; routes, database migrations, provider activation,
+  secrets, Pages, and hosted state are unchanged.
+  **Verification:** Concurrency unit tests 2/2, TypeScript, full Vitest
+  388/388, public-barrel binding identity, `git diff --check`, and fresh
+  exact-head review.
+- **What changed:** Exact-head review hardening now defers mobile push only for
+  `activation_required` and surfaces APNs configuration mismatches; requires
+  EasyPost recovery to find the exact persisted rate; rejects invalid
+  QuickBooks refresh-lease generations; passes the authenticated Supabase user
+  ID to the member-address command; and records a structured error when an
+  integration-health downgrade fails without blocking job completion. Focused
+  regressions were added to `tests/server/core-club.test.ts`,
+  `tests/server/phase4-services.test.ts`, and
+  `tests/server/phase5-integrations.test.ts`. **Why:** CodeRabbit found five
+  fail-open, reconciliation, identity, or observability defects in the
+  extracted owners. **Deployment impact:** Worker error handling and
+  fail-closed provider behavior change for misconfiguration and invalid
+  recovery state; no migration, secret value, provider activation, Pages
+  route, or hosted mutation is required. **Verification:** Focused service
+  tests 114/114, full Vitest 386/386, TypeScript, Vite build, Worker dry run,
+  and fresh exact-head automated reviews.
+- Updated the preserved BS-02 route manifest to include BS-04's path-specific
+  rate-limit layer in registration order, and added an explicit BS-03 change
+  record to the compatibility-barrel Greptile guidance.
 - **What changed:** Direct-router retention coverage now proves malformed-token
   POST responses retain `no-store` and `no-referrer` before the service is
   invoked, and the agent workflow records the reason, operational impact, and
@@ -154,6 +232,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **What changed:** Added the domain-service decomposition ADR and linked
+  architecture/service-manifest guidance, documenting extracted ownership,
+  import direction, neutral shared primitives, compatibility barrels, and the
+  requirement to review behavioral changes separately from structural moves.
+  **Why:** The decomposition establishes a durable architecture and therefore
+  requires a canonical decision record beyond the implementation manifest.
+  **Deployment impact:** Documentation only; routes, Worker bindings, database
+  migrations, providers, secrets, Pages, and activation state are unchanged.
+  **Verification:** ADR link review, implemented import-graph comparison,
+  18-service/37-edge zero-cycle audit, `git diff --check`, and exact-head
+  automated review.
+- Added the BS-03 `server/services/` extraction skeleton for members, clubs,
+  orders, Stripe, EasyPost, communications, webhooks, and the service barrel;
+  the pre-existing analytics module remains intact.
+- Added the BS-03 service decomposition manifest, documenting every exported
+  function, public service method, cross-domain dependency,
+  provider-activation guard, and tenant-scoping boundary before extraction.
 - Added architecture context for the current Pages/Worker/Supabase topology,
   explicit tenant boundary, service request path, provider activation status,
   all 20 pending gates, and the canonical file-ownership table so automated

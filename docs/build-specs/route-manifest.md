@@ -11,11 +11,16 @@ The route tables use these exact middleware-chain identifiers:
 
 | ID | Middleware chain in registration order |
 |---|---|
-| `P` | `helmet` → CSP/cache headers → CORS |
+| `P` | `helmet` → CSP/cache headers → CORS → applicable path-specific rate limiter (`AUTH_RATE_LIMITER`, `WEBHOOK_RATE_LIMITER`, `ADMIN_RATE_LIMITER`, or `API_RATE_LIMITER`) |
 | `R1` | `P` → `express.raw({ limit: "1mb", type: "application/json" })` |
 | `R5` | `P` → `express.raw({ limit: "5mb", type: "application/json" })` |
 | `A` | `P` → `express.json({ limit: "256kb", strict: true })` → `assertTrustedOrigin` → `requireAuthPresence` |
 | `M6` | `A` → `express.raw({ limit: "6mb", type: "multipart/form-data" })` |
+
+The integrated BS-04 layer mounts auth, webhook, admin, and general API limits
+after global security/CORS middleware and before public/raw-webhook and
+protected route handlers. The general API limiter excludes the specialized
+prefixes. `/.well-known/*` association routes do not match an `/api` limiter.
 
 All handlers are inline anonymous functions in the source. `async` is recorded
 where the handler is asynchronous.

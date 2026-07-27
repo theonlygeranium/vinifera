@@ -5,14 +5,14 @@ import { createApp } from "./app";
 import { withSecurityHeaders } from "./lib/security";
 import { initSentry, Sentry } from "./lib/sentry";
 import { runAnalyticsSchedule } from "./services/analytics";
-import { runCoreClubSchedule } from "./services/core-club";
+import { runCoreClubSchedule } from "./services/orders";
 import { reconcileSubscriptionAccess } from "./services/production-foundation";
 import { runRetentionSchedule } from "./services/retention";
+import { runMobilePushSchedule } from "./services/comms";
 import {
   drainIntegrationJobs,
   runIntegrationSchedule,
-  runMobilePushSchedule,
-} from "./services/integrations";
+} from "./services/webhooks";
 import {
   consumeIntegrationWakeBatch,
   enqueueIntegrationWake,

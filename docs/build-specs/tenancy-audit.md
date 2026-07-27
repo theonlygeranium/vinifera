@@ -2,15 +2,30 @@
 
 **Audit date:** 2026-07-27
 
-**Audit starting point:** `origin/main` at `30fe29e`
+**Historical audit starting point:** `origin/main` at `30fe29e`
 
-**Audited implementation head:** `38782710f2c57b2053718e2480dad69a3337147a`
-after integrating `origin/main` at
-`72abbd0673e14cf63a4c85a9149da1ec23e21632`. The subsequent review follow-up
-changes only governance, audit, changelog, and test-fixture evidence; it does
-not alter `server/services/`.
+**Integrated implementation:** BS-03 service decomposition merged with
+`origin/main` at `10c6c4588b80878ec5ce098d1745091427d0224f`. The five
+BS-06 mobile-bootstrap predicates are preserved in
+`server/services/webhooks.ts`; the original monolith paths are re-export-only
+compatibility barrels.
 
 **Scope:** Every database-calling function in `server/services/*.ts`
+
+## Post-decomposition ownership
+
+The detailed audit below preserves its original source-line references so the
+BS-06 review can be reconstructed. Current code ownership is:
+
+| Historical source | Current owners |
+|---|---|
+| `core-club.ts` | `members.ts` (principal/member lifecycle), `clubs.ts` (club/brand operations), `easypost.ts` (shipping providers), `stripe.ts` (billing/refunds/Avalara), and `orders.ts` (releases/shipments/schedules) |
+| `integrations.ts` | `integration-runtime.ts` (shared provider runtime), `comms.ts` (Klaviyo/sender/mobile-push delivery), and `webhooks.ts` (connectors, domains, mobile sessions/bootstrap, association documents, and integration jobs) |
+
+`core-club.ts` and `integrations.ts` now contain only compatibility exports.
+The historical line references in their two sections are provenance, not
+current navigation offsets. The fixed mobile-bootstrap owner and current
+location are called out explicitly below.
 
 ## Evidence boundary
 
@@ -70,9 +85,9 @@ so a future reviewer does not mistake them for browser-authorized access.
 | `runReleaseComplianceChecks` | 3105 | ✅ Direct | Filters shipments by organization, brand, and release. |
 | `runAnalyticsSchedule` | 3188 | ✅ Privileged claim | Service-role cron RPCs either iterate authoritative brand rows or perform documented platform-wide aggregate maintenance. |
 
-### `server/services/core-club.ts`
+### Historical source: `server/services/core-club.ts`
 
-| Function | Line | Has tenant scope | Evidence |
+| Function | Historical source line | Has tenant scope | Evidence |
 |---|---:|---|---|
 | `resolveStripePaymentMethod` | 1624 | ✅ Direct | Filters member by organization and brand. |
 | `assertBrandOperationalAccess` | 1691 | ✅ Direct | Validates the brand/organization pair; the organization lookup uses the validated organization ID. |
@@ -131,9 +146,9 @@ so a future reviewer does not mistake them for browser-authorized access.
 | `requeueSystemAttempt` | 5805 | ✅ Derived | Updates only the claimed billing-attempt/shipment IDs after tenant-scoped claim validation. |
 | `runCoreClubSchedule` | 5861 | ✅ Privileged claim | Cross-brand cron claims authoritative due rows; every provider operation and completion uses the claimed organization/brand. |
 
-### `server/services/integrations.ts`
+### Historical source: `server/services/integrations.ts`
 
-| Function | Line | Has tenant scope | Evidence |
+| Function | Historical source line | Has tenant scope | Evidence |
 |---|---:|---|---|
 | `getPortalBranding` | 821 | ✅ Global authority | Public hostname discovery resolves only an active, globally unique custom hostname and returns safe branding fields. |
 | `activeMemberAttributionHostname` | 894 | ✅ Derived | Hostname result must match the already authenticated member organization and brand. |
@@ -175,7 +190,7 @@ so a future reviewer does not mistake them for browser-authorized access.
 | `mobileSessionResponse` | 3242 | ✅ Direct | Filters member by organization, brand, auth user, and member ID. |
 | `refreshMobileSession` | 3282 | ✅ Derived | Rotating opaque token RPC yields the only usable session ID; the loaded row supplies immutable tenant claims. |
 | `logoutMobileSession` | 3329 | ✅ Derived | Hashed opaque refresh token resolves the family revoked by the guarded RPC. |
-| `getMobileBootstrap` | 3421 | ✅ Direct (fixed) | Member, shipment, and loyalty reads now all filter by authenticated organization and brand. |
+| `getMobileBootstrap` | 3421 | ✅ Direct (fixed) | Current owner: `webhooks.ts` near line 3387. Member, shipment, and loyalty reads all filter by authenticated organization and brand. |
 | `registerMobileDevice` | 3486 | ✅ Direct | Member read is scoped; device and secret rows include organization and brand. |
 | `unregisterMobileDevice` | 3551 | ✅ Direct | Filters the device by organization, brand, and member. |
 | `claimRefundDelivery` | 3635 | ✅ Privileged claim | Claims one integration refund row by durable billing attempt; returned row includes tenant context. |
@@ -265,6 +280,7 @@ database inventory.
 ## Finding and remediation
 
 One defense-in-depth gap was confirmed in
+`server/services/webhooks.ts` in
 `ProductionIntegrationService.getMobileBootstrap`. Its member profile read had
 an organization predicate but no brand predicate, while the shipment and
 loyalty snapshot reads relied on member RLS plus `member_id` without repeating

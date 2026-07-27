@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { AvalaraClient, resolveTaxFailClosed } from "../../server/integrations/avalara";
 import { CloudflareCustomHostnameClient } from "../../server/integrations/cloudflare-domains";
 import {
@@ -47,6 +48,7 @@ import {
   androidAssetLinks,
   appleAppSiteAssociation,
   contrastRatio,
+  drainIntegrationJobs,
   evaluateThemeColor,
   executeIntegrationJob,
   integrationJobKind,
@@ -54,14 +56,18 @@ import {
   metaAttributionCustomData,
   normalizeMetaAttribution,
   normalizeMobileClubCode,
-  ProductionIntegrationService,
   quickBooksRefundDeltaFinancials,
   quickBooksShipmentFinancials,
   runMobilePushSchedule,
   uniqueMobileClubBrandId,
   validatedTheme,
 } from "../../server/services/integrations";
+import { ProductionIntegrationService } from "../../server/services/webhooks";
+import { providerForJob } from "../../server/services/integration-runtime";
 import { brandAllowsOperationalAccess } from "../../server/services/core-club";
+import {
+  brandAllowsOperationalAccess as indexedBrandAllowsOperationalAccess,
+} from "../../server/services";
 import type { WorkerEnv } from "../../server/types";
 import {
   providerTargetPolicy,
@@ -841,7 +847,7 @@ describe("Phase 5 provider clients", () => {
       }),
     ).toThrowError(
       expect.objectContaining({
-        code: "activation_required",
+        code: "configuration_error",
         status: 503,
       }),
     );
@@ -1035,6 +1041,95 @@ describe("Phase 5 provider clients", () => {
     ]);
     expect(refreshCalls).toBe(1);
     expect(persisted).toEqual(["rotated-refresh"]);
+  });
+
+  it("rejects an acquired QuickBooks refresh lease with an invalid credential generation", async () => {
+    const envelope = await encryptIntegrationCredentials(
+      encryptionEnv,
+      {
+        integrationType: "quickbooks",
+        organizationId,
+        targetId: integrationId,
+      },
+      {
+        accessToken: "expired-access-token",
+        accessTokenExpiresAt: "2020-01-01T00:00:00.000Z",
+        realmId: "realm-invalid-generation",
+        refreshToken: "rolling-refresh-token",
+      },
+    );
+    const admin = integrationAdminMock({
+      onRpc: async (name) => {
+        if (name === "get_integration_runtime") {
+          return {
+            data: {
+              algorithm: envelope.algorithm,
+              brand_id: "50000000-0000-4000-8000-000000000005",
+              connection_id: integrationId,
+              credential_ciphertext: envelope.ciphertext,
+              credential_generation: 1,
+              credential_iv: envelope.iv,
+              envelope_version: envelope.version,
+              integration_type: "quickbooks",
+              key_version: envelope.keyVersion,
+              organization_id: organizationId,
+              storage_mode: "encrypted_envelope",
+              sync_config: {},
+            },
+            error: null,
+          };
+        }
+        if (name === "claim_quickbooks_refresh_lease") {
+          return {
+            data: {
+              credential_generation: "not-a-generation",
+              disposition: "acquired",
+              lease_token: "quickbooks-refresh-lease",
+            },
+            error: null,
+          };
+        }
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+      onTable: (table) => {
+        throw new Error(`Unexpected table ${table}`);
+      },
+    });
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+    const provider = await providerForJob(
+      {
+        ...encryptionEnv,
+        APP_ENV: "test",
+        APP_ORIGIN: "https://vinifera.test",
+        QUICKBOOKS_CLIENT_ID: "quickbooks-client",
+        QUICKBOOKS_CLIENT_SECRET: "quickbooks-secret",
+        QUICKBOOKS_ENVIRONMENT: "sandbox",
+        QUICKBOOKS_REDIRECT_URI:
+          "https://vinifera.test/api/integrations/quickbooks/callback",
+      },
+      admin as never,
+      {
+        attempt_count: 1,
+        brand_id: "50000000-0000-4000-8000-000000000005",
+        connection_id: integrationId,
+        cursor_data: {},
+        entity_id: null,
+        idempotency_key: "quickbooks-invalid-generation",
+        integration_type: "quickbooks",
+        job_id: "60000000-0000-4000-8000-000000000006",
+        lease_token: "job-lease-token",
+        max_attempts: 8,
+        organization_id: organizationId,
+        payload: {},
+        sync_type: "connection.validate",
+      },
+    );
+
+    await expect(provider.client.validateConnection()).rejects.toMatchObject({
+      providerCode: "provider_conflict",
+    });
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("queries by DocNumber instead of blindly retrying an ambiguous QuickBooks write", async () => {
@@ -2353,6 +2448,9 @@ describe("Phase 5 job, theme, and native delivery controls", () => {
   });
 
   it("allows charges only for active or grace brand billing access", () => {
+    expect(indexedBrandAllowsOperationalAccess).toBe(
+      brandAllowsOperationalAccess,
+    );
     expect(
       brandAllowsOperationalAccess({
         active: true,
@@ -2554,5 +2652,83 @@ describe("Phase 5 job, theme, and native delivery controls", () => {
       failed: 0,
       sent: 0,
     });
+  });
+
+  it("surfaces mobile push configuration mismatches instead of reporting deferred activation", async () => {
+    await expect(
+      runMobilePushSchedule({
+        APNS_BUNDLE_ID: "ai.edstratumlabs.wrong-app",
+        MOBILE_IOS_BUNDLE_ID: "ai.edstratumlabs.vinifera",
+        SUPABASE_SECRET_KEY: "service-role-placeholder",
+        SUPABASE_URL: "https://project.supabase.co",
+      }),
+    ).rejects.toMatchObject({
+      code: "configuration_error",
+    });
+  });
+
+  it("logs a failed integration health downgrade without blocking job completion", async () => {
+    const job = {
+      attempt_count: 1,
+      brand_id: null,
+      connection_id: integrationId,
+      cursor_data: {},
+      entity_id: null,
+      idempotency_key: "connection-validation",
+      integration_type: "klaviyo" as const,
+      job_id: "60000000-0000-4000-8000-000000000006",
+      lease_token: "job-lease-token",
+      max_attempts: 8,
+      organization_id: organizationId,
+      payload: {},
+      sync_type: "connection.validate",
+    };
+    const admin = {
+      rpc: vi.fn(async (name: string) => {
+        if (name === "claim_integration_sync_jobs") {
+          return { data: [job], error: null };
+        }
+        if (name === "set_integration_health") {
+          return {
+            data: null,
+            error: { code: "XX000", message: "database unavailable" },
+          };
+        }
+        if (name === "complete_integration_sync_job") {
+          return { data: true, error: null };
+        }
+        throw new Error(`Unexpected RPC ${name}`);
+      }),
+    } as unknown as SupabaseClient;
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(
+        drainIntegrationJobs(
+          {},
+          new Date("2026-07-27T12:00:00.000Z"),
+          admin,
+        ),
+      ).resolves.toMatchObject({
+        claimed: 1,
+        deadLettered: 1,
+      });
+      expect(errorLog).toHaveBeenCalledWith(
+        JSON.stringify({
+          code: "XX000",
+          connectionId: integrationId,
+          event: "integration.health_update_failed",
+          jobId: job.job_id,
+        }),
+      );
+      expect(admin.rpc).toHaveBeenCalledWith(
+        "complete_integration_sync_job",
+        expect.objectContaining({
+          p_job_id: job.job_id,
+          p_outcome: "dead_letter",
+        }),
+      );
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 });

@@ -75,7 +75,7 @@ longer-window member magic-link policy remain in PostgreSQL.
 | Member portal | `src/client/member/` | `/portal/*` | Lazy React chunk |
 | Investor guide | `guide` | `/guide/*` | Static asset |
 | API | `server/` | `/api/*` | Express on Worker |
-| Mobile associations | `server/services/integrations.ts` | `/.well-known/*` | Express on Worker |
+| Mobile associations | `server/services/webhooks.ts` | `/.well-known/*` | Express on Worker |
 | Temporary Pages rollback | `app` | `/app/` on Pages only | Original static prototype |
 
 ### Deployment topology
@@ -124,6 +124,15 @@ HTTP Request
 `server/routes/index.ts` owns the order-sensitive public, raw-webhook,
 protected, `/api` fallback, and centralized error-handler mounts. The error
 handler is registered last.
+
+The service layer is split into domain owners with an explicit acyclic
+dependency direction. `core-club.ts` and `integrations.ts` remain export-only
+compatibility barrels, while production callers import the extracted owner
+directly. The rationale, compatibility boundary, and consequences are recorded
+in the
+[domain service decomposition ADR](./decisions/2026-07-27-domain-service-decomposition.md);
+the symbol-level mapping is maintained in the
+[service manifest](./build-specs/service-manifest.md).
 
 ---
 
