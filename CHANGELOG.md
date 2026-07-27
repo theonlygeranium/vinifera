@@ -290,6 +290,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Removed a README link to the not-yet-committed BS-05 local quickstart so
+  repository navigation points only to files and commands that exist today.
 - Added explicit `organization_id` and `brand_id` predicates to every mobile
   offline-bootstrap profile, shipment, and loyalty query instead of relying
   only on member RLS and `member_id`.

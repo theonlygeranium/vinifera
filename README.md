@@ -45,10 +45,9 @@ gates. See [`CONTINUITY_BRIEF.md`](./CONTINUITY_BRIEF.md).
 
 ## Local development
 
-The current commands are documented under [Build & Deploy](#build--deploy).
-The single-command local-stack guide will live at
-[`docs/local-dev-quickstart.md`](./docs/local-dev-quickstart.md) when BS-05 is
-merged; no such file is present on `main` yet.
+Use the current local and Worker commands documented under
+[Build & Deploy](#build--deploy). There is no standalone local quickstart in
+the repository today.
 
 ## Agent workflow
 
