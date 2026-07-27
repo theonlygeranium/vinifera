@@ -22,8 +22,8 @@ status context. On pushes, query GitHub's
 list-pull-requests-associated-with-a-commit endpoint for the pushed SHA and
 pass only when one response is a closed, merged pull request whose base is this
 repository's `main` branch and whose `merge_commit_sha` exactly matches the
-pushed SHA. The verifier follows no more than ten pagination links after
-confirming each retains the first request's origin and path. If complete
+pushed SHA. The verifier fetches at most ten API pages after confirming each
+next-page URL retains the first request's origin and path. If complete
 pagination returns no match, it retries twice at ten-second intervals to absorb
 GitHub's normal post-merge indexing delay. Every GitHub request is bounded by a
 five-second `AbortController` deadline. A request timeout consumes that evidence

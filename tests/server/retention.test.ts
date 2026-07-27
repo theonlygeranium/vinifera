@@ -866,6 +866,7 @@ describe("Phase 3 HTTP contracts", () => {
     expect(invalid.status).toBe(400);
     expect(invalid.headers["cache-control"]).toBe("no-store");
     expect(invalid.headers["referrer-policy"]).toBe("no-referrer");
+    expect(service.applyUnsubscribe).not.toHaveBeenCalled();
 
     const oneClick = await request(app).post(
       `/api/communications/unsubscribe?token=${encodeURIComponent(token)}`,

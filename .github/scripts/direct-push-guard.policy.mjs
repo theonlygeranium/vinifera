@@ -225,6 +225,46 @@ test("retries a bounded GitHub request timeout and then accepts exact evidence",
   assert.deepEqual(delays, [10_000]);
 });
 
+test("keeps GitHub response parsing inside the bounded request timeout", async () => {
+  let requests = 0;
+  let timeoutCallback;
+  const delays = [];
+
+  const evidencePromise = verifyMainPush({
+    clearTimeoutImplementation() {},
+    delayImplementation: async (milliseconds) => {
+      delays.push(milliseconds);
+    },
+    environment: pushEnvironment(),
+    fetchImplementation: async () => {
+      requests += 1;
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json:
+          requests === 1
+            ? async () => {
+                timeoutCallback();
+                return new Promise(() => {});
+              }
+            : async () => [pullRequest()],
+      };
+    },
+    output: { log() {} },
+    requestTimeoutMs: 25,
+    setTimeoutImplementation: (callback) => {
+      timeoutCallback = callback;
+      return requests + 1;
+    },
+  });
+
+  const evidence = await evidencePromise;
+  assert.equal(evidence.number, 42);
+  assert.equal(requests, 2);
+  assert.deepEqual(delays, [10_000]);
+});
+
 test("fails closed after three deterministic GitHub request timeouts", async () => {
   let requests = 0;
   const delays = [];

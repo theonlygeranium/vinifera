@@ -23,6 +23,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Review follow-up keeps both the GitHub response and its JSON
+  body parsing inside the direct-push guard's per-request timeout, aligns the
+  guard ADR with the ten-page implementation limit, and proves an invalid
+  unsubscribe token cannot invoke the mutation service. **Why:** A response
+  body can stall after headers arrive, and the security regression should
+  explicitly cover the non-mutation boundary. **Deployment impact:** Guard
+  availability and test/documentation evidence only; application routes,
+  database state, Pages, providers, and activation remain unchanged.
+  **Verification:** direct-push policy tests (12/12), focused retention tests,
+  TypeScript, and authenticated CodeRabbit review.
 - **What changed:** Local setup now begins from `.dev.vars.example`, gives an
   exact selective merge sequence from the comprehensive `.env.example`
   inventory, keeps the tracked Sentry placeholder blank, and requires separate

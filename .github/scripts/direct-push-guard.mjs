@@ -76,14 +76,26 @@ async function fetchMergeEvidence({
       }, requestTimeoutMs);
     });
     let response;
+    let pullRequests;
     try {
-      response = await Promise.race([
-        fetchImplementation(pageUrl, {
-          headers,
-          signal: controller.signal,
-        }),
+      ({ pullRequests, response } = await Promise.race([
+        (async () => {
+          const fetchedResponse = await fetchImplementation(pageUrl, {
+            headers,
+            signal: controller.signal,
+          });
+          if (!fetchedResponse.ok) {
+            throw new Error(
+              `Direct Push Guard could not verify associated pull requests (GitHub API ${fetchedResponse.status}).`,
+            );
+          }
+          return {
+            pullRequests: await fetchedResponse.json(),
+            response: fetchedResponse,
+          };
+        })(),
         timeoutPromise,
-      ]);
+      ]));
     } catch (error) {
       if (error === timeoutError || controller.signal.aborted) {
         throw timeoutError;
@@ -92,13 +104,6 @@ async function fetchMergeEvidence({
     } finally {
       clearTimeoutImplementation(timeout);
     }
-    if (!response.ok) {
-      throw new Error(
-        `Direct Push Guard could not verify associated pull requests (GitHub API ${response.status}).`,
-      );
-    }
-
-    const pullRequests = await response.json();
     const evidence = findMergeEvidence(pullRequests, match);
     if (evidence) {
       return evidence;
