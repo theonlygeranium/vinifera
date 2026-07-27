@@ -1,9 +1,20 @@
-import { Building2, CreditCard, Grape } from "lucide-react";
+import { Building2, CreditCard, Grape, Package, Users } from "lucide-react";
+import { useCallback, useMemo } from "react";
+import { apiRequest } from "../api/client";
+import type { OrganizationBrandOverview } from "../api/phase5";
 import type { PlanTier } from "../api/types";
 import { useRouter } from "../routes/router";
+import {
+  ActivationBlock,
+  ErrorBlock,
+  isActivationError,
+  LoadingBlock,
+} from "../shared/OperationalState";
 import { FormFeedback } from "../shared/FormFeedback";
 import { StaffShell } from "./StaffShell";
 import { useStaffSession } from "./StaffSessionContext";
+import { useApiResource } from "./phase2/useApiResource";
+import { money } from "./phase2/format";
 
 const planNames: Record<PlanTier, string> = {
   vine: "Vine",
@@ -19,6 +30,35 @@ function sentenceCase(value?: string | null) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function MetricCard({
+  icon,
+  label,
+  title,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  title: string;
+  value: string;
+}) {
+  return (
+    <section className="foundation-card" aria-labelledby={label}>
+      <div className="foundation-card__icon foundation-card__icon--wine">
+        {icon}
+      </div>
+      <div>
+        <h2 id={label}>{title}</h2>
+      </div>
+      <dl>
+        <div>
+          <dt>Value</dt>
+          <dd>{value}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
 export function StaffDashboard() {
   const { location } = useRouter();
   const { session } = useStaffSession();
@@ -31,6 +71,19 @@ export function StaffDashboard() {
       : null;
   const user = session?.user;
   const organization = session?.organization;
+
+  const loadOverview = useCallback(
+    () => apiRequest<OrganizationBrandOverview>("/api/organization/overview"),
+    [],
+  );
+  const overview = useApiResource(loadOverview, [loadOverview]);
+
+  const brandRows = useMemo(() => {
+    if (overview.state.status !== "ready") return [];
+    return [...overview.state.data.brands].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }, [overview.state]);
 
   return (
     <StaffShell title="Dashboard">
@@ -54,7 +107,10 @@ export function StaffDashboard() {
       </section>
 
       <div className="foundation-grid">
-        <section className="foundation-card" aria-labelledby="organization-title">
+        <section
+          className="foundation-card"
+          aria-labelledby="organization-title"
+        >
           <div className="foundation-card__icon foundation-card__icon--wine">
             <Building2 aria-hidden="true" />
           </div>
@@ -74,7 +130,10 @@ export function StaffDashboard() {
           </dl>
         </section>
 
-        <section className="foundation-card" aria-labelledby="subscription-title">
+        <section
+          className="foundation-card"
+          aria-labelledby="subscription-title"
+        >
           <div className="foundation-card__icon foundation-card__icon--gold">
             <CreditCard aria-hidden="true" />
           </div>
@@ -99,16 +158,105 @@ export function StaffDashboard() {
         </section>
       </div>
 
-      <section className="empty-state" aria-labelledby="empty-dashboard-title">
-        <span className="empty-state__icon" aria-hidden="true">
-          <Grape />
-        </span>
-        <h2 id="empty-dashboard-title">Start the club loop</h2>
-        <p>
-          Create a club tier, add or import members, schedule a release, then
-          process charges and fulfillment from the operation screens.
-        </p>
-      </section>
+      {overview.state.status === "loading" ? (
+        <LoadingBlock label="Loading dashboard metrics" />
+      ) : overview.state.status === "error" ? (
+        isActivationError(overview.state.error) ? (
+          <ActivationBlock
+            title="Dashboard metrics await data"
+            detail="The dashboard API is ready. Add the required environment credentials to activate live metrics."
+          />
+        ) : (
+          <ErrorBlock
+            error={overview.state.error}
+            onRetry={() => void overview.refresh()}
+          />
+        )
+      ) : (
+        <>
+          <div className="foundation-grid">
+            <MetricCard
+              icon={<Users aria-hidden="true" />}
+              label="active-members-title"
+              title="Active members"
+              value={overview.state.data.activeMembers.toLocaleString()}
+            />
+            <MetricCard
+              icon={<CreditCard aria-hidden="true" />}
+              label="mrr-title"
+              title="Monthly recurring revenue"
+              value={money(overview.state.data.monthlyRecurringRevenueCents)}
+            />
+            <MetricCard
+              icon={<Package aria-hidden="true" />}
+              label="shipments-title"
+              title="Shipments (last 30 days)"
+              value={overview.state.data.shipmentsThisPeriod.toLocaleString()}
+            />
+            <MetricCard
+              icon={<Building2 aria-hidden="true" />}
+              label="brand-count-title"
+              title="Active brands"
+              value={overview.state.data.brandCount.toLocaleString()}
+            />
+          </div>
+
+          {brandRows.length > 0 ? (
+            <section
+              className="operation-panel"
+              aria-labelledby="brand-breakdown-title"
+            >
+              <div className="operation-panel__header">
+                <h2 id="brand-breakdown-title">Brand breakdown</h2>
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  onClick={() => void overview.refresh()}
+                >
+                  Refresh
+                </button>
+              </div>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Brand</th>
+                      <th scope="col">Active members</th>
+                      <th scope="col">MRR</th>
+                      <th scope="col">Shipments</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {brandRows.map((brand) => (
+                      <tr key={brand.id}>
+                        <th scope="row">{brand.name || "Unnamed"}</th>
+                        <td>{brand.activeMembers.toLocaleString()}</td>
+                        <td>{money(brand.monthlyRecurringRevenueCents)}</td>
+                        <td>{brand.shipmentsThisPeriod.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : (
+            <section
+              className="empty-state"
+              aria-labelledby="empty-dashboard-title"
+            >
+              <span className="empty-state__icon" aria-hidden="true">
+                <Grape />
+              </span>
+              <h2 id="empty-dashboard-title">Start the club loop</h2>
+              <p>
+                Create a club tier, add or import members, schedule a release,
+                then process charges and fulfillment from the operation
+                screens.
+              </p>
+            </section>
+          )}
+        </>
+      )}
     </StaffShell>
   );
 }

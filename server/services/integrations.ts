@@ -2157,6 +2157,7 @@ export class ProductionIntegrationService
       p_brand_id: brandId,
       p_integration_type: type,
       p_organization_id: organizationId,
+      p_include_credentials: true,
     });
     const row = rpcRow(data) as IntegrationRuntimeRow | null;
     if (error || !row) {
@@ -3776,6 +3777,7 @@ async function integrationRuntimeForJob(
     p_brand_id: job.brand_id,
     p_integration_type: job.integration_type,
     p_organization_id: job.organization_id,
+    p_include_credentials: true,
   });
   const row = rpcRow(data);
   if (error || !row) {

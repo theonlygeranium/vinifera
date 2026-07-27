@@ -351,6 +351,25 @@ export async function apiRequest<T>(
     headers.set("Authorization", `Bearer ${nativeAccessToken}`);
   }
 
+  // P2-2: Add request timeout via AbortController to prevent hung requests
+  // from blocking indefinitely, which is especially problematic on mobile.
+  const timeoutMs = 30_000;
+  const controller = new AbortController();
+  const callerSignal = options.signal;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  // If the caller provided their own signal, abort on either trigger.
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      clearTimeout(timeoutId);
+      controller.abort();
+    } else {
+      callerSignal.addEventListener("abort", () => controller.abort(), {
+        once: true,
+      });
+    }
+  }
+
   let response: Response;
   try {
     response = await fetch(resolveApiUrl(path), {
@@ -358,13 +377,22 @@ export async function apiRequest<T>(
       body: requestBody,
       headers,
       credentials: "include",
+      signal: controller.signal,
     });
-  } catch {
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError(
+        "The request timed out. Please try again.",
+        { status: 0, code: "TIMEOUT" },
+      );
+    }
     throw new ApiError(
       "Vinifera could not reach the server. Check your connection and try again.",
       { status: 0, code: "NETWORK_ERROR" },
     );
   }
+  clearTimeout(timeoutId);
 
   const payload = await parseResponse(response);
   updateAuthTenantScope(path, payload, response.ok);

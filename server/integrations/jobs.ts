@@ -68,6 +68,25 @@ export function failedIntegrationJob(input: {
   processed?: number;
   providerCursor?: Record<string, unknown>;
 }): IntegrationJobCompletion {
+  // P2-5: Runtime errors (TypeError, RangeError, SyntaxError, ReferenceError)
+  // are programming bugs, not transient provider failures.  Retrying them
+  // wastes resources and delays surfacing the defect.  Classify as
+  // non-retryable immediately.
+  if (
+    input.error instanceof TypeError ||
+    input.error instanceof RangeError ||
+    input.error instanceof SyntaxError ||
+    input.error instanceof ReferenceError
+  ) {
+    return {
+      errorCode: "internal_error",
+      failed: 1,
+      nextAttemptAt: null,
+      outcome: "dead_letter",
+      processed: Math.max(0, input.processed ?? 0),
+      providerCursor: input.providerCursor ?? {},
+    };
+  }
   const retryable =
     input.error instanceof IntegrationProviderError
       ? input.error.retryable

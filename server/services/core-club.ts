@@ -1810,6 +1810,7 @@ export async function prepareAvalaraTax(
       p_brand_id: shipment.brand_id,
       p_integration_type: "avalara",
       p_organization_id: shipment.organization_id,
+      p_include_credentials: true,
     },
   );
   const runtime = Array.isArray(runtimeValue) ? runtimeValue[0] : runtimeValue;

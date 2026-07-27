@@ -1,4 +1,5 @@
 import { AppError } from "../lib/errors";
+import { IntegrationProviderError } from "./http";
 import type {
   CloudflareCustomHostnameClient,
   CustomHostnameResult,
@@ -56,7 +57,7 @@ async function deleteOnce(input: {
 }): Promise<void> {
   try {
     await input.client.deleteHostname(input.providerHostnameId);
-  } catch {
+  } catch (error) {
     await input.store
       .markLookupRequired(
         input.attemptId,
@@ -64,6 +65,13 @@ async function deleteOnce(input: {
         "DELETE_RESULT_UNKNOWN",
       )
       .catch(() => undefined);
+    // P2-4: Preserve the original IntegrationProviderError so the retry layer
+    // can classify 404 (permanent) vs 500 (retryable).  Previously the catch
+    // block swallowed the provider error and always threw a generic
+    // upstream_error, defeating intelligent retry classification.
+    if (error instanceof IntegrationProviderError) {
+      throw error;
+    }
     throw new AppError(
       502,
       "upstream_error",

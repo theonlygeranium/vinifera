@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import { Redirect, useRouter } from "../routes/router";
+import { useEffect, useState } from "react";
+import { Redirect, useRouter, useSearchParams } from "../routes/router";
 import { LoadingScreen } from "../shared/LoadingScreen";
-import { isNativeShell } from "../mobile/native-session";
+import { isNativeShell, exchangeNativeMagicLink } from "../mobile/native-session";
 import { MemberLoginPage } from "./MemberLoginPage";
 import { MemberPortal } from "./MemberPortal";
 import { MemberBrandingProvider } from "./MemberBranding";
@@ -43,7 +43,37 @@ function MemberCallback() {
 }
 
 function NativeMemberCallback() {
-  if (!isNativeShell()) {
+  const { navigate } = useRouter();
+  const search = useSearchParams();
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!isNativeShell()) {
+      navigate("/portal/login?error=invalid_link", { replace: true });
+      return;
+    }
+    const code = search.get("code");
+    if (!code) {
+      navigate("/portal/login?error=invalid_link", { replace: true });
+      return;
+    }
+    let cancelled = false;
+    void exchangeNativeMagicLink(code)
+      .then(() => {
+        if (cancelled) return;
+        window.dispatchEvent(new Event("vinifera:member-auth-changed"));
+        navigate("/portal", { replace: true });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, search]);
+
+  if (error) {
     return <Redirect to="/portal/login?error=invalid_link" />;
   }
   return <LoadingScreen label="Completing your secure mobile sign-in" />;
