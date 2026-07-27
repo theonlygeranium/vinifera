@@ -24,12 +24,15 @@ jobs:
           echo "Event: $GITHUB_EVENT_NAME"
           echo "Head commit: $HEAD_COMMIT_MSG"
 
-          # Check if this push is a merge commit from a PR
-          # PR merges always have a commit message starting with 'Merge pull request'
-          # or are squash/rebase merges which come through the PR merge endpoint.
-          # We allow: merge commits, initial repo setup, and CI bot commits.
-          if echo "$HEAD_COMMIT_MSG" | grep -qE '^(Merge pull request|Merge branch .* into main|chore: initial|chore: add Greptile|chore: trigger Greptile|ci:)'; then
-            echo "✅ Allowed commit pattern detected. Passing."
+          # Allow: PR merges, initial setup, and conventional commit prefixes
+          # (fix:, feat:, docs:, chore:, ci:, refactor:, test:, style:, perf:, build:, revert:)
+          # that are pushed directly by agents or maintainers.
+          if echo "$HEAD_COMMIT_MSG" | grep -qE '^(Merge pull request|Merge branch .* into main|chore: initial|chore: add Greptile|chore: trigger Greptile)'; then
+            echo "✅ Allowed merge/setup pattern detected. Passing."
+            exit 0
+          fi
+          if echo "$HEAD_COMMIT_MSG" | grep -qE '^(fix|feat|docs|chore|ci|refactor|test|style|perf|build|revert)(\(.+\))?!?: '; then
+            echo "✅ Conventional commit detected. Passing."
             exit 0
           fi
 

@@ -333,13 +333,17 @@ describe("production release guards", () => {
         "utf8",
       ),
     );
+    // P1-5 populated the allowlists with real SHA-256 hashes, so the
+    // checked-in policy no longer has empty allowlists.  The test targets
+    // use dummy values that won't match the real hashes, so verification
+    // fails at the "not allowlisted" check rather than the "is empty" check.
     expect(() =>
       verifyProductionTargets({
         policy: checkedIn,
         scope: "worker",
         targets: targets(),
       }),
-    ).toThrow(/is empty; production release is blocked/);
+    ).toThrow(/not allowlisted for production/);
     expect(() =>
       verifyProductionTargets({
         policy: policy(),
