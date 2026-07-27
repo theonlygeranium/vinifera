@@ -23,6 +23,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** The release command RPC now scopes allowed payload fields by
+  operation: only create accepts `initial_status`, update accepts aggregate
+  fields without create-only state, and schedule requires an empty payload.
+  pgTAP proves rejected surplus fields leave no command result. **Why:** Hosted
+  CodeRabbit found that the shared allowlist could silently ignore fields on
+  update or schedule. **Deployment impact:** The stricter contract ships in the
+  pending release-identity migration; no new migration, Pages, provider,
+  secret, or activation change is introduced. **Verification:** Phase 2 and
+  Phase 5 current-stack pgTAP, `git diff --check`, and fresh exact-head reviews.
 - **What changed:** Both the GET confirmation and POST mutation responses for
   token-bearing unsubscribe URLs now set route-owned `Cache-Control: no-store`
   and `Referrer-Policy: no-referrer` headers before token handling; direct-router
@@ -61,7 +70,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and activation state are unchanged. **Verification:** Stateful service retry
   tests, Phase 2 command-ledger pgTAP identity/tenant/mismatch assertions,
   TypeScript, 382/382 Vitest tests, database gates
-  92/246/199/158/509, all Pages and Worker dry-run builds, and 145/145
+  92/250/199/158/513, all Pages and Worker dry-run builds, and 145/145
   Playwright/axe checks. Authenticated CodeRabbit review is rerun on the
   committed head before merge.
 - **What changed:** Review follow-up keeps both the GitHub response and its JSON

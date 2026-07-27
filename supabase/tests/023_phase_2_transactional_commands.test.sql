@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
-select plan(76);
+select plan(80);
 
 insert into auth.users (id, email)
 values ('c1000000-0000-4000-8000-000000000001', 'phase2-command-owner@example.test');
@@ -926,6 +926,73 @@ select ok(
     )
   ),
   'null-valued release commands leave no durable replay result'
+);
+
+select throws_ok(
+  $$
+    select public.apply_release_command(
+      'c2000000-0000-4000-8000-000000000001',
+      (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+      'c1000000-0000-4000-8000-000000000001',
+      'c3600000-0000-4000-8000-000000000010',
+      'update',
+      (select (result ->> 'entityId')::uuid from release_identity_create_result),
+      (
+        select payload || jsonb_build_object('initial_status', 'scheduled')
+        from release_identity_update_payload
+      )
+    )
+  $$,
+  '22023',
+  'The release command is invalid.',
+  'release update rejects the create-only initial status field'
+);
+
+select throws_ok(
+  $$
+    select public.apply_release_command(
+      'c2000000-0000-4000-8000-000000000001',
+      (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+      'c1000000-0000-4000-8000-000000000001',
+      'c3600000-0000-4000-8000-000000000011',
+      'schedule',
+      (select (result ->> 'entityId')::uuid from release_identity_create_result),
+      jsonb_build_object('name', 'Silently ignored schedule field')
+    )
+  $$,
+  '22023',
+  'The release command is invalid.',
+  'release schedule rejects every nonempty payload'
+);
+
+select throws_ok(
+  $$
+    select public.apply_release_command(
+      'c2000000-0000-4000-8000-000000000001',
+      (select default_brand_id from public.organizations where id = 'c2000000-0000-4000-8000-000000000001'),
+      'c1000000-0000-4000-8000-000000000001',
+      'c3600000-0000-4000-8000-000000000012',
+      null,
+      (select (result ->> 'entityId')::uuid from release_identity_create_result),
+      '{}'::jsonb
+    )
+  $$,
+  '22023',
+  'The release command is invalid.',
+  'release command rejects a null operation'
+);
+
+select ok(
+  not exists (
+    select 1
+    from private.core_club_command_results
+    where command_id in (
+      'c3600000-0000-4000-8000-000000000010',
+      'c3600000-0000-4000-8000-000000000011',
+      'c3600000-0000-4000-8000-000000000012'
+    )
+  ),
+  'operation-scoped field rejection leaves no durable replay result'
 );
 
 select throws_ok(

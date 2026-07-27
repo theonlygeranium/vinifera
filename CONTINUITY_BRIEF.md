@@ -151,7 +151,7 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   rejecting create-time, duplicate, cross-brand, cross-release, or otherwise
   foreign wine IDs. The current branch passes the direct-push policy 12/12,
   dependency audit 0, generated Worker bindings, TypeScript, Vitest 382/382,
-  database gates 92/246/199/158/509, focused production/mobile/catalog
+  database gates 92/250/199/158/513, focused production/mobile/catalog
   controls 14/7/16, mobile identity, Vite and Pages rollback builds,
   development/staging/production Worker dry runs, and Playwright/axe 145/145.
   Hosted Supabase native pgcrypto/pgTAP verification and all provider-backed

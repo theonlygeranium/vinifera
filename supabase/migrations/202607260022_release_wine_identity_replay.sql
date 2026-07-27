@@ -36,17 +36,33 @@ begin
     p_actor_user_id,
     array['owner', 'admin', 'manager']::public.staff_role[]
   );
-  if v_operation not in ('create', 'update', 'schedule')
+  if v_operation is null
+    or v_operation not in ('create', 'update', 'schedule')
     or jsonb_typeof(p_payload) is distinct from 'object'
-    or p_payload - array[
-      'description',
-      'embargo_date',
-      'initial_status',
-      'name',
-      'processing_date',
-      'tiers',
-      'wines'
-    ] <> '{}'::jsonb
+    or (
+      v_operation = 'create'
+      and p_payload - array[
+        'description',
+        'embargo_date',
+        'initial_status',
+        'name',
+        'processing_date',
+        'tiers',
+        'wines'
+      ] <> '{}'::jsonb
+    )
+    or (
+      v_operation = 'update'
+      and p_payload - array[
+        'description',
+        'embargo_date',
+        'name',
+        'processing_date',
+        'tiers',
+        'wines'
+      ] <> '{}'::jsonb
+    )
+    or (v_operation = 'schedule' and p_payload <> '{}'::jsonb)
   then
     raise exception using
       errcode = '22023',

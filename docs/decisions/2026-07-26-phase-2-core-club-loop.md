@@ -53,6 +53,9 @@ intended, and receive a new database-generated ID.
 Malformed direct RPC payloads, including JSON `null` for required scalar,
 tier-price, quantity, or wine-price fields, fail with the command contract's
 controlled validation errors before any aggregate mutation is attempted.
+Payload keys are operation-scoped: `initial_status` exists only on create,
+update accepts only aggregate fields, and schedule requires an empty payload so
+no caller-supplied value can be silently ignored.
 
 Deployment impact: Supabase must apply forward migration
 `202607260022_release_wine_identity_replay.sql` before the updated release PATCH

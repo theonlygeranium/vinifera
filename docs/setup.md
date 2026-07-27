@@ -511,8 +511,8 @@ then runs the remaining test and build gates. This keeps validation reproducible
 from a fresh checkout while leaving the generated artifact untracked.
 
 The current credential-independent architecture gate passes generated Worker
-types, TypeScript, 382/382 Vitest tests, Phase 1 92/92, Phase 2 246/246, Phase
-3 199/199, Phase 4 158/158, Phase 5 509/509 embedded PostgreSQL/pgTAP
+types, TypeScript, 382/382 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+3 199/199, Phase 4 158/158, Phase 5 513/513 embedded PostgreSQL/pgTAP
 assertions, and 145/145 Playwright tests with zero axe violations. Pages plus
 development, staging, and production Worker dry-run builds pass. The focused
 release controls pass 14/14, mobile-release controls 7/7, Stripe catalog
