@@ -1,1 +1,229 @@
-IyBCUy0wMSDigJQgR3JlcHRpbGUgQ29uZmlndXJhdGlvbiBVcGdyYWRlICYgUmVwbyBIeWdpZW5lCgoqKldhdmU6KiogMCAocnVucyBmaXJzdCDigJQgYWxsIG90aGVyIHNwZWNzIGRlcGVuZCBvbiB0aGlzIGJlaW5nIG1lcmdlZCkKKipCcmFuY2g6KiogYGNob3JlL2dyZXB0aWxlLWNvbmZpZy1hbmQtcmVwby1oeWdpZW5lYAoqKkVzdGltYXRlZCBkdXJhdGlvbjoqKiAx4oCTMiBob3VycwoqKlBhcmFsbGVsLXNhZmU6KiogWWVzIOKAlCBubyBvdGhlciBzcGVjIHNob3VsZCBydW4gdW50aWwgdGhpcyBtZXJnZXMKKipTcGF3bnMgc3ViYWdlbnRzOioqIE5vIOKAlCBzaW5nbGUgZm9jdXNlZCBhZ2VudAoKLS0tCgojIyBNYW5kYXRvcnkgcHJlLXRhc2sgcmVhZGluZwoKQmVmb3JlIHdyaXRpbmcgYSBzaW5nbGUgbGluZSBvZiBjb2RlLCByZWFkIHRoZXNlIGZpbGVzIGluIGZ1bGw6CgoxLiBgQUdFTlRTLm1kYCDigJQgcHJpbWUgZGlyZWN0aXZlcywgZmlsZSBvd25lcnNoaXAgcnVsZXMKMi4gYENPTlRJTlVJVFlfQlJJRUYubWRgIOKAlCBjdXJyZW50IHN0YXRlLCB3aGF0IGlzIGFuZCBpcyBub3QgYWN0aXZhdGVkCjMuIGBkb2NzL2FnZW50LXdvcmtmbG93Lm1kYCDigJQgYnJhbmNoaW5nIHJ1bGVzLCBHcmVwdGlsZSB3b3JrZmxvdwo0LiBgZ3JlcHRpbGUuanNvbmAg4oCUIGN1cnJlbnQgR3JlcHRpbGUgY29uZmlnICh5b3Ugd2lsbCByZXBsYWNlIGl0KQo1LiBgZG9jcy9jb2RlYmFzZS1hc3Nlc3NtZW50LTIwMjYtMDctMjcubWRgIMKnNCDigJQgaXNzdWVzIEItNCBhbmQgQi04CgotLS0KCiMjIENvbnRleHQ6IHdoeSB0aGlzIHJ1bnMgZmlyc3QKCkV2ZXJ5IFBSIG9wZW5lZCBieSBldmVyeSBvdGhlciBidWlsZCBzcGVjIHdpbGwgYmUgcmV2aWV3ZWQgYnkgR3JlcHRpbGUuIElmIEdyZXB0aWxlIGhhcyBubyBhcmNoaXRlY3R1cmFsIHJ1bGVzIGZvciB0aGlzIGNvZGViYXNlLCBpdCByZXZpZXdzIGluIGEgdmFjdXVtIGFuZCBtaXNzZXMgZG9tYWluLXNwZWNpZmljIHZpb2xhdGlvbnMuIFRoaXMgc3BlYyB1cGdyYWRlcyBgZ3JlcHRpbGUuanNvbmAgdG8gYSBmdWxsIGAuZ3JlcHRpbGUvYCBmb2xkZXIgY29uZmlndXJhdGlvbiB0aGF0IGVuY29kZXMgdmluaWZlcmEncyBhcmNoaXRlY3R1cmUsIGJlZm9yZSBhbnkgc3RydWN0dXJhbCB3b3JrIGJlZ2lucy4gSXQgYWxzbyByZW1vdmVzIHRoZSA1NTIgS0IgY29tbWl0dGVkIGdlbmVyYXRlZCBhcnRpZmFjdCB0aGF0IGJsb2F0cyBldmVyeSBjbG9uZS4KCi0tLQoKIyMgVGFzayAxOiBVcGdyYWRlIEdyZXB0aWxlIGNvbmZpZyB0byBgLmdyZXB0aWxlL2AgZm9sZGVyIGZvcm1hdAoKVGhlIGN1cnJlbnQgYGdyZXB0aWxlLmpzb25gIGV4aXN0cyBhdCByZXBvIHJvb3QuIE1pZ3JhdGUgaXQgdG8gdGhlIHJlY29tbWVuZGVkIGAuZ3JlcHRpbGUvYCBmb2xkZXIgZm9ybWF0IOOAkGtnLXd3d2dyZS0yNWJiMDNhY+OAkSwgd2hpY2ggc3VwcG9ydHMgcGVyLWRpcmVjdG9yeSBvdmVycmlkZXMgYW5kIGlubGluZSBtYXJrZG93biBydWxlcy4KCiMjIyBDcmVhdGUgYC5ncmVwdGlsZS9jb25maWcuanNvbmAKCmBgYGpzb24KewogICJzdHJpY3RuZXNzIjogIm1lZGl1bSIsCiAgImNvbW1lbnRUeXBlcyI6IHsKICAgICJsb2dpYyI6IHRydWUsCiAgICAic2VjdXJpdHkiOiB0cnVlLAogICAgInN0eWxlIjogdHJ1ZSwKICAgICJzeW50YXgiOiBmYWxzZQogIH0sCiAgImlnbm9yZSI6IFsKICAgICIqLmxvY2siLAogICAgInBhY2thZ2UtbG9jay5qc29uIiwKICAgICJ3b3JrZXItY29uZmlndXJhdGlvbi5kLnRzIiwKICAgICJhbmRyb2lkLyoqIiwKICAgICJpb3MvKioiLAogICAgImRpc3QvKioiLAogICAgIi53cmFuZ2xlci8qKiIKICBdCn0KYGBgCgojIyMgQ3JlYXRlIGAuZ3JlcHRpbGUvcnVsZXMubWRgCgpXcml0ZSBhIG1hcmtkb3duIHJ1bGVzIGZpbGUgd2l0aCB0aGUgZm9sbG93aW5nIHJ1bGVzLiBFYWNoIHJ1bGUgbXVzdCBpbmNsdWRlOiB3aGF0IGl0IGVuZm9yY2VzLCB3aHkgaXQgbWF0dGVycywgYW5kIGEgY29uY3JldGUgZXhhbXBsZSBvZiBhIHZpb2xhdGlvbi4KCioqUnVsZXMgdG8gZW5jb2RlOioqCgoxLiAqKk5vIGRpcmVjdCByb3V0ZS10by1kYXRhYmFzZSBhY2Nlc3MqKiDigJQgUm91dGUgaGFuZGxlcnMgaW4gYHNlcnZlci9yb3V0ZXMvYCAob25jZSBjcmVhdGVkKSBtdXN0IGNhbGwgc2VydmljZSBmdW5jdGlvbnMsIG5ldmVyIGNhbGwgYHN1cGFiYXNlYCBkaXJlY3RseSBvciBjb25zdHJ1Y3QgU1FMLiBWaW9sYXRpb246IGltcG9ydGluZyBgY3JlYXRlQ2xpZW50YCBpbiBhIHJvdXRlIGZpbGUuCgoyLiAqKk5vIGNpcmN1bGFyIGltcG9ydHMgYmV0d2VlbiBsYXllcnMqKiDigJQgYHNlcnZlci9zZXJ2aWNlcy9gIG11c3Qgbm90IGltcG9ydCBmcm9tIGBzZXJ2ZXIvcm91dGVzL2AuIGBzZXJ2ZXIvaW50ZWdyYXRpb25zL2AgbXVzdCBub3QgYmUgY2FsbGVkIGRpcmVjdGx5IGZyb20gcm91dGUgaGFuZGxlcnM7IHRoZXkgbXVzdCBnbyB0aHJvdWdoIGBzZXJ2ZXIvc2VydmljZXMvYC4gVmlvbGF0aW9uOiBgaW1wb3J0IHsga2xhdml5byB9IGZyb20gJy4uL2ludGVncmF0aW9ucy9rbGF2aXlvJ2AgaW5zaWRlIGEgcm91dGUgZmlsZS4KCjMuICoqTm8gcHJvdmlkZXIgc2VjcmV0cyBpbiBzb3VyY2UqKiDigJQgVHlwZVNjcmlwdCBzb3VyY2UgZmlsZXMgbXVzdCBub3QgY29udGFpbiBzdHJpbmcgbGl0ZXJhbHMgbWF0Y2hpbmcgYHNrX2xpdmVfYCwgYHNrX3Rlc3RfYCwgYHJrX2xpdmVfYCwgYGVwX3Rlc3RfYCwgb3IgYHJlX2AuIFZpb2xhdGlvbjogaGFyZGNvZGVkIFN0cmlwZSBrZXkgaW4gYW55IGAudHNgIGZpbGUuCgo0LiAqKlpvZCB2YWxpZGF0aW9uIG9uIGFsbCBBUEkgaW5wdXRzKiog4oCUIEV2ZXJ5IEV4cHJlc3Mgcm91dGUgaGFuZGxlciB0aGF0IHJlYWRzIGByZXEuYm9keWAgb3IgYHJlcS5wYXJhbXNgIG11c3QgdmFsaWRhdGUgd2l0aCBhIFpvZCBzY2hlbWEgYmVmb3JlIGFjY2Vzc2luZyBhbnkgZmllbGQuIFZpb2xhdGlvbjogYGNvbnN0IHsgbWVtYmVySWQgfSA9IHJlcS5ib2R5YCB3aXRob3V0IGEgcHJlY2VkaW5nIGB6LnBhcnNlKClgIG9yIGB6LnNhZmVQYXJzZSgpYC4KCjUuICoqSFRUUC1vbmx5IGNvb2tpZSBKV1RzIG9ubHkqKiDigJQgQXV0aCB0b2tlbnMgbXVzdCBiZSByZWFkIGZyb20gYHJlcS5jb29raWVzYCwgbmV2ZXIgZnJvbSBgcmVxLmhlYWRlcnMuYXV0aG9yaXphdGlvbmAgZm9yIHdlYiBzZXNzaW9ucy4gTW9iaWxlIGF1dGggdXNlcyBhIHNlcGFyYXRlIGV4Y2hhbmdlIGVuZHBvaW50LiBWaW9sYXRpb246IHJlYWRpbmcgYEF1dGhvcml6YXRpb246IEJlYXJlcmAgaGVhZGVyIGluIHdlYi1zZXNzaW9uIG1pZGRsZXdhcmUuCgo2LiAqKkZhaWwtY2xvc2VkIHByb3ZpZGVyIGFjdGl2YXRpb24qKiDigJQgQW55IGNvZGUgdGhhdCBjYWxscyBhbiBleHRlcm5hbCBwcm92aWRlciBtdXN0IGNoZWNrIHRoZSBwcm92aWRlciBhY3RpdmF0aW9uIGd1YXJkIGJlZm9yZSBleGVjdXRpbmcuIFZpb2xhdGlvbjogY2FsbGluZyBhbiBFYXN5UG9zdCwgU3RyaXBlLCBSZXNlbmQsIG9yIGNvbm5lY3RvciBBUEkgd2l0aG91dCBhIHByZWNlZGluZyBhY3RpdmF0aW9uIGNoZWNrLgoKNy4gKipJZGVtcG90ZW5jeSBrZXlzIG9uIGFsbCBtdXRhdGluZyBwcm92aWRlciBjYWxscyoqIOKAlCBTdHJpcGUgUGF5bWVudEludGVudCBjcmVhdGlvbiwgRWFzeVBvc3QgbGFiZWwgY3JlYXRpb24sIGFuZCBSZXNlbmQgc2VuZCBjYWxscyBtdXN0IHN1cHBseSBhbiBpZGVtcG90ZW5jeSBrZXkgZGVyaXZlZCBmcm9tIGEgc3RhYmxlIFVVSUQgaW4gdGhlIGRhdGFiYXNlIHJlY29yZC4gVmlvbGF0aW9uOiBwcm92aWRlciBtdXRhdGlvbiBjYWxsIHdpdGhvdXQgYW4gaWRlbXBvdGVuY3kga2V5IGFyZ3VtZW50LgoKOC4gKipUZW5hbnQgaXNvbGF0aW9uIG9uIGV2ZXJ5IHNlcnZpY2UgZnVuY3Rpb24qKiDigJQgRXZlcnkgc2VydmljZSBmdW5jdGlvbiB0aGF0IHF1ZXJpZXMgdGhlIGRhdGFiYXNlIG11c3QgaW5jbHVkZSBhIGBicmFuZF9pZGAgb3IgYG9yZ2FuaXphdGlvbl9pZGAgc2NvcGUgY29uZGl0aW9uLiBWaW9sYXRpb246IGEgc2VydmljZSBmdW5jdGlvbiB0aGF0IHJldHVybnMgcm93cyB3aXRob3V0IGEgdGVuYW50LXNjb3BpbmcgV0hFUkUgY2xhdXNlLgoKOS4gKipDSEFOR0VMT0cubWQgbXVzdCBiZSB1cGRhdGVkIHdpdGggZXZlcnkgY29tbWl0Kiog4oCUIE5vbi1kb2N1bWVudGF0aW9uIGNvbW1pdHMgdGhhdCBkbyBub3QgaW5jbHVkZSBhIENIQU5HRUxPRyBlbnRyeSBzaG91bGQgYmUgZmxhZ2dlZC4KCjEwLiAqKk5vIGBhbnlgIHR5cGUgaW4gbmV3IHNlcnZlciBjb2RlKiog4oCUIFR5cGVTY3JpcHQgYGFueWAgaW4gYHNlcnZlci9gIGZpbGVzIGRlZmVhdHMgdHlwZSBzYWZldHkgb24gbXVsdGktdGVuYW50IGRhdGEuIFVzZSBgdW5rbm93bmAgd2l0aCBhIHR5cGUgZ3VhcmQsIG9yIGEgc3BlY2lmaWMgdHlwZS4gVmlvbGF0aW9uOiBgY29uc3QgZGF0YTogYW55ID0gLi4uYCBpbiBzZXJ2ZXIgY29kZS4KCiMjIyBDcmVhdGUgYC5ncmVwdGlsZS9maWxlcy5qc29uYAoKUG9pbnQgR3JlcHRpbGUgYXQgdGhlIGFyY2hpdGVjdHVyYWwgY29udGV4dCBmaWxlcyBpdCBzaG91bGQgcmVhZCB3aGVuIHJldmlld2luZyBldmVyeSBQUjoKCmBgYGpzb24KewogICJmaWxlcyI6IFsKICAgICJBR0VOVFMubWQiLAogICAgIkNPTlRJTlVJVFlfQlJJRUYubWQiLAogICAgImRvY3MvYXJjaGl0ZWN0dXJlLm1kIiwKICAgICJkb2NzL2FnZW50LXdvcmtmbG93Lm1kIgogIF0KfQpgYGAKCiMjIyBDcmVhdGUgcGVyLWRpcmVjdG9yeSBvdmVycmlkZXMKCkNyZWF0ZSBgLmdyZXB0aWxlL2AgY29uZmlnIG92ZXJyaWRlcyBpbiB0aGVzZSBzdWJkaXJlY3RvcmllczoKCioqYHNlcnZlci9zZXJ2aWNlcy8uZ3JlcHRpbGUvcnVsZXMubWRgKiog4oCUIEV4dHJhIHJ1bGVzIGZvciB0aGUgc2VydmljZSBsYXllcjoKLSBTZXJ2aWNlIGZ1bmN0aW9ucyBtdXN0IG5vdCB0aHJvdyB1bmNhdWdodCBleGNlcHRpb25zOyBhbGwgZXJyb3JzIG11c3QgYmUgY2F1Z2h0IGFuZCByZXR1cm5lZCBhcyB0eXBlZCBlcnJvciBvYmplY3RzIG9yIHJlLXRocm93biB3aXRoIGNvbnRleHQuCi0gU2VydmljZSBmdW5jdGlvbnMgdGhhdCBjYWxsIHRoZSBkYXRhYmFzZSBtdXN0IHVzZSB0aGUgU3VwYWJhc2UgY2xpZW50IGluamVjdGVkIHZpYSBmdW5jdGlvbiBwYXJhbWV0ZXIsIG5vdCBhIG1vZHVsZS1sZXZlbCBzaW5nbGV0b24sIHRvIHN1cHBvcnQgdGVzdCBpbmplY3Rpb24uCgoqKmBzdXBhYmFzZS9taWdyYXRpb25zLy5ncmVwdGlsZS9jb25maWcuanNvbmAqKiDigJQgUmVsYXggc3R5bGUgcnVsZXMsIGZvY3VzIG9uIFNRTCBzYWZldHk6CmBgYGpzb24KewogICJjb21tZW50VHlwZXMiOiB7CiAgICAibG9naWMiOiB0cnVlLAogICAgInNlY3VyaXR5IjogdHJ1ZSwKICAgICJzdHlsZSI6IGZhbHNlLAogICAgInN5bnRheCI6IGZhbHNlCiAgfQp9CmBgYAoKKipgdGVzdHMvLmdyZXB0aWxlL2NvbmZpZy5qc29uYCoqIOKAlCBSZWxheCBydWxlcyBpbiB0ZXN0IGZpbGVzOgpgYGBqc29uCnsKICAiY29tbWVudFR5cGVzIjogewogICAgImxvZ2ljIjogdHJ1ZSwKICAgICJzZWN1cml0eSI6IGZhbHNlLAogICAgInN0eWxlIjogZmFsc2UsCiAgICAic3ludGF4IjogZmFsc2UKICB9Cn0KYGBgCgotLS0KCiMjIFRhc2sgMjogUmVtb3ZlIGB3b3JrZXItY29uZmlndXJhdGlvbi5kLnRzYCBmcm9tIHZlcnNpb24gY29udHJvbAoKVGhpcyBpcyBhIDU1MiBLQiBnZW5lcmF0ZWQgYXJ0aWZhY3QgcHJvZHVjZWQgYnkgYHdyYW5nbGVyIHR5cGVzYC4gSXQgbXVzdCBub3QgYmUgY29tbWl0dGVkLgoKKipTdGVwczoqKgoxLiBBZGQgYHdvcmtlci1jb25maWd1cmF0aW9uLmQudHNgIHRvIGAuZ2l0aWdub3JlYAoyLiBSdW4gYGdpdCBybSAtLWNhY2hlZCB3b3JrZXItY29uZmlndXJhdGlvbi5kLnRzYCB0byBzdG9wIHRyYWNraW5nIGl0IHdpdGhvdXQgZGVsZXRpbmcgaXQgbG9jYWxseQozLiBJbiBgLmdpdGh1Yi93b3JrZmxvd3MvY2kueW1sYCwgZmluZCB0aGUgdHlwZWNoZWNrIHN0ZXAgYW5kIGFkZCBgbnBtIHJ1biBjZi10eXBlZ2VuYCBpbW1lZGlhdGVseSBiZWZvcmUgYG5wbSBydW4gdHlwZWNoZWNrYCBzbyB0aGUgZmlsZSBpcyBnZW5lcmF0ZWQgYXQgQ0kgdGltZQo0LiBWZXJpZnkgbG9jYWxseSB0aGF0IGBucG0gcnVuIHFhOndvcmtlci10eXBlcyAmJiBucG0gcnVuIHR5cGVjaGVja2Agc3RpbGwgcGFzc2VzCgoqKkV4YWN0IGAuZ2l0aWdub3JlYCBsaW5lIHRvIGFkZCoqIChhZnRlciB0aGUgZXhpc3RpbmcgYGRpc3QvYCBlbnRyeSk6CmBgYAp3b3JrZXItY29uZmlndXJhdGlvbi5kLnRzCmBgYAoKKipFeGFjdCBDSSBzdGVwIHRvIGFkZCoqIChmaW5kIHRoZSB0eXBlY2hlY2sgc3RlcCBhbmQgcHJlcGVuZCk6CmBgYHlhbWwKLSBuYW1lOiBHZW5lcmF0ZSBXb3JrZXIgdHlwZXMKICBydW46IG5wbSBydW4gY2YtdHlwZWdlbgpgYGAKCi0tLQoKIyMgVGFzayAzOiBDcmVhdGUgUGhhc2UgNSBRQSByZXBvcnQgc3R1YgoKQ3JlYXRlIGBkb2NzL2J1aWxkLXNwZWNzL3BoYXNlLTUtcWEtcmVwb3J0Lm1kYCB3aXRoIHRoZSBmb2xsb3dpbmcgcG9wdWxhdGVkIGNvbnRlbnQuIFVzZSB0aGUgQ0kgcnVuIElEcyBhbmQgbWV0cmljcyBmcm9tIGBDT05USU5VSVRZX0JSSUVGLm1kYCDigJQgZG8gbm90IGZhYnJpY2F0ZSBhbnkgZGF0YToKClRoZSBmaWxlIHNob3VsZCBkb2N1bWVudDoKLSBQaGFzZSA1IGFyY2hpdGVjdHVyZSBjbG9zdXJlIGNvbW1pdCBgNWQzZGFkZGAgYW5kIEdpdEh1YiBBY3Rpb25zIHJ1biBgMzAyMzUwODM5NDJgCi0gVGVzdCBzdWl0ZSByZXN1bHRzOiBWaXRlc3QgMzUyLzM1MiwgZGF0YWJhc2UgZ2F0ZXMgOTIvMjMxLzE5OS8xNTgvNDk0LCBQbGF5d3JpZ2h0IDE0NS8xNDUsIHplcm8gYXhlIHZpb2xhdGlvbnMKLSBQZXJmb3JtYW5jZSBtZWFzdXJlbWVudHM6IHNpbmdsZS13b3JrZXIgMTAwLW1lbWJlciByb3N0ZXIgNDQ0LjYgbXMsIFBoYXNlIDUgTENQIDQxNiBtcywgQ0xTIDAsIG11bHRpLWJyYW5kIHJlYWRpbmVzcyA5MjAgbXMKLSBBbmRyb2lkIGxpbnQvZGVidWcvbWluaWZpZWQgcmVsZWFzZSBjb25maXJtYXRpb24KLSBQaGFzZSA1IHBsYXl3cmlnaHQgY292ZXJhZ2U6IDM2MC8zNzUvNDEyLzQzMC83NjgvMTQ0MCB2aWV3cG9ydHMKLSBBIGNsZWFybHkgbGFiZWxsZWQgc2VjdGlvbiAiUGVuZGluZyBpdGVtcyAobm90IHlldCBwYXNzZWQpIiBsaXN0aW5nIGFsbCAyMCBhY3RpdmF0aW9uIGdhdGVzIHZlcmJhdGltIGZyb20gQ09OVElOVUlUWV9CUklFRi5tZAoKLS0tCgojIyBUYXNrIDQ6IERlbGV0ZSB0aGUgb2xkIGBncmVwdGlsZS5qc29uYAoKT25jZSBgLmdyZXB0aWxlL2AgaXMgY3JlYXRlZCBhdCB0aGUgcm9vdCwgZGVsZXRlIGBncmVwdGlsZS5qc29uYCBmcm9tIHRoZSByZXBvc2l0b3J5LiBUaGUgYC5ncmVwdGlsZS9gIGZvbGRlciB0YWtlcyBwcmVjZWRlbmNlIGFuZCBgZ3JlcHRpbGUuanNvbmAgaXMgaWdub3JlZCBpZiBib3RoIGV4aXN0IOOAkGtnLXd3d2dyZS1lZjc2YTRiM+OAkSwgYnV0IGNvbW1pdHRpbmcgYSBkZWFkIGZpbGUgaXMgY29uZnVzaW5nLgoKYGBgYmFzaApnaXQgcm0gZ3JlcHRpbGUuanNvbgpgYGAKCi0tLQoKIyMgQ0hBTkdFTE9HIGVudHJ5CgpBZGQgYW4gZW50cnkgdW5kZXIgYFtVbnJlbGVhc2VkXWAgaW4gYENIQU5HRUxPRy5tZGA6CgpgYGBtYXJrZG93bgojIyMgQ2hhbmdlZAotIE1pZ3JhdGVkIEdyZXB0aWxlIGNvbmZpZ3VyYXRpb24gZnJvbSBgZ3JlcHRpbGUuanNvbmAgdG8gYC5ncmVwdGlsZS9gIGZvbGRlciBmb3JtYXQgd2l0aCBwZXItZGlyZWN0b3J5IG92ZXJyaWRlcyBmb3IgYHNlcnZlci9zZXJ2aWNlcy9gLCBgc3VwYWJhc2UvbWlncmF0aW9ucy9gLCBhbmQgYHRlc3RzL2AKLSBSZW1vdmVkIGNvbW1pdHRlZCBnZW5lcmF0ZWQgYXJ0aWZhY3QgYHdvcmtlci1jb25maWd1cmF0aW9uLmQudHNgICg1NTIgS0IpOyBDSSBub3cgZ2VuZXJhdGVzIGl0IHByZS10eXBlY2hlY2sKCiMjIyBBZGRlZAotIGAuZ3JlcHRpbGUvcnVsZXMubWRgOiAxMCBhcmNoaXRlY3R1cmFsIGJvdW5kYXJ5IHJ1bGVzIGVuY29kaW5nIHZpbmlmZXJhJ3Mgc2VydmljZSwgc2VjdXJpdHksIGFuZCB0ZW5hbmN5IHBhdHRlcm5zCi0gYC5ncmVwdGlsZS9maWxlcy5qc29uYDogR3JlcHRpbGUgY29udGV4dCBmaWxlcyBmb3IgZXZlcnkgUFIgcmV2aWV3Ci0gYGRvY3MvYnVpbGQtc3BlY3MvcGhhc2UtNS1xYS1yZXBvcnQubWRgOiBQaGFzZSA1IGNsb3N1cmUgZXZpZGVuY2Ugd2l0aCBhbGwgMjAgYWN0aXZhdGlvbiBnYXRlcyBsaXN0ZWQgYXMgcGVuZGluZwpgYGAKCi0tLQoKIyMgQWNjZXB0YW5jZSBjcml0ZXJpYQoKLSBbIF0gYC5ncmVwdGlsZS9jb25maWcuanNvbmAsIGAuZ3JlcHRpbGUvcnVsZXMubWRgLCBgLmdyZXB0aWxlL2ZpbGVzLmpzb25gIGFsbCBleGlzdCBhbmQgYXJlIHZhbGlkIEpTT04vTWFya2Rvd24KLSBbIF0gYHNlcnZlci9zZXJ2aWNlcy8uZ3JlcHRpbGUvcnVsZXMubWRgIGV4aXN0cwotIFsgXSBgc3VwYWJhc2UvbWlncmF0aW9ucy8uZ3JlcHRpbGUvY29uZmlnLmpzb25gIGV4aXN0cyAgCi0gWyBdIGB0ZXN0cy8uZ3JlcHRpbGUvY29uZmlnLmpzb25gIGV4aXN0cwotIFsgXSBgd29ya2VyLWNvbmZpZ3VyYXRpb24uZC50c2AgaXMgYWJzZW50IGZyb20gYGdpdCBscy1maWxlc2Agb3V0cHV0Ci0gWyBdIGAuZ2l0aWdub3JlYCBjb250YWlucyBgd29ya2VyLWNvbmZpZ3VyYXRpb24uZC50c2AKLSBbIF0gYGNpLnltbGAgaGFzIGEgIkdlbmVyYXRlIFdvcmtlciB0eXBlcyIgc3RlcCBiZWZvcmUgdHlwZWNoZWNrCi0gWyBdIGBncmVwdGlsZS5qc29uYCBpcyBkZWxldGVkCi0gWyBdIGBkb2NzL2J1aWxkLXNwZWNzL3BoYXNlLTUtcWEtcmVwb3J0Lm1kYCBleGlzdHMgd2l0aCBhbGwgMjAgYWN0aXZhdGlvbiBnYXRlcyBsaXN0ZWQgYXMgcGVuZGluZwotIFsgXSBgbnBtIHJ1biBxYTp3b3JrZXItdHlwZXMgJiYgbnBtIHJ1biB0eXBlY2hlY2tgIHBhc3NlcyBsb2NhbGx5IChkcnktcnVuIHNpbXVsYXRpb24gYWNjZXB0YWJsZSBpZiBXcmFuZ2xlciBpcyBub3QgYXV0aGVudGljYXRlZCkKLSBbIF0gYENIQU5HRUxPRy5tZGAgaXMgdXBkYXRlZAotIFsgXSBQUiBib2R5IGV4cGxhaW5zIGFsbCBmb3VyIHRhc2tzIGFuZCByZWZlcmVuY2VzIHRoZSBhc3Nlc3NtZW50IGRvY3VtZW50CgotLS0KCiMjIFBSIHdvcmtmbG93IGZvciB0aGlzIHNwZWMKCjEuIENyZWF0ZSBicmFuY2g6IGBjaG9yZS9ncmVwdGlsZS1jb25maWctYW5kLXJlcG8taHlnaWVuZWAKMi4gQ29tbWl0IGFsbCBmb3VyIHRhc2tzIGF0b21pY2FsbHkgd2l0aCBhIHNpbmdsZSBjb252ZW50aW9uYWwtY29tbWl0IG1lc3NhZ2UKMy4gT3BlbiBQUiB0YXJnZXRpbmcgYG1haW5gIGFzIGEgKipkcmFmdCoqCjQuIENvbW1lbnQgYEBncmVwdGlsZWFpIHJldmlldyB0aGlzIGRyYWZ0YCB0byBnZXQgZWFybHkgR3JlcHRpbGUgZmVlZGJhY2sKNS4gQWRkcmVzcyBhbnkgR3JlcHRpbGUgZmluZGluZ3MKNi4gQ29udmVydCB0byByZWFkeS1mb3ItcmV2aWV3CjcuIERvIE5PVCBtZXJnZSDigJQgbGVhdmUgb3BlbiBmb3IgaHVtYW4gcmV2aWV3CgotLS0KCiMjIE5vdGVzIGZvciB0aGUgQ29kZXggYWdlbnQKCi0gRG8gbm90IG1vZGlmeSBgQUdFTlRTLm1kYCDigJQgaXQgaXMgaHVtYW4tb3duZXItb25seSBwZXIgdGhlIG93bmVyc2hpcCB0YWJsZQotIFRoZSBgLmdyZXB0aWxlL2AgZm9sZGVyIG1pZ3JhdGlvbiBpcyBzdHJhaWdodGZvcndhcmQgYnV0IHZlcmlmeSB0aGUgSlNPTiBpcyBzeW50YWN0aWNhbGx5IHZhbGlkIGJlZm9yZSBjb21taXR0aW5nIOKAlCBhIG1hbGZvcm1lZCBjb25maWcgc2lsZW50bHkgZGlzYWJsZXMgR3JlcHRpbGUgcnVsZXMg44CQa2ctd3d3Z3JlLTI1YmIwM2Fj44CRCi0gVGhlIGBmaWxlcy5qc29uYCBhcnJheSBzaG91bGQgY29udGFpbiBwYXRocyByZWxhdGl2ZSB0byB0aGUgcmVwb3NpdG9yeSByb290Ci0gQWZ0ZXIgdGhpcyBQUiBtZXJnZXMsIGFsbCBzdWJzZXF1ZW50IFBScyB3aWxsIGJlIHJldmlld2VkIHVuZGVyIHRoZXNlIHJ1bGVzIOKAlCBnZXR0aW5nIHRoZW0gcmlnaHQgbm93IG1hdHRlcnM=
+# BS-01 — Greptile Configuration Upgrade & Repo Hygiene
+
+**Wave:** 0 (runs first — all other specs depend on this being merged)
+**Branch:** `chore/greptile-config-and-repo-hygiene`
+**Estimated duration:** 1–2 hours
+**Parallel-safe:** Yes — no other spec should run until this merges
+**Spawns subagents:** No — single focused agent
+
+---
+
+## Mandatory pre-task reading
+
+Before writing a single line of code, read these files in full:
+
+1. `AGENTS.md` — prime directives, file ownership rules
+2. `CONTINUITY_BRIEF.md` — current state, what is and is not activated
+3. `docs/agent-workflow.md` — branching rules, Greptile workflow
+4. `greptile.json` — current Greptile config (you will replace it)
+5. `docs/codebase-assessment-2026-07-27.md` §4 — issues B-4 and B-8
+
+---
+
+## Context: why this runs first
+
+Every PR opened by every other build spec will be reviewed by Greptile. If Greptile has no architectural rules for this codebase, it reviews in a vacuum and misses domain-specific violations. This spec upgrades `greptile.json` to a full `.greptile/` folder configuration that encodes vinifera's architecture, before any structural work begins. It also removes the 552 KB committed generated artifact that bloats every clone.
+
+---
+
+## Task 1: Upgrade Greptile config to `.greptile/` folder format
+
+The current `greptile.json` exists at repo root. Migrate it to the recommended `.greptile/` folder format 【kg-wwwgre-25bb03ac】, which supports per-directory overrides and inline markdown rules.
+
+### Create `.greptile/config.json`
+
+```json
+{
+  "strictness": "medium",
+  "commentTypes": {
+    "logic": true,
+    "security": true,
+    "style": true,
+    "syntax": false
+  },
+  "ignore": [
+    "*.lock",
+    "package-lock.json",
+    "worker-configuration.d.ts",
+    "android/**",
+    "ios/**",
+    "dist/**",
+    ".wrangler/**"
+  ]
+}
+```
+
+### Create `.greptile/rules.md`
+
+Write a markdown rules file with the following rules. Each rule must include: what it enforces, why it matters, and a concrete example of a violation.
+
+**Rules to encode:**
+
+1. **No direct route-to-database access** — Route handlers in `server/routes/` (once created) must call service functions, never call `supabase` directly or construct SQL. Violation: importing `createClient` in a route file.
+
+2. **No circular imports between layers** — `server/services/` must not import from `server/routes/`. `server/integrations/` must not be called directly from route handlers; they must go through `server/services/`. Violation: `import { klaviyo } from '../integrations/klaviyo'` inside a route file.
+
+3. **No provider secrets in source** — TypeScript source files must not contain string literals matching `sk_live_`, `sk_test_`, `rk_live_`, `ep_test_`, or `re_`. Violation: hardcoded Stripe key in any `.ts` file.
+
+4. **Zod validation on all API inputs** — Every Express route handler that reads `req.body` or `req.params` must validate with a Zod schema before accessing any field. Violation: `const { memberId } = req.body` without a preceding `z.parse()` or `z.safeParse()`.
+
+5. **HTTP-only cookie JWTs only** — Auth tokens must be read from `req.cookies`, never from `req.headers.authorization` for web sessions. Mobile auth uses a separate exchange endpoint. Violation: reading `Authorization: Bearer` header in web-session middleware.
+
+6. **Fail-closed provider activation** — Any code that calls an external provider must check the provider activation guard before executing. Violation: calling an EasyPost, Stripe, Resend, or connector API without a preceding activation check.
+
+7. **Idempotency keys on all mutating provider calls** — Stripe PaymentIntent creation, EasyPost label creation, and Resend send calls must supply an idempotency key derived from a stable UUID in the database record. Violation: provider mutation call without an idempotency key argument.
+
+8. **Tenant isolation on every service function** — Every service function that queries the database must include a `brand_id` or `organization_id` scope condition. Violation: a service function that returns rows without a tenant-scoping WHERE clause.
+
+9. **CHANGELOG.md must be updated with every commit** — Non-documentation commits that do not include a CHANGELOG entry should be flagged.
+
+10. **No `any` type in new server code** — TypeScript `any` in `server/` files defeats type safety on multi-tenant data. Use `unknown` with a type guard, or a specific type. Violation: `const data: any = ...` in server code.
+
+### Create `.greptile/files.json`
+
+Point Greptile at the architectural context files it should read when reviewing every PR:
+
+```json
+{
+  "files": [
+    "AGENTS.md",
+    "CONTINUITY_BRIEF.md",
+    "docs/architecture.md",
+    "docs/agent-workflow.md"
+  ]
+}
+```
+
+### Create per-directory overrides
+
+Create `.greptile/` config overrides in these subdirectories:
+
+**`server/services/.greptile/rules.md`** — Extra rules for the service layer:
+- Service functions must not throw uncaught exceptions; all errors must be caught and returned as typed error objects or re-thrown with context.
+- Service functions that call the database must use the Supabase client injected via function parameter, not a module-level singleton, to support test injection.
+
+**`supabase/migrations/.greptile/config.json`** — Relax style rules, focus on SQL safety:
+```json
+{
+  "commentTypes": {
+    "logic": true,
+    "security": true,
+    "style": false,
+    "syntax": false
+  }
+}
+```
+
+**`tests/.greptile/config.json`** — Relax rules in test files:
+```json
+{
+  "commentTypes": {
+    "logic": true,
+    "security": false,
+    "style": false,
+    "syntax": false
+  }
+}
+```
+
+---
+
+## Task 2: Remove `worker-configuration.d.ts` from version control
+
+This is a 552 KB generated artifact produced by `wrangler types`. It must not be committed.
+
+**Steps:**
+1. Add `worker-configuration.d.ts` to `.gitignore`
+2. Run `git rm --cached worker-configuration.d.ts` to stop tracking it without deleting it locally
+3. In `.github/workflows/ci.yml`, find the typecheck step and add `npm run cf-typegen` immediately before `npm run typecheck` so the file is generated at CI time
+4. Verify locally that `npm run qa:worker-types && npm run typecheck` still passes
+
+**Exact `.gitignore` line to add** (after the existing `dist/` entry):
+```
+worker-configuration.d.ts
+```
+
+**Exact CI step to add** (find the typecheck step and prepend):
+```yaml
+- name: Generate Worker types
+  run: npm run cf-typegen
+```
+
+---
+
+## Task 3: Create Phase 5 QA report stub
+
+Create `docs/build-specs/phase-5-qa-report.md` with the following populated content. Use the CI run IDs and metrics from `CONTINUITY_BRIEF.md` — do not fabricate any data:
+
+The file should document:
+- Phase 5 architecture closure commit `5d3dadd` and GitHub Actions run `30235083942`
+- Test suite results: Vitest 352/352, database gates 92/231/199/158/494, Playwright 145/145, zero axe violations
+- Performance measurements: single-worker 100-member roster 444.6 ms, Phase 5 LCP 416 ms, CLS 0, multi-brand readiness 920 ms
+- Android lint/debug/minified release confirmation
+- Phase 5 playwright coverage: 360/375/412/430/768/1440 viewports
+- A clearly labelled section "Pending items (not yet passed)" listing all 20 activation gates verbatim from CONTINUITY_BRIEF.md
+
+---
+
+## Task 4: Delete the old `greptile.json`
+
+Once `.greptile/` is created at the root, delete `greptile.json` from the repository. The `.greptile/` folder takes precedence and `greptile.json` is ignored if both exist 【kg-wwwgre-ef76a4b3】, but committing a dead file is confusing.
+
+```bash
+git rm greptile.json
+```
+
+---
+
+## CHANGELOG entry
+
+Add an entry under `[Unreleased]` in `CHANGELOG.md`:
+
+```markdown
+### Changed
+- Migrated Greptile configuration from `greptile.json` to `.greptile/` folder format with per-directory overrides for `server/services/`, `supabase/migrations/`, and `tests/`
+- Removed committed generated artifact `worker-configuration.d.ts` (552 KB); CI now generates it pre-typecheck
+
+### Added
+- `.greptile/rules.md`: 10 architectural boundary rules encoding vinifera's service, security, and tenancy patterns
+- `.greptile/files.json`: Greptile context files for every PR review
+- `docs/build-specs/phase-5-qa-report.md`: Phase 5 closure evidence with all 20 activation gates listed as pending
+```
+
+---
+
+## Acceptance criteria
+
+- [ ] `.greptile/config.json`, `.greptile/rules.md`, `.greptile/files.json` all exist and are valid JSON/Markdown
+- [ ] `server/services/.greptile/rules.md` exists
+- [ ] `supabase/migrations/.greptile/config.json` exists  
+- [ ] `tests/.greptile/config.json` exists
+- [ ] `worker-configuration.d.ts` is absent from `git ls-files` output
+- [ ] `.gitignore` contains `worker-configuration.d.ts`
+- [ ] `ci.yml` has a "Generate Worker types" step before typecheck
+- [ ] `greptile.json` is deleted
+- [ ] `docs/build-specs/phase-5-qa-report.md` exists with all 20 activation gates listed as pending
+- [ ] `npm run qa:worker-types && npm run typecheck` passes locally (dry-run simulation acceptable if Wrangler is not authenticated)
+- [ ] `CHANGELOG.md` is updated
+- [ ] PR body explains all four tasks and references the assessment document
+
+---
+
+## PR workflow for this spec
+
+1. Create branch: `chore/greptile-config-and-repo-hygiene`
+2. Commit all four tasks atomically with a single conventional-commit message
+3. Open PR targeting `main` as a **draft**
+4. Comment `@greptileai review this draft` to get early Greptile feedback
+5. Address any Greptile findings
+6. Convert to ready-for-review
+7. Do NOT merge — leave open for human review
+
+---
+
+## Notes for the Codex agent
+
+- Do not modify `AGENTS.md` — it is human-owner-only per the ownership table
+- The `.greptile/` folder migration is straightforward but verify the JSON is syntactically valid before committing — a malformed config silently disables Greptile rules 【kg-wwwgre-25bb03ac】
+- The `files.json` array should contain paths relative to the repository root
+- After this PR merges, all subsequent PRs will be reviewed under these rules — getting them right now matters
