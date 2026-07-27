@@ -6,10 +6,11 @@ import {
   verifyMemberAuthLinkContext,
 } from "../../server/lib/member-brand-context";
 import type { WorkerEnv } from "../../server/types";
+import { securitySecretTestFixture } from "../fixtures/security-secrets";
 
 const env: WorkerEnv = {
   APP_ENV: "test",
-  MEMBER_BRAND_CONTEXT_SECRET: "test-member-context-secret-at-least-32-bytes",
+  ...securitySecretTestFixture(),
 };
 
 describe("member web auth-link context", () => {

@@ -40,6 +40,7 @@ const cutoverCapabilities = [
   "integrationEncryption",
   "mobile",
   "quickBooksOAuth",
+  "security",
   "push",
   "shipping",
 ];
@@ -54,7 +55,7 @@ function policy() {
       "restore-pages": "RESTORE VINIFERA DOMAIN TO PAGES",
       upload: "UPLOAD VINIFERA PRODUCTION VERSION",
     },
-    coreHealthCapabilities: ["app", "database", "billing", "webhook"],
+    coreHealthCapabilities: ["app", "database", "billing", "security", "webhook"],
     cutoverHealthCapabilities: cutoverCapabilities,
     liveBilling: {
       activationPath: "separate-human-approved-live-billing-cutover",
@@ -118,8 +119,10 @@ function targets() {
 
 function secrets(overrides = {}) {
   return {
-    MEMBER_BRAND_CONTEXT_SECRET: "member-context",
-    RATE_LIMIT_PEPPER: "rate-pepper",
+    MEMBER_BRAND_CONTEXT_SECRET:
+      "test-member-context-secret-43f3b070-4f50-4a6b",
+    RATE_LIMIT_PEPPER:
+      "test-rate-limit-pepper-7b15a76f-9f4e-49f6",
     STRIPE_PRICE_CELLAR: "price_cellar",
     STRIPE_PRICE_ESTATE: "price_estate",
     STRIPE_PRICE_RESERVE: "price_reserve",
@@ -370,6 +373,21 @@ describe("production release guards", () => {
         policy(),
       ),
     ).toThrow(/Stripe test-mode only/);
+    expect(() =>
+      buildProductionSecretBundle(
+        secrets({
+          MEMBER_BRAND_CONTEXT_SECRET:
+            "test-rate-limit-pepper-7b15a76f-9f4e-49f6",
+        }),
+        policy(),
+      ),
+    ).toThrow(/independently generated/);
+    expect(() =>
+      buildProductionSecretBundle(
+        secrets({ RATE_LIMIT_PEPPER: "short" }),
+        policy(),
+      ),
+    ).toThrow(/at least 32 UTF-8 bytes/);
   });
 
   it("parses one Wrangler version and rejects ambiguous output", () => {
@@ -432,7 +450,7 @@ describe("production release guards", () => {
     expect(() =>
       assertHealthPayload(
         { data: { service: "vinifera-api", status: "ok" } },
-        configurationPayload(true, ["app", "database", "billing", "webhook"]),
+        configurationPayload(true, ["app", "database", "billing", "security", "webhook"]),
         policy(),
         "cutover",
       ),

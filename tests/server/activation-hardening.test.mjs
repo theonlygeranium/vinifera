@@ -289,6 +289,9 @@ describe("activation workflow wiring", () => {
         "node scripts/verify-staging-activation.mjs verify-target cloudflare",
       ),
     ).toBeLessThan(workflow.indexOf("npx wrangler deploy --env staging"));
+    expect(
+      workflow.indexOf("assertSecuritySecretSeparation(process.env)"),
+    ).toBeLessThan(workflow.indexOf("npx wrangler deploy --env staging"));
     expect(workflow).toContain("https://unconfigured.invalid");
     expect(workflow).toContain("android-${{ vars.VITE_MOBILE_API_ORIGIN && 'staging-runtime-qa' || 'compile-only' }}-evidence");
   });

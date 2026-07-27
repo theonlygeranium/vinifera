@@ -64,6 +64,7 @@ ALLOWED_ORIGINS
 AUTH_EMAIL_ENABLED
 GOOGLE_OAUTH_ENABLED
 RATE_LIMIT_PEPPER
+MEMBER_BRAND_CONTEXT_SECRET
 SUPABASE_URL
 SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY)
 SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY)
@@ -74,6 +75,14 @@ STRIPE_PRICE_CELLAR
 STRIPE_PRICE_ESTATE
 STRIPE_PRICE_RESERVE
 ```
+
+`RATE_LIMIT_PEPPER` and `MEMBER_BRAND_CONTEXT_SECRET` are separate
+cryptographic purposes. Generate each independently with at least 32 UTF-8
+bytes, never copy one value into the other, and store them only in the local
+ignored `.dev.vars` file or the target environment's encrypted Worker/GitHub
+secret store. Startup configuration and deployment gates reject missing,
+short, whitespace-padded, or equal values instead of falling back to a
+Supabase credential or another application secret.
 
 Missing provider values are an explicit activation state. The API health report shows missing variable names without revealing values:
 
@@ -543,7 +552,7 @@ not replaced before Worker activation. Reproduce that artifact locally with
    linked native pgTAP/RLS suite.
 9. Optionally deploy the isolated `vinifera-staging` Worker, attaching available
    runtime secrets atomically to that version and verifying health plus the core
-   app/database/test-billing/webhook configuration capabilities.
+   app/database/test-billing/security/webhook configuration capabilities.
 
 The migration and deployment jobs are skipped unless the repository variables
 `STAGING_SUPABASE_MIGRATION_ENABLED=true` and
@@ -564,7 +573,7 @@ Additional manual workflows provide:
 - an independently authorized, default-deny Stripe live/test cutover and
   reversion controller;
 - protected production Worker bootstrap, immutable version upload/deploy,
-  14-capability custom-domain cutover, Worker rollback, and Pages restoration;
+  15-capability custom-domain cutover, Worker rollback, and Pages restoration;
   and
 - protected signed Android/iOS builds with a separately confirmed Play
   internal/TestFlight upload.

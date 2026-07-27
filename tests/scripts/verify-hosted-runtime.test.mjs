@@ -17,6 +17,7 @@ const capabilityNames = [
   "mobile",
   "push",
   "quickBooksOAuth",
+  "security",
   "shipping",
   "webhook",
 ];
@@ -27,7 +28,7 @@ function configurationPayload(overrides = {}) {
       capabilityNames.map((name) => [
         name,
         {
-          configured: ["app", "database", "billing", "webhook"].includes(
+          configured: ["app", "database", "billing", "security", "webhook"].includes(
             name,
           ),
           missing: [],
@@ -67,7 +68,7 @@ describe("hosted runtime verifier", () => {
 
     expect(evidence).toMatchObject({
       configuration: {
-        requiredCapabilities: ["app", "database", "billing", "webhook"],
+        requiredCapabilities: ["app", "database", "billing", "security", "webhook"],
         requiredCapabilitiesPassed: true,
       },
       health: { passed: true, service: "vinifera-api", status: "ok" },

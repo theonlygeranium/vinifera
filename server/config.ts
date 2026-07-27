@@ -4,6 +4,7 @@ import type {
   WorkerEnv,
 } from "./types";
 import { AppError, requireConfigured } from "./lib/errors";
+import { securitySecretConfiguration } from "./lib/security-secrets";
 import {
   assertCloudflareCustomHostnameTarget,
   assertEasyPostTarget,
@@ -242,6 +243,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
     "QUICKBOOKS_REDIRECT_URI",
     "QUICKBOOKS_STATE_SIGNING_SECRET",
   ]);
+  const security = securitySecretConfiguration(env);
   if (quickBooksOAuth.configured) {
     try {
       assertQuickBooksRedirectUri(env);
@@ -289,6 +291,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
       "MOBILE_IOS_MINIMUM_VERSION",
     ]),
     quickBooksOAuth,
+    security,
     push,
     shipping,
   };

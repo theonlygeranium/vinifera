@@ -6,6 +6,7 @@ import {
   INTEGRATION_UUID_PATTERN,
   KLAVIYO_LIST_ID_PATTERN,
 } from "../lib/integration-constants";
+import { requireSecuritySecrets } from "../lib/security-secrets";
 import { assertUuid, camelKey, sha256 } from "../lib/utils";
 import type {
   IntegrationService,
@@ -2912,15 +2913,13 @@ export class ProductionIntegrationService
       throw new AppError(400, "invalid_request", "The mobile device identity is invalid.");
     }
     const normalizedEmail = input.email.trim().toLocaleLowerCase("en-US");
-    const pepper =
-      this.env.RATE_LIMIT_PEPPER ??
-      this.env.SUPABASE_SECRET_KEY ??
-      this.env.SUPABASE_SERVICE_ROLE_KEY ??
-      "unconfigured";
+    const { rateLimitPepper } = requireSecuritySecrets(this.env);
     const { data: rateRows, error: rateError } = await this.admin.rpc(
       "record_magic_link_request",
       {
-        p_ip_hash: await sha256(`${pepper}:${input.ipAddress}`),
+        p_ip_hash: await sha256(
+          `${rateLimitPepper}:${input.ipAddress}`,
+        ),
         p_normalized_email: normalizedEmail,
       },
     );

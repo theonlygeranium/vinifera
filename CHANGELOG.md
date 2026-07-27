@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+
+- **What changed:** Rate-limit IP hashing and member-brand context signing now
+  require separate `RATE_LIMIT_PEPPER` and `MEMBER_BRAND_CONTEXT_SECRET`
+  bindings. A neutral runtime validator rejects missing, whitespace-padded,
+  shorter-than-32-byte, or equal values; the configuration health report
+  exposes a sanitized `security` capability; staging and production release
+  guards enforce the same contract; templates, setup/runbook guidance, and
+  explicit test fixtures document the deployment boundary. **Why:** Reusing a
+  Supabase credential, a static fallback, or one application secret for both
+  cryptographic purposes created avoidable coupling and could conceal an
+  incomplete deployment. **Deployment impact:** Staging and production Worker
+  deployments must provide independently generated values for both bindings.
+  Existing deployments that relied on fallback behavior now fail closed with
+  a sanitized configuration error until the dedicated secrets are installed;
+  Pages, routes, database schema, and provider endpoints are unchanged.
+  **Verification:** Run `npm run check`, the focused runtime and release-guard
+  suites, `npm run qa:production-release`, `npm audit --audit-level=moderate`,
+  and the fallback/secret scans documented in the security-secret separation
+  ADR.
+
 ### Refactored
 
 - **What changed:** Exact-head review cleanup moved the shared bounded

@@ -821,6 +821,7 @@ export interface ConfigurationReport {
   mobile: ConfigurationCapability;
   push: ConfigurationCapability;
   quickBooksOAuth: ConfigurationCapability;
+  security: ConfigurationCapability;
   shipping: ConfigurationCapability;
   webhook: ConfigurationCapability;
 }

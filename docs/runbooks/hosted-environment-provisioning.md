@@ -81,12 +81,19 @@ STAGING_STRIPE_PRICE_CELLAR
 STAGING_STRIPE_PRICE_ESTATE
 STAGING_STRIPE_PRICE_RESERVE
 STAGING_RATE_LIMIT_PEPPER
+STAGING_MEMBER_BRAND_CONTEXT_SECRET
 ```
 
 Provider, integration-vault, custom-hostname, email, mobile policy, and push
 secrets use the `STAGING_` form of the names in `.env.example`. The staging
 workflow rejects live Stripe, production QuickBooks, and production APNs
 configuration.
+
+Generate `STAGING_RATE_LIMIT_PEPPER` and
+`STAGING_MEMBER_BRAND_CONTEXT_SECRET` independently. Each must contain at
+least 32 UTF-8 bytes, neither may have surrounding whitespace, and their
+values must differ. The staging deployment fails before secret upload when
+this separation contract is not satisfied.
 
 Set repository variables only after the corresponding target hash and
 environment secrets are reviewed:
@@ -102,7 +109,8 @@ runs `supabase test db --linked`. That suite includes tenant and brand isolation
 proof. The Worker job deploys only `vinifera-staging`, then requires:
 
 - `/api/health` identifies `vinifera-api` with status `ok`;
-- `app`, `database`, `billing`, and `webhook` capabilities are configured;
+- `app`, `database`, `billing`, `security`, and `webhook` capabilities are
+  configured;
 - the origin is the isolated `vinifera-staging.*.workers.dev` form; and
 - sanitized runtime evidence is retained as a workflow artifact.
 
@@ -154,7 +162,11 @@ Add runtime values using the `PRODUCTION_` names expected by the release
 workflow. The workflow constructs an ephemeral Worker secret bundle, never
 prints it, and removes it in an always-run cleanup step. The production policy
 rejects a non-`sk_test_*` Stripe key and cannot set
-`LIVE_BILLING_ENABLED=true`.
+`LIVE_BILLING_ENABLED=true`. The production release guard also requires
+independently generated, distinct 32-byte-or-longer
+`PRODUCTION_RATE_LIMIT_PEPPER` and
+`PRODUCTION_MEMBER_BRAND_CONTEXT_SECRET` values before it assembles the
+ephemeral bundle.
 
 First bootstrap creates only the named `vinifera-production` Worker on
 `workers.dev`; it does not attach a route or custom domain. Later version

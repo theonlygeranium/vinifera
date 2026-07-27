@@ -10,6 +10,7 @@ import type {
   FoundationServiceFactory,
   WorkerEnv,
 } from "../../server/types";
+import { securitySecretTestFixture } from "../fixtures/security-secrets";
 
 const staffPrincipal = {
   access: {
@@ -182,6 +183,7 @@ function testApp(
       APP_ENV: "test",
       APP_ORIGIN: "https://vinifera.test",
       AUTH_RATE_LIMITER: allowRateLimit,
+      ...securitySecretTestFixture(),
       WEBHOOK_RATE_LIMITER: allowRateLimit,
       ...envOverrides,
     }),

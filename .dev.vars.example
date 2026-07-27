@@ -6,3 +6,8 @@ SENTRY_DSN=
 APP_ENV=development
 APP_ORIGIN=http://localhost:8787
 ALLOWED_ORIGINS=http://localhost:5173,http://localhost:8787
+
+# Generate these separately. Each must contain 32+ UTF-8 bytes and the values
+# must never match. Keep real values only in the ignored .dev.vars file.
+RATE_LIMIT_PEPPER=
+MEMBER_BRAND_CONTEXT_SECRET=

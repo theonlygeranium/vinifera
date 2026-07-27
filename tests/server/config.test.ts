@@ -126,6 +126,40 @@ describe("hosted environment security boundaries", () => {
     });
   });
 
+  it("reports only independently configured security secrets as ready", () => {
+    const secret = "test-reused-security-secret-9a58cbec-cd8d";
+    const missing = getConfigurationReport({});
+    const reused = getConfigurationReport({
+      MEMBER_BRAND_CONTEXT_SECRET: secret,
+      RATE_LIMIT_PEPPER: secret,
+    });
+    const configured = getConfigurationReport({
+      MEMBER_BRAND_CONTEXT_SECRET:
+        "test-member-context-secret-43f3b070-4f50-4a6b",
+      RATE_LIMIT_PEPPER:
+        "test-rate-limit-pepper-7b15a76f-9f4e-49f6",
+    });
+
+    expect(missing.security).toEqual({
+      configured: false,
+      missing: [
+        "RATE_LIMIT_PEPPER",
+        "MEMBER_BRAND_CONTEXT_SECRET",
+      ],
+    });
+    expect(reused.security).toEqual({
+      configured: false,
+      missing: [
+        "RATE_LIMIT_PEPPER",
+        "MEMBER_BRAND_CONTEXT_SECRET",
+      ],
+    });
+    expect(configured.security).toEqual({
+      configured: true,
+      missing: [],
+    });
+  });
+
   it("treats the vendor-approved ShipCompliant token path as required configuration", () => {
     const report = getConfigurationReport({
       COMPLIANCE_PROVIDER: "shipcompliant",
