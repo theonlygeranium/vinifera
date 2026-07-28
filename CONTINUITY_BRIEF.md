@@ -148,6 +148,19 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- CI now classifies the exact base/head diff into one of two fail-closed
+  validation lanes. Only changes wholly within `AGENTS.md`, `CHANGELOG.md`,
+  `CONTINUITY_BRIEF.md`, `README.md`, `REVERT.md`, and `docs/**/*.md` may use
+  the restricted docs lane; every other, ambiguous, missing, copied, deleted,
+  or unsupported change uses full validation or fails closed. The exact
+  required `Type, test, build, and package` check is an `if: always()` policy
+  gate over classification, docs validation, full quality, and Android
+  results. Pushes to `main` always run full quality and Android. Greptile,
+  direct-push protection, strict branch currency, conversation resolution,
+  Cloudflare Pages preview, administrator enforcement, and activation-gated
+  migration/deployment behavior are unchanged. This is repository CI and
+  governance only; it does not change runtime, providers, hosted state, the
+  Pages rollback baseline, or any activation gate.
 - Owner-authorized PR governance now makes PR ownership a terminal agent
   condition: the implementation agent monitors Greptile, required CI, and
   every review thread until the PR is ready or explicitly blocked. GitHub

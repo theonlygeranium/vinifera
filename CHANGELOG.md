@@ -10,6 +10,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **What changed:** Added a fail-closed, exact-base/head CI classifier with an
+  explicit Markdown allowlist, a restricted documentation validation lane,
+  focused classifier and required-gate policy tests, and an `if: always()`
+  required aggregation job retaining the exact
+  `Type, test, build, and package` check name. Full quality plus Android remain
+  mandatory for every non-documentation, unknown, ambiguous, copied, deleted,
+  workflow, dependency, configuration, source, test, database, deployment,
+  security, or mobile change and every push to `main`. Governance documents
+  now explain that CI—not labels, titles, checkboxes, or author claims—selects
+  the lane. **Why:** The complete quality, database, browser, and native suite
+  is necessary for runtime-affecting work but adds avoidable time and runner
+  cost to strictly classified Markdown-only pull requests. **Deployment
+  impact:** Repository CI and governance only; the Pages rollback artifact,
+  Worker, hosted database, providers, secrets, DNS, mobile distribution, and
+  all activation flags remain unchanged and fail closed. **Verification:** Run
+  `npm ci`, `npm audit --audit-level=moderate`, `npm run check`,
+  `npm run qa:e2e`, direct-push policy tests, docs CI policy tests,
+  workflow YAML validation, the documented changed-file matrix,
+  credential-pattern scan, and `git diff --check`; confirm this workflow PR
+  selects full CI and the exact required check aggregates only the successful
+  selected lane.
 - **What changed:** Established mandatory end-to-end PR ownership for agents,
   a label-scoped 15-minute Codex safety monitor, explicit human-escalation and
   merge-authority rules, required review-thread disposition, and GitHub

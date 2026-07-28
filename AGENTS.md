@@ -37,6 +37,12 @@
    and zero unresolved review threads remain; disposition every finding,
    retest and re-review after each push, and merge only with explicit
    authorization. Follow the complete loop in `docs/agent-workflow.md`.
+9. **Let CI select the validation lane.** A pull request uses the restricted
+   documentation lane only when the exact base/head diff is positively
+   classified within the documented Markdown allowlist. Labels, titles, and
+   author claims cannot grant the fast path. Unknown or ambiguous
+   classification runs full validation or fails closed; every other change and
+   every push to `main` runs the complete quality and Android suites.
 
 ---
 
@@ -124,7 +130,8 @@ This repo deploys to **Cloudflare Pages** via GitHub App webhook:
 - **Trigger:** Push to `main` → Cloudflare Pages GitHub App detects push → auto-build + deploy
 - **Build command:** `npm run build` (non-negotiable)
 - **Output directory:** `dist/`
-- **Node version:** 20
+- **Node version:** Use the exact version in `.nvmrc`; `package.json` records
+  the compatible minimum.
 - **Webhook verification:** Check deployment `trigger_type: "github:push"` (the GitHub `/repos/{owner}/{repo}/hooks` endpoint returns 0 even when the webhook is active)
 
 ### Cloudflare Pages Conventions
@@ -142,6 +149,12 @@ This repo deploys to **Cloudflare Pages** via GitHub App webhook:
 ### WCAG 2.1 AA Compliance
 
 All pages must pass axe-core with 0 violations. The QA test suite is at `/workspace/.tmp/qa_three_pages.py`.
+
+Positively classified documentation-only pull requests run the restricted docs
+lane instead of browser, database, Worker-build, and Android gates. Full QA
+remains mandatory for application, configuration, workflow, dependency,
+deployment, security, mobile, unknown, and all other changes, and for every
+push to `main`.
 
 **Key requirements:**
 - Color contrast: ≥4.5:1 (normal text), ≥3:1 (large text)

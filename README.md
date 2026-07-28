@@ -49,7 +49,11 @@ for Gates 1, 7, and 15 without promoting their composite statuses. See
 ## Agent workflow
 
 All agent changes use pull requests, CI, and Greptile review as documented in
-[`docs/agent-workflow.md`](./docs/agent-workflow.md).
+[`docs/agent-workflow.md`](./docs/agent-workflow.md). CI positively classifies
+changes confined to the approved Markdown allowlist for a restricted docs
+lane; every other, unknown, or ambiguous change and every push to `main` runs
+the complete quality and Android suites. Labels and author claims cannot grant
+the docs lane.
 
 ## Architecture
 
@@ -160,9 +164,12 @@ npm run build:mobile:ios
 
 The build emits code-split React assets, then copies `index.html`, `guide`, and
 `public/*` into `dist/`. Wrangler packages those assets with the Express Worker.
-GitHub-hosted CI uses Node 22.22.0, runs the Phase 2–5 database gates and browser
-QA, builds and lints Android debug plus minified release shells, conditionally
-applies migrations with Supabase CLI 2.109.1 plus linked pgTAP/RLS, and can
+GitHub-hosted CI uses the exact Node version in `.nvmrc`. Pull requests confined
+to the approved Markdown allowlist run locked installation/audit, diff,
+changelog, link, Node-contract, and credential-pattern checks. All other
+changes and all pushes to `main` run the full Phase 1–5 database and browser QA
+suite, build and lint Android debug plus minified release shells, conditionally
+apply migrations with Supabase CLI 2.109.1 plus linked pgTAP/RLS, and can
 deploy an isolated `vinifera-staging` Worker only after hashed target approval.
 Available runtime secrets are attached atomically to that staging version.
 A protected manual controller can later bootstrap and version the production
