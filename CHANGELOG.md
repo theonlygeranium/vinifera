@@ -448,6 +448,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   **Verification:** Run the focused FormFeedback tests, the repeated
   loyalty/tablet Playwright performance case, `npm run check`,
   `npm run qa:e2e`, and inspect empty/error/success states in Jeff - Pro Chrome.
+
+- **What changed:** Exposed the visible `LoadingScreen` label as a polite
+  `role="status"` while retaining the busy main landmark, with focused
+  component coverage. **Why:** The loading label was visible but lacked a
+  status semantic, so assistive technology could miss the initial application
+  state. **Deployment impact:** Shared loading-screen semantics only; session
+  checks, APIs, provider activation, routing, and headers are unchanged.
+  **Verification:** Run the focused LoadingScreen test, `npm run check`,
+  `npm run qa:e2e`, and inspect staff/member loading states in Jeff - Pro
+  Chrome.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,
