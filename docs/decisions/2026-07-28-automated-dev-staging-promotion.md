@@ -75,12 +75,15 @@ commit-status results must be no older than the PR creation timestamp. Closing
 and recreating a promotion PR at the same `dev` SHA therefore cannot inherit
 the prior PR's CI or review results. CodeRabbit must also have submitted a
 review on the current PR at the captured head SHA; its commit status alone is
-not accepted as proof of PR-specific review. The bridge passes the event head
-as the required `ExpectedHeadSHA` prompted runbook value, and the runbook
-refuses to check out or inspect the PR unless GitHub's live head matches it.
-All review diffs are then generated locally from the immutable fetched
-merge-base and expected-head objects, so a later branch rewrite cannot swap
-mutable PR artifacts into the attestation.
+not accepted as proof of PR-specific review. The bridge passes the event head,
+base ref, and base SHA as required prompted runbook values, and the runbook
+refuses to check out or inspect the PR unless all three still match GitHub's
+live metadata. All review diffs are then generated locally from the immutable
+fetched merge-base and expected-head objects, so a later head rewrite or
+base-branch switch cannot swap another comparison into the attestation. The
+published status description includes the attested base SHA; promotion captures
+the staging base SHA when it opens the PR and requires that same value during
+polling, in the Octopus status, and immediately before merge.
 Check runs and commit statuses are
 fully paginated before evaluation. After the second provider probe, the merge
 job re-queries exact-head CI, Octopus, CodeRabbit, PR-specific review, and

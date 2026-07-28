@@ -36,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      pr_base_sha: ${{ steps.upsert.outputs.pr_base_sha }}
       pr_created_at: ${{ steps.upsert.outputs.pr_created_at }}
       pr_number: ${{ steps.upsert.outputs.pr_number }}
       pr_sha: ${{ steps.upsert.outputs.pr_sha }}
@@ -86,11 +87,17 @@ jobs:
 
           pr_metadata=$(gh pr view "$pr_number" \
             --repo "$REPO" \
-            --json createdAt,headRefOid)
+            --json baseRefName,baseRefOid,createdAt,headRefOid)
+          pr_base_name=$(jq -r '.baseRefName' <<<"$pr_metadata")
+          pr_base_sha=$(jq -r '.baseRefOid' <<<"$pr_metadata")
           pr_sha=$(jq -r '.headRefOid' <<<"$pr_metadata")
           pr_created_at=$(jq -r '.createdAt' <<<"$pr_metadata")
           if [[ ! "$pr_sha" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::Promotion PR head is not an exact commit SHA."
+            exit 1
+          fi
+          if [[ "$pr_base_name" != "staging" || ! "$pr_base_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Promotion PR base is not the exact staging revision."
             exit 1
           fi
           if [[ ! "$pr_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
@@ -102,6 +109,7 @@ jobs:
             --repo "$REPO" \
             --body "@coderabbitai review"
 
+          echo "pr_base_sha=$pr_base_sha" >> "$GITHUB_OUTPUT"
           echo "pr_created_at=$pr_created_at" >> "$GITHUB_OUTPUT"
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
           echo "pr_sha=$pr_sha" >> "$GITHUB_OUTPUT"
@@ -155,6 +163,7 @@ jobs:
       - name: Poll exact-head CI, review status, and threads
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BASE_SHA: ${{ needs.open-pr.outputs.pr_base_sha }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ needs.open-pr.outputs.pr_number }}
           PR_CREATED_AT: ${{ needs.open-pr.outputs.pr_created_at }}
@@ -180,10 +189,17 @@ jobs:
               exit 1
             fi
 
-            current_sha=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
-              --json headRefOid --jq '.headRefOid')
+            current_metadata=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+              --json baseRefName,baseRefOid,headRefOid)
+            current_sha=$(jq -r '.headRefOid' <<<"$current_metadata")
+            current_base_name=$(jq -r '.baseRefName' <<<"$current_metadata")
+            current_base_sha=$(jq -r '.baseRefOid' <<<"$current_metadata")
             if [[ "$current_sha" != "$PR_SHA" ]]; then
               echo "::error::PR head changed from captured SHA $PR_SHA to $current_sha."
+              exit 1
+            fi
+            if [[ "$current_base_name" != "staging" || "$current_base_sha" != "$PR_BASE_SHA" ]]; then
+              echo "::error::PR base changed from captured staging SHA $PR_BASE_SHA."
               exit 1
             fi
 
@@ -278,7 +294,7 @@ jobs:
             octopus_description=$(jq -r \
               '[.[] | select(.context == "Octopus PR Quality Gates")] | last | .description // ""' \
               <<<"$statuses")
-            expected_octopus_description="Runbook completed for PR #$PR_NUMBER"
+            expected_octopus_description="Runbook completed for PR #$PR_NUMBER base $PR_BASE_SHA"
             other_pending=$(jq \
               '[.[] | select(.status != "completed")] | length' <<<"$checks")
             pending_statuses=$(jq \
@@ -345,6 +361,7 @@ jobs:
         if: github.event.inputs.dry_run != 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
+          PR_BASE_SHA: ${{ needs.open-pr.outputs.pr_base_sha }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ needs.open-pr.outputs.pr_number }}
           PR_CREATED_AT: ${{ needs.open-pr.outputs.pr_created_at }}
@@ -364,10 +381,17 @@ jobs:
             "Staging Supabase REST pre-merge re-check",
             "Squash-merge promotion PR"
           ]'
-          current_sha=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
-            --json headRefOid --jq '.headRefOid')
+          current_metadata=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json baseRefName,baseRefOid,headRefOid)
+          current_sha=$(jq -r '.headRefOid' <<<"$current_metadata")
+          current_base_name=$(jq -r '.baseRefName' <<<"$current_metadata")
+          current_base_sha=$(jq -r '.baseRefOid' <<<"$current_metadata")
           if [[ "$current_sha" != "$PR_SHA" ]]; then
             echo "::error::PR head changed before merge."
+            exit 1
+          fi
+          if [[ "$current_base_name" != "staging" || "$current_base_sha" != "$PR_BASE_SHA" ]]; then
+            echo "::error::PR base changed before merge."
             exit 1
           fi
 
@@ -405,7 +429,7 @@ jobs:
           invalid_checks=$(jq \
             '[.[] | select(.status != "completed" or (.conclusion | IN("success","skipped","neutral") | not))] | length' \
             <<<"$checks")
-          octopus_success=$(jq --arg expected "Runbook completed for PR #$PR_NUMBER" \
+          octopus_success=$(jq --arg expected "Runbook completed for PR #$PR_NUMBER base $PR_BASE_SHA" \
             '[.[] | select(.context == "Octopus PR Quality Gates" and .state == "success" and .description == $expected)] | length' \
             <<<"$statuses")
           coderabbit_success=$(jq \

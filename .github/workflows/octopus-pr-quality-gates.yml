@@ -75,6 +75,8 @@ jobs:
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
           PR_BRANCH: ${{ needs.validate-source.outputs.branch }}
+          PR_EXPECTED_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: node .github/scripts/octopus-runbook.mjs "PR Quality Gates"
@@ -83,6 +85,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
           REPO: ${{ github.repository }}
@@ -96,12 +99,16 @@ jobs:
             echo "::error::Pull-request head is not an exact commit SHA."
             exit 1
           fi
+          if [[ ! "$PR_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Pull-request base is not an exact commit SHA."
+            exit 1
+          fi
 
           state="failure"
-          description="Runbook failed for PR #$PR_NUMBER"
+          description="Runbook failed for PR #$PR_NUMBER base $PR_BASE_SHA"
           if [[ "$VALIDATION_RESULT" == "success" && "$RUNBOOK_OUTCOME" == "success" ]]; then
             state="success"
-            description="Runbook completed for PR #$PR_NUMBER"
+            description="Runbook completed for PR #$PR_NUMBER base $PR_BASE_SHA"
           fi
 
           gh api --method POST "repos/$REPO/statuses/$PR_SHA" \

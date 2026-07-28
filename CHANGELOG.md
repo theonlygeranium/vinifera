@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Fixed
+- `.github/workflows/octopus-pr-quality-gates.yml`,
+  `.github/scripts/octopus-runbook.mjs`, and the Octopus runbook contract:
+  Bind each queued review to the event's base ref and base SHA as well as its
+  head SHA, include the base SHA in the published status attestation, and make
+  promotion capture and revalidate that base through merge. A temporary or
+  later base-branch change can no longer produce a reusable success status for
+  an unreviewed comparison.
 - `.octopus/runbooks/pr-quality-gates/runbook.ocl` and its contract test:
   Persist the resolved merge-base SHA in task-scoped state before the separate
   Rules 4–10 action sources it. Without this transfer, strict shell mode

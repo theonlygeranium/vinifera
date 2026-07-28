@@ -145,10 +145,12 @@ all against `dev`. PRs #27–#28, #31–#34, and #36–#43 were squash-merged. P
   naming that PR. CodeRabbit must also have an exact-head review attached to
   the current PR; its commit status alone is insufficient. These bindings
   prevent a recreated PR at the same SHA from inheriting stale results. The
-  runbook receives the event head as a required `ExpectedHeadSHA` prompt and
-  refuses checkout if GitHub's live PR head differs. Its aggregate and
-  per-commit diffs are generated from the fetched immutable merge-base/head
-  objects rather than mutable PR API artifacts.
+  runbook receives the event head SHA, base ref, and base SHA as required
+  prompts and refuses checkout if GitHub's live PR metadata differs. Its
+  aggregate and per-commit diffs are generated from the fetched immutable
+  merge-base/head objects rather than mutable PR API artifacts. The published
+  status attests the base SHA, which promotion captures and revalidates through
+  its final merge check.
   Octopus Deploy's authenticated `main` project view also shows no published
   runbook.
 - Cloudflare Access now has one scoped `Vinifera GitHub Actions — Octopus`
@@ -177,8 +179,10 @@ all against `dev`. PRs #27–#28, #31–#34, and #36–#43 were squash-merged. P
   required aggregate for PR #51 head `97ceed6`. The subsequent exact-head Codex
   review found that checkout did not persist `MERGE_BASE_SHA` for the isolated
   Rules 4–10 Octopus action; the follow-up repair persists it in task-scoped
-  state. Fresh exact-head CI and Codex review are required. Octopus has not run,
-  so PR #51 is not yet merge-ready.
+  state. The following review also found that an unchanged head could be
+  reviewed against a temporarily switched base; the bridge now requires the
+  event's base ref and SHA to match live metadata. Fresh exact-head CI and Codex
+  review are required. Octopus has not run, so PR #51 is not yet merge-ready.
 - Open product/API decisions include the retention attempt list, a staff
   loyalty Redeem action, Team roster data, the Owner invitation security
   contract, the single-brand switcher, mobile dashboard spacing, CSV browser

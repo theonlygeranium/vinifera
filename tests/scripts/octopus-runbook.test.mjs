@@ -1122,6 +1122,14 @@ describe("Octopus runbook bridge", () => {
                 Name: "V-4",
                 Control: { Name: "ExpectedHeadSHA", Required: true },
               },
+              {
+                Name: "V-5",
+                Control: { Name: "ExpectedBaseRef", Required: true },
+              },
+              {
+                Name: "V-6",
+                Control: { Name: "ExpectedBaseSHA", Required: true },
+              },
             ],
           },
         });
@@ -1146,6 +1154,8 @@ describe("Octopus runbook bridge", () => {
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
           PR_BRANCH: "fix/example",
+          PR_EXPECTED_BASE_REF: "dev",
+          PR_EXPECTED_BASE_SHA: "b".repeat(40),
           PR_EXPECTED_SHA: "a".repeat(40),
           PR_NUMBER: "44",
         },
@@ -1170,6 +1180,8 @@ describe("Octopus runbook bridge", () => {
       "V-2": "44",
       "V-3": "secret-pat",
       "V-4": "a".repeat(40),
+      "V-5": "dev",
+      "V-6": "b".repeat(40),
     });
     expect(
       calls.every(
@@ -1227,6 +1239,14 @@ describe("Octopus runbook bridge", () => {
                 Name: "V-4",
                 Control: { Name: "ExpectedHeadSHA", Required: true },
               },
+              {
+                Name: "V-5",
+                Control: { Name: "ExpectedBaseRef", Required: true },
+              },
+              {
+                Name: "V-6",
+                Control: { Name: "ExpectedBaseSHA", Required: true },
+              },
             ],
           },
         });
@@ -1251,6 +1271,8 @@ describe("Octopus runbook bridge", () => {
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
           PR_BRANCH: "fix/example",
+          PR_EXPECTED_BASE_REF: "dev",
+          PR_EXPECTED_BASE_SHA: "b".repeat(40),
           PR_EXPECTED_SHA: "a".repeat(40),
           PR_NUMBER: "44",
         },
@@ -1310,8 +1332,26 @@ describe("Octopus workflow trust boundary", () => {
     expect(workflow).toContain(
       "PR_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}",
     );
+    expect(workflow).toContain(
+      "PR_EXPECTED_BASE_REF: ${{ github.event.pull_request.base.ref }}",
+    );
+    expect(workflow).toContain(
+      "PR_EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}",
+    );
+    expect(qualityRunbook).toContain(
+      'EXPECTED_BASE_REF="#{ExpectedBaseRef}"',
+    );
+    expect(qualityRunbook).toContain(
+      'EXPECTED_BASE_SHA="#{ExpectedBaseSHA}"',
+    );
     expect(qualityRunbook).toContain(
       'EXPECTED_HEAD_SHA="#{ExpectedHeadSHA}"',
+    );
+    expect(qualityRunbook).toContain(
+      '[ "$BASE_REF" = "$EXPECTED_BASE_REF" ]',
+    );
+    expect(qualityRunbook).toContain(
+      '[ "$BASE_SHA" = "$EXPECTED_BASE_SHA" ]',
     );
     expect(qualityRunbook).toContain(
       '[ "$HEAD_SHA" = "$EXPECTED_HEAD_SHA" ]',

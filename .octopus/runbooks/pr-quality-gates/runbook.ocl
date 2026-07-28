@@ -24,6 +24,8 @@ process {
                 Octopus.Action.Script.ScriptBody = <<-EOT
                     set -euo pipefail
                     BRANCH="#{PRBranch}"
+                    EXPECTED_BASE_REF="#{ExpectedBaseRef}"
+                    EXPECTED_BASE_SHA="#{ExpectedBaseSHA}"
                     EXPECTED_HEAD_SHA="#{ExpectedHeadSHA}"
                     WORK_DIR="/tmp/vinifera-pr-$$"
                     STATE_FILE="/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
@@ -42,12 +44,14 @@ data = json.load(sys.stdin)
 print(data["head"]["repo"]["full_name"])
 print(data["head"]["ref"])
 print(data["head"]["sha"])
+print(data["base"]["ref"])
 print(data["base"]["sha"])
 ')
                     HEAD_REPOSITORY=$(printf '%s\n' "$PR_METADATA" | sed -n '1p')
                     HEAD_REF=$(printf '%s\n' "$PR_METADATA" | sed -n '2p')
                     HEAD_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '3p')
-                    BASE_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '4p')
+                    BASE_REF=$(printf '%s\n' "$PR_METADATA" | sed -n '4p')
+                    BASE_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '5p')
                     [ "$HEAD_REPOSITORY" = "theonlygeranium/vinifera" ] || {
                         echo "FAIL: pull request head repository is not trusted"
                         exit 1
@@ -62,6 +66,18 @@ print(data["base"]["sha"])
                     }
                     [ "$HEAD_SHA" = "$EXPECTED_HEAD_SHA" ] || {
                         echo "FAIL: pull request head changed before Octopus checkout"
+                        exit 1
+                    }
+                    [[ "$EXPECTED_BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+                        echo "FAIL: expected base is not an exact commit SHA"
+                        exit 1
+                    }
+                    [ "$BASE_REF" = "$EXPECTED_BASE_REF" ] || {
+                        echo "FAIL: pull request base ref changed before Octopus checkout"
+                        exit 1
+                    }
+                    [ "$BASE_SHA" = "$EXPECTED_BASE_SHA" ] || {
+                        echo "FAIL: pull request base SHA changed before Octopus checkout"
                         exit 1
                     }
 

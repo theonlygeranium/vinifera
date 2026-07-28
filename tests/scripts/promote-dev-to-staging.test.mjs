@@ -67,6 +67,13 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).toContain("required_failed");
     expect(workflow).toContain("current_sha");
     expect(workflow).toContain('[[ "$current_sha" != "$PR_SHA" ]]');
+    expect(workflow).toContain("current_base_sha");
+    expect(workflow).toContain(
+      '[[ "$current_base_name" != "staging" || "$current_base_sha" != "$PR_BASE_SHA" ]]',
+    );
+    expect(workflow).toContain(
+      "PR_BASE_SHA: ${{ needs.open-pr.outputs.pr_base_sha }}",
+    );
     expect(workflow).toContain(
       "PR_CREATED_AT: ${{ needs.open-pr.outputs.pr_created_at }}",
     );
@@ -101,13 +108,16 @@ describe("dev to staging promotion contract", () => {
       "PR_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}",
     );
     expect(octopusWorkflow).toContain(
+      "PR_EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}",
+    );
+    expect(octopusWorkflow).toContain(
       '"repos/$REPO/statuses/$PR_SHA"',
     );
     expect(octopusWorkflow).toContain(
       '-f context="Octopus PR Quality Gates"',
     );
     expect(octopusWorkflow).toContain(
-      'description="Runbook completed for PR #$PR_NUMBER"',
+      'description="Runbook completed for PR #$PR_NUMBER base $PR_BASE_SHA"',
     );
     expect(octopusWorkflow).toContain('if: always()');
   });

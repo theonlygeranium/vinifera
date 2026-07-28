@@ -85,14 +85,20 @@ left race windows between gate evaluation and merge.
 ### Octopus trust boundary
 
 - Runs secret-bearing bridge code only from the trusted default branch.
-- Binds the prompted expected SHA, GitHub's live PR metadata, checkout, locally
-  generated aggregate diff, per-commit diffs, and published status to the same
-  immutable head.
+- Binds the prompted expected head SHA, base ref, and base SHA to GitHub's live
+  PR metadata before checkout, then derives the aggregate and per-commit diffs
+  from that immutable comparison. A queued review cannot reuse success after a
+  base-branch switch. The status description attests the base SHA, and promotion
+  captures and revalidates that base through the final merge check.
 - Uses first-parent diffs so Rule 9 evaluates merge commits.
 - Persists `MERGE_BASE_SHA` with the other task-scoped checkout state before
   the separate Rules 4–10 action sources it. The exact-head Codex review found
   this missing transfer at `97ceed6`; without the repair, `set -u` terminated
   the mandatory runbook before any change-aware rule executed.
+- The next exact-head Codex review found that the runbook still trusted live
+  base metadata. The follow-up passes and validates the event's base ref and
+  SHA, preventing an unchanged head from receiving an attestation for a
+  different or temporarily switched base.
 
 ### External access state
 
