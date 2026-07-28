@@ -125,9 +125,9 @@ closed after direct resolution commits.
   regression assertions. PR #49 repaired the WCAG focus/touch-target source;
   PR #51 restores the remaining signup behavior and recombines all deleted
   assertions with the intended pricing and HTTPS-logo changes. The restored
-  trial links remain on pricing unless `/api/health/configuration` reports both
-  database and authentication-email readiness; generic runtime health alone
-  cannot expose a signup route that is guaranteed to fail.
+  trial links remain on pricing unless `/api/health/configuration` reports
+  application-origin, database, and authentication-email readiness; generic
+  runtime health alone cannot expose a signup route that is guaranteed to fail.
 - Octopus still does not run on `dev` PRs because `pull_request_target` loads
   the workflow from GitHub's default branch. The current remote `main` head
   (`b019327b4d49` at audit time) retains the old `pull_request`/main-only

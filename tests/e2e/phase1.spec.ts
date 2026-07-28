@@ -154,6 +154,7 @@ test.describe("Phase 1 public authentication surfaces", () => {
         contentType: "application/json",
         body: JSON.stringify({
           data: {
+            app: { configured: true, missing: [] },
             database: { configured: true, missing: [] },
             email: { configured: true, missing: [] },
           },
@@ -197,8 +198,33 @@ test.describe("Phase 1 public authentication surfaces", () => {
         contentType: "application/json",
         body: JSON.stringify({
           data: {
+            app: { configured: true, missing: [] },
             database: { configured: true, missing: [] },
             email: { configured: false, missing: ["AUTH_EMAIL_ENABLED"] },
+          },
+        }),
+      }),
+    );
+    await page.goto("/");
+    const freeTrialCallsToAction = page.locator("[data-signup-cta]");
+
+    await expect(freeTrialCallsToAction).toHaveCount(6);
+    for (const callToAction of await freeTrialCallsToAction.all()) {
+      await expect(callToAction).toHaveAttribute("href", "#pricing");
+    }
+  });
+
+  test("marketing free-trial calls to action stay on pricing without an application origin", async ({
+    page,
+  }) => {
+    await page.route("**/api/health/configuration", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            app: { configured: false, missing: ["APP_ORIGIN"] },
+            database: { configured: true, missing: [] },
+            email: { configured: true, missing: [] },
           },
         }),
       }),

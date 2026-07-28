@@ -33,6 +33,9 @@ describe("marketing landing page interaction targets", () => {
       'fetch("/api/health/configuration"',
     );
     expect(marketingScript).toContain(
+      "payload?.data?.app?.configured !== true",
+    );
+    expect(marketingScript).toContain(
       "payload?.data?.database?.configured !== true",
     );
     expect(marketingScript).toContain(

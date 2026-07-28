@@ -79,6 +79,15 @@
 - `CONTINUITY_BRIEF.md`: Recorded completion of the approved Cloudflare Access
   Service Auth policy and encrypted GitHub Actions credential transfer for the
   Octopus application without storing credential values in the repository.
+- `.github/workflows/promote-dev-to-staging.yml` and its contract tests:
+  Paginate every exact-head check and status query and revalidate CI, Octopus,
+  CodeRabbit, and unresolved review threads immediately before merge. A gate
+  that changes after the polling job now fails closed instead of racing the
+  exact-head merge.
+- `public/marketing.js`, `tests/e2e/phase1.spec.ts`, and
+  `tests/scripts/landing-static.test.mjs`: Require the application capability,
+  including `APP_ORIGIN`, in addition to database and authentication-email
+  readiness before marketing trial CTAs expose staff signup.
 
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is

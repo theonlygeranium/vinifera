@@ -28,6 +28,7 @@ document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
     }
     const payload = await response.json();
     if (
+      payload?.data?.app?.configured !== true ||
       payload?.data?.database?.configured !== true ||
       payload?.data?.email?.configured !== true
     ) {

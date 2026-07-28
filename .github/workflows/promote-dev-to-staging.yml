@@ -187,8 +187,9 @@ jobs:
               exit 1
             fi
 
-            checks=$(gh api "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
-              --jq '.check_runs' \
+            checks=$(gh api --paginate --slurp \
+              "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
+              --jq '[.[].check_runs[]]' \
               | jq --argjson promotion_checks "$promotion_checks" \
                 --argjson pr_number "$PR_NUMBER" \
                 '[.[] |
@@ -196,7 +197,9 @@ jobs:
                   select(.name as $name | $promotion_checks | index($name) | not)]
                  | group_by(.name)
                  | map(sort_by(.started_at // .created_at) | last)')
-            statuses=$(gh api "repos/$REPO/commits/$PR_SHA/status" --jq '.statuses' \
+            statuses=$(gh api --paginate --slurp \
+              "repos/$REPO/commits/$PR_SHA/statuses?per_page=100" \
+              --jq 'add' \
               | jq --arg pr_created_at "$PR_CREATED_AT" \
                 '[.[] | select(.created_at >= $pr_created_at)]
                  | group_by(.context)
@@ -344,12 +347,88 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ needs.open-pr.outputs.pr_number }}
+          PR_CREATED_AT: ${{ needs.open-pr.outputs.pr_created_at }}
           PR_SHA: ${{ needs.open-pr.outputs.pr_sha }}
         run: |
           set -euo pipefail
 
           if [[ -z "${GH_TOKEN:-}" ]]; then
             echo "::error::GH_PAT_FOR_OCTOPUS is required so the staging push triggers its workflows."
+            exit 1
+          fi
+
+          promotion_checks='[
+            "Open or update dev→staging PR",
+            "Staging Supabase REST pre-flight",
+            "Wait for promotion PR gates",
+            "Staging Supabase REST pre-merge re-check",
+            "Squash-merge promotion PR"
+          ]'
+          current_sha=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json headRefOid --jq '.headRefOid')
+          if [[ "$current_sha" != "$PR_SHA" ]]; then
+            echo "::error::PR head changed before merge."
+            exit 1
+          fi
+
+          checks=$(gh api --paginate --slurp \
+            "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
+            --jq '[.[].check_runs[]]' \
+            | jq --argjson promotion_checks "$promotion_checks" \
+              --argjson pr_number "$PR_NUMBER" \
+              '[.[] |
+                select(any(.pull_requests[]?; .number == $pr_number)) |
+                select(.name as $name | $promotion_checks | index($name) | not)]
+               | group_by(.name)
+               | map(sort_by(.started_at // .created_at) | last)')
+          statuses=$(gh api --paginate --slurp \
+            "repos/$REPO/commits/$PR_SHA/statuses?per_page=100" \
+            --jq 'add' \
+            | jq --arg pr_created_at "$PR_CREATED_AT" \
+              '[.[] | select(.created_at >= $pr_created_at)]
+               | group_by(.context)
+               | map(sort_by(.created_at) | last)')
+          review_state=$(gh api graphql \
+            -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved} pageInfo{hasNextPage}} reviews(first:100){nodes{author{login} commit{oid} submittedAt} pageInfo{hasNextPage}}}}}' \
+            -f owner="${REPO%%/*}" \
+            -f name="${REPO#*/}" \
+            -F number="$PR_NUMBER")
+          if [[ "$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$review_state")" == "true" ]] \
+            || [[ "$(jq -r '.data.repository.pullRequest.reviews.pageInfo.hasNextPage' <<<"$review_state")" == "true" ]]; then
+            echo "::error::Review state exceeds the validated 100-item pages."
+            exit 1
+          fi
+
+          required_success=$(jq \
+            '[.[] | select(.name == "Type, test, build, and package" and .status == "completed" and .conclusion == "success")] | length' \
+            <<<"$checks")
+          invalid_checks=$(jq \
+            '[.[] | select(.status != "completed" or .conclusion != "success")] | length' \
+            <<<"$checks")
+          octopus_success=$(jq --arg expected "Runbook completed for PR #$PR_NUMBER" \
+            '[.[] | select(.context == "Octopus PR Quality Gates" and .state == "success" and .description == $expected)] | length' \
+            <<<"$statuses")
+          coderabbit_success=$(jq \
+            '[.[] | select(.context == "CodeRabbit" and .state == "success" and .description == "Review completed")] | length' \
+            <<<"$statuses")
+          invalid_statuses=$(jq \
+            '[.[] | select(.state != "success")] | length' <<<"$statuses")
+          unresolved=$(jq \
+            '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length' \
+            <<<"$review_state")
+          coderabbit_reviews=$(jq \
+            --arg pr_sha "$PR_SHA" \
+            --arg pr_created_at "$PR_CREATED_AT" \
+            '[.data.repository.pullRequest.reviews.nodes[] |
+              select(.author.login == "coderabbitai") |
+              select(.commit.oid == $pr_sha) |
+              select(.submittedAt >= $pr_created_at)] | length' \
+            <<<"$review_state")
+          if (( required_success == 0 || invalid_checks > 0 \
+            || octopus_success == 0 || coderabbit_success == 0 \
+            || invalid_statuses > 0 || unresolved > 0 \
+            || coderabbit_reviews == 0 )); then
+            echo "::error::Promotion gates changed after polling; refusing to merge."
             exit 1
           fi
 

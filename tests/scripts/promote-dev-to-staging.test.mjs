@@ -84,6 +84,10 @@ describe("dev to staging promotion contract", () => {
       "select(.submittedAt >= $pr_created_at)",
     );
     expect(workflow).toContain("coderabbit_reviews > 0");
+    expect(workflow.match(/gh api --paginate --slurp/g)).toHaveLength(4);
+    expect(workflow).toContain(
+      '"repos/$REPO/commits/$PR_SHA/statuses?per_page=100"',
+    );
   });
 
   it("publishes the trusted Octopus result on the pull-request head SHA", () => {
@@ -106,6 +110,11 @@ describe("dev to staging promotion contract", () => {
   });
 
   it("fails unless GitHub confirms an exact-head merge", () => {
+    expect(workflow).toMatch(
+      /Squash-merge exact promotion head[\s\S]*?Promotion gates changed after polling; refusing to merge\.[\s\S]*?gh pr merge/,
+    );
+    expect(workflow).toContain("invalid_checks");
+    expect(workflow).toContain("invalid_statuses");
     expect(workflow).toContain('--match-head-commit "$PR_SHA"');
     expect(workflow).toContain('[[ "$state" != "MERGED"');
     expect(workflow).not.toMatch(/gh pr merge[\s\S]{0,500}\|\s*grep/);
