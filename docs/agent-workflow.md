@@ -14,39 +14,6 @@ PostgreSQL gates and `npm run qa:local-seed`. The latter replays every
 migration and applies the deterministic seed twice in PGlite, so local-fixture
 idempotence is enforced without Docker or hosted credentials.
 
-## Path-aware validation lanes
-
-CI selects one lane from the pull request's exact base and head commits. A
-label, title, checklist, or author assertion cannot select the fast path.
-
-- The documentation-only lane is available only when every changed path is
-  `AGENTS.md`, `CHANGELOG.md`, `CONTINUITY_BRIEF.md`, `README.md`, `REVERT.md`,
-  or a Markdown file beneath `docs/`. It installs locked dependencies, audits
-  them, checks patch whitespace, revalidates the allowlist and required
-  changelog update, checks local Markdown links and repository paths, verifies
-  the `.nvmrc`/package/documentation Node contract, and scans added lines for
-  high-confidence credential patterns.
-- The full lane runs the existing type, unit/integration, Phase 1–5 database,
-  static/Worker build, Playwright/axe/responsive, Pages rollback, and Android
-  lint/package gates. It is mandatory for source, tests, workflows,
-  configuration, dependencies, scripts, database, deployment, security,
-  mobile, unknown paths, copies, deletions, unsupported diff statuses, and
-  classification failures.
-- Renames are evaluated as both their old and new paths. A rename entirely
-  within the documentation allowlist may use the docs lane; moving a document
-  outside it runs full validation.
-- Pushes to `main`, manual validation, and any future scheduled validation
-  always run the full lane.
-
-The required `Type, test, build, and package` check is an `if: always()`
-aggregation/policy job. It depends on classification and both conditional
-lanes, requires exactly the selected lane to run and pass, requires Android for
-the full lane, and rejects failed, cancelled, skipped-selected, missing,
-unknown, both-lane, and neither-lane states. Greptile, direct-push protection,
-strict/current-with-main enforcement, conversation resolution, and the
-Cloudflare Pages preview remain independent controls. Every new PR head must
-produce fresh required checks even when it qualifies for the docs lane.
-
 ## Mandatory commit contract
 
 Every commit must update `CHANGELOG.md` and use the repository's Conventional
@@ -95,8 +62,7 @@ terminal states is reached:
    provide a safety net.
 2. Wait for Greptile, `Type, test, build, and package`,
    `Block direct push to main`, and the relevant preview/deployment checks.
-   Record the CI-selected lane; do not infer it from labels or checkboxes. Do
-   not repeatedly report unchanged pending state.
+   Do not repeatedly report unchanged pending state.
 3. Fetch thread-aware review state. Flat comment lists are insufficient; use
    Greptile MCP when available or GitHub GraphQL review threads so
    `isResolved`, outdated state, file, and line anchors are visible.
