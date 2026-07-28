@@ -94,7 +94,10 @@ header, and removes the remote before inspecting pull-request content. It
 derives the aggregate diff and each commit diff locally from those immutable
 objects; mutable PR diff and commit-list endpoints are not used. Per-commit
 artifacts use first-parent semantics so an ordinary merge commit cannot yield
-an empty combined diff and evade Rule 9. Rules 4–10
+an empty combined diff and evade Rule 9. Rules 1–3 require the task-scoped
+checkout state and use `git grep` over tracked TypeScript pathspecs; they cannot
+fall back to an unrelated working directory or follow a pull-request symlink
+into the Octopus host filesystem. Rules 4–10
 consume the resulting merge-base-aware PR diff and inspect bounded source
 windows around added calls, so the successful path includes tenant-isolation
 Rule 8 without turning target-branch advances, multiline safe calls, or

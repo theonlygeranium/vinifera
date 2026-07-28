@@ -83,9 +83,9 @@ head SHA after the trusted runbook finishes. Promotion requires that exact-head
 status with a description naming the current promotion PR; it does not infer an
 Octopus result from a check attached to another revision. Check runs must also
 identify the current PR in GitHub's `pull_requests` association, and
-commit-status results must be no older than the PR creation timestamp. Closing
-and recreating a promotion PR at the same `dev` SHA therefore cannot inherit
-the prior PR's CI or review results. CodeRabbit must also have submitted a
+check, status, and review results must be no older than the current readiness
+attempt. Closing and recreating a promotion PR at the same `dev` SHA therefore
+cannot inherit the prior PR's CI or review results. CodeRabbit must also have submitted a
 review on the current PR at the captured head SHA; its commit status alone is
 not accepted as proof of PR-specific review. The bridge passes the event head,
 base ref, and base SHA as required runbook inputs, and the runbook refuses to

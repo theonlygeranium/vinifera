@@ -141,7 +141,8 @@ all against `dev`. PRs #27–#28, #31–#34, and #36–#43 were squash-merged. P
   publishes its trusted runbook outcome as an explicit status on the PR head,
   because `pull_request_target` check runs attach to the base revision. The
   promotion gate additionally requires check-run association with the current
-  PR, status timestamps no older than PR creation, and an Octopus description
+  PR, evidence timestamps no older than the current readiness attempt, and an
+  Octopus description
   naming that PR. CodeRabbit must also have an exact-head review attached to
   the current PR; its commit status alone is insufficient. These bindings
   prevent a recreated PR at the same SHA from inheriting stale results. The
@@ -150,7 +151,9 @@ all against `dev`. PRs #27–#28, #31–#34, and #36–#43 were squash-merged. P
   aggregate and per-commit diffs are generated from the fetched immutable
   merge-base/head objects rather than mutable PR API artifacts. The published
   status attests the base SHA, which promotion captures and revalidates through
-  its final merge check.
+  its final readiness check. Rules 1–3 now require the task state and inspect
+  tracked TypeScript with `git grep`, preventing missing-state false success
+  and symlink traversal into the Octopus host.
   Octopus Deploy's authenticated `main` project view also shows no published
   runbook.
 - Cloudflare Access now has one scoped `Vinifera GitHub Actions — Octopus`
@@ -183,18 +186,25 @@ all against `dev`. PRs #27–#28, #31–#34, and #36–#43 were squash-merged. P
   and head, and statuses/reviews must be newer than that attempt. Quality CI
   handles the marker's `edited` event, guaranteeing a fresh run when the
   promotion head itself has not changed.
-- GitHub Actions run `30402814978` passed the full and Android lanes plus the
-  required aggregate for PR #51 head `97ceed6`. The subsequent exact-head Codex
+- GitHub Actions run `30407043361` passed the full and Android lanes plus the
+  required aggregate for controlled-review-freeze head `8c7341e`. An earlier exact-head Codex
   review found that checkout did not persist `MERGE_BASE_SHA` for the isolated
   Rules 4–10 Octopus action; the follow-up repair persists it in task-scoped
   state. The following review also found that an unchanged head could be
   reviewed against a temporarily switched base; the bridge now requires the
-  event's base ref and SHA to match live metadata. Fresh exact-head CI and Codex
-  review are required. Octopus has not run, so PR #51 is not yet merge-ready.
+  event's base ref and SHA to match live metadata. The controlled audit then
+  found reduced-motion, hidden-focus, Worker marketing-CSP, and Rules 1–3
+  host-boundary defects;
+  their consolidated repair passed 490 Vitest tests, all five embedded
+  database suites, 153 Playwright/axe tests, Worker and Pages builds, mobile
+  identity, compile-only mobile-web preparation, actionlint 1.7.12, and a
+  manual 375-pixel check in the Jeff Pro Chrome profile. It still requires
+  fresh exact-head CI and Codex review. Octopus has not run, so PR #51 is not
+  yet merge-ready.
 - Open product/API decisions include the retention attempt list, a staff
   loyalty Redeem action, Team roster data, the Owner invitation security
   contract, the single-brand switcher, mobile dashboard spacing, CSV browser
-  transport proof, Worker-vs-Pages CSP, and the `/app/signup` cutover boundary.
+  transport proof, and the `/app/signup` cutover boundary.
 
 All 20 activation gates remain pending. No provider, hosted-data, migration,
 billing, email, push, deployment, or merge activation occurred.

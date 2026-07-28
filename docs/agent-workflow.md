@@ -97,9 +97,10 @@ terminal states is reached:
    same finding reappears; apply `human-review-required` and report the
    evidence.
 8. Merge only under explicit task-specific human authority or the
-   `codex-auto-merge` label. If merging, verify the resulting `main` commit,
-   post-merge required workflows, Pages/deployment state, and branch cleanup.
-   Otherwise leave the PR ready and report its exact status.
+   `codex-auto-merge` label. If merging, verify the resulting target-branch
+   commit and the post-merge workflows, preview/deployment state, and branch
+   cleanup applicable to that environment. Otherwise leave the PR ready and
+   report its exact status.
 
 ## Human supervision and automation authority
 

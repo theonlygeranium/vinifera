@@ -4,7 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vinifera — Wine Club Management Built for What's Next</title>
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script
+  src="https://unpkg.com/lucide@1.27.0/dist/umd/lucide.min.js"
+  integrity="sha384-iGjGimQxA1QCAbLRiSWPFc+KsjPW3kLS/2Cub+yRgYfd4EUEx/dxoJ0MKyEsbjop"
+  crossorigin="anonymous"
+></script>
 <style>
 /* ── Reset & tokens ─────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -189,6 +193,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
 
 /* ── prefers-reduced-motion: disable all animations ──────────────────────── */
 @media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
   .vine-draw, .vine-draw-2, .vine-draw-3, .vine-draw-4, .vine-draw-5,
   .vine-draw-bg-1, .vine-draw-bg-2 {
     animation: none;

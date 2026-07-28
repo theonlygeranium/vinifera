@@ -118,10 +118,62 @@ test.describe("Phase 1 public authentication surfaces", () => {
       page,
     }) => {
       await page.setViewportSize({ width: 375, height: 812 });
-      await page.goto(surface.path);
+      if (surface.name === "marketing") {
+        await page.emulateMedia({ reducedMotion: "reduce" });
+      }
+      const response = await page.goto(surface.path);
       await expect(page.locator("h1")).toContainText(surface.headingFragment);
       await assertA11y(page);
       await assertNoHorizontalOverflow(page);
+      if (surface.name === "marketing") {
+        const contentSecurityPolicy =
+          (await response?.headerValue("content-security-policy")) ?? "";
+        expect(contentSecurityPolicy).toContain(
+          "script-src 'self' https://unpkg.com",
+        );
+        expect(contentSecurityPolicy).toContain(
+          "style-src 'self' 'unsafe-inline'",
+        );
+
+        const motionStyle = await page.locator(".feature-card").first().evaluate(
+          (element) => ({
+            inlineTransform: (element as HTMLElement).style.transform,
+            inlineTransition: (element as HTMLElement).style.transition,
+          }),
+        );
+        expect(motionStyle).toEqual({
+          inlineTransform: "",
+          inlineTransition: "",
+        });
+
+        const undersized = await page.evaluate(() =>
+          Array.from(
+            document.querySelectorAll<HTMLElement>(
+              "a,button,input,select,textarea,[role='button']",
+            ),
+          )
+            .filter((element) => {
+              const style = getComputedStyle(element);
+              return style.visibility !== "hidden" && style.display !== "none";
+            })
+            .map((element) => {
+              const rect = element.getBoundingClientRect();
+              return {
+                height: rect.height,
+                label:
+                  element.getAttribute("aria-label") ||
+                  element.textContent?.trim().slice(0, 80) ||
+                  element.tagName,
+                width: rect.width,
+              };
+            })
+            .filter(
+              (target) =>
+                target.height > 0 && (target.height < 44 || target.width < 44),
+            ),
+        );
+        expect(undersized).toEqual([]);
+      }
     });
   }
 
@@ -254,6 +306,12 @@ test.describe("Phase 1 public authentication surfaces", () => {
     await page.keyboard.press("Escape");
     await expect(menuButton).toHaveAttribute("aria-expanded", "false");
     await expect(menuButton).toBeFocused();
+
+    await menuButton.click();
+    await featuresLink.focus();
+    await featuresLink.press("Enter");
+    await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator("#features")).toBeFocused();
   });
 
   for (const viewport of [

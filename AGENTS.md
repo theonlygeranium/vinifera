@@ -139,7 +139,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 448/448 Vitest; 145/145 Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 490/490 Vitest; 153/153 Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -160,14 +160,18 @@ Decisions that **require** an ADR: changes to activation gate logic, new externa
 
 ## 5. CI/CD and Deployment
 
-The repository has **8 GitHub Actions workflows** under `.github/workflows/`:
+The repository has **12 GitHub Actions workflows** under `.github/workflows/`:
 
 | Workflow file | Trigger | What it does |
 |--------------|---------|-------------|
-| `ci.yml` | PR, push to main | TypeScript check, Vitest (448+ tests), Phase 2–5 DB gates, Playwright/axe (145 tests) |
+| `ci.yml` | PR, push to staging/main, manual | Full or documentation-only validation, Android build, staging-only activation gates |
 | `direct-push-guard.yml` | Push to main | Enforces no direct commits reach main without a merged PR; fails closed |
 | `hosted-readiness.yml` | Manual, protected | Apply Supabase migrations + deploy isolated `vinifera-staging` Worker (credential-gated) |
+| `octopus-main-deploy.yml` | Push to main, manual | Reconcile trusted Octopus configuration after the default-branch bootstrap |
+| `octopus-pr-quality-gates.yml` | Trusted PR events | Validate same-repository PR source and publish the Octopus result on the reviewed head/base |
+| `octopus-security-audit.yml` | Scheduled, manual | Run the trusted Octopus security audit |
 | `production-worker-release.yml` | Manual, protected | Deploy production Worker, domain move, Pages rollback (credential-gated) |
+| `promote-dev-to-staging.yml` | Push to dev, manual | Open/update and validate the human-merged `dev` to `staging` promotion PR |
 | `stripe-test-catalog.yml` | Manual, protected | Stripe test Price catalog bootstrap and reconciliation |
 | `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
 | `credential-envelope-rotation.yml` | Manual, protected | Rotate encrypted credential envelopes |
@@ -181,7 +185,7 @@ Four Cloudflare Pages projects serve four distinct purposes:
 |---|---|---|---|---|
 | `vinifera` | `main` | `vinifera.edstratumlabs.ai` | — | Marketing site + `/app` visual prototype |
 | `vinifera-dev` | `dev` | `vinifera-dev.edstratumlabs.ai` | `cfrqrllmyquggqjkzifs` (Dev) | Active build — agents commit here |
-| `vinifera-staging` | `staging` | `vinifera-staging.edstratumlabs.ai` | `cfrqrllmyquggqjkzifs` (Dev, until Pro plan) | Validation gate — human tests here |
+| `vinifera-staging` | `staging` | `vinifera-staging.edstratumlabs.ai` | Not provisioned; must be isolated from Dev | Validation gate — human tests here |
 | `vinifera-live` | `main` | `vinifera-live.edstratumlabs.ai` | `lefbjbulzmtgidjbemzb` (Prod) | Production — human-authorized deploys only |
 
 - **Build command for dev/staging/live:** `npm run build:pages` (`CF_PAGES=1 npm run build`) — copies `/app` prototype into `dist/`
@@ -201,16 +205,17 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 ## 6. Quality Assurance
 
-### Current verified test counts (v0.5.0 + BS-01–BS-06 baseline)
+### Current verified test counts (PR #51 audit baseline)
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 448 | `npm run check` |
+| Vitest unit/integration | 490 | `npm run check` |
+| Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |
 | Phase 4 DB (intelligence) | 158 assertions | `npm run qa:db:phase4` |
 | Phase 5 DB (scale) | 513 assertions | `npm run qa:db:phase5` |
-| Playwright E2E + axe-core | 145 | `npm run qa:e2e` |
+| Playwright E2E + axe-core | 153 | `npm run qa:e2e` |
 
 A PR may not merge if any of these counts decrease without a documented justification in the PR description. Test regressions are blocking defects.
 

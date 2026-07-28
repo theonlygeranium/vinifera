@@ -1370,6 +1370,15 @@ describe("Octopus workflow trust boundary", () => {
     );
     expect(qualityRunbook).not.toContain("application/vnd.github.diff");
     expect(qualityRunbook).not.toContain("/commits?per_page=");
+    expect(qualityRunbook).not.toContain('WORK_DIR="/tmp/vinifera-pr"');
+    expect(qualityRunbook).not.toContain("grep -rn");
+    expect(qualityRunbook.match(/set -euo pipefail/g)).toHaveLength(5);
+    expect(qualityRunbook.match(/git grep -n -E/g)).toHaveLength(4);
+    expect(
+      qualityRunbook.match(
+        /source "\/tmp\/octopus_pr_workdir_#\{Octopus\.Task\.Id\}"/g,
+      ),
+    ).toHaveLength(4);
     expect(workflow).toContain("git check-ref-format --branch");
     expect(workflow).toContain(
       "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$",

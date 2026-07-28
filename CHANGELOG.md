@@ -3,11 +3,23 @@
 ## [Unreleased]
 
 ### Fixed
+- Controlled PR #51 audit: Honor reduced-motion preferences for scripted card
+  reveals and anchor scrolling; restore focus to the selected in-page mobile
+  destination; align the Worker CSP with the landing page's legacy inline CSS;
+  pin the allowed Lucide bundle to 1.27.0 with SHA-384 integrity; make Octopus
+  Rules 1–3 fail closed on missing task state and inspect only tracked files;
+  refresh workflow counts, staging-isolation state, evidence timestamps, actor
+  handoff, and merge/readiness terminology across governance documentation.
+  **Deployment impact:** The Worker-served landing page regains its intended
+  styling and 44-pixel mobile targets; marketing behavior changes for
+  reduced-motion and mobile-keyboard users; Octopus remains blocked until its
+  trusted default-branch workflow and runnable snapshot are bootstrapped. No
+  environment or provider activation occurs.
 - `.github/workflows/octopus-pr-quality-gates.yml`,
   `.github/scripts/octopus-runbook.mjs`, and the Octopus runbook contract:
   Bind each queued review to the event's base ref and base SHA as well as its
   head SHA, include the base SHA in the published status attestation, and make
-  promotion capture and revalidate that base through merge. A temporary or
+  promotion capture and revalidate that base through readiness reporting. A temporary or
   later base-branch change can no longer produce a reusable success status for
   an unreviewed comparison.
 - `.github/workflows/promote-dev-to-staging.yml` and governance documentation:
@@ -36,7 +48,7 @@
   Rules 4–10 action sources it. Without this transfer, strict shell mode
   stopped the mandatory change-aware Octopus gate before any rule executed.
 - `index.html` and `tests/e2e/phase1.spec.ts`: Restored all six marketing
-  free-trial links to `/app/signup` while retaining the four canonical pricing
+  free-trial CTA capability paths while retaining the four canonical pricing
   tiers, and restored the staff skip-link regression assertion. The prior
   direct PR #30 resolution had replaced later landing-page behavior and deleted
   both previously merged tests.
@@ -49,12 +61,12 @@
   actually run and so the merged staging push invokes deployment workflows,
   exclude the promotion run from its own exact-SHA polling, require aggregate
   CI, Octopus, CodeRabbit, the latest registered statuses, and zero unresolved
-  threads, and fail unless GitHub confirms an exact-head merge. This removes
+  threads, and report an exact-head/base readiness result for human merge. This removes
   the original self-deadlock, missing-label failure, suppressed staging event,
   and false-success merge path.
 - `tests/scripts/promote-dev-to-staging.test.mjs`: Added source-contract coverage
   for PR ordering, event triggering, self-run exclusion, review gates,
-  credential documentation, and exact-head merge confirmation.
+  credential documentation, and exact-head/base readiness confirmation.
 - `.github/workflows/promote-dev-to-staging.yml`: Granted the polling token
   explicit check/status read permissions and excluded every promotion job name,
   including prior attempts on the same commit, so credential repair or a
@@ -106,7 +118,7 @@
   The trusted Octopus bridge now publishes its runbook outcome on the exact PR
   head SHA, so promotion no longer waits for a `pull_request_target` check that
   GitHub attaches only to the base revision. Promotion also binds checks and
-  statuses to the current PR number and creation time so a recreated PR at the
+  statuses to the current PR number and readiness-attempt time so a recreated PR at the
   same commit cannot reuse stale approvals.
 - `CONTINUITY_BRIEF.md`: Recorded completion of the approved Cloudflare Access
   Service Auth policy and encrypted GitHub Actions credential transfer for the
@@ -146,7 +158,8 @@
   implemented order, exact gates, token-trigger requirement, and the current
   missing staging-probe credentials instead of claiming they are installed.
 
-**Deployment impact:** The landing page again routes trial traffic to signup.
+**Deployment impact:** The landing page routes trial traffic to signup only
+when the same-origin Worker reports every required signup capability configured.
 No provider, branch, Pages project, or production environment is mutated by
 the UI repair commit. The promotion workflow remains intentionally fail-closed
 until an isolated staging Supabase target exists and its URL/anon-key secrets
