@@ -43,6 +43,8 @@ describe("Octopus runbook bridge", () => {
 
     expect(workflow).not.toContain("Auto-Fix Suggestions");
     expect(workflow).not.toContain("PR Comment Bot");
+    expect(qualityRunbook).toContain("cancel_queued_tasks = false");
+    expect(qualityRunbook).toContain("cancel_running_tasks = false");
     expect(qualityRunbook).not.toMatch(
       /https:\/\/#\{GitHubPAT\}@github\.com/,
     );

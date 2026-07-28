@@ -1,6 +1,6 @@
 name = "PR Quality Gates"
-cancel_queued_tasks = true
-cancel_running_tasks = true
+cancel_queued_tasks = false
+cancel_running_tasks = false
 description = "Enforces 10 architectural, security, and tenancy rules from the Vinifera engineering standards."
 
 connectivity_policy {

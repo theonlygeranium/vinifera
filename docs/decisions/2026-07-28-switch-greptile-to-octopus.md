@@ -89,6 +89,10 @@ windows around added calls, so the successful path includes tenant-isolation
 Rule 8 without turning target-branch advances, multiline safe calls, or
 grandfathered baseline findings into unrelated failures.
 
+Queued and running quality-gate tasks are not canceled by later invocations.
+Each pull request owns an independent required result even when several review
+events overlap.
+
 The former `PR Comment Bot` and `Auto-Fix Suggestions` failure runbooks are
 retired. Running `npm ci`, formatter binaries, or other pull-request-controlled
 code on the self-hosted Octopus server would cross the trust boundary even when

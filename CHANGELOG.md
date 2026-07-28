@@ -9,6 +9,7 @@
   change-aware Rules 4–10—including tenant-isolation Rule 8—against GitHub's
   merge-base-aware PR diff. Multiline source windows distinguish safe
   idempotency, tenant filters, and native bearer handling from violations.
+  Concurrent pull-request runs no longer cancel one another.
 - `.github/workflows/octopus-pr-quality-gates.yml` and `.octopus/runbooks/`:
   Retired the secret-bearing AI-comment and auto-fix failure path. Pull-request
   dependencies and formatter binaries are no longer executed on the
