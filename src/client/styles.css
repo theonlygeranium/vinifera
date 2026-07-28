@@ -71,7 +71,11 @@ a {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
-summary:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
 [tabindex]:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
