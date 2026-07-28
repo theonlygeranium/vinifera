@@ -50,6 +50,10 @@ activity on PRs targeting `dev`, `staging`, or `main` and invokes the self-hoste
 `PR Quality Gates` runbook in the `Development` environment. It is not a GitHub
 branch-protection status check because the self-hosted service can be unavailable;
 an unavailable or missing Octopus review still blocks merge under `AGENTS.md`.
+The workflow uses `pull_request_target`, checks out only the trusted default
+branch with persisted credentials disabled, and passes the pull-request branch
+and number strictly as data. It never checks out or executes pull-request code
+in a job that receives repository, Octopus, or Cloudflare Access secrets.
 
 The current self-hosted Octopus Server predates the Executions API required by
 `run-runbook-action` v3 and newer. Until the server is upgraded to at least
@@ -95,6 +99,12 @@ base-branch filter. The human owner explicitly authorized this one-time bootstra
 exception on 2026-07-28: the correction may merge after CI, CodeRabbit, manual diff
 review, and zero unresolved threads. After that merge, all open product pull requests
 must be re-triggered and pass Octopus before merging.
+
+`pull_request_target` workflows must exist on the default branch before GitHub
+will dispatch them. The same bootstrap exception therefore covers promotion of
+this reviewed workflow through `dev` and `staging` to `main`. No product PR may
+use the exception. Once the workflow is on `main`, every product and promotion
+PR must be re-triggered and pass the trusted Octopus gate.
 
 ### Rollback Path
 Greptile can be reinstated by:

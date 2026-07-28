@@ -11,7 +11,11 @@
 - **CodeRabbit** performs line-level code quality and security review.
 - **CI checks** (type, test, build, Cloudflare Pages) must pass before merging.
 - Promotion to `main` is human-controlled and triggers the live release path. Unreviewed
-  code must not advance through the environment chain.
+code must not advance through the environment chain.
+
+The privileged Octopus workflow runs from trusted default-branch code through
+`pull_request_target`. It must never check out or execute a pull-request head;
+the head branch and PR number are untrusted review inputs only.
 
 The credential-independent CI database contract runs the Phase 1-5 embedded
 PostgreSQL gates and `npm run qa:local-seed`. The latter replays every

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -136,6 +138,33 @@ describe("Octopus runbook bridge", () => {
     ).toBe(true);
     expect(log).toHaveBeenCalledWith(
       "Octopus runbook passed: PR Quality Gates",
+    );
+  });
+});
+
+describe("Octopus workflow trust boundary", () => {
+  it("executes only the trusted default-branch bridge with secrets", () => {
+    const workflow = readFileSync(
+      new URL(
+        "../../.github/workflows/octopus-pr-quality-gates.yml",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(workflow).toContain("pull_request_target:");
+    expect(workflow).not.toContain("\n  pull_request:");
+    expect(workflow).toContain(
+      "ref: ${{ github.event.repository.default_branch }}",
+    );
+    expect(workflow.match(/persist-credentials: false/g)).toHaveLength(2);
+    expect(workflow).not.toContain("github.event.pull_request.head.sha");
+    expect(workflow).not.toContain("github.head_ref");
+    expect(workflow).toContain(
+      "PR_BRANCH: ${{ github.event.pull_request.head.ref }}",
+    );
+    expect(workflow).not.toMatch(
+      /uses:\s+actions\/checkout@(main|master|v[0-9]+)(\s|$)/,
     );
   });
 });
