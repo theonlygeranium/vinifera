@@ -121,6 +121,22 @@
 - Documentation only. No runtime, routing, provider, hosted environment, or
   activation-gate state changed.
 
+## [Unreleased] — 2026-07-28 (Release Schedule Tier Visibility)
+
+### Fixed
+- `src/client/staff/phase2/ReleasesPage.tsx`: Release schedule cards now name
+  every participating club tier alongside their date, status, wine, member,
+  and embargo metadata so staff can identify the targeted tier without opening
+  each release.
+
+### Tests
+- `tests/e2e/phase2.spec.ts`: Added a focused browser regression asserting
+  that the Fall 2026 schedule card exposes its Founders Circle tier.
+
+### Deployment impact
+- Staff UI only. No API contract, database, provider, routing, hosted
+  environment, or activation-gate state changed.
+
 ## [Unreleased] — 2026-07-28 (UI Testing Spec Formatting Fix)
 
 ### Fixed
