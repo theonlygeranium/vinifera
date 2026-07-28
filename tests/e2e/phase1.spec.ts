@@ -125,6 +125,26 @@ test.describe("Phase 1 public authentication surfaces", () => {
     });
   }
 
+  test("marketing pricing matches every canonical subscription tier", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const pricing = page.locator("#pricing");
+
+    for (const tier of [
+      { name: "Vine", price: "$149/mo" },
+      { name: "Cellar", price: "$349/mo" },
+      { name: "Estate", price: "$749/mo" },
+      { name: "Reserve", price: "$1,500+/mo" },
+    ]) {
+      const card = pricing.locator(".pricing-card").filter({
+        has: page.getByText(tier.name, { exact: true }),
+      });
+      await expect(card).toHaveCount(1);
+      await expect(card).toContainText(tier.price);
+    }
+  });
+
   for (const viewport of [
     { name: "mobile", width: 375, height: 812 },
     { name: "tablet", width: 768, height: 1024 },
