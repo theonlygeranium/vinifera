@@ -17,11 +17,7 @@ concurrency:
   group: vinifera-promote-dev-to-staging
   cancel-in-progress: true
 
-permissions:
-  checks: read
-  contents: write
-  pull-requests: write
-  statuses: read
+permissions: {}
 
 env:
   PR_TITLE: "chore(release): promote dev → staging"
@@ -143,6 +139,10 @@ jobs:
     needs: [open-pr, staging-rest-pre]
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      checks: read
+      pull-requests: read
+      statuses: read
 
     steps:
       - name: Poll exact-head CI, review status, and threads
@@ -214,17 +214,29 @@ jobs:
 
             missing=()
             pending=()
+            required_failed=()
             for required in "${required_checks[@]}"; do
               count=$(jq --arg required "$required" '[.[] | select(.name == $required)] | length' <<<"$checks")
               success=$(jq --arg required "$required" \
-                '[.[] | select(.name == $required and .status == "completed" and (.conclusion | IN("success","skipped","neutral")))] | length' \
+                '[.[] | select(.name == $required and .status == "completed" and .conclusion == "success")] | length' \
                 <<<"$checks")
               if (( count == 0 )); then
                 missing+=("$required")
               elif (( success == 0 )); then
-                pending+=("$required")
+                completed_non_success=$(jq --arg required "$required" \
+                  '[.[] | select(.name == $required and .status == "completed" and .conclusion != "success")] | length' \
+                  <<<"$checks")
+                if (( completed_non_success > 0 )); then
+                  required_failed+=("$required")
+                else
+                  pending+=("$required")
+                fi
               fi
             done
+            if (( ${#required_failed[@]} > 0 )); then
+              echo "::error::Required checks did not succeed: ${required_failed[*]}."
+              exit 1
+            fi
 
             coderabbit=$(jq -r \
               '[.[] | select(.context == "CodeRabbit")] | last | .state // "missing"' \

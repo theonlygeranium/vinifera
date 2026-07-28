@@ -31,7 +31,10 @@ describe("dev to staging promotion contract", () => {
   });
 
   it("can read gates and excludes every promotion attempt on the same SHA", () => {
-    expect(workflow).toMatch(/permissions:\n  checks: read/);
+    expect(workflow).toContain("permissions: {}");
+    expect(workflow).toMatch(
+      /wait-for-gates:[\s\S]*?permissions:\n\s+checks: read\n\s+pull-requests: read\n\s+statuses: read/,
+    );
     expect(workflow).toContain("statuses: read");
     expect(workflow).toContain('--body "@coderabbitai review"');
     expect(workflow).toContain("promotion_checks='[");
@@ -50,6 +53,8 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).toContain("pageInfo{hasNextPage}");
     expect(workflow).toContain("group_by(.name)");
     expect(workflow).toContain("group_by(.context)");
+    expect(workflow).toContain('.conclusion == "success"');
+    expect(workflow).toContain("required_failed");
     expect(workflow).toContain("current_sha");
     expect(workflow).toContain('[[ "$current_sha" != "$PR_SHA" ]]');
   });

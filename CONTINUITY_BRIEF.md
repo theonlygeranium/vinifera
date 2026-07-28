@@ -133,9 +133,10 @@ closed after direct resolution commits.
   runtime code. The secure workflow and runbook bridge must be promoted to
   `main` before Octopus can be a real dev/staging gate. Octopus Deploy's
   authenticated `main` project view also shows no published runbook.
-- CodeRabbit auto-review is disabled for non-default base branches. Promotion
-  automation must request `@coderabbitai review` and reject the otherwise
-  successful "review skipped" status.
+- `.coderabbit.yaml` now enables CodeRabbit auto-review for `dev` and
+  `staging`. Promotion automation additionally requests an explicit review and
+  accepts only the exact `Review completed` status description, because
+  skipped and rate-limited reviews otherwise publish misleading success states.
 - Remote branch cleanup was initially incomplete: the merged governance and
   WCAG branches remained after the report claimed only `main`, `dev`, and
   `staging`. The audit verified PRs #49/#50 were merged and then deleted both

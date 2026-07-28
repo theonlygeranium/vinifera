@@ -53,6 +53,14 @@
 - `CONTINUITY_BRIEF.md`: Pinned the Octopus bootstrap finding to the audited
   GitHub default-branch SHA and distinguished `main` runtime workflow code from
   the corrected but not-yet-promoted `dev` definition.
+- `.github/workflows/promote-dev-to-staging.yml`: Set workflow token permissions
+  to empty by default, scoped check/status/thread reads to the polling job, and
+  made required aggregate CI pass only on an exact `success` conclusion.
+  Skipped, neutral, cancelled, or failed required checks now fail immediately
+  instead of passing or waiting until timeout.
+- `CONTINUITY_BRIEF.md`: Updated CodeRabbit state after adding automatic
+  `dev`/`staging` reviews and retained explicit review requests plus exact
+  completion-description enforcement as defense-in-depth.
 
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is
@@ -71,8 +79,9 @@ the UI repair commit. The promotion workflow remains intentionally fail-closed
 until an isolated staging Supabase target exists and its URL/anon-key secrets
 are installed. **Verification:** Run `npm run check`,
 `npx playwright test tests/e2e/phase1.spec.ts tests/e2e/phase5.spec.ts`, and
-`git diff --check`; validate the workflow with `actionlint`; then require fresh
-PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
+`git diff --check`; validate the workflow with `actionlint`; run
+`npm run test -- --run tests/scripts/promote-dev-to-staging.test.mjs`; then
+require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
 
 ## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
 
