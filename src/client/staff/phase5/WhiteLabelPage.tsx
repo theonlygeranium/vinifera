@@ -153,11 +153,25 @@ export function WhiteLabelPage() {
   );
   const themePasses =
     primaryContrast?.passes === true && secondaryContrast?.passes === true;
+  const logoUrlIsValid = useMemo(() => {
+    const value = draft.logoUrl.trim();
+    if (!value) return true;
+    try {
+      const url = new URL(value);
+      return (
+        url.protocol === "https:" &&
+        url.username === "" &&
+        url.password === ""
+      );
+    } catch {
+      return false;
+    }
+  }, [draft.logoUrl]);
   const eligible = session?.organization?.planTier === "reserve";
 
   async function saveBranding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!brand || !themePasses) return;
+    if (!brand || !themePasses || !logoUrlIsValid) return;
     setBusy("brand");
     setFeedback(null);
     try {
@@ -365,6 +379,9 @@ export function WhiteLabelPage() {
               id="brand-logo-url"
               type="url"
               inputMode="url"
+              pattern="https://.*"
+              aria-describedby="brand-logo-url-help"
+              aria-invalid={!logoUrlIsValid}
               value={draft.logoUrl}
               onChange={(event) =>
                 setDraft((current) => ({
@@ -374,6 +391,9 @@ export function WhiteLabelPage() {
               }
               placeholder="https://cdn.example.com/logo.png"
             />
+            <small id="brand-logo-url-help">
+              Optional. Use an HTTPS URL without embedded credentials.
+            </small>
           </div>
           <div className="form-grid">
             <div className="form-field color-field">
@@ -549,7 +569,7 @@ export function WhiteLabelPage() {
           </fieldset>
           <button
             className="button button--primary"
-            disabled={busy !== null || !themePasses}
+            disabled={busy !== null || !themePasses || !logoUrlIsValid}
           >
             {busy === "brand" ? "Saving theme…" : "Save brand experience"}
           </button>
@@ -558,7 +578,7 @@ export function WhiteLabelPage() {
         <aside className="white-label-preview" aria-label="Member portal preview">
           <div className="white-label-preview__device" style={previewStyle}>
             <header>
-              {draft.logoUrl ? (
+              {draft.logoUrl && logoUrlIsValid ? (
                 <img src={draft.logoUrl} alt={`${brand.name} logo preview`} />
               ) : (
                 <span aria-hidden="true">

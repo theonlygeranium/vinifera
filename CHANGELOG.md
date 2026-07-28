@@ -134,6 +134,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Enforced credential-free HTTPS URLs for optional
+  white-label logos in native form validity, save-button state, preview
+  rendering, and the submit guard, with a Phase 5 browser regression. **Why:**
+  The `Logo URL (HTTPS)` field previously accepted and previewed plain HTTP
+  values despite its security contract. **Deployment impact:** White-label
+  brand presentation validation only; saved brand data, server validation,
+  provider activation, routing, and headers are unchanged. **Verification:**
+  Run the focused white-label validation test, `npm run check`,
+  `npm run qa:e2e`, and test HTTP/HTTPS values at 1440px and 375px in Jeff -
+  Pro Chrome.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,

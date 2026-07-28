@@ -668,6 +668,17 @@ test.describe("Phase 5 provider and brand workflows", () => {
     ).toBeDisabled();
 
     await page.getByLabel("Primary color hex").fill("#6b1e30");
+    const logoUrl = page.getByLabel("Logo URL (HTTPS)");
+    await logoUrl.fill("http://insecure.example/logo.png");
+    await expect(logoUrl).toHaveAttribute("aria-invalid", "true");
+    expect(await logoUrl.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+    await expect(
+      page.getByRole("button", { name: "Save brand experience" }),
+    ).toBeDisabled();
+    await logoUrl.fill("https://cdn.qa-winery.example/logo.png");
+    await expect(logoUrl).toHaveAttribute("aria-invalid", "false");
+    expect(await logoUrl.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
+
     await page.getByLabel("Hostname").fill("members.qa-winery.example");
     await page.getByRole("button", { name: "Verify domain" }).click();
     await expect(page.getByText("_vinifera.club.qa-winery.example")).toBeVisible();
