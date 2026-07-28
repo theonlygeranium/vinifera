@@ -75,20 +75,23 @@ describe("dev to staging promotion contract", () => {
       "PR_BASE_SHA: ${{ needs.open-pr.outputs.pr_base_sha }}",
     );
     expect(workflow).toContain(
-      "PR_CREATED_AT: ${{ needs.open-pr.outputs.pr_created_at }}",
+      "GATE_REQUESTED_AT: ${{ needs.open-pr.outputs.gate_requested_at }}",
     );
+    expect(workflow).toContain("Readiness attempt started:");
     expect(workflow).toContain(
-      "select(any(.pull_requests[]?; .number == $pr_number))",
+      "select(.started_at >= $gate_requested_at)",
     );
+    expect(workflow).toContain(".base.sha == $pr_base_sha");
+    expect(workflow).toContain(".head.sha == $pr_sha");
     expect(workflow).toContain(
-      "select(.created_at >= $pr_created_at)",
+      "select(.created_at >= $gate_requested_at)",
     );
     expect(workflow).toContain(
       "select(.author.login == \"coderabbitai\")",
     );
     expect(workflow).toContain("select(.commit.oid == $pr_sha)");
     expect(workflow).toContain(
-      "select(.submittedAt >= $pr_created_at)",
+      "select(.submittedAt >= $gate_requested_at)",
     );
     expect(workflow).toContain("coderabbit_reviews > 0");
     expect(workflow.match(/gh api --paginate --slurp/g)).toHaveLength(4);

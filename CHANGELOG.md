@@ -23,6 +23,11 @@
 - `.github/workflows/promote-dev-to-staging.yml`: Bracket the final evidence
   refresh with head/base reads and reject readiness if either revision changes
   while checks, statuses, reviews, or threads are queried.
+- `.github/workflows/promote-dev-to-staging.yml`: Start each readiness attempt
+  with a unique timestamped PR-body marker, require CI check associations to
+  name the captured head and base, and accept statuses and CodeRabbit reviews
+  only when they were created during that attempt. A prior review of the same
+  head against an older staging base cannot satisfy readiness.
 - `.octopus/runbooks/pr-quality-gates/runbook.ocl` and its contract test:
   Persist the resolved merge-base SHA in task-scoped state before the separate
   Rules 4–10 action sources it. Without this transfer, strict shell mode

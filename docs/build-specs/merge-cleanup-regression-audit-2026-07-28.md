@@ -88,6 +88,10 @@ left race windows between gate evaluation and merge.
   reviews, and unresolved threads after the second provider probe. Dry-run uses
   the same evidence path and changes only the readiness label. Head/base reads
   bracket the refreshed evidence snapshot.
+- Starts every readiness attempt with a timestamped PR marker. CI associations
+  must attest the captured head and base, and statuses/reviews must be newer
+  than the attempt, preventing unchanged-head evidence reuse after staging
+  advances.
 
 ### Octopus trust boundary
 

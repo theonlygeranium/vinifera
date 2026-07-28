@@ -38,8 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      gate_requested_at: ${{ steps.upsert.outputs.gate_requested_at }}
       pr_base_sha: ${{ steps.upsert.outputs.pr_base_sha }}
-      pr_created_at: ${{ steps.upsert.outputs.pr_created_at }}
       pr_number: ${{ steps.upsert.outputs.pr_number }}
       pr_sha: ${{ steps.upsert.outputs.pr_sha }}
 
@@ -58,6 +58,12 @@ jobs:
             echo "::error::GH_PAT_FOR_OCTOPUS is required to open the PR and trigger pull_request CI."
             exit 1
           fi
+          gate_requested_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [[ ! "$gate_requested_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+            echo "::error::Readiness attempt time is not a canonical UTC timestamp."
+            exit 1
+          fi
+          promotion_body="${PR_BODY}"$'\n\n'"Readiness attempt started: ${gate_requested_at}"
 
           existing=$(gh pr list \
             --repo "$REPO" \
@@ -69,7 +75,7 @@ jobs:
 
           if [[ -n "$existing" ]]; then
             echo "Existing promotion PR #$existing found — updating body."
-            gh pr edit "$existing" --repo "$REPO" --body "$PR_BODY"
+            gh pr edit "$existing" --repo "$REPO" --body "$promotion_body"
             pr_number="$existing"
           else
             pr_url=$(gh pr create \
@@ -77,7 +83,7 @@ jobs:
               --head dev \
               --base staging \
               --title "$PR_TITLE" \
-              --body "$PR_BODY" \
+              --body "$promotion_body" \
               --no-maintainer-edit)
             pr_number="${pr_url##*/}"
             if [[ ! "$pr_number" =~ ^[0-9]+$ ]]; then
@@ -89,11 +95,10 @@ jobs:
 
           pr_metadata=$(gh pr view "$pr_number" \
             --repo "$REPO" \
-            --json baseRefName,baseRefOid,createdAt,headRefOid)
+            --json baseRefName,baseRefOid,headRefOid)
           pr_base_name=$(jq -r '.baseRefName' <<<"$pr_metadata")
           pr_base_sha=$(jq -r '.baseRefOid' <<<"$pr_metadata")
           pr_sha=$(jq -r '.headRefOid' <<<"$pr_metadata")
-          pr_created_at=$(jq -r '.createdAt' <<<"$pr_metadata")
           if [[ ! "$pr_sha" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::Promotion PR head is not an exact commit SHA."
             exit 1
@@ -102,17 +107,13 @@ jobs:
             echo "::error::Promotion PR base is not the exact staging revision."
             exit 1
           fi
-          if [[ ! "$pr_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
-            echo "::error::Promotion PR creation time is not a canonical UTC timestamp."
-            exit 1
-          fi
 
           gh pr comment "$pr_number" \
             --repo "$REPO" \
             --body "@coderabbitai review"
 
           echo "pr_base_sha=$pr_base_sha" >> "$GITHUB_OUTPUT"
-          echo "pr_created_at=$pr_created_at" >> "$GITHUB_OUTPUT"
+          echo "gate_requested_at=$gate_requested_at" >> "$GITHUB_OUTPUT"
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
           echo "pr_sha=$pr_sha" >> "$GITHUB_OUTPUT"
           echo "### Promotion PR: #$pr_number (head: \`${pr_sha:0:12}\`)" >> "$GITHUB_STEP_SUMMARY"
@@ -165,10 +166,10 @@ jobs:
       - name: Poll exact-head CI, review status, and threads
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GATE_REQUESTED_AT: ${{ needs.open-pr.outputs.gate_requested_at }}
           PR_BASE_SHA: ${{ needs.open-pr.outputs.pr_base_sha }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ needs.open-pr.outputs.pr_number }}
-          PR_CREATED_AT: ${{ needs.open-pr.outputs.pr_created_at }}
           PR_SHA: ${{ needs.open-pr.outputs.pr_sha }}
         run: |
           set -euo pipefail
@@ -208,18 +209,25 @@ jobs:
             checks=$(gh api --paginate --slurp \
               "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
               --jq '[.[].check_runs[]]' \
-              | jq --argjson promotion_checks "$promotion_checks" \
+              | jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
+                --arg pr_base_sha "$PR_BASE_SHA" \
+                --arg pr_sha "$PR_SHA" \
+                --argjson promotion_checks "$promotion_checks" \
                 --argjson pr_number "$PR_NUMBER" \
                 '[.[] |
-                  select(any(.pull_requests[]?; .number == $pr_number)) |
+                  select(.started_at >= $gate_requested_at) |
+                  select(any(.pull_requests[]?;
+                    .number == $pr_number and
+                    .base.sha == $pr_base_sha and
+                    .head.sha == $pr_sha)) |
                   select(.name as $name | $promotion_checks | index($name) | not)]
                  | group_by(.name)
                  | map(sort_by(.started_at // .created_at) | last)')
             statuses=$(gh api --paginate --slurp \
               "repos/$REPO/commits/$PR_SHA/statuses?per_page=100" \
               --jq 'add' \
-              | jq --arg pr_created_at "$PR_CREATED_AT" \
-                '[.[] | select(.created_at >= $pr_created_at)]
+              | jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
+                '[.[] | select(.created_at >= $gate_requested_at)]
                  | group_by(.context)
                  | map(sort_by(.created_at) | last)')
             threads=$(gh api graphql \
@@ -240,11 +248,11 @@ jobs:
               <<<"$threads")
             coderabbit_reviews=$(jq \
               --arg pr_sha "$PR_SHA" \
-              --arg pr_created_at "$PR_CREATED_AT" \
+              --arg gate_requested_at "$GATE_REQUESTED_AT" \
               '[.data.repository.pullRequest.reviews.nodes[] |
                 select(.author.login == "coderabbitai") |
                 select(.commit.oid == $pr_sha) |
-                select(.submittedAt >= $pr_created_at)] | length' \
+                select(.submittedAt >= $gate_requested_at)] | length' \
               <<<"$threads")
 
             failed_checks=$(jq -r \
@@ -360,9 +368,9 @@ jobs:
       - name: Revalidate complete promotion readiness
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
+          GATE_REQUESTED_AT: ${{ needs.open-pr.outputs.gate_requested_at }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_BASE_SHA: ${{ needs.open-pr.outputs.pr_base_sha }}
-          PR_CREATED_AT: ${{ needs.open-pr.outputs.pr_created_at }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ needs.open-pr.outputs.pr_number }}
           PR_SHA: ${{ needs.open-pr.outputs.pr_sha }}
@@ -393,18 +401,25 @@ jobs:
           checks=$(gh api --paginate --slurp \
             "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
             --jq '[.[].check_runs[]]' \
-            | jq --argjson promotion_checks "$promotion_checks" \
+            | jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
+              --arg pr_base_sha "$PR_BASE_SHA" \
+              --arg pr_sha "$PR_SHA" \
+              --argjson promotion_checks "$promotion_checks" \
               --argjson pr_number "$PR_NUMBER" \
               '[.[] |
-                select(any(.pull_requests[]?; .number == $pr_number)) |
+                select(.started_at >= $gate_requested_at) |
+                select(any(.pull_requests[]?;
+                  .number == $pr_number and
+                  .base.sha == $pr_base_sha and
+                  .head.sha == $pr_sha)) |
                 select(.name as $name | $promotion_checks | index($name) | not)]
                | group_by(.name)
                | map(sort_by(.started_at // .created_at) | last)')
           statuses=$(gh api --paginate --slurp \
             "repos/$REPO/commits/$PR_SHA/statuses?per_page=100" \
             --jq 'add' \
-            | jq --arg pr_created_at "$PR_CREATED_AT" \
-              '[.[] | select(.created_at >= $pr_created_at)]
+            | jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
+              '[.[] | select(.created_at >= $gate_requested_at)]
                | group_by(.context)
                | map(sort_by(.created_at) | last)')
           review_state=$(gh api graphql \
@@ -437,11 +452,11 @@ jobs:
             <<<"$review_state")
           coderabbit_reviews=$(jq \
             --arg pr_sha "$PR_SHA" \
-            --arg pr_created_at "$PR_CREATED_AT" \
+            --arg gate_requested_at "$GATE_REQUESTED_AT" \
             '[.data.repository.pullRequest.reviews.nodes[] |
               select(.author.login == "coderabbitai") |
               select(.commit.oid == $pr_sha) |
-              select(.submittedAt >= $pr_created_at)] | length' \
+              select(.submittedAt >= $gate_requested_at)] | length' \
             <<<"$review_state")
           if (( required_success == 0 || invalid_checks > 0 \
             || octopus_success == 0 || coderabbit_success == 0 \

@@ -262,9 +262,13 @@ feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
 - **All agent feature PRs target `dev` only.** Never open a feature PR targeting `staging` or `main`.
 - `dev → staging` readiness is **automated** via `promote-dev-to-staging.yml`. This workflow:
   1. Fires on every push to `dev` (and on `workflow_dispatch`).
-  2. Opens or updates a promotion PR from `dev` to `staging` with an event-producing token and captures the exact head and staging base SHAs.
+  2. Opens or updates a promotion PR from `dev` to `staging` with an
+     event-producing token and captures the exact head, staging base, and
+     readiness-attempt timestamp.
   3. Probes the configured staging Supabase REST endpoint — fails closed if it is unavailable.
-  4. Waits for aggregate CI, Octopus, CodeRabbit, all registered checks/statuses, and zero unresolved review threads on that exact comparison.
+  4. Waits for aggregate CI, Octopus, CodeRabbit, all registered checks/statuses,
+     and zero unresolved review threads produced for that exact comparison and
+     readiness attempt.
   5. Re-probes staging Supabase REST immediately before reporting readiness.
   6. Revalidates the captured head/base and complete CI, status, review, and
      thread evidence after the second probe, then leaves the PR open for a
