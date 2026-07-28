@@ -1,6 +1,6 @@
 # Vinifera — Codex Agent Dispatch Prompt
 
-This file contains the exact prompts to give Codex agents for the **Vinifera Structural Hardening Sprint** (v0.5.0 → production-ready). The codebase is architecturally complete. These specs harden, decompose, and instrument it for safe parallel agent work and activation.
+This file contains the dispatch prompts for Codex agents working on the Vinifera repository. The **Structural Hardening Sprint (BS-01 through BS-06) is complete and merged to `main`**. The codebase is now modular, observable, and structurally ready for Track A activation work.
 
 ---
 
@@ -8,94 +8,87 @@ This file contains the exact prompts to give Codex agents for the **Vinifera Str
 
 Read these four files in full before dispatching any agent:
 
-1. `AGENTS.md` — prime directives and file ownership
-2. `CONTINUITY_BRIEF.md` — current state, activation gates, what is and is not live
-3. `docs/build-specs/CODEX-DISPATCH-GUIDE.md` — full wave structure, merge order, and risk notes
-4. `docs/agent-workflow.md` — branching rules and Greptile workflow
+1. `AGENTS.md` — prime directives, file ownership, and review protocol
+2. `CONTINUITY_BRIEF.md` — current state, all 20 activation gates, what is and is not live
+3. `docs/agent-workflow.md` — branching rules and PR review loop
+4. `docs/architecture.md` — current topology, tenant model, provider guards
 
 Every dispatched prompt inherits the mandatory PR ownership and completion loop
-in `docs/agent-workflow.md`. Opening a PR is not completion. These sprint
-prompts grant no merge authority: after all required checks pass and zero
-unresolved review threads remain, leave the PR ready and report its status
-unless a human task instruction or authorized label explicitly permits merge.
+in `docs/agent-workflow.md`. Opening a PR is not completion. These prompts
+grant no merge authority: after all required checks pass and zero unresolved
+review threads remain, leave the PR ready and report its status.
 
 ---
 
-## Wave Structure
+## Current Repository State (v0.5.0)
 
-```
-Wave 0 (Sequential — must merge before anything else):
-  BS-01: Greptile config upgrade + repo hygiene
+All build specs have been merged. The following structural work is complete:
 
-Wave 1 (Parallel — run simultaneously after BS-01 merges):
-  BS-02: Route layer decomposition
-  BS-03: Service layer decomposition
-  BS-04: Observability + rate limiting
+| Spec | Status | What it delivered |
+|------|--------|-------------------|
+| BS-01 | ✅ Merged | `.greptile/` architectural rules, repo hygiene, Phase 5 QA report |
+| BS-02 | ✅ Merged | 129 Express routes extracted into `server/routes/` domain files |
+| BS-03 | ✅ Merged | `core-club.ts` and `integrations.ts` decomposed into domain service modules |
+| BS-04 | ✅ Merged | Sentry observability + per-tenant rate limiting |
+| BS-05 | ✅ Merged | `npm run dev` local stack with seeded tenants, authenticated smoke tests |
+| BS-06 | ✅ Merged | Tenancy audit, `docs/architecture.md`, governance ADR, Greptile training notes |
 
-Wave 2 (Parallel — run simultaneously):
-  BS-05: Local dev + platform UI readiness
-  BS-06: Docs + hardening + tenancy
-
-Merge order: BS-01 → BS-04 → (BS-02 & BS-06) → BS-03 integration → BS-05
-```
+**Verified test baseline:** 448 Vitest · 250/199/158/513 DB assertions · 145 Playwright/axe
 
 ---
 
-## PROMPT: BS-01 — Greptile Config Upgrade & Repo Hygiene
+## Next Work: Track A — Hosted Activation
 
-**Send this to a single Codex session. Do not run in parallel with other specs.**
+The next milestone is transitioning from operationally dormant to live. This requires connecting real hosted credentials through the 20 activation gate sequence documented in `CONTINUITY_BRIEF.md`.
+
+**Gate sequence (must be completed in order by a human operator):**
+
+1. Provision hosted Supabase staging project → apply all 22 migrations → run pgTAP
+2. Deploy `vinifera-staging` Worker → verify `/api/health` returns JSON
+3. Configure Supabase Auth (custom access-token hook, 900-second OTP expiry, Google OAuth, SMTP relay)
+4. Reconcile Stripe Price catalog from prior run `30218801133` using fixed lookup keys; bootstrap/verify all four recurring Prices; register `/api/billing/webhook`
+5. Wire EasyPost test API key + winery origin address
+6. Verify Resend sending domain (DKIM/SPF)
+7. Run ten-member full billing proof cycle (charge, fulfill, track, email)
+
+**Note:** Gates 1–7 require credentials and are human-operator work. Codex agents should not attempt to pass any activation gate without explicit human instruction.
+
+---
+
+## Active Dispatch: Maintenance and Enhancement Work
+
+The following prompt templates are ready for Codex dispatch. Each targets incremental improvement without touching activation gates.
+
+---
+
+### PROMPT: Track A Support — Pre-Activation Readiness Verification
+
+**Use when:** You want to verify everything is in order before beginning hosted credential work.
 
 ```
-You are executing Build Spec BS-01 for the Vinifera repository (theonlygeranium/vinifera).
+You are executing a pre-activation readiness verification for the Vinifera repository
+(theonlygeranium/vinifera).
 
 Before writing a single line of code, read these files in full:
 1. AGENTS.md
 2. CONTINUITY_BRIEF.md
 3. docs/agent-workflow.md
-4. docs/build-specs/bs-01-greptile-hygiene.md  ← your primary spec
-5. docs/build-specs/CODEX-DISPATCH-GUIDE.md
+4. docs/architecture.md
 
-Your spec is docs/build-specs/bs-01-greptile-hygiene.md. Read it completely before starting.
+Your task is a read-only source audit — do not modify any application source, migration, or configuration file. Your only output is the report document below. Produce a verification report covering:
 
-Branch: chore/bs-01-greptile-hygiene
+1. All 22 supabase/migrations/ files — confirm sequential numbering with no gaps
+2. CONTINUITY_BRIEF.md activation gate list — confirm all 20 gates are accurately described
+3. docs/architecture.md — confirm it matches the current server/routes/ and server/services/ structure
+4. package.json scripts — confirm all QA commands referenced in AGENTS.md are present
+5. .greptile/ config — confirm architectural rules are present and non-empty
+6. CHANGELOG.md — confirm [Unreleased] section is current
+
+Produce your report as docs/pre-activation-audit-YYYY-MM-DD.md.
+
+Branch: docs/pre-activation-audit
 PR target: main
-PR title: chore: BS-01 — Greptile config upgrade and repo hygiene
-
-Follow docs/agent-workflow.md through all required checks and zero unresolved
-review threads. This prompt grants no merge authority; leave the PR ready and
-report its final status. Do not touch AGENTS.md without separate explicit
-human authorization.
-```
-
----
-
-## PROMPT: BS-02 — Route Layer Decomposition
-
-**Run in Wave 1 after BS-01 merges. Safe to run in parallel with BS-03 and BS-04.**
-
-```
-You are executing Build Spec BS-02 for the Vinifera repository (theonlygeranium/vinifera).
-
-Before writing a single line of code, read these files in full:
-1. AGENTS.md
-2. CONTINUITY_BRIEF.md
-3. docs/agent-workflow.md
-4. docs/build-specs/bs-02-route-decomposition.md  ← your primary spec
-5. docs/build-specs/CODEX-DISPATCH-GUIDE.md
-
-Your spec is docs/build-specs/bs-02-route-decomposition.md. Read it completely before starting.
-
-CRITICAL: This spec is extraction-only. Do not refactor any logic. Do not change any behavior.
-Move handler code from server/app.ts into domain-scoped route files verbatim.
-The acceptance criterion is: git diff --stat shows only additions in server/routes/ and
-deletions in server/app.ts, with zero net logic changes.
-
-This spec explicitly instructs you to spawn subagents for domain extraction.
-Read the subagent delegation instructions in the spec carefully.
-
-Branch: refactor/bs-02-route-decomposition
-PR target: main
-PR title: refactor: BS-02 — decompose server/app.ts into domain-scoped route files
+PR title: docs: pre-activation readiness audit
 
 Follow docs/agent-workflow.md through all required checks and zero unresolved
 review threads. This prompt grants no merge authority; leave the PR ready and
@@ -104,63 +97,35 @@ report its final status.
 
 ---
 
-## PROMPT: BS-03 — Service Layer Decomposition
+### PROMPT: Dependency Audit and Update
 
-**Run in Wave 1 after BS-01 merges. Safe to run in parallel with BS-02 and BS-04.
-This is the highest-risk spec — read the risk notes in CODEX-DISPATCH-GUIDE.md.**
+**Use when:** You want to ensure all dependencies are current and audit-clean before activation.
 
 ```
-You are executing Build Spec BS-03 for the Vinifera repository (theonlygeranium/vinifera).
+You are executing a dependency audit and update for the Vinifera repository
+(theonlygeranium/vinifera).
 
 Before writing a single line of code, read these files in full:
 1. AGENTS.md
 2. CONTINUITY_BRIEF.md
 3. docs/agent-workflow.md
-4. docs/build-specs/bs-03-service-decomposition.md  ← your primary spec
-5. docs/build-specs/CODEX-DISPATCH-GUIDE.md
 
-Your spec is docs/build-specs/bs-03-service-decomposition.md. Read it completely before starting.
+Your task:
+1. Run npm audit --audit-level=moderate and document all findings
+2. Run npm outdated and document all outdated packages
+3. For any package with a security advisory at moderate or higher: produce a targeted
+   fix using npm audit fix (no --force) and verify all test suites still pass
+4. Do NOT update major versions without separate human authorization
+5. Update CHANGELOG.md with all dependency changes
 
-CRITICAL: This spec is extraction-only. Do not refactor any logic. Do not change any behavior.
-core-club.ts (207 KB) and integrations.ts (206 KB) are decomposed by moving functions
-into domain-scoped modules verbatim. No logic changes. No renames. No async refactors.
+Acceptance criteria:
+- npm audit --audit-level=moderate exits 0
+- All test counts at or above: 448 Vitest, 145 Playwright/axe
+- No TypeScript errors (npm run check)
 
-This spec explicitly instructs the primary agent to produce a manifest of all exported
-functions before spawning subagents. Do the manifest step first — do not skip it.
-
-Branch: refactor/bs-03-service-decomposition
+Branch: chore/dependency-audit-YYYY-MM-DD
 PR target: main
-PR title: refactor: BS-03 — decompose monolithic service files into domain modules
-
-Follow docs/agent-workflow.md through all required checks and zero unresolved
-review threads. This prompt grants no merge authority; leave the PR ready and
-report its final status. BS-02 must merge first per the dispatch guide.
-```
-
----
-
-## PROMPT: BS-04 — Observability & Rate Limiting
-
-**Run in Wave 1 after BS-01 merges. Safe to run in parallel with BS-02 and BS-03.**
-
-```
-You are executing Build Spec BS-04 for the Vinifera repository (theonlygeranium/vinifera).
-
-Before writing a single line of code, read these files in full:
-1. AGENTS.md
-2. CONTINUITY_BRIEF.md
-3. docs/agent-workflow.md
-4. docs/build-specs/bs-04-observability-rate-limiting.md  ← your primary spec
-5. docs/build-specs/CODEX-DISPATCH-GUIDE.md
-
-Your spec is docs/build-specs/bs-04-observability-rate-limiting.md. Read it completely before starting.
-
-This spec adds structured error observability and per-route/per-tenant rate limiting
-to the API layer. No activation gates are required — all work is credential-independent.
-
-Branch: feat/bs-04-observability-rate-limiting
-PR target: main
-PR title: feat: BS-04 — add observability integration and API rate limiting
+PR title: chore: dependency audit and security patch (YYYY-MM-DD)
 
 Follow docs/agent-workflow.md through all required checks and zero unresolved
 review threads. This prompt grants no merge authority; leave the PR ready and
@@ -169,71 +134,77 @@ report its final status.
 
 ---
 
-## PROMPT: BS-05 — Local Dev & Platform UI Readiness
+### PROMPT: CONTINUITY_BRIEF.md Refresh
 
-**Run in Wave 2. Can run in parallel with BS-06.**
+**Use when:** The activation gate status or architecture description has drifted from reality.
 
 ```
-You are executing Build Spec BS-05 for the Vinifera repository (theonlygeranium/vinifera).
+You are executing a CONTINUITY_BRIEF.md refresh for the Vinifera repository
+(theonlygeranium/vinifera).
 
 Before writing a single line of code, read these files in full:
 1. AGENTS.md
-2. CONTINUITY_BRIEF.md
+2. CONTINUITY_BRIEF.md (your primary target)
 3. docs/agent-workflow.md
-4. docs/build-specs/bs-05-local-dev-ui-readiness.md  ← your primary spec
-5. docs/build-specs/CODEX-DISPATCH-GUIDE.md
+4. docs/architecture.md
+5. CHANGELOG.md
 
-Your spec is docs/build-specs/bs-05-local-dev-ui-readiness.md. Read it completely before starting.
+Your task:
+1. Read CONTINUITY_BRIEF.md in full
+2. Cross-reference every claim against the current source tree and CHANGELOG.md
+3. Update any description that has drifted from the actual codebase state
+4. Do NOT change any activation gate status — gate statuses are human-owner-only
+5. Update CHANGELOG.md
 
-This spec makes the actual platform UI (not the static prototype) locally runnable and
-browser-testable. The goal is: npm run dev produces a fully functional local environment
-where staff app, member portal, and API all work end-to-end without live credentials.
-
-Branch: feat/bs-05-local-dev-ui-readiness
+Branch: docs/continuity-brief-refresh
 PR target: main
-PR title: feat: BS-05 — local dev environment and platform UI testability
+PR title: docs: refresh CONTINUITY_BRIEF.md to current source state
 
 Follow docs/agent-workflow.md through all required checks and zero unresolved
-review threads. This prompt grants no merge authority; leave the PR ready and
-report its final status.
+review threads. This prompt grants no merge authority.
 ```
 
 ---
 
-## PROMPT: BS-06 — Docs, Hardening & Tenancy
+### PROMPT: AGENTS.md Architecture Section Update
 
-**Run in Wave 2. Can run in parallel with BS-05.**
+**Use when:** A significant structural change (new service domain, new route group, new workflow)
+has been merged and AGENTS.md Section 3 needs to reflect it.
 
 ```
-You are executing Build Spec BS-06 for the Vinifera repository (theonlygeranium/vinifera).
+You are updating AGENTS.md to reflect recent structural changes in the Vinifera repository
+(theonlygeranium/vinifera).
 
 Before writing a single line of code, read these files in full:
-1. AGENTS.md
+1. AGENTS.md (your primary target — Section 3 and ownership table)
 2. CONTINUITY_BRIEF.md
 3. docs/agent-workflow.md
-4. docs/build-specs/bs-06-docs-hardening-tenancy.md  ← your primary spec
-5. docs/build-specs/CODEX-DISPATCH-GUIDE.md
+4. The CHANGELOG.md entry for the change you are documenting
 
-Your spec is docs/build-specs/bs-06-docs-hardening-tenancy.md. Read it completely before starting.
+Your task:
+1. Update Section 3 repository structure tree to match the current file system
+2. Update the ownership table to include any new directories or files
+3. Do NOT modify Section 2 (Prime Directives) without a corresponding ADR
+4. Do NOT modify the ownership policy for any file without human authorization
+5. Create an ADR in docs/decisions/ if you are proposing a policy change
+6. Update CHANGELOG.md
 
-This spec covers: self-review mitigation documentation, Phase 5 QA report population,
-multi-brand tenancy hardening, and architectural documentation updates.
-
-Branch: docs/bs-06-docs-hardening-tenancy
+Branch: docs/agents-md-architecture-update
 PR target: main
-PR title: docs: BS-06 — hardening documentation, tenancy audit, and QA report
+PR title: docs: update AGENTS.md architecture section
 
 Follow docs/agent-workflow.md through all required checks and zero unresolved
-review threads. This prompt grants no merge authority; leave the PR ready and
-report its final status.
+review threads. Human owner must review and merge this PR — do not request
+auto-merge.
 ```
 
 ---
 
-## Notes
+## Notes for All Dispatched Agents
 
 - Every agent must update `CHANGELOG.md` in their commit per repo convention.
-- `AGENTS.md` is human-owner-only and may be modified only with explicit,
-  task-specific authorization.
-- Greptile will review every PR. Use 👍 when Greptile correctly identifies missing `brand_id` scoping. Use 👎 when Greptile incorrectly suggests switching to Bearer headers for web routes or removing activation guards.
-- The dispatch guide (`docs/build-specs/CODEX-DISPATCH-GUIDE.md`) contains full context, risk notes, and the complete merge order. Send it as reference context alongside this prompt when dispatching agents.
+- `AGENTS.md` changes require human owner review and merge — do not bypass this.
+- Greptile reviews every PR. Use 👍 when Greptile correctly identifies missing `brand_id` scoping. Use 👎 when Greptile incorrectly suggests switching to Bearer headers for web routes or removing activation guards.
+- CodeRabbit reviews every PR. All findings must be dispositioned before a PR is ready to merge.
+- The dispatch guide (`docs/build-specs/CODEX-DISPATCH-GUIDE.md`) contains the full BS-01 through BS-06 history, context, and merge order for reference.
+- No agent activates a hosted gate without explicit human instruction. The platform is credential-gated by design.
