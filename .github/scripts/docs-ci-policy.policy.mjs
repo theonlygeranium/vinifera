@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -35,7 +36,7 @@ function createDocumentationRepository() {
     `${JSON.stringify({ engines: { node: ">=22.12.0" } }, null, 2)}\n`,
   );
   writeFileSync(join(root, "AGENTS.md"), "Use the Node version in `.nvmrc`.\n");
-  writeFileSync(join(root, "README.md"), "# Example\n\nNode 22 is required.\n");
+  writeFileSync(join(root, "README.md"), "# Example\n\nNode 22.22.0 is required.\n");
   writeFileSync(join(root, "CHANGELOG.md"), "# Changelog\n\nInitial.\n");
   writeFileSync(join(root, "CONTINUITY_BRIEF.md"), "# Continuity\n");
   writeFileSync(join(root, "REVERT.md"), "# Revert\n");
@@ -227,7 +228,7 @@ test("required gate rejects failures, cancellations, both lanes, neither lane, a
 
 test("documentation validator accepts a valid allowlisted change", () => {
   withDocumentationRepository(({ root, baseSha }) => {
-    writeFileSync(join(root, "README.md"), "# Example\n\n[Guide](docs/guide.md)\n\nNode 22.\n");
+    writeFileSync(join(root, "README.md"), "# Example\n\n[Guide](docs/guide.md)\n\nNode 22.22.0.\n");
     writeFileSync(join(root, "CHANGELOG.md"), "# Changelog\n\nDocs updated.\n");
     const headSha = commitAll(root);
     const result = validateDocumentationChange({ baseSha, headSha, repoRoot: root });
@@ -238,7 +239,22 @@ test("documentation validator accepts a valid allowlisted change", () => {
 
 test("documentation validator rejects a broken local link", () => {
   withDocumentationRepository(({ root, baseSha }) => {
-    writeFileSync(join(root, "README.md"), "# Example\n\n[Missing](docs/missing.md)\n\nNode 22.\n");
+    writeFileSync(join(root, "README.md"), "# Example\n\n[Missing](docs/missing.md)\n\nNode 22.22.0.\n");
+    writeFileSync(join(root, "CHANGELOG.md"), "# Changelog\n\nDocs updated.\n");
+    const headSha = commitAll(root);
+    assert.throws(
+      () => validateDocumentationChange({ baseSha, headSha, repoRoot: root }),
+      /missing local link target/,
+    );
+  });
+});
+
+test("documentation validator rejects a broken reference-style local link", () => {
+  withDocumentationRepository(({ root, baseSha }) => {
+    writeFileSync(
+      join(root, "README.md"),
+      "# Example\n\n[Missing][guide]\n\n[guide]: docs/missing.md\n\nNode 22.22.0.\n",
+    );
     writeFileSync(join(root, "CHANGELOG.md"), "# Changelog\n\nDocs updated.\n");
     const headSha = commitAll(root);
     assert.throws(
@@ -250,7 +266,18 @@ test("documentation validator rejects a broken local link", () => {
 
 test("documentation validator rejects a missing changelog update", () => {
   withDocumentationRepository(({ root, baseSha }) => {
-    writeFileSync(join(root, "README.md"), "# Example\n\nNode 22 docs updated.\n");
+    writeFileSync(join(root, "README.md"), "# Example\n\nNode 22.22.0 docs updated.\n");
+    const headSha = commitAll(root);
+    assert.throws(
+      () => validateDocumentationChange({ baseSha, headSha, repoRoot: root }),
+      /must update CHANGELOG\.md/,
+    );
+  });
+});
+
+test("renaming CHANGELOG away does not satisfy its mandatory update", () => {
+  withDocumentationRepository(({ root, baseSha }) => {
+    git(root, "mv", "CHANGELOG.md", "docs/changelog.md");
     const headSha = commitAll(root);
     assert.throws(
       () => validateDocumentationChange({ baseSha, headSha, repoRoot: root }),
@@ -269,23 +296,56 @@ test("documentation validator rejects stale Node guidance", () => {
     const headSha = commitAll(root);
     assert.throws(
       () => validateDocumentationChange({ baseSha, headSha, repoRoot: root }),
-      /must reference \.nvmrc and must not prescribe Node 20/,
+      /must reference \.nvmrc and must not prescribe a conflicting Node major/,
     );
   });
 });
 
-test("credential-pattern scan rejects high-confidence added secrets", () => {
+test("documentation validator ties README runtime guidance to .nvmrc", () => {
   withDocumentationRepository(({ root, baseSha }) => {
-    const syntheticToken = ["ghp", "1234567890abcdefghijklmnop"].join("_");
-    writeFileSync(
-      join(root, "README.md"),
-      `# Example\n\nNode 22.\n\n\`${syntheticToken}\`\n`,
-    );
-    writeFileSync(join(root, "CHANGELOG.md"), "# Changelog\n\nUnsafe example added.\n");
+    writeFileSync(join(root, "README.md"), "# Example\n\nNode 21 is required.\n");
+    writeFileSync(join(root, "CHANGELOG.md"), "# Changelog\n\nNode docs updated.\n");
     const headSha = commitAll(root);
     assert.throws(
-      () => scanDiffForSecrets({ baseSha, headSha, repoRoot: root }),
-      /Potential credential/,
+      () => validateDocumentationChange({ baseSha, headSha, repoRoot: root }),
+      /must resolve to the \.nvmrc Node 22\.22\.0 pin/,
     );
+  });
+});
+
+test("current repository Node contract remains explicitly authorized", () => {
+  assert.equal(readFileSync(".nvmrc", "utf8").trim(), "22.22.0");
+  assert.equal(
+    JSON.parse(readFileSync("package.json", "utf8")).engines.node,
+    ">=22.12.0",
+  );
+});
+
+test("credential-pattern scan rejects GitHub and Stripe key formats", () => {
+  withDocumentationRepository(({ root, baseSha }) => {
+    for (const [index, segments] of [
+      ["ghp", "1234567890abcdefghijklmnop"],
+      ["github", "pat", "1234567890abcdefghijklmnop"],
+      ["rk", "live", "1234567890abcdefghijklmnop"],
+    ].entries()) {
+      const syntheticToken = segments.join("_");
+      writeFileSync(
+        join(root, "README.md"),
+        `# Example\n\nNode 22.22.0.\n\n\`${syntheticToken}\`\n`,
+      );
+      writeFileSync(
+        join(root, "CHANGELOG.md"),
+        `# Changelog\n\nUnsafe example ${index} added.\n`,
+      );
+      const headSha = commitAll(root, `unsafe example ${index}`);
+      assert.throws(
+        () => scanDiffForSecrets({
+          baseSha: index === 0 ? baseSha : git(root, "rev-parse", "HEAD^"),
+          headSha,
+          repoRoot: root,
+        }),
+        /Potential credential/,
+      );
+    }
   });
 });

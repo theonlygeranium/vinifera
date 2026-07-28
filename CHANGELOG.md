@@ -71,6 +71,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- **What changed:** Review follow-up expands the docs-lane credential scan to
+  fine-grained GitHub PATs and Stripe restricted live keys, validates inline
+  and reference-style local Markdown links, derives documentation compatibility
+  from the repository Node pin while enforcing the currently authorized
+  `.nvmrc` and engine values in full-lane policy tests, rejects conflicting
+  README/AGENTS Node guidance, and requires an added or modified root
+  `CHANGELOG.md` rather than accepting a rename-away. **Why:** Exact-head
+  CodeRabbit and Greptile review found scanner, link, version-drift, and rename
+  cases that could weaken the restricted lane or defer a Node-contract failure
+  until a later docs PR. **Deployment impact:** CI validation and governance
+  only; no runtime, route, schema, provider, secret, Pages, DNS, mobile, hosted
+  state, or activation change. **Verification:** Run the docs CI policy suite,
+  `npm run check`, workflow YAML parsing, exact-diff credential scan, and
+  `git diff --check`, then wait for fresh full CI, Android, Greptile,
+  CodeRabbit, and zero unresolved review threads.
 - **What changed:** Final review follow-up pins both the integrated local build
   and Vite server to browser mode and the loopback Worker API origin,
   preserves explicit browser/mobile API-origin policy errors through request

@@ -181,6 +181,7 @@ function changedMarkdownFiles(records) {
 
 function validateMarkdownLinks(repoRoot, markdownFiles) {
   const linkPattern = /!?\[[^\]]*]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
+  const definitionPattern = /^\s{0,3}\[([^\]]+)\]:\s*(?:<([^>]+)>|(\S+))/gm;
   const failures = [];
 
   for (const file of markdownFiles) {
@@ -191,8 +192,14 @@ function validateMarkdownLinks(repoRoot, markdownFiles) {
     }
 
     const source = readFileSync(absoluteFile, "utf8");
-    for (const match of source.matchAll(linkPattern)) {
-      const rawTarget = match[1].replace(/^<|>$/g, "");
+    const rawTargets = [
+      ...[...source.matchAll(linkPattern)].map((match) => match[1]),
+      ...[...source.matchAll(definitionPattern)]
+        .filter((match) => !match[1].startsWith("^"))
+        .map((match) => match[2] || match[3]),
+    ];
+    for (const target of rawTargets) {
+      const rawTarget = target.replace(/^<|>$/g, "");
       if (
         rawTarget.startsWith("#") ||
         rawTarget.startsWith("/") ||
@@ -227,27 +234,60 @@ function validateMarkdownLinks(repoRoot, markdownFiles) {
   }
 }
 
+function parseVersion(value, label) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value);
+  if (!match) throw new Error(`${label} must be an exact semantic version.`);
+  return match.slice(1).map(Number);
+}
+
+function compareVersions(left, right) {
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index];
+  }
+  return 0;
+}
+
+function documentedNodeVersions(source) {
+  return [...source.matchAll(
+    /\bNode(?:\.js)?(?:\s+(?:version|runtime))?[^0-9\n]{0,20}v?(\d+(?:\.\d+){0,2})/gi,
+  )].map((match) => match[1]);
+}
+
 function validateNodeDocumentationContract(repoRoot) {
   const nvm = readFileSync(resolve(repoRoot, ".nvmrc"), "utf8").trim();
-  if (nvm !== "22.22.0") {
-    throw new Error(`.nvmrc must be 22.22.0, found ${JSON.stringify(nvm)}.`);
-  }
+  const pinnedVersion = parseVersion(nvm, ".nvmrc");
 
   const packageJson = JSON.parse(
     readFileSync(resolve(repoRoot, "package.json"), "utf8"),
   );
-  if (packageJson.engines?.node !== ">=22.12.0") {
-    throw new Error("package.json engines.node must be >=22.12.0.");
+  const engineMatch = /^>=(\d+\.\d+\.\d+)$/.exec(packageJson.engines?.node || "");
+  if (!engineMatch) {
+    throw new Error("package.json engines.node must be a >= semantic-version floor.");
+  }
+  const minimumVersion = parseVersion(engineMatch[1], "package.json engines.node");
+  if (compareVersions(pinnedVersion, minimumVersion) < 0) {
+    throw new Error(".nvmrc must satisfy package.json engines.node.");
   }
 
   const agents = readFileSync(resolve(repoRoot, "AGENTS.md"), "utf8");
-  if (!agents.includes(".nvmrc") || /\bNode(?:\.js)?[^\n]{0,40}\b20\b/i.test(agents)) {
-    throw new Error("AGENTS.md must reference .nvmrc and must not prescribe Node 20.");
+  const agentVersions = documentedNodeVersions(agents);
+  if (
+    !agents.includes(".nvmrc") ||
+    agentVersions.some((version) => Number(version.split(".")[0]) !== pinnedVersion[0])
+  ) {
+    throw new Error("AGENTS.md must reference .nvmrc and must not prescribe a conflicting Node major.");
   }
 
   const readme = readFileSync(resolve(repoRoot, "README.md"), "utf8");
-  if (!/\bNode\b[^]*?22/i.test(readme) || /\bNode(?:\.js)?[^\n]{0,40}\b20\b/i.test(readme)) {
-    throw new Error("README.md must document a Node 22-compatible runtime.");
+  const readmeVersions = documentedNodeVersions(readme);
+  const resolvesPin =
+    readme.includes(".nvmrc") ||
+    readmeVersions.some((version) => version === nvm);
+  if (
+    !resolvesPin ||
+    readmeVersions.some((version) => Number(version.split(".")[0]) !== pinnedVersion[0])
+  ) {
+    throw new Error(`README.md must resolve to the .nvmrc Node ${nvm} pin without conflicting majors.`);
   }
 }
 
@@ -270,8 +310,13 @@ export function validateDocumentationChange({
     );
   }
 
-  const paths = records.flatMap(({ paths }) => paths);
-  if (!paths.includes("CHANGELOG.md")) {
+  const changelogChanged = records.some(
+    ({ status, paths }) =>
+      (status === "A" || status === "M") &&
+      paths.length === 1 &&
+      paths[0] === "CHANGELOG.md",
+  );
+  if (!changelogChanged) {
     throw new Error("Documentation-only changes must update CHANGELOG.md.");
   }
 
@@ -312,8 +357,10 @@ export function scanDiffForSecrets({
   const patterns = [
     /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
     /\bgh[opusr]_[A-Za-z0-9_]{20,}\b/,
+    /\bgithub_pat_[A-Za-z0-9_]{20,}\b/,
     /\bAKIA[0-9A-Z]{16}\b/,
     /\bsk_(?:live|test)_[A-Za-z0-9]{16,}\b/,
+    /\brk_live_[A-Za-z0-9]{16,}\b/,
     /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/,
   ];
   const matched = patterns.find((pattern) => pattern.test(addedLines));
