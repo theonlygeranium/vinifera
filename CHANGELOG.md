@@ -4,9 +4,10 @@
 
 ### Fixed
 - `.github/workflows/octopus-pr-quality-gates.yml`: Routed Octopus PR quality
-  gates to the mandatory `dev` integration branch and added
-  `ready_for_review` activity. The prior `main`-only filter prevented every
-  agent-authored product PR from invoking the required reviewer.
+  gates to the `dev`, `staging`, and `main` PR bases and added
+  `ready_for_review` activity. The prior `main`-only filter prevented
+  agent-authored product PRs from invoking the required reviewer; retaining
+  all three bases ensures promotion PRs are reviewed too.
 - `.github/workflows/octopus-pr-quality-gates.yml`: Replaced the nonexistent
   `run-runbook-action@v1` reference with a tested REST bridge. The self-hosted
   server predates the v4 Executions API and its legacy CLI is incompatible
