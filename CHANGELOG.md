@@ -469,6 +469,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   routes, and activation gates are unchanged. **Verification:** Run
   `npm run check`, `npm run qa:e2e`, and confirm the skip link can be focused
   and activated at 375px and 1440px.
+
+- **What changed:** Added a three-pixel, high-visibility keyboard focus ring
+  for every interactive marketing control and for focusable application
+  regions such as dashboard notices, analytics data regions, and the member
+  ledger; added source-contract tests for both surfaces. **Why:** The
+  accessibility sweep found absent landing focus indicators and one-pixel
+  browser-default outlines on focusable application regions. **Deployment
+  impact:** CSS focus presentation only; APIs, navigation, hosted data,
+  providers, routes, and activation gates are unchanged. **Verification:** Run
+  `npm run check`, `npm run qa:e2e`, and measure focused controls at 375px and
+  1440px.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,
