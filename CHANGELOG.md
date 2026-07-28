@@ -136,11 +136,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **What changed:** Replaced the marketing page's three inconsistent pricing
   cards with the canonical Vine, Cellar, Estate, and Reserve tiers and their
-  documented monthly prices, using a responsive two-column desktop grid and
-  adding end-to-end tier coverage. **Why:** Marketing omitted Cellar and
+  documented monthly prices and guide-aligned member entitlements, using a
+  responsive two-column desktop grid and adding end-to-end tier coverage.
+  **Why:** Marketing omitted Cellar and
   Reserve while advertising non-canonical Pro and Estate prices, contradicting
-  signup and billing. **Deployment impact:** Static marketing content and
-  pricing-card layout only; billing catalog, checkout behavior, authentication,
+  signup and billing; the existing trial-versus-sales CTA behavior remains
+  unchanged. **Deployment impact:** Static marketing content and pricing-card
+  layout only; billing catalog, checkout behavior, authentication,
   provider activation, routing, and headers are unchanged. **Verification:**
   Run the focused Phase 1 pricing test, `npm run check`, `npm run qa:e2e`, and
   inspect all four cards at 1440px and 375px with no overflow.
