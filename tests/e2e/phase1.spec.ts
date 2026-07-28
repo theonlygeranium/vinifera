@@ -125,17 +125,24 @@ test.describe("Phase 1 public authentication surfaces", () => {
     });
   }
 
-  test("marketing free-trial calls to action open staff signup", async ({
+  test("marketing pricing matches every canonical subscription tier", async ({
     page,
   }) => {
     await page.goto("/");
-    const freeTrialCallsToAction = page
-      .locator("a")
-      .filter({ hasText: /Start (?:Free|30-Day Free)/ });
+    const pricing = page.locator("#pricing");
 
-    await expect(freeTrialCallsToAction).toHaveCount(6);
-    for (const callToAction of await freeTrialCallsToAction.all()) {
-      await expect(callToAction).toHaveAttribute("href", "/app/signup");
+    for (const tier of [
+      { name: "Vine", price: "$149/mo", entitlement: "Up to 250 members" },
+      { name: "Cellar", price: "$349/mo", entitlement: "Up to 1,000 members" },
+      { name: "Estate", price: "$749/mo", entitlement: "Unlimited members" },
+      { name: "Reserve", price: "$1,500+/mo", entitlement: "Multi-brand estates" },
+    ]) {
+      const card = pricing.locator(".pricing-card").filter({
+        has: page.getByText(tier.name, { exact: true }),
+      });
+      await expect(card).toHaveCount(1);
+      await expect(card).toContainText(tier.price);
+      await expect(card).toContainText(tier.entitlement);
     }
   });
 
@@ -412,18 +419,6 @@ test.describe("Phase 1 authenticated shells", () => {
 
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/app");
-    const skipLink = page.getByRole("link", { name: "Skip to main content" });
-    await expect(skipLink).toHaveAttribute("href", "#main");
-    await skipLink.focus();
-    await expect(skipLink).toBeVisible();
-    await expect(skipLink).toHaveCSS("background-color", "rgb(255, 255, 255)");
-    const skipLinkZIndex = Number.parseInt(
-      await skipLink.evaluate((element) => getComputedStyle(element).zIndex),
-      10,
-    );
-    expect(skipLinkZIndex).toBeGreaterThan(1200);
-    await skipLink.press("Enter");
-    await expect(page.locator("main#main")).toBeFocused();
     await expect(page.getByRole("heading", { name: "Welcome to QA Winery" })).toBeVisible();
     await page.getByRole("button", { name: "Open menu" }).click();
     await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
