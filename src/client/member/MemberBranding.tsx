@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { apiRequest } from "../api/client";
@@ -128,13 +129,16 @@ export function normalizeMemberBranding(value: unknown): MemberBranding {
 function BrandingProvider({
   children,
   loadingLabel,
+  updateDocumentTitle,
   surfaceClassName,
 }: {
   children: ReactNode;
   loadingLabel: string;
+  updateDocumentTitle: boolean;
   surfaceClassName: "member-brand-surface" | "staff-brand-surface";
 }) {
   const [branding, setBranding] = useState<MemberBranding | null>(null);
+  const previousDocumentTitle = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -149,6 +153,28 @@ function BrandingProvider({
       });
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      !updateDocumentTitle ||
+      !branding ||
+      branding.mode !== "custom"
+    ) {
+      return;
+    }
+    if (previousDocumentTitle.current === null) {
+      previousDocumentTitle.current = document.title;
+    }
+    document.title = branding.portalTitle;
+  }, [branding, updateDocumentTitle]);
+
+  useEffect(() => {
+    return () => {
+      if (previousDocumentTitle.current !== null) {
+        document.title = previousDocumentTitle.current;
+      }
     };
   }, []);
 
@@ -184,6 +210,7 @@ export function MemberBrandingProvider({ children }: { children: ReactNode }) {
   return (
     <BrandingProvider
       loadingLabel="Loading member portal"
+      updateDocumentTitle
       surfaceClassName="member-brand-surface"
     >
       {children}
@@ -195,6 +222,7 @@ export function StaffBrandingProvider({ children }: { children: ReactNode }) {
   return (
     <BrandingProvider
       loadingLabel="Loading staff portal"
+      updateDocumentTitle={false}
       surfaceClassName="staff-brand-surface"
     >
       {children}
