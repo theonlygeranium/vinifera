@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased] — 2026-07-28
+
+### Added
+- `dev` branch created from `main` at `d5b0e02d` as the primary integration branch for active development.
+- Two Cloudflare Pages projects provisioned: `vinifera-dev` (branch: `dev`) and `vinifera-live` (branch: `main`).
+- Custom domains configured: `vinifera-dev.edstratumlabs.ai` and `vinifera-live.edstratumlabs.ai` with Cloudflare-proxied DNS CNAMEs.
+- SSL certificates initializing automatically via Cloudflare Universal SSL.
+- All 22 database migrations applied to both Supabase projects (`cfrqrllmyquggqjkzifs` dev, `lefbjbulzmtgidjbemzb` prod). 97 tables, RLS enabled, all required extensions loaded.
+- `.env.example` updated with dedicated section documenting `vinifera-dev` and `vinifera-live` Cloudflare Pages environment variables and build configuration.
+
+### Infrastructure
+- Build command for both Pages projects: `npm run build:pages` (`CF_PAGES=1 npm run build`)
+- Output directory: `dist/`
+- `scripts/build.mjs` confirmed to copy `/app` static prototype into `dist/` when `CF_PAGES=1`, preserving demo site at root domain.
+- Supabase Dev project: `Vinifera Dev` (`cfrqrllmyquggqjkzifs`, us-east-1, ACTIVE_HEALTHY)
+- Supabase Prod project: `Project Vinifera` (`lefbjbulzmtgidjbemzb`, ACTIVE_HEALTHY)
+
+
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
