@@ -2,11 +2,17 @@ import { Grape } from "lucide-react";
 
 export function LoadingScreen({ label = "Loading" }: { label?: string }) {
   return (
-    <main className="loading-screen" aria-busy="true" aria-live="polite">
-      <span className="loading-screen__mark" aria-hidden="true">
-        <Grape size={24} />
+    <main className="loading-screen">
+      <span
+        className="loading-screen__mark"
+        aria-busy="true"
+        aria-label={`${label} in progress`}
+      >
+        <Grape size={24} aria-hidden="true" />
       </span>
-      <span>{label}…</span>
+      <span role="status" aria-live="polite">
+        {label}…
+      </span>
     </main>
   );
 }
