@@ -38,6 +38,9 @@
   version-controlled automatic review coverage for PRs targeting `dev` and
   `staging`, with incremental review enabled and a ten-commit pause threshold.
   This replaces the default-branch-only behavior observed on PR #51.
+- `CONTINUITY_BRIEF.md`: Recorded verified deletion of the stale merged PR
+  #49/#50 remote branches after the strategist's three-branch cleanup claim was
+  found to be premature.
 
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is

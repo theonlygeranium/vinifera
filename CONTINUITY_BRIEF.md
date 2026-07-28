@@ -133,8 +133,11 @@ closed after direct resolution commits.
 - CodeRabbit auto-review is disabled for non-default base branches. Promotion
   automation must request `@coderabbitai review` and reject the otherwise
   successful "review skipped" status.
-- Remote branch cleanup was incomplete: the merged governance and WCAG branches
-  remained after the report claimed only `main`, `dev`, and `staging`.
+- Remote branch cleanup was initially incomplete: the merged governance and
+  WCAG branches remained after the report claimed only `main`, `dev`, and
+  `staging`. The audit verified PRs #49/#50 were merged and then deleted both
+  stale remote branches; only the active repair branch now supplements the
+  three environment branches.
 - Automated `dev → staging` promotion remains fail-closed because the isolated
   staging Supabase target and `STAGING_SUPABASE_URL` /
   `STAGING_SUPABASE_ANON_KEY` Actions secrets do not yet exist.
