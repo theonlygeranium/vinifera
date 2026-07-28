@@ -16,10 +16,10 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Install Octopus CLI 🐙
-        uses: OctopusDeploy/install-octopus-cli-action@aee5b620e9107e6ef3ae0cbd25dfde10e0910168
+      - name: Check out exact pull request head
+        uses: actions/checkout@v4
         with:
-          version: latest
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Run PR Quality Gates Runbook in Octopus 🐙
         env:
@@ -28,23 +28,7 @@ jobs:
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
           PR_BRANCH: ${{ github.head_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          octo run-runbook \
-            --apiKey="$OCTOPUS_API_KEY" \
-            --cancelOnTimeout \
-            --environment="Development" \
-            --logLevel="information" \
-            --noRawLog \
-            --progress \
-            --project="Vinifera" \
-            --runbook="PR Quality Gates" \
-            --runTimeout="00:15:00" \
-            --server="$OCTOPUS_URL" \
-            --space="Default" \
-            --variable="PRBranch:$PR_BRANCH" \
-            --variable="PRNumber:$PR_NUMBER" \
-            --variable="GitHubPAT:$GH_PAT_FOR_OCTOPUS" \
-            --waitForRun
+        run: node .github/scripts/octopus-runbook.mjs "PR Quality Gates"
 
   # Runs only when quality-gates fails — posts AI analysis + auto-fix diff as PR comments
   comment-and-fix:
@@ -59,10 +43,10 @@ jobs:
       issues: write
 
     steps:
-      - name: Install Octopus CLI 🐙
-        uses: OctopusDeploy/install-octopus-cli-action@aee5b620e9107e6ef3ae0cbd25dfde10e0910168
+      - name: Check out exact pull request head
+        uses: actions/checkout@v4
         with:
-          version: latest
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Run PR Comment Bot Runbook 🤖
         env:
@@ -71,23 +55,7 @@ jobs:
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
           PR_BRANCH: ${{ github.head_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          octo run-runbook \
-            --apiKey="$OCTOPUS_API_KEY" \
-            --cancelOnTimeout \
-            --environment="Development" \
-            --logLevel="information" \
-            --noRawLog \
-            --progress \
-            --project="Vinifera" \
-            --runbook="PR Comment Bot" \
-            --runTimeout="00:15:00" \
-            --server="$OCTOPUS_URL" \
-            --space="Default" \
-            --variable="PRBranch:$PR_BRANCH" \
-            --variable="PRNumber:$PR_NUMBER" \
-            --variable="GitHubPAT:$GH_PAT_FOR_OCTOPUS" \
-            --waitForRun
+        run: node .github/scripts/octopus-runbook.mjs "PR Comment Bot"
 
       - name: Run Auto-Fix Suggestions Runbook 🔧
         env:
@@ -96,20 +64,4 @@ jobs:
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
           PR_BRANCH: ${{ github.head_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          octo run-runbook \
-            --apiKey="$OCTOPUS_API_KEY" \
-            --cancelOnTimeout \
-            --environment="Development" \
-            --logLevel="information" \
-            --noRawLog \
-            --progress \
-            --project="Vinifera" \
-            --runbook="Auto-Fix Suggestions" \
-            --runTimeout="00:15:00" \
-            --server="$OCTOPUS_URL" \
-            --space="Default" \
-            --variable="PRBranch:$PR_BRANCH" \
-            --variable="PRNumber:$PR_NUMBER" \
-            --variable="GitHubPAT:$GH_PAT_FOR_OCTOPUS" \
-            --waitForRun
+        run: node .github/scripts/octopus-runbook.mjs "Auto-Fix Suggestions"

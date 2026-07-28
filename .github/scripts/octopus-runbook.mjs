@@ -1,0 +1,228 @@
+import { pathToFileURL } from "node:url";
+
+const TERMINAL_FAILURE_STATES = new Set(["Canceled", "Failed", "TimedOut"]);
+
+export function normalizeApiBase(serverUrl) {
+  const url = new URL(serverUrl);
+  if (url.protocol !== "https:") {
+    throw new Error("OCTOPUS_URL must use HTTPS");
+  }
+
+  const pathname = url.pathname.replace(/\/+$/, "");
+  url.pathname = pathname.endsWith("/api") ? pathname : `${pathname}/api`;
+  url.search = "";
+  url.hash = "";
+  return url.toString().replace(/\/$/, "");
+}
+
+function resourceItems(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.Items)) return payload.Items;
+  throw new Error("Octopus returned an unexpected resource-list shape");
+}
+
+async function requestJson(fetchImpl, url, apiKey, options = {}) {
+  const response = await fetchImpl(url, {
+    ...options,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-Octopus-ApiKey": apiKey,
+      ...options.headers,
+    },
+    signal: options.signal ?? AbortSignal.timeout(15_000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Octopus API request failed with HTTP ${response.status}`);
+  }
+
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+async function findByName(fetchImpl, apiBase, apiKey, path, name) {
+  const query = new URLSearchParams({
+    partialName: name,
+    skip: "0",
+    take: "100",
+  });
+  const payload = await requestJson(
+    fetchImpl,
+    `${apiBase}/${path}?${query}`,
+    apiKey,
+  );
+  const match = resourceItems(payload).find((item) => item.Name === name);
+  if (!match) {
+    throw new Error(`Octopus resource not found: ${path} / ${name}`);
+  }
+  return match;
+}
+
+export function resolveFormValues(preview, promptedValues) {
+  const elements = preview?.Form?.Elements;
+  if (!Array.isArray(elements)) {
+    throw new Error("Octopus runbook preview did not include form elements");
+  }
+
+  const formValues = {};
+  const matchedNames = new Set();
+  for (const element of elements) {
+    const promptName = element?.Control?.Name;
+    if (!promptName) continue;
+
+    if (Object.hasOwn(promptedValues, promptName)) {
+      formValues[element.Name] = promptedValues[promptName];
+      matchedNames.add(promptName);
+    } else if (element?.Control?.Required) {
+      throw new Error(`Missing required Octopus prompted variable: ${promptName}`);
+    }
+  }
+
+  for (const promptName of Object.keys(promptedValues)) {
+    if (!matchedNames.has(promptName)) {
+      throw new Error(`Octopus prompted variable not found: ${promptName}`);
+    }
+  }
+
+  return formValues;
+}
+
+export async function runRunbook({
+  runbookName,
+  environment = process.env,
+  fetchImpl = fetch,
+  sleep = (milliseconds) =>
+    new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  pollIntervalMs = 5_000,
+  timeoutMs = 15 * 60_000,
+  log = console.log,
+}) {
+  const requiredEnvironment = [
+    "GH_PAT_FOR_OCTOPUS",
+    "OCTOPUS_API_KEY",
+    "OCTOPUS_URL",
+    "PR_BRANCH",
+    "PR_NUMBER",
+  ];
+  for (const name of requiredEnvironment) {
+    if (!environment[name]) {
+      throw new Error(`Missing required environment variable: ${name}`);
+    }
+  }
+  if (!runbookName) throw new Error("Runbook name is required");
+
+  const apiBase = normalizeApiBase(environment.OCTOPUS_URL);
+  const apiKey = environment.OCTOPUS_API_KEY;
+  const space = await findByName(
+    fetchImpl,
+    apiBase,
+    apiKey,
+    "spaces",
+    "Default",
+  );
+  const spaceBase = `${apiBase}/${space.Id}`;
+  const octopusEnvironment = await findByName(
+    fetchImpl,
+    spaceBase,
+    apiKey,
+    "environments",
+    "Development",
+  );
+  const project = await findByName(
+    fetchImpl,
+    spaceBase,
+    apiKey,
+    "projects",
+    "Vinifera",
+  );
+  const runbook = await findByName(
+    fetchImpl,
+    spaceBase,
+    apiKey,
+    `projects/${project.Id}/runbooks`,
+    runbookName,
+  );
+  if (!runbook.PublishedRunbookSnapshotId) {
+    throw new Error(`Octopus runbook has no published snapshot: ${runbookName}`);
+  }
+
+  const preview = await requestJson(
+    fetchImpl,
+    `${spaceBase}/runbooks/${runbook.Id}/runbookRuns/preview/${octopusEnvironment.Id}`,
+    apiKey,
+  );
+  const formValues = resolveFormValues(preview, {
+    PRBranch: environment.PR_BRANCH,
+    PRNumber: environment.PR_NUMBER,
+    GitHubPAT: environment.GH_PAT_FOR_OCTOPUS,
+  });
+
+  const run = await requestJson(
+    fetchImpl,
+    `${spaceBase}/runbookRuns`,
+    apiKey,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        RunbookId: runbook.Id,
+        RunbookSnapShotId: runbook.PublishedRunbookSnapshotId,
+        FrozenRunbookProcessId: null,
+        EnvironmentId: octopusEnvironment.Id,
+        TenantId: null,
+        SkipActions: [],
+        QueueTime: null,
+        QueueTimeExpiry: null,
+        FormValues: formValues,
+        ForcePackageDownload: false,
+        ForcePackageRedeployment: true,
+        UseGuidedFailure: false,
+        SpecificMachineIds: [],
+        ExcludedMachineIds: [],
+      }),
+    },
+  );
+  if (!run.TaskId) {
+    throw new Error("Octopus runbook response did not include a task ID");
+  }
+
+  log(`Octopus runbook queued: ${runbookName}`);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const task = await requestJson(
+      fetchImpl,
+      `${apiBase}/tasks/${run.TaskId}`,
+      apiKey,
+    );
+    if (task.State === "Success") {
+      log(`Octopus runbook passed: ${runbookName}`);
+      return { runId: run.Id, taskId: run.TaskId, state: task.State };
+    }
+    if (TERMINAL_FAILURE_STATES.has(task.State)) {
+      throw new Error(`Octopus runbook ended in state: ${task.State}`);
+    }
+    await sleep(pollIntervalMs);
+  }
+
+  await requestJson(
+    fetchImpl,
+    `${apiBase}/tasks/${run.TaskId}/cancel`,
+    apiKey,
+    { method: "POST", body: "{}" },
+  );
+  throw new Error(`Octopus runbook timed out after ${timeoutMs}ms`);
+}
+
+async function main() {
+  await runRunbook({ runbookName: process.argv[2] });
+}
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}

@@ -53,13 +53,13 @@ an unavailable or missing Octopus review still blocks merge under `AGENTS.md`.
 
 The current self-hosted Octopus Server predates the Executions API required by
 `run-runbook-action` v3 and newer. Until the server is upgraded to at least
-2022.3.5512, the workflow pins the official legacy CLI installer to an immutable
-commit SHA and invokes the documented `octo run-runbook` command directly. This
-allows each prompted variable to be passed as a separate argument and enables
-`--waitForRun`, progress reporting, a 15-minute bound, and cancellation on
-timeout so the GitHub job represents the completed runbook result. The server
-upgrade is an operational follow-up; switching to v4 must be validated in a PR
-before removing this bridge.
+2022.3.5512, the workflow uses a small Node bridge implementing Octopus's
+documented REST flow for prompted runbooks: resolve exact resources, map prompt
+names through the preview form, create the published run, poll its task, and
+cancel after 15 minutes. The bridge rejects non-HTTPS endpoints, fails closed
+on missing prompts/resources or unexpected API shapes, and never logs prompt
+values. The server upgrade is an operational follow-up; switching to v4 must
+be validated in a PR before removing this bridge.
 
 ---
 
