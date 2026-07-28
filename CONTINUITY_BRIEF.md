@@ -1,6 +1,6 @@
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-07-27
+**Last updated:** 2026-07-28
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
 
 ## Project identity
@@ -104,6 +104,34 @@ connection-ready source architecture:
 The Worker is connection-ready but must not replace the Pages custom-domain
 baseline until the hosted Supabase, Stripe, provider, DNS, physical-device, and
 store activation checks in the phase QA reports pass.
+
+## 2026-07-28 comprehensive UI testing mission
+
+The complete handoff is in
+`docs/build-specs/ui-test-report-2026-07-28.md`. The mission opened manifest PR
+#27, fifteen isolated defect PRs #28–#42, and report PR #43, all against `dev`.
+No PR was merged.
+
+- Baseline `dev` at `4d0ba11` passed 448/448 checks and 145/145 Playwright
+  tests.
+- Local integrated snapshot `72d85f82d96384334f066763f5a2ee5d31744699`
+  passed 454/454 checks and a final complete 149/149 Playwright run.
+- Authenticated Jeff - Pro Chrome spot checks at mobile and desktop reported
+  zero axe violations, horizontal overflow, or console errors.
+- PRs #28–#37 and #39–#42 have passing CI and CodeRabbit with no unresolved
+  threads. PR #38 has no unresolved threads and passes locally, but hosted CI
+  deterministically records the unrelated tablet loyalty CLS sample
+  `0.10867015769084296` against the `< 0.1` gate.
+- Octopus did not run because its workflow opens PRs to `main`, while repository
+  governance requires mission PRs to target `dev`. Both Octopus and CodeRabbit
+  are required before merge, so none of these PRs is merge-ready.
+- Open product/API decisions include the retention attempt list, a staff
+  loyalty Redeem action, Team roster data, the Owner invitation security
+  contract, the single-brand switcher, mobile dashboard spacing, CSV browser
+  transport proof, Worker-vs-Pages CSP, and the `/app/signup` cutover boundary.
+
+All 20 activation gates remain pending. No provider, hosted-data, migration,
+billing, email, push, deployment, or merge activation occurred.
 
 ## Runtime architecture
 

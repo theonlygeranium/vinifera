@@ -21,6 +21,9 @@ API fixture inspection, and an integrated local verification branch.
   zero console errors.
 - Fifteen scoped defect PRs and one test-manifest PR were opened against `dev`.
   No PR was merged during this mission.
+- None of the mission PRs is merge-ready: Octopus is a required review gate,
+  but its workflow opens PRs to `main` and therefore could not run within the
+  mandatory `dev` target.
 
 The integrated branch is local verification evidence only. Each production
 change remains isolated in its own review-gated PR.
@@ -62,21 +65,21 @@ already covered by the feature workstreams.
 
 | Route/component | Finding | Severity | Resolution branch | PR | Status at report publication |
 |---|---|---:|---|---:|---|
-| `/app/releases` | Release rows omitted tier | Medium | `fix/ui-releases-show-tier` | [#28](https://github.com/theonlygeranium/vinifera/pull/28) | Fixed; CI/review clean |
-| Landing pricing CTA | Trial CTAs did not identify the signup destination | High | `fix/ui-landing-signup-cta` | [#29](https://github.com/theonlygeranium/vinifera/pull/29) | Fixed; CI/review clean |
-| Landing pricing | Canonical four-tier offer was not represented | High | `fix/ui-landing-pricing-tiers` | [#30](https://github.com/theonlygeranium/vinifera/pull/30) | Fixed; CI/review clean |
-| `/app/import` | Focus could remain inside hidden preview content | High | `fix/ui-import-preview-focus` | [#31](https://github.com/theonlygeranium/vinifera/pull/31) | Fixed; CI/review clean |
-| Landing header | Navigation targets did not resolve to their intended sections | Medium | `fix/ui-landing-nav-targets` | [#32](https://github.com/theonlygeranium/vinifera/pull/32) | Fixed; CI/review clean |
-| Churn model analytics | AUC was presented without the ROC relationship | Medium | `fix/ui-churn-auc-roc` | [#33](https://github.com/theonlygeranium/vinifera/pull/33) | Fixed; CI/review clean |
-| `/app/brands` | Brand creation was not restricted to Owner | High | `fix/ui-brand-create-role-gate` | [#34](https://github.com/theonlygeranium/vinifera/pull/34) | Fixed; CI/review clean |
-| White-label settings | Logo URL accepted non-HTTPS values | High | `fix/ui-white-label-https-logo` | [#35](https://github.com/theonlygeranium/vinifera/pull/35) | Fixed; CI/review clean |
-| Member portal | Document title did not reflect portal branding | Medium | `fix/ui-member-portal-title` | [#36](https://github.com/theonlygeranium/vinifera/pull/36) | Fixed; CI/review clean |
-| `/app/brands` | Brand status was not visible in the list | Medium | `fix/ui-brand-status` | [#37](https://github.com/theonlygeranium/vinifera/pull/37) | Fixed; CI/review clean |
-| Shared FormFeedback | Empty message produced an announced empty region | Medium | `fix/ui-empty-form-feedback` | [#38](https://github.com/theonlygeranium/vinifera/pull/38) | Fixed locally; CI rerun reproduced an unrelated loyalty CLS failure |
-| Shared LoadingScreen | Visible loading label lacked reliable status semantics | High | `fix/ui-loading-screen-status` | [#39](https://github.com/theonlygeranium/vinifera/pull/39) | Fixed; CI/review clean |
-| Staff shell | Required exact skip link was absent | High | `fix/ui-staff-skip-link` | [#40](https://github.com/theonlygeranium/vinifera/pull/40) | Fixed; CI/review clean |
-| Landing and app focus | Focus indicators were absent or too weak | High | `fix/ui-focus-indicators` | [#41](https://github.com/theonlygeranium/vinifera/pull/41) | Fixed; CI/review clean |
-| Mobile brand selector | 11px select text could trigger iOS zoom | Medium | `fix/ui-mobile-brand-select-font` | [#42](https://github.com/theonlygeranium/vinifera/pull/42) | Fixed; CI/review clean |
+| `/app/releases` | Release rows omitted tier | Medium | `fix/ui-releases-show-tier` | [#28](https://github.com/theonlygeranium/vinifera/pull/28) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| Landing pricing CTA | Trial CTAs did not identify the signup destination | High | `fix/ui-landing-signup-cta` | [#29](https://github.com/theonlygeranium/vinifera/pull/29) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| Landing pricing | Canonical four-tier offer was not represented | High | `fix/ui-landing-pricing-tiers` | [#30](https://github.com/theonlygeranium/vinifera/pull/30) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| `/app/import` | Focus could remain inside hidden preview content | High | `fix/ui-import-preview-focus` | [#31](https://github.com/theonlygeranium/vinifera/pull/31) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| Landing header | Navigation targets did not resolve to their intended sections | Medium | `fix/ui-landing-nav-targets` | [#32](https://github.com/theonlygeranium/vinifera/pull/32) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| Churn model analytics | AUC was presented without the ROC relationship | Medium | `fix/ui-churn-auc-roc` | [#33](https://github.com/theonlygeranium/vinifera/pull/33) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| `/app/brands` | Brand creation was not restricted to Owner | High | `fix/ui-brand-create-role-gate` | [#34](https://github.com/theonlygeranium/vinifera/pull/34) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| White-label settings | Logo URL accepted non-HTTPS values | High | `fix/ui-white-label-https-logo` | [#35](https://github.com/theonlygeranium/vinifera/pull/35) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| Member portal | Document title did not reflect portal branding | Medium | `fix/ui-member-portal-title` | [#36](https://github.com/theonlygeranium/vinifera/pull/36) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| `/app/brands` | Brand status was not visible in the list | Medium | `fix/ui-brand-status` | [#37](https://github.com/theonlygeranium/vinifera/pull/37) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| Shared FormFeedback | Empty message produced an announced empty region | Medium | `fix/ui-empty-form-feedback` | [#38](https://github.com/theonlygeranium/vinifera/pull/38) | Fixed; CodeRabbit clean; unrelated CLS CI failure; Octopus missing |
+| Shared LoadingScreen | Visible loading label lacked reliable status semantics | High | `fix/ui-loading-screen-status` | [#39](https://github.com/theonlygeranium/vinifera/pull/39) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| Staff shell | Required exact skip link was absent | High | `fix/ui-staff-skip-link` | [#40](https://github.com/theonlygeranium/vinifera/pull/40) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| Landing and app focus | Focus indicators were absent or too weak | High | `fix/ui-focus-indicators` | [#41](https://github.com/theonlygeranium/vinifera/pull/41) | Fixed; CI/CodeRabbit clean; Octopus missing |
+| Mobile brand selector | 11px select text could trigger iOS zoom | Medium | `fix/ui-mobile-brand-select-font` | [#42](https://github.com/theonlygeranium/vinifera/pull/42) | Fixed; CI/CodeRabbit clean; Octopus missing |
 
 The prerequisite manifest is tracked in
 [#27](https://github.com/theonlygeranium/vinifera/pull/27). All PRs target
@@ -137,7 +140,35 @@ billing actions, email sends, push sends, or merge actions were activated.
 
 ## Reproduction
 
-From a clean checkout of the relevant branch:
+The exact locally tested integrated snapshot is
+`72d85f82d96384334f066763f5a2ee5d31744699`. It was assembled from
+`origin/dev` at `4d0ba11641b46620d4ef966a9401348fd6b6271b` by applying these
+pinned PR heads in order:
+
+| Order | PR | Tested head |
+|---:|---:|---|
+| 1 | #28 | `cf650b8` |
+| 2 | #29 | `ef0a98e` |
+| 3 | #30 | `1ea71c0` |
+| 4 | #31 | `9823141` |
+| 5 | #32 | `5661a79` |
+| 6 | #33 | `d3910d2` |
+| 7 | #34 | `8242180` |
+| 8 | #35 | `f9369e8` |
+| 9 | #36 | `65dcb5f` |
+| 10 | #37 | `10c5c96` |
+| 11 | #38 | `9221cb8` |
+| 12 | #39 | `63aafb1` |
+| 13 | #40 | `6de2488` |
+| 14 | #41 | `bd3700e` |
+| 15 | #42 | `ef25890` |
+
+Each PR branch was based directly on the pinned `dev` revision; cherry-pick all
+commits in each `dev..head` range before moving to the next row. Review
+follow-ups on #39–#41 landed after this integrated measurement and were each
+validated separately with full `npm run check` and 145/145 Playwright runs.
+
+From a clean checkout of the reconstructed snapshot or an individual PR:
 
 ```bash
 npm ci
