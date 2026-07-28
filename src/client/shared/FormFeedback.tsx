@@ -7,25 +7,21 @@ export function FormFeedback({
   message?: string | null;
   kind?: "error" | "success" | "info";
 }) {
+  if (!message) return null;
+
   return (
     <div
-      className={`form-feedback form-feedback--${kind}${
-        message ? "" : " form-feedback--empty"
-      }`}
-      role={kind === "error" && message ? "alert" : "status"}
+      className={`form-feedback form-feedback--${kind}`}
+      role={kind === "error" ? "alert" : "status"}
       aria-live={kind === "error" ? "assertive" : "polite"}
       aria-atomic="true"
     >
-      {message ? (
-        <>
-          {kind === "success" ? (
-            <CheckCircle2 aria-hidden="true" size={18} />
-          ) : (
-            <AlertCircle aria-hidden="true" size={18} />
-          )}
-          <span>{message}</span>
-        </>
-      ) : null}
+      {kind === "success" ? (
+        <CheckCircle2 aria-hidden="true" size={18} />
+      ) : (
+        <AlertCircle aria-hidden="true" size={18} />
+      )}
+      <span>{message}</span>
     </div>
   );
 }
