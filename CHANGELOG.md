@@ -441,10 +441,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   geometry while the child is absent. **Why:** Empty feedback created a blank
   assertive live region that could announce meaningless updates to assistive
   technology, while removing its layout footprint pushed the loyalty tablet
-  surface above the CLS budget. **Deployment impact:** Shared form-feedback
-  presentation only; submissions, APIs, provider activation, routing, and
-  headers are unchanged. **Verification:** Run the focused FormFeedback tests,
-  the repeated loyalty/tablet Playwright performance case, `npm run check`,
+  surface above the CLS budget. Dashboard and Team success feedback retain
+  persistent outer polite live regions so text inserted later is announced.
+  **Deployment impact:** Shared form-feedback presentation only; submissions,
+  APIs, provider activation, routing, and headers are unchanged.
+  **Verification:** Run the focused FormFeedback tests, the repeated
+  loyalty/tablet Playwright performance case, `npm run check`,
   `npm run qa:e2e`, and inspect empty/error/success states in Jeff - Pro Chrome.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact

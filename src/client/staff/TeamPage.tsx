@@ -128,7 +128,9 @@ export function TeamPage() {
             </div>
           </div>
           <FormFeedback message={error} />
-          <FormFeedback message={success} kind="success" />
+          <div aria-live="polite">
+            <FormFeedback message={success} kind="success" />
+          </div>
           <p className="form-legal">
             Owners and admins can invite Admin, Manager, or Staff roles. Owner
             access cannot be delegated from this form.
