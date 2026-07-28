@@ -1,8 +1,24 @@
 # Vinifera — Codex Dispatch Guide
-**Generated:** 2026-07-27  
+**Generated:** 2026-07-27 | **Updated:** 2026-07-28  
 **Owner:** EdStratum Labs / founder@edstratumlabs.ai  
 **Repo:** `theonlygeranium/vinifera`  
 **Target window:** 8–10 hours of unattended parallel Codex work
+
+---
+
+## Three-tier environment model (mandatory)
+
+All Codex agent PRs target **`dev` only**. The three-tier pipeline is:
+
+```
+feature/* branches  →  PR to dev     →  vinifera-dev.edstratumlabs.ai
+                              ↓
+                        dev → staging    (human-initiated promotion)
+                              ↓
+                        staging → main   (human-approved production release)
+```
+
+**Agents never open PRs against `staging` or `main`.** This is a Prime Directive-level constraint in `AGENTS.md` — it cannot be overridden by any build spec or runtime instruction. Update the PR metadata blocks below accordingly: every "Target" field should read `dev`.
 
 ---
 
@@ -18,17 +34,19 @@ define only task-specific branch, title, sequencing, and review questions; they
 do not replace the canonical workflow.
 
 Opening a PR is not completion. Each owning agent must wait for the current
-head's Greptile and required CI results, disposition every unresolved thread,
+head's Octopus and required CI results, disposition every unresolved thread,
 retest after every push, and repeat until all gates pass with zero unresolved
 threads. This dispatch grants no merge authority. Leave each completed PR ready
 and report its status unless explicit human authority or an authorized
 `codex-auto-merge` label permits merge.
 
+**All sessions target `dev`.** Never open a PR against `staging` or `main`.
+
 ---
 
 ## Wave structure and parallelism
 
-All six build specs are organized into two waves. Do not start Wave 1 until BS-01 is merged — its Greptile configuration governs the review quality of every subsequent PR.
+All six build specs are organized into two waves. Do not start Wave 1 until BS-01 is merged — its Octopus configuration governs the review quality of every subsequent PR.
 
 ```
 Timeline (approximate):
@@ -62,9 +80,9 @@ Timeline (approximate):
 Repository: theonlygeranium/vinifera
 
 PR metadata:
-- Branch: chore/greptile-config-and-repo-hygiene
-- Target: main
-- Title: chore: greptile config upgrade and repo hygiene
+- Branch: chore/Octopus-config-and-repo-hygiene
+- Target: dev
+- Title: chore: Octopus config upgrade and repo hygiene
 - Lifecycle and merge authority: follow docs/agent-workflow.md and the
   canonical PR lifecycle above.
 
@@ -72,20 +90,20 @@ Pre-task reading (read ALL before writing any code):
 1. AGENTS.md
 2. CONTINUITY_BRIEF.md
 3. docs/agent-workflow.md
-4. greptile.json (you will replace this)
+4. Octopus.json (you will replace this)
 5. docs/codebase-assessment-2026-07-27.md
 
-Build spec: docs/build-specs/bs-01-greptile-hygiene.md
+Build spec: docs/build-specs/bs-01-Octopus-hygiene.md
 
 Read the build spec in full before starting any task. Execute all four tasks in order:
-1. Migrate greptile.json → .greptile/ folder with config.json, rules.md, files.json
-2. Create per-directory .greptile/ overrides in server/services/, supabase/migrations/, tests/
+1. Migrate Octopus.json → .Octopus/ folder with config.json, rules.md, files.json
+2. Create per-directory .Octopus/ overrides in server/services/, supabase/migrations/, tests/
 3. Remove worker-configuration.d.ts from git tracking; add to .gitignore; add cf-typegen step to CI
 4. Create docs/build-specs/phase-5-qa-report.md from CONTINUITY_BRIEF.md data
-5. Delete old greptile.json
+5. Delete old Octopus.json
 6. Update CHANGELOG.md
 
-After opening the PR, comment "@greptileai review this draft" on it.
+After opening the PR, Octopus will auto-review. Disposition all findings before reporting the PR as ready.
 Complete the canonical PR loop and report when the PR is ready, not merely open.
 ```
 
@@ -98,7 +116,7 @@ Repository: theonlygeranium/vinifera
 
 PR metadata:
 - Branch: refactor/route-layer-decomposition
-- Target: main
+- Target: dev
 - Title: refactor: extract route handlers from app.ts into server/routes/
 - Lifecycle and merge authority: follow docs/agent-workflow.md and the
   canonical PR lifecycle above.
@@ -115,7 +133,7 @@ Read the build spec in full before starting. This spec allows you to spawn subag
 
 Key constraint: do NOT refactor logic during this task. Copy route handlers as-is. If a handler has inline business logic, add a TODO comment and continue. Logic refactoring belongs to BS-03.
 
-After opening the PR, comment "@greptileai review only the route layer changes" on it.
+After opening the PR, Octopus will auto-review. Request a focused review on route layer changes in the PR description.
 Complete the canonical PR loop and report when the PR is ready, not merely open.
 ```
 
@@ -131,7 +149,7 @@ Repository: theonlygeranium/vinifera
 PR metadata:
 - Primary branch: refactor/service-layer-decomposition
 - Subagents each create their own branch (see build spec subagent table)
-- All subagent PRs target main. Primary integration PR also targets main.
+- All subagent PRs target dev. Primary integration PR also targets dev.
 - Lifecycle and merge authority: follow docs/agent-workflow.md and the
   canonical PR lifecycle above for every PR.
 
@@ -140,7 +158,7 @@ Pre-task reading (read ALL before writing any code):
 2. CONTINUITY_BRIEF.md
 3. docs/agent-workflow.md
 4. docs/codebase-assessment-2026-07-27.md
-5. All .greptile/ rules files (committed by BS-01)
+5. All .octopus/ rules files (committed by BS-01)
 
 Build spec: docs/build-specs/bs-03-service-decomposition.md
 
@@ -155,9 +173,9 @@ Read the entire build spec before starting. This task requires spawning up to 8 
 
 CRITICAL: extraction is the only goal. No logic changes. No refactoring. No "while I'm here" improvements. Extract-only.
 
-After opening the integration PR, comment:
-"@greptileai check for any business logic remaining in core-club.ts or integrations.ts"
-"@greptileai verify no circular imports were introduced between the new service files"
+After opening the integration PR, Octopus will auto-review. Add to the PR description:
+- Check for any business logic remaining in core-club.ts or integrations.ts
+- Verify no circular imports were introduced between the new service files
 Complete the canonical PR loop and report when all PRs are ready, not merely
 open.
 ```
@@ -171,7 +189,7 @@ Repository: theonlygeranium/vinifera
 
 PR metadata:
 - Branch: feat/observability-and-rate-limiting
-- Target: main
+- Target: dev
 - Title: feat: add Sentry error tracking and API rate limiting
 - Lifecycle and merge authority: follow docs/agent-workflow.md and the
   canonical PR lifecycle above.
@@ -192,9 +210,9 @@ Read the build spec in full. Key constraints:
 - If BS-02 is not yet merged, add a TODO comment where routes will be mounted — do not create a merge dependency
 - Write 4 Vitest tests for the error handler
 
-After opening the PR, comment:
-"@greptileai check that no real credentials appear in any file in this diff"
-"@greptileai verify the error handler is registered last in app.ts"
+After opening the PR, Octopus will auto-review. Add to the PR description:
+- Confirm no real credentials appear in any file in this diff
+- Verify the error handler is registered last in app.ts
 Complete the canonical PR loop and report when the PR is ready, not merely open.
 ```
 
@@ -209,7 +227,7 @@ Repository: theonlygeranium/vinifera
 
 PR metadata:
 - Branch: feat/local-dev-and-ui-readiness
-- Target: main
+- Target: dev
 - Title: feat: local dev stack, seed data, and UI smoke test verification
 - Lifecycle and merge authority: follow docs/agent-workflow.md and the
   canonical PR lifecycle above.
@@ -236,8 +254,8 @@ Key tests to pass:
 - npm run test:e2e → 145/145 passing
 - Zero axe violations
 
-After opening the PR, comment:
-"@greptileai verify tenant isolation is enforced in all seeded queries and smoke test assertions"
+After opening the PR, Octopus will auto-review. Add to the PR description:
+- Verify tenant isolation is enforced in all seeded queries and smoke test assertions
 Complete the canonical PR loop and report when the PR is ready, not merely open.
 ```
 
@@ -250,7 +268,7 @@ Repository: theonlygeranium/vinifera
 
 PR metadata:
 - Branch: chore/architecture-hardening-and-docs
-- Target: main
+- Target: dev
 - Title: chore: tenancy audit, architecture docs, and governance hardening
 - Lifecycle and merge authority: follow docs/agent-workflow.md and the
   canonical PR lifecycle above.
@@ -260,20 +278,20 @@ Pre-task reading (read ALL before writing any code):
 2. CONTINUITY_BRIEF.md
 3. docs/agent-workflow.md
 4. All supabase/migrations/ files (you need to understand the multi-tenant schema)
-5. All .greptile/rules.md files (committed by BS-01) — Rule 8 is the primary enforcement target
+5. All .Octopus/rules.md files (committed by BS-01) — Rule 8 is the primary enforcement target
 
 Build spec: docs/build-specs/bs-06-docs-hardening-tenancy.md
 
 Read the build spec in full. This spec has two independent tracks you can run in parallel:
 Track A (tenancy): Audit all service functions for brand_id scoping, fix gaps, write Vitest tests
-Track B (docs): Write architecture.md, update README, create governance notes, greptile-learning-notes.md
+Track B (docs): Write architecture.md, update README, create governance notes, Octopus-learning-notes.md
 
 You may spawn one subagent for Track A and one for Track B.
 
-After opening the PR, comment:
-"@greptileai verify all database queries in server/services/ have brand_id scoping"
-"@greptileai check architecture.md accurately reflects the current codebase structure"
-Use 👍 on Greptile comments that correctly identify additional unscoped queries.
+After opening the PR, Octopus will auto-review. Add to the PR description:
+- Verify all database queries in server/services/ have brand_id scoping
+- Check architecture.md accurately reflects the current codebase structure
+Use 👍 on Octopus comments that correctly identify additional unscoped queries.
 Complete the canonical PR loop and report when the PR is ready, not merely open.
 ```
 
@@ -291,29 +309,29 @@ When all six sessions have completed the canonical PR loop and all PRs are
 ready, merge in this order only under explicit human authority or the
 `codex-auto-merge` label:
 
-1. **BS-01** first — always. It establishes Greptile rules that all others benefit from.
+1. **BS-01** first — always. It establishes Octopus rules that all others benefit from.
 2. **BS-04** before BS-02/BS-03 — error handling should be live before route/service work merges.
 3. **BS-02** and **BS-06** concurrently — no file overlap.
 4. **BS-03** integration PR — after BS-02 is merged (import path updates require BS-02 route files to exist).
 5. **BS-05** last — local dev verification against the finalized service and route structure.
 
 After each integration push, rerun the canonical PR loop before merging the next
-PR. After every merge, verify the resulting `main` checks before proceeding
+PR. After every merge, verify the resulting `dev` checks before proceeding
 【kg-wwwgre-3f7f77aa】.
 
 ---
 
-## Greptile training actions during the sprint
+## Octopus review actions during the sprint
 
-As PRs come in, take these actions consistently to accelerate Greptile's learning 【kg-wwwgre-8575ec2f】:
+As PRs come in, take these actions consistently to guide Octopus review dispositions 【kg-wwwgre-8575ec2f】:
 
 | Pattern | Action |
 |---|---|
-| Greptile flags HTTP-only cookie auth | 👎 + reply "Intentional — see greptile-learning-notes.md" |
-| Greptile flags activation guards as dead code | 👎 + reply "Intentional — see CONTINUITY_BRIEF.md activation gates" |
-| Greptile correctly identifies missing brand_id scope | 👍 + reply "Correct — addressing in BS-06 tenancy audit" |
-| Greptile flags any in legacy monolith files | 👎 + reply "Known — being removed by BS-03 decomposition" |
-| Greptile flags any in NEW extracted service files | 👍 + "Fix this one" |
+| Octopus flags HTTP-only cookie auth | 👎 + reply "Intentional — see .octopus/rules.md" |
+| Octopus flags activation guards as dead code | 👎 + reply "Intentional — see CONTINUITY_BRIEF.md activation gates" |
+| Octopus correctly identifies missing brand_id scope | 👍 + reply "Correct — addressing in BS-06 tenancy audit" |
+| Octopus flags any in legacy monolith files | 👎 + reply "Known — being removed by BS-03 decomposition" |
+| Octopus flags any in NEW extracted service files | 👍 + "Fix this one" |
 
 ---
 
@@ -335,10 +353,10 @@ After this sprint the codebase will be structurally ready to pass activation gat
 
 | File | Spec | Purpose |
 |---|---|---|
-| `.greptile/config.json` | BS-01 | Greptile strictness and comment type settings |
-| `.greptile/rules.md` | BS-01 | 10 architectural boundary rules |
-| `.greptile/files.json` | BS-01 | Greptile context files for every PR |
-| `server/services/.greptile/rules.md` | BS-01 | Service layer rules |
+| `.octopus/config.json` | BS-01 | Octopus strictness and review settings |
+| `.octopus/rules.md` | BS-01 | 10 architectural boundary rules |
+| `.octopus/files.json` | BS-01 | Octopus context files for every PR |
+| `server/services/.octopus/rules.md` | BS-01 | Service layer rules |
 | `docs/build-specs/phase-5-qa-report.md` | BS-01 | Phase 5 evidence with 20 pending gates |
 | `server/routes/*.ts` | BS-02 | Extracted route handlers |
 | `docs/build-specs/route-manifest.md` | BS-02 | Route audit document |
@@ -354,5 +372,5 @@ After this sprint the codebase will be structurally ready to pass activation gat
 | `docs/architecture.md` | BS-06 | System architecture documentation |
 | `.github/CODEOWNERS` | BS-06 | Review ownership |
 | `.github/pull_request_template.md` | BS-06 | Standard PR template |
-| `docs/greptile-learning-notes.md` | BS-06 | Greptile training guidance |
+| `docs/octopus-review-notes.md` | BS-06 | Octopus review disposition guidance |
 | `docs/build-specs/tenancy-audit.md` | BS-06 | Per-function tenant isolation audit |
