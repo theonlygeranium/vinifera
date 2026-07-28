@@ -7,10 +7,12 @@
   gates to the mandatory `dev` integration branch and added
   `ready_for_review` activity. The prior `main`-only filter prevented every
   agent-authored product PR from invoking the required reviewer.
-- `.github/workflows/octopus-pr-quality-gates.yml`: Upgraded the nonexistent
-  `run-runbook-action@v1` reference to the supported v4 action, removed its
-  unsupported guided-failure input, and awaited each Octopus server task so a
-  queued runbook is not mistaken for a completed review.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Replaced the nonexistent
+  `run-runbook-action@v1` reference with an immutable official installer SHA. The
+  self-hosted server predates the v4 Executions API, so the compatibility path
+  installs the legacy CLI, invokes the documented `octo run-runbook` command
+  with each prompted variable separately, and waits synchronously with a
+  bounded timeout and cancellation.
 - `.github/pull_request_template.md` and `docs/agent-workflow.md`: Replaced
   stale Greptile and direct-to-`main` instructions with the current
   Octopus/CodeRabbit review loop and `dev` PR routing.
@@ -28,8 +30,8 @@
   CodeRabbit and zero unresolved review threads on the bootstrap PR, merge it
   to `dev`, then reopen the pending product PRs and require successful Octopus
   runs before merge.
-- Confirm the hosted workflow resolves both official v4 Octopus actions and
-  waits for the self-hosted runbook result.
+- Confirm the hosted workflow installs the pinned legacy Octopus CLI action
+  and waits for the self-hosted runbook result.
 
 ## [Unreleased] — 2026-07-28 (UI Testing Spec Formatting Fix)
 

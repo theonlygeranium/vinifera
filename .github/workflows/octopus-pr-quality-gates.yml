@@ -16,26 +16,35 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Install Octopus CLI 🐙
+        uses: OctopusDeploy/install-octopus-cli-action@aee5b620e9107e6ef3ae0cbd25dfde10e0910168
+        with:
+          version: latest
+
       - name: Run PR Quality Gates Runbook in Octopus 🐙
-        id: quality-gates-run
-        uses: OctopusDeploy/run-runbook-action@v4
         env:
+          GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
-          OCTOPUS_SPACE: Default
-        with:
-          project: Vinifera
-          runbook: PR Quality Gates
-          environments: Development
-          variables: |
-            PRBranch: ${{ github.head_ref }}
-            PRNumber: ${{ github.event.pull_request.number }}
-            GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
-
-      - name: Await PR Quality Gates Runbook
-        uses: OctopusDeploy/await-task-action@v4
-        with:
-          server_task_id: ${{ fromJson(steps.quality-gates-run.outputs.server_tasks)[0].serverTaskId }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          octo run-runbook \
+            --apiKey="$OCTOPUS_API_KEY" \
+            --cancelOnTimeout \
+            --environment="Development" \
+            --logLevel="information" \
+            --noRawLog \
+            --progress \
+            --project="Vinifera" \
+            --runbook="PR Quality Gates" \
+            --runTimeout="00:15:00" \
+            --server="$OCTOPUS_URL" \
+            --space="Default" \
+            --variable="PRBranch:$PR_BRANCH" \
+            --variable="PRNumber:$PR_NUMBER" \
+            --variable="GitHubPAT:$GH_PAT_FOR_OCTOPUS" \
+            --waitForRun
 
   # Runs only when quality-gates fails — posts AI analysis + auto-fix diff as PR comments
   comment-and-fix:
@@ -50,44 +59,57 @@ jobs:
       issues: write
 
     steps:
+      - name: Install Octopus CLI 🐙
+        uses: OctopusDeploy/install-octopus-cli-action@aee5b620e9107e6ef3ae0cbd25dfde10e0910168
+        with:
+          version: latest
+
       - name: Run PR Comment Bot Runbook 🤖
-        id: comment-bot-run
-        uses: OctopusDeploy/run-runbook-action@v4
         env:
+          GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
-          OCTOPUS_SPACE: Default
-        with:
-          project: Vinifera
-          runbook: PR Comment Bot
-          environments: Development
-          variables: |
-            PRBranch: ${{ github.head_ref }}
-            PRNumber: ${{ github.event.pull_request.number }}
-            GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
-
-      - name: Await PR Comment Bot Runbook
-        uses: OctopusDeploy/await-task-action@v4
-        with:
-          server_task_id: ${{ fromJson(steps.comment-bot-run.outputs.server_tasks)[0].serverTaskId }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          octo run-runbook \
+            --apiKey="$OCTOPUS_API_KEY" \
+            --cancelOnTimeout \
+            --environment="Development" \
+            --logLevel="information" \
+            --noRawLog \
+            --progress \
+            --project="Vinifera" \
+            --runbook="PR Comment Bot" \
+            --runTimeout="00:15:00" \
+            --server="$OCTOPUS_URL" \
+            --space="Default" \
+            --variable="PRBranch:$PR_BRANCH" \
+            --variable="PRNumber:$PR_NUMBER" \
+            --variable="GitHubPAT:$GH_PAT_FOR_OCTOPUS" \
+            --waitForRun
 
       - name: Run Auto-Fix Suggestions Runbook 🔧
-        id: auto-fix-run
-        uses: OctopusDeploy/run-runbook-action@v4
         env:
+          GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
-          OCTOPUS_SPACE: Default
-        with:
-          project: Vinifera
-          runbook: Auto-Fix Suggestions
-          environments: Development
-          variables: |
-            PRBranch: ${{ github.head_ref }}
-            PRNumber: ${{ github.event.pull_request.number }}
-            GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
-
-      - name: Await Auto-Fix Suggestions Runbook
-        uses: OctopusDeploy/await-task-action@v4
-        with:
-          server_task_id: ${{ fromJson(steps.auto-fix-run.outputs.server_tasks)[0].serverTaskId }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          octo run-runbook \
+            --apiKey="$OCTOPUS_API_KEY" \
+            --cancelOnTimeout \
+            --environment="Development" \
+            --logLevel="information" \
+            --noRawLog \
+            --progress \
+            --project="Vinifera" \
+            --runbook="Auto-Fix Suggestions" \
+            --runTimeout="00:15:00" \
+            --server="$OCTOPUS_URL" \
+            --space="Default" \
+            --variable="PRBranch:$PR_BRANCH" \
+            --variable="PRNumber:$PR_NUMBER" \
+            --variable="GitHubPAT:$GH_PAT_FOR_OCTOPUS" \
+            --waitForRun
