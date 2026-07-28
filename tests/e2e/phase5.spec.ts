@@ -539,7 +539,9 @@ test.describe("Phase 5 provider and brand workflows", () => {
   }) => {
     const capture: CapturedRequest[] = [];
     await installPhase5Api(page, capture);
+    await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/app/brands");
+    await expect(page.getByLabel("Active brand")).toHaveCSS("font-size", "16px");
     await page.getByLabel("Active brand").selectOption("all");
     await expect(page).toHaveURL(/\/app\/brands\?scope=all$/);
     await expect(
