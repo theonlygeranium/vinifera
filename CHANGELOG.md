@@ -204,6 +204,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- **What changed:** Restored the marketing landing page's three-pixel
+  `:focus-visible` indicator and desktop navigation's 44px minimum target
+  heights after the canonical-pricing integration replaced `index.html` with
+  an older version. **Why:** Keyboard users otherwise received no visible
+  focus ring, while desktop navigation links and buttons could render below
+  the repository's WCAG target-size requirement. **Deployment impact:** Static
+  landing-page CSS only; pricing content, navigation destinations, routing,
+  authentication, billing, and provider activation are unchanged.
+  **Verification:** Run the focused focus-indicator and landing-static tests,
+  `npm run check`, `npm run qa:e2e`, axe-core, and inspect keyboard focus and
+  target dimensions at 1440px and 375px.
+
 - Hardened Octopus Rule 8 to check operation-only query builders supplied by callers and to compare legacy query fingerprints against the pull request's actual merge base rather than the moving base-branch tip.
 
 ### Fixed
