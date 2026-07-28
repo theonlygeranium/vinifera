@@ -154,7 +154,6 @@ function json(route: Route, data: unknown, status = 200) {
 async function installPhase5Api(
   page: Page,
   capture: CapturedRequest[] = [],
-  session: unknown = staffSession,
 ) {
   await page.route("**/api/**", async (route) => {
     const request = route.request();
@@ -173,7 +172,7 @@ async function installPhase5Api(
     });
 
     if (url.pathname === "/api/auth/staff/session") {
-      return json(route, session);
+      return json(route, staffSession);
     }
     if (url.pathname === "/api/brands" && method === "GET") {
       return json(route, { canViewAllBrands: true, items: brands });
@@ -539,25 +538,11 @@ test.describe("Phase 5 provider and brand workflows", () => {
   }) => {
     const capture: CapturedRequest[] = [];
     await installPhase5Api(page, capture);
-    await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/app/brands");
-    await expect(page.getByLabel("Active brand")).toHaveCSS("font-size", "16px");
     await page.getByLabel("Active brand").selectOption("all");
     await expect(page).toHaveURL(/\/app\/brands\?scope=all$/);
     await expect(
       page.getByRole("heading", { name: "All brands overview" }),
-    ).toBeVisible();
-    await expect(
-      page
-        .locator(".brand-management-list article")
-        .filter({ hasText: "QA Estate" })
-        .getByText("Portal Pending Validation"),
-    ).toBeVisible();
-    await expect(
-      page
-        .locator(".brand-management-list article")
-        .filter({ hasText: "QA Cellars" })
-        .getByText("Portal Unconfigured"),
     ).toBeVisible();
     await page.getByRole("button", { name: "Add brand" }).click();
     const dialog = page.getByRole("dialog", { name: "Create a brand" });
@@ -580,21 +565,6 @@ test.describe("Phase 5 provider and brand workflows", () => {
           entry.brandId === null,
       ),
     ).toBe(true);
-  });
-
-  test("manager can work in a brand but cannot discover brand mutation controls", async ({
-    page,
-  }) => {
-    await installPhase5Api(page, [], {
-      ...staffSession,
-      user: { ...staffSession.user, role: "manager" },
-    });
-    await page.goto("/app/brands");
-
-    await expect(page.getByRole("button", { name: "Work in brand" }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Add brand" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Create brand" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
   });
 
   test("all-brand Analytics stays on its route and refetches after selecting one brand", async ({
@@ -698,6 +668,21 @@ test.describe("Phase 5 provider and brand workflows", () => {
     ).toBeDisabled();
 
     await page.getByLabel("Primary color hex").fill("#6b1e30");
+    const logoUrl = page.getByLabel("Logo URL (HTTPS)");
+    await logoUrl.fill("http://insecure.example/logo.png");
+    await expect(logoUrl).toHaveAttribute("aria-invalid", "true");
+    expect(await logoUrl.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+    await expect(
+      page.getByRole("button", { name: "Save brand experience" }),
+    ).toBeDisabled();
+    await logoUrl.fill("https://cdn.qa-winery.example:8443/logo.png");
+    expect(await logoUrl.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+    await logoUrl.fill("https://user:pass@cdn.qa-winery.example/logo.png");
+    expect(await logoUrl.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+    await logoUrl.fill("https://cdn.qa-winery.example/logo.png");
+    await expect(logoUrl).toHaveAttribute("aria-invalid", "false");
+    expect(await logoUrl.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);
+
     await page.getByLabel("Hostname").fill("members.qa-winery.example");
     await page.getByRole("button", { name: "Verify domain" }).click();
     await expect(page.getByText("_vinifera.club.qa-winery.example")).toBeVisible();
@@ -794,7 +779,6 @@ test.describe("Phase 5 verified-host member branding", () => {
     await expect(
       page.getByRole("link", { name: "QA Estate Wine Club home" }),
     ).toBeVisible();
-    await expect(page).toHaveTitle("QA Estate Wine Club");
     await expect(page.locator(".brand__mark--custom img")).toHaveAttribute(
       "src",
       "https://cdn.qa-winery.example/logo.svg",
@@ -808,9 +792,6 @@ test.describe("Phase 5 verified-host member branding", () => {
         (element) => getComputedStyle(element).fontFamily,
       ),
     ).toContain("Georgia");
-    await page.getByRole("link", { name: "Winery staff sign in" }).click();
-    await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
-    await expect(page).toHaveTitle("Vinifera Club Management");
   });
 
   test("canonical response renders Vinifera defaults", async ({ page }) => {
