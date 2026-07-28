@@ -51,6 +51,23 @@ describe("Octopus runbook bridge", () => {
     ).toThrow("Missing required");
   });
 
+  it("refuses to submit a PAT through a non-sensitive Octopus prompt", () => {
+    const preview = {
+      Form: {
+        Elements: [
+          {
+            Name: "Variables-1",
+            Control: { Name: "GitHubPAT", Required: true, Type: "Text" },
+          },
+        ],
+      },
+    };
+
+    expect(() =>
+      resolveFormValues(preview, { GitHubPAT: "secret-pat" }),
+    ).toThrow("GitHubPAT prompted variable must be marked sensitive");
+  });
+
   it("creates a run with prompted values and waits for task success", async () => {
     const calls = [];
     const fetchImpl = vi.fn(async (url, options = {}) => {
@@ -83,7 +100,14 @@ describe("Octopus runbook bridge", () => {
             Elements: [
               { Name: "V-1", Control: { Name: "PRBranch", Required: true } },
               { Name: "V-2", Control: { Name: "PRNumber", Required: true } },
-              { Name: "V-3", Control: { Name: "GitHubPAT", Required: true } },
+              {
+                Name: "V-3",
+                Control: {
+                  Name: "GitHubPAT",
+                  Required: true,
+                  Type: "Sensitive",
+                },
+              },
             ],
           },
         });
@@ -123,7 +147,10 @@ describe("Octopus runbook bridge", () => {
     const post = calls.find(({ url }) =>
       url.endsWith("/Spaces-1/runbookRuns"),
     );
-    expect(JSON.parse(post.options.body).FormValues).toEqual({
+    const runRequest = JSON.parse(post.options.body);
+    expect(runRequest.RunbookSnapshotId).toBe("RunbookSnapshots-1");
+    expect(runRequest).not.toHaveProperty("RunbookSnapShotId");
+    expect(runRequest.FormValues).toEqual({
       "V-1": "fix/example",
       "V-2": "44",
       "V-3": "secret-pat",
@@ -138,6 +165,81 @@ describe("Octopus runbook bridge", () => {
     ).toBe(true);
     expect(log).toHaveBeenCalledWith(
       "Octopus runbook passed: PR Quality Gates",
+    );
+  });
+
+  it("preserves the timeout error when task cancellation fails", async () => {
+    const fetchImpl = vi.fn(async (url) => {
+      const requestUrl = String(url);
+      if (requestUrl.includes("/spaces?")) {
+        return jsonResponse({ Items: [{ Id: "Spaces-1", Name: "Default" }] });
+      }
+      if (requestUrl.includes("/environments?")) {
+        return jsonResponse({
+          Items: [{ Id: "Environments-1", Name: "Development" }],
+        });
+      }
+      if (requestUrl.includes("/projects?")) {
+        return jsonResponse({ Items: [{ Id: "Projects-1", Name: "Vinifera" }] });
+      }
+      if (requestUrl.includes("/projects/Projects-1/runbooks?")) {
+        return jsonResponse({
+          Items: [
+            {
+              Id: "Runbooks-1",
+              Name: "PR Quality Gates",
+              PublishedRunbookSnapshotId: "RunbookSnapshots-1",
+            },
+          ],
+        });
+      }
+      if (requestUrl.includes("/preview/Environments-1")) {
+        return jsonResponse({
+          Form: {
+            Elements: [
+              { Name: "V-1", Control: { Name: "PRBranch", Required: true } },
+              { Name: "V-2", Control: { Name: "PRNumber", Required: true } },
+              {
+                Name: "V-3",
+                Control: {
+                  Name: "GitHubPAT",
+                  Required: true,
+                  Sensitive: true,
+                },
+              },
+            ],
+          },
+        });
+      }
+      if (requestUrl.endsWith("/Spaces-1/runbookRuns")) {
+        return jsonResponse({ Id: "RunbookRuns-1", TaskId: "ServerTasks-1" });
+      }
+      if (requestUrl.endsWith("/tasks/ServerTasks-1/cancel")) {
+        return jsonResponse({}, 500);
+      }
+      return jsonResponse({}, 404);
+    });
+    const log = vi.fn();
+
+    await expect(
+      runRunbook({
+        runbookName: "PR Quality Gates",
+        environment: {
+          CF_ACCESS_CLIENT_ID: "access-client-id",
+          CF_ACCESS_CLIENT_SECRET: "access-client-secret",
+          GH_PAT_FOR_OCTOPUS: "secret-pat",
+          OCTOPUS_API_KEY: "secret-api-key",
+          OCTOPUS_URL: "https://octopus.example.test",
+          PR_BRANCH: "fix/example",
+          PR_NUMBER: "44",
+        },
+        fetchImpl,
+        timeoutMs: -1,
+        log,
+      }),
+    ).rejects.toThrow("Octopus runbook timed out after -1ms");
+    expect(log).toHaveBeenCalledWith(
+      "Failed to cancel Octopus task ServerTasks-1: Octopus API request failed with HTTP 500",
     );
   });
 });

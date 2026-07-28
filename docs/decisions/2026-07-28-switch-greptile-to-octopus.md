@@ -66,6 +66,10 @@ values. Because the Octopus hostname is protected by Cloudflare Access, GitHub
 Actions also supplies a narrowly scoped Access service token through encrypted
 `OCTOPUS_CF_ACCESS_CLIENT_ID` and `OCTOPUS_CF_ACCESS_CLIENT_SECRET` secrets.
 The Access application must use a Service Auth policy restricted to that token.
+The bridge refuses to submit `GitHubPAT` unless the runbook preview explicitly
+identifies that prompt as sensitive. A future Octopus configuration change
+should move the PAT to a runbook-scoped sensitive project variable, after which
+the per-run prompt and GitHub secret input can be removed together.
 The server upgrade is an operational follow-up; switching to v4 must be
 validated in a PR before removing this bridge.
 

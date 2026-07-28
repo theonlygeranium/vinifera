@@ -3,6 +3,13 @@
 ## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
 
 ### Fixed
+- `.github/scripts/octopus-runbook.mjs` and
+  `tests/scripts/octopus-runbook.test.mjs`: Corrected the run-creation field
+  to `RunbookSnapshotId` and ensured a failed timeout-cancellation request
+  cannot mask the actionable runbook timeout error.
+- `.github/scripts/octopus-runbook.mjs`: Added a fail-closed sensitive-control
+  check so `GitHubPAT` is never submitted to an Octopus prompt that the
+  preview identifies as plain text or leaves untyped.
 - `.github/workflows/octopus-pr-quality-gates.yml` and
   `tests/scripts/octopus-runbook.test.mjs`: Moved the secret-bearing Octopus
   jobs to `pull_request_target`, pinned checkout to the trusted default branch,

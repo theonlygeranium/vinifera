@@ -78,6 +78,14 @@ export function resolveFormValues(preview, promptedValues) {
     if (!promptName) continue;
 
     if (Object.hasOwn(promptedValues, promptName)) {
+      if (
+        promptName === "GitHubPAT" &&
+        !isSensitivePromptControl(element.Control)
+      ) {
+        throw new Error(
+          "Octopus GitHubPAT prompted variable must be marked sensitive",
+        );
+      }
       formValues[element.Name] = promptedValues[promptName];
       matchedNames.add(promptName);
     } else if (element?.Control?.Required) {
@@ -92,6 +100,20 @@ export function resolveFormValues(preview, promptedValues) {
   }
 
   return formValues;
+}
+
+function isSensitivePromptControl(control) {
+  if (control?.Sensitive === true) return true;
+  const typeMarkers = [
+    control?.$type,
+    control?.Type,
+    control?.ControlType,
+    control?.DisplaySettings?.ControlType,
+  ];
+  return typeMarkers.some(
+    (marker) =>
+      typeof marker === "string" && marker.toLowerCase().includes("sensitive"),
+  );
 }
 
 export async function runRunbook({
@@ -178,7 +200,7 @@ export async function runRunbook({
       method: "POST",
       body: JSON.stringify({
         RunbookId: runbook.Id,
-        RunbookSnapShotId: runbook.PublishedRunbookSnapshotId,
+        RunbookSnapshotId: runbook.PublishedRunbookSnapshotId,
         FrozenRunbookProcessId: null,
         EnvironmentId: octopusEnvironment.Id,
         TenantId: null,
@@ -216,12 +238,20 @@ export async function runRunbook({
     await sleep(pollIntervalMs);
   }
 
-  await requestJson(
-    fetchImpl,
-    `${apiBase}/tasks/${run.TaskId}/cancel`,
-    authenticationHeaders,
-    { method: "POST", body: "{}" },
-  );
+  try {
+    await requestJson(
+      fetchImpl,
+      `${apiBase}/tasks/${run.TaskId}/cancel`,
+      authenticationHeaders,
+      { method: "POST", body: "{}" },
+    );
+  } catch (error) {
+    log(
+      `Failed to cancel Octopus task ${run.TaskId}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
   throw new Error(`Octopus runbook timed out after ${timeoutMs}ms`);
 }
 
