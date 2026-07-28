@@ -22,5 +22,8 @@ describe("keyboard focus indicator source contracts", () => {
     expect(source).toMatch(
       /\[tabindex\]:focus-visible\s*\{[^}]*outline:\s*3px solid/s,
     );
+    expect(source).toMatch(
+      /\[tabindex\]:focus-visible\s*\{[^}]*box-shadow:\s*0 0 0 5px var\(--text\) !important/s,
+    );
   });
 });

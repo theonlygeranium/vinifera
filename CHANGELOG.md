@@ -473,7 +473,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **What changed:** Added a three-pixel, high-visibility keyboard focus ring
   for every interactive marketing control and for focusable application
   regions such as dashboard notices, analytics data regions, and the member
-  ledger; added source-contract tests for both surfaces. **Why:** The
+  ledger; application regions also receive a forced outer contrast ring so
+  later component shadows cannot hide focus; added source-contract tests for
+  both surfaces. **Why:** The
   accessibility sweep found absent landing focus indicators and one-pixel
   browser-default outlines on focusable application regions. **Deployment
   impact:** CSS focus presentation only; APIs, navigation, hosted data,
