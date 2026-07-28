@@ -139,6 +139,13 @@ closed after direct resolution commits.
   because `pull_request_target` check runs attach to the base revision.
   Octopus Deploy's authenticated `main` project view also shows no published
   runbook.
+- Cloudflare Access now has one scoped `Vinifera GitHub Actions — Octopus`
+  Service Auth policy on the Octopus application, selecting only the
+  `Vinifera GitHub Actions` service token. The token has a one-year duration,
+  and its client ID and one-time secret are installed as the encrypted
+  `OCTOPUS_CF_ACCESS_CLIENT_ID` and `OCTOPUS_CF_ACCESS_CLIENT_SECRET` GitHub
+  Actions secrets; neither value is recorded in source. The existing human OTP
+  policy is unchanged.
 - `.coderabbit.yaml` now enables CodeRabbit auto-review for `dev` and
   `staging`. Promotion automation additionally requests an explicit review and
   accepts only the exact `Review completed` status description, because

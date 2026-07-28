@@ -74,6 +74,9 @@
   The trusted Octopus bridge now publishes its runbook outcome on the exact PR
   head SHA, so promotion no longer waits for a `pull_request_target` check that
   GitHub attaches only to the base revision.
+- `CONTINUITY_BRIEF.md`: Recorded completion of the approved Cloudflare Access
+  Service Auth policy and encrypted GitHub Actions credential transfer for the
+  Octopus application without storing credential values in the repository.
 
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is
