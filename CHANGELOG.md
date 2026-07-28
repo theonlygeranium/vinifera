@@ -91,7 +91,9 @@
   metadata that names another commit before Octopus checks out or reviews code.
   Generate the aggregate and per-commit diffs locally from the immutable
   merge-base/head objects, so the published status cannot claim success for a
-  different or mid-review rewritten revision.
+  different or mid-review rewritten revision. Per-commit generation uses
+  first-parent semantics so merge commits remain visible to the Rule 9
+  changelog requirement.
 - `public/marketing.js`, `tests/e2e/phase1.spec.ts`, and
   `tests/scripts/landing-static.test.mjs`: Require the application capability,
   including `APP_ORIGIN`, in addition to database and authentication-email

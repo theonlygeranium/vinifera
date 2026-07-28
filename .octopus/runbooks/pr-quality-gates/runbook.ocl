@@ -91,7 +91,7 @@ print(data["base"]["sha"])
                     }
                     mkdir -p "$WORK_DIR/commit-diffs"
                     for commit_sha in "${COMMIT_SHAS[@]}"; do
-                        git show --format= --no-ext-diff "$commit_sha" \
+                        git show --format= --no-ext-diff --first-parent "$commit_sha" \
                             > "$WORK_DIR/commit-diffs/$commit_sha.diff"
                     done
                     unset PR_JSON PR_METADATA COMMIT_SHAS

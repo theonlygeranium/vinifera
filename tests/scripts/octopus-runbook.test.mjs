@@ -1323,7 +1323,7 @@ describe("Octopus workflow trust boundary", () => {
       'git rev-list --reverse "$MERGE_BASE_SHA..$HEAD_SHA"',
     );
     expect(qualityRunbook).toContain(
-      'git show --format= --no-ext-diff "$commit_sha"',
+      'git show --format= --no-ext-diff --first-parent "$commit_sha"',
     );
     expect(qualityRunbook).not.toContain("application/vnd.github.diff");
     expect(qualityRunbook).not.toContain("/commits?per_page=");
