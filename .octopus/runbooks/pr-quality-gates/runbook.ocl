@@ -373,7 +373,8 @@ def query_models(source):
         ]
         for index, from_call in enumerate(statement_calls):
             receiver_match = re.search(
-                r"([A-Za-z_$][A-Za-z0-9_$]*)\s*$",
+                r"([A-Za-z_$][A-Za-z0-9_$]*"
+                r"(?:\s*(?:\.|\?\.)\s*[A-Za-z_$][A-Za-z0-9_$]*)*)\s*$",
                 masked[statement_start:from_call.start()],
             )
             segment_start = (
@@ -415,31 +416,31 @@ def query_models(source):
                     if later_depth != base_depth:
                         continue
                     later_masked = masked[later_start:later_end]
-                    receiver = next(
-                        (
-                            tracked
-                            for tracked in tracked_variables
-                            if re.search(
-                                rf"\b{re.escape(tracked)}\."
-                                r"(?:select|update|delete|insert|upsert|eq|in|match)"
-                                r"\s*\(",
-                                later_masked,
-                            )
-                        ),
-                        None,
-                    )
-                    if receiver is None:
+                    direct_use = None
+                    receiver = None
+                    for tracked in tracked_variables:
+                        candidate = re.search(
+                            r"^\s*(?:(?:const|let|var)\s+"
+                            r"([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*"
+                            r"(?:await\s*)?|"
+                            r"([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*"
+                            r"(?:await\s*)?|return\s+(?:await\s*)?|await\s+)"
+                            rf"{re.escape(tracked)}\."
+                            r"(?:select|update|delete|insert|upsert|eq|in|match)"
+                            r"\s*\(",
+                            later_masked,
+                        )
+                        if candidate:
+                            direct_use = candidate
+                            receiver = tracked
+                            break
+                    if direct_use is None or receiver is None:
                         continue
                     model_parts.append(source[later_start:later_end])
                     model_end = later_end
-                    assignment = re.search(
-                        rf"(?:const|let|var)?\s*"
-                        rf"([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:await\s*)?"
-                        rf"{re.escape(receiver)}\.",
-                        later_masked,
-                    )
+                    assignment = direct_use.group(1) or direct_use.group(2)
                     if assignment:
-                        tracked_variables.add(assignment.group(1))
+                        tracked_variables.add(assignment)
             model = "\n".join(model_parts)
             if not re.search(
                 r"\.(?:select|update|delete|insert|upsert)\s*\(",

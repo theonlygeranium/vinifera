@@ -157,6 +157,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Octopus Rule 8 now accepts tracked predicates only from
+  unconditional same-scope assignments or returns and preserves complete member
+  receiver chains such as `ctx.admin` in query fingerprints. Regressions cover
+  conditional predicates and receiver changes between member expressions.
+  **Why:** A false branch could leave a query unscoped, while truncating both
+  receivers to `admin` could grandfather a privilege-boundary change.
+  **Deployment impact:** PR security analysis only; application runtime and
+  environment activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`,
+  `npm run build:worker`, and `git diff --check`.
 - **What changed:** Octopus Rule 8 query fingerprints now include the database
   receiver, and builder dataflow stops at the enclosing block. Statement
   splitting ignores semicolons inside parentheses, while base-source lookup is

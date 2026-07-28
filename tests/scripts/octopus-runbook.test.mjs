@@ -642,14 +642,14 @@ describe("Octopus runbook bridge", () => {
 
   it("does not grandfather a change to a privileged database receiver", () => {
     const baseSource = [
-      "export async function legacy(tenantClient) {",
-      '  return tenantClient.from("members").select("*");',
+      "export async function legacy(ctx) {",
+      '  return ctx.tenantClient.from("members").select("*");',
       "}",
       "",
     ].join("\n");
     const headSource = [
-      "export async function newlyPrivileged(admin) {",
-      '  return admin.from("members").select("*");',
+      "export async function newlyPrivileged() {",
+      '  return this.admin.from("members").select("*");',
       "}",
       "",
     ].join("\n");
@@ -661,10 +661,10 @@ describe("Octopus runbook bridge", () => {
         "--- a/server/services/members.ts",
         "+++ b/server/services/members.ts",
         "@@ -1,3 +1,3 @@",
-        "-export async function legacy(tenantClient) {",
-        '-  return tenantClient.from("members").select("*");',
-        "+export async function newlyPrivileged(admin) {",
-        '+  return admin.from("members").select("*");',
+        "-export async function legacy(ctx) {",
+        '-  return ctx.tenantClient.from("members").select("*");',
+        "+export async function newlyPrivileged() {",
+        '+  return this.admin.from("members").select("*");',
         " }",
         "diff --git a/CHANGELOG.md b/CHANGELOG.md",
         "--- a/CHANGELOG.md",
@@ -736,6 +736,41 @@ describe("Octopus runbook bridge", () => {
         "--- /dev/null",
         "+++ b/server/services/members.ts",
         "@@ -0,0 +1,12 @@",
+        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
+  });
+
+  it("rejects a conditionally applied tenant predicate", () => {
+    const headSource = [
+      "export async function unsafe(admin, brandId) {",
+      '  let query = admin.from("members").select("*");',
+      "  if (false) {",
+      '    query = query.eq("brand_id", brandId);',
+      "  }",
+      "  return query;",
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource: null,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/server/services/members.ts",
+        "@@ -0,0 +1,7 @@",
         ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
         "diff --git a/CHANGELOG.md b/CHANGELOG.md",
         "--- a/CHANGELOG.md",
