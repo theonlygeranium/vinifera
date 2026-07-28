@@ -14,8 +14,287 @@ permissions:
   contents: read
 
 jobs:
-  quality:
-    name: Type, test, build, and package
+  classify:
+    name: Classify validation lane
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      classification_succeeded: ${{ steps.classify.outputs.classification_succeeded }}
+      lane: ${{ steps.classify.outputs.lane }}
+      reason: ${{ steps.classify.outputs.reason }}
+      base_sha: ${{ steps.classify.outputs.base_sha }}
+      head_sha: ${{ steps.classify.outputs.head_sha }}
+    steps:
+      - name: Check out exact validation head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Classify exact base and head diff
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+            head_sha="$PR_HEAD_SHA"
+          else
+            base_sha="$EVENT_SHA"
+            head_sha="$EVENT_SHA"
+          fi
+
+          for pair in "base:$base_sha" "head:$head_sha"; do
+            label="${pair%%:*}"
+            sha="${pair#*:}"
+            if [[ ! "$sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "::error::$label SHA is missing or is not an exact commit SHA."
+              exit 1
+            fi
+          done
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "$base_sha"
+          fi
+
+          for pair in "base:$base_sha" "head:$head_sha"; do
+            sha="${pair#*:}"
+            git cat-file -e "${sha}^{commit}"
+          done
+
+          EVENT_NAME="$EVENT_NAME" BASE_SHA="$base_sha" HEAD_SHA="$head_sha" \
+            node --input-type=module <<'NODE'
+          import { appendFileSync, writeFileSync } from "node:fs";
+          import { execFileSync } from "node:child_process";
+
+          const output = process.env.GITHUB_OUTPUT;
+          const summary = process.env.GITHUB_STEP_SUMMARY;
+          const eventName = process.env.EVENT_NAME;
+          const baseSha = process.env.BASE_SHA;
+          const headSha = process.env.HEAD_SHA;
+          const allowedRoots = new Set([
+            "AGENTS.md",
+            "CHANGELOG.md",
+            "CONTINUITY_BRIEF.md",
+            "README.md",
+            "REVERT.md",
+          ]);
+          const allowed = (path) =>
+            allowedRoots.has(path) ||
+            (path.startsWith("docs/") &&
+              path.endsWith(".md") &&
+              !path.split("/").includes(".."));
+
+          let lane = "full";
+          let reason = `${eventName || "unknown"}_event`;
+          let classificationSucceeded = true;
+          let records = [];
+
+          if (eventName === "pull_request") {
+            const diff = execFileSync(
+              "git",
+              ["diff", "--name-status", "-z", "-M", "-C", baseSha, headSha],
+              { encoding: "buffer", stdio: ["ignore", "pipe", "pipe"] },
+            );
+            const fields = diff.toString("utf8").split("\0");
+            if (fields.at(-1) === "") fields.pop();
+
+            try {
+              for (let index = 0; index < fields.length;) {
+                const status = fields[index++];
+                if (!status) throw new Error("empty status");
+                const count = status.startsWith("R") || status.startsWith("C") ? 2 : 1;
+                if (index + count > fields.length) throw new Error(`missing path for ${status}`);
+                records.push({ status, paths: fields.slice(index, index + count) });
+                index += count;
+              }
+            } catch (error) {
+              classificationSucceeded = false;
+              reason = `diff_parse_failure: ${error.message}`;
+            }
+
+            if (classificationSucceeded && records.length === 0) {
+              classificationSucceeded = false;
+              reason = "empty_diff";
+            } else if (classificationSucceeded) {
+              lane = "docs";
+              reason = "explicit_allowlist_match";
+              for (const record of records) {
+                if (record.status.startsWith("C")) {
+                  lane = "full";
+                  reason = "copy_detected";
+                  break;
+                }
+                if (record.status === "D") {
+                  lane = "full";
+                  reason = "deletion_detected";
+                  break;
+                }
+                const supported =
+                  ((record.status === "A" || record.status === "M") &&
+                    record.paths.length === 1) ||
+                  (/^R\d{1,3}$/.test(record.status) && record.paths.length === 2);
+                if (!supported) {
+                  lane = "full";
+                  reason = `unsupported_status_${record.status}`;
+                  break;
+                }
+                if (record.paths.some((path) => !allowed(path))) {
+                  lane = "full";
+                  reason = "non_documentation_path";
+                  break;
+                }
+              }
+            }
+          }
+
+          const displayPaths = (records.length
+            ? records.map(({ status, paths }) => `${status} ${paths.join(" -> ")}`)
+            : ["(not applicable or unavailable)"])
+            .map((line) => line.replaceAll(/[\r\n]+/g, " "));
+          appendFileSync(
+            output,
+            [
+              `classification_succeeded=${classificationSucceeded}`,
+              `lane=${lane}`,
+              `reason=${reason.replaceAll("\n", " ")}`,
+              `base_sha=${baseSha}`,
+              `head_sha=${headSha}`,
+              "",
+            ].join("\n"),
+          );
+          writeFileSync(
+            summary,
+            [
+              "## Validation lane classification",
+              "",
+              `- Exact base SHA: \`${baseSha}\``,
+              `- Exact head SHA: \`${headSha}\``,
+              `- Classification succeeded: \`${classificationSucceeded}\``,
+              `- Selected lane: \`${lane}\``,
+              `- Reason: \`${reason}\``,
+              "- Classified changed paths:",
+              "",
+              "```text",
+              ...displayPaths,
+              "```",
+              "",
+            ].join("\n"),
+          );
+          NODE
+
+  docs_validation:
+    name: Documentation-only validation
+    needs: classify
+    if: needs.classify.outputs.classification_succeeded == 'true' && needs.classify.outputs.lane == 'docs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact pull request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fetch exact pull request base
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
+
+      - name: Use repository Node.js pin
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Check patch whitespace
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+        run: git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+      - name: Revalidate documentation contracts
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
+          import {
+            scanDiffForSecrets,
+            validateDocumentationChange,
+          } from "./.github/scripts/docs-ci-policy.mjs";
+
+          const result = validateDocumentationChange({
+            baseSha: process.env.BASE_SHA,
+            headSha: process.env.HEAD_SHA,
+          });
+          scanDiffForSecrets({
+            baseSha: process.env.BASE_SHA,
+            headSha: process.env.HEAD_SHA,
+          });
+          const paths = result.records.map(
+            ({ status, paths }) => `${status} ${paths.join(" -> ")}`,
+          );
+          appendFileSync(
+            process.env.GITHUB_STEP_SUMMARY,
+            [
+              "## Documentation-only validation",
+              "",
+              `- Exact base SHA: \`${process.env.BASE_SHA}\``,
+              `- Exact head SHA: \`${process.env.HEAD_SHA}\``,
+              "- Selected lane: `docs`",
+              `- Checks executed: ${[
+                "npm ci",
+                "npm audit --omit=dev",
+                "git diff --check",
+                ...result.checks,
+                "credential-pattern scan",
+              ].join(", ")}`,
+              "- Result: `pass`",
+              "- Revalidated paths:",
+              "",
+              "```text",
+              ...paths,
+              "```",
+              "",
+            ].join("\n"),
+          );
+          NODE
+
+      - name: Report documentation validation failure
+        if: failure()
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+        run: |
+          {
+            echo "## Documentation-only validation"
+            echo
+            echo "- Exact base SHA: \`$BASE_SHA\`"
+            echo "- Exact head SHA: \`$HEAD_SHA\`"
+            echo "- Selected lane: \`docs\`"
+            echo "- Result: \`fail\`"
+            echo "- Inspect the failed step above for the last check executed."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  full_quality:
+    name: Full type, test, build, and package
+    needs: classify
+    if: needs.classify.outputs.classification_succeeded == 'true' && needs.classify.outputs.lane == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -33,6 +312,9 @@ jobs:
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Validate CI lane policy
+        run: node --test .github/scripts/docs-ci-policy.policy.mjs
 
       - name: Generate Worker types
         run: npm run cf-typegen
@@ -84,8 +366,10 @@ jobs:
           test -f dist/app
           grep -q "Fall 2026 Club Release" dist/app
 
-  mobile-android:
+  mobile_android:
     name: Build and lint Android shell
+    needs: classify
+    if: needs.classify.outputs.classification_succeeded == 'true' && needs.classify.outputs.lane == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -146,9 +430,73 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  quality:
+    name: Type, test, build, and package
+    if: always()
+    needs: [classify, docs_validation, full_quality, mobile_android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce selected validation lane
+        shell: bash
+        env:
+          CLASSIFICATION_SUCCEEDED: ${{ needs.classify.outputs.classification_succeeded }}
+          LANE: ${{ needs.classify.outputs.lane }}
+          CLASSIFIER_RESULT: ${{ needs.classify.result }}
+          DOCS_RESULT: ${{ needs.docs_validation.result }}
+          FULL_RESULT: ${{ needs.full_quality.result }}
+          MOBILE_RESULT: ${{ needs.mobile_android.result }}
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Required validation policy"
+            echo
+            echo "- Exact base SHA: \`${BASE_SHA:-missing}\`"
+            echo "- Exact head SHA: \`${HEAD_SHA:-missing}\`"
+            echo "- Classifier job: \`${CLASSIFIER_RESULT}\`"
+            echo "- Classification succeeded: \`${CLASSIFICATION_SUCCEEDED:-missing}\`"
+            echo "- Selected lane: \`${LANE:-missing}\`"
+            echo "- Documentation job: \`${DOCS_RESULT}\`"
+            echo "- Full quality job: \`${FULL_RESULT}\`"
+            echo "- Android job: \`${MOBILE_RESULT}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$CLASSIFIER_RESULT" != "success" ||
+                "$CLASSIFICATION_SUCCEEDED" != "true" ]]; then
+            echo "::error::Change classification did not succeed."
+            exit 1
+          fi
+
+          case "$LANE" in
+            docs)
+              if [[ "$DOCS_RESULT" != "success" ||
+                    "$FULL_RESULT" != "skipped" ||
+                    "$MOBILE_RESULT" != "skipped" ]]; then
+                echo "::error::Documentation lane did not run exclusively and pass."
+                exit 1
+              fi
+              ;;
+            full)
+              if [[ "$DOCS_RESULT" != "skipped" ||
+                    "$FULL_RESULT" != "success" ||
+                    "$MOBILE_RESULT" != "success" ]]; then
+                echo "::error::Full quality and Android lanes did not run exclusively and pass."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Unknown or missing validation lane."
+              exit 1
+              ;;
+          esac
+
+          echo "- Policy result: \`pass\`" >> "$GITHUB_STEP_SUMMARY"
+
   database:
     name: Apply Supabase migrations when activated
-    needs: [quality, mobile-android]
+    needs: [quality]
     if: >-
       github.event_name != 'pull_request' &&
       vars.STAGING_SUPABASE_MIGRATION_ENABLED == 'true'

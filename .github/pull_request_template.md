@@ -9,6 +9,8 @@
 - [ ] Chore / dependency update
 
 ## Testing
+- CI-selected validation lane: <!-- `docs` or `full`; report the check result, do not self-authorize it -->
+- Classifier evidence: <!-- exact base/head SHAs and reason from the CI summary -->
 - [ ] Dependency security audit passes (`npm audit --audit-level=moderate`)
 - [ ] Unit tests pass (`npm test`)
 - [ ] Database gates pass (`npm run qa:db:phase1` through `npm run qa:db:phase5`)
@@ -18,6 +20,7 @@
 - [ ] Required checks pass: `Type, test, build, and package`, `Greptile Review`, and `Block direct push to main`
 - [ ] Branch is current with `main`
 <!-- Explain any intentionally inapplicable gate under Risks and assumptions. -->
+<!-- Checkboxes and labels do not grant documentation-only status; CI alone classifies the exact diff. -->
 
 ## Review completion
 - [ ] Every unresolved review thread was inspected
