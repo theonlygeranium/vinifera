@@ -154,6 +154,7 @@ function json(route: Route, data: unknown, status = 200) {
 async function installPhase5Api(
   page: Page,
   capture: CapturedRequest[] = [],
+  session: unknown = staffSession,
 ) {
   await page.route("**/api/**", async (route) => {
     const request = route.request();
@@ -172,7 +173,7 @@ async function installPhase5Api(
     });
 
     if (url.pathname === "/api/auth/staff/session") {
-      return json(route, staffSession);
+      return json(route, session);
     }
     if (url.pathname === "/api/brands" && method === "GET") {
       return json(route, { canViewAllBrands: true, items: brands });
@@ -565,6 +566,21 @@ test.describe("Phase 5 provider and brand workflows", () => {
           entry.brandId === null,
       ),
     ).toBe(true);
+  });
+
+  test("manager can work in a brand but cannot discover brand mutation controls", async ({
+    page,
+  }) => {
+    await installPhase5Api(page, [], {
+      ...staffSession,
+      user: { ...staffSession.user, role: "manager" },
+    });
+    await page.goto("/app/brands");
+
+    await expect(page.getByRole("button", { name: "Work in brand" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add brand" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Create brand" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
   });
 
   test("all-brand Analytics stays on its route and refetches after selecting one brand", async ({
