@@ -43,7 +43,9 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).toContain('"Type, test, build, and package"');
     expect(workflow).toContain('"Run PR Quality Gates"');
     expect(workflow).toContain('.context == "CodeRabbit"');
-    expect(workflow).toContain('! "$coderabbit_description" =~ [Ss]kipped');
+    expect(workflow).toContain(
+      '"$coderabbit_description" == "Review completed"',
+    );
     expect(workflow).toContain("reviewThreads(first:100)");
     expect(workflow).toContain("pageInfo{hasNextPage}");
     expect(workflow).toContain("group_by(.name)");

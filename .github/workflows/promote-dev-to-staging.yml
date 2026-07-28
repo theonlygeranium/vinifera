@@ -241,7 +241,7 @@ jobs:
 
             if (( ${#missing[@]} == 0 && ${#pending[@]} == 0 )) \
               && [[ "$coderabbit" == "success" ]] \
-              && [[ ! "$coderabbit_description" =~ [Ss]kipped ]] \
+              && [[ "$coderabbit_description" == "Review completed" ]] \
               && (( other_pending == 0 && pending_statuses == 0 && unresolved == 0 )); then
               echo "### PR gates: ✅ exact-head CI, Octopus, CodeRabbit, and threads passed" >> "$GITHUB_STEP_SUMMARY"
               break

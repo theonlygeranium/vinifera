@@ -28,8 +28,9 @@
   including prior attempts on the same commit, so credential repair or a
   transient-provider retry cannot be poisoned by an older failed run.
 - `.github/workflows/promote-dev-to-staging.yml`: Explicitly request a
-  CodeRabbit review on the non-default staging base and reject a nominally
-  successful status whose description says the review was skipped.
+  CodeRabbit review on the non-default staging base and accept its nominally
+  successful status only when the description is exactly `Review completed`;
+  skipped and rate-limited reviews otherwise report misleading success states.
 - `CONTINUITY_BRIEF.md`: Replaced the stale pre-merge UI mission state with the
   audited merge-cleanup outcome, including the direct-resolution regressions,
   remaining remote branches, default-branch Octopus bootstrap gap, and
