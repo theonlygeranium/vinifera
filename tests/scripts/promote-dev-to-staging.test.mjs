@@ -12,6 +12,10 @@ const adr = readFileSync(
   ),
   "utf8",
 );
+const codeRabbit = readFileSync(
+  new URL("../../.coderabbit.yaml", import.meta.url),
+  "utf8",
+);
 
 describe("dev to staging promotion contract", () => {
   it("opens an event-producing PR before any provider gate", () => {
@@ -57,5 +61,10 @@ describe("dev to staging promotion contract", () => {
   it("documents the currently unconfigured staging probe credentials", () => {
     expect(adr).toContain("they are not configured");
     expect(adr).not.toContain("These are already present");
+  });
+
+  it("enables automatic CodeRabbit review on governed non-default bases", () => {
+    expect(codeRabbit).toMatch(/base_branches:\n\s+- "dev"\n\s+- "staging"/);
+    expect(codeRabbit).toContain("auto_incremental_review: true");
   });
 });

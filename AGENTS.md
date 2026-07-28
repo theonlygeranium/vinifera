@@ -319,7 +319,12 @@ Octopus is self-hosted on the AI server. Configuration lives in `.octopus/`. Whe
 
 ### CodeRabbit
 
-CodeRabbit performs line-level code review. All findings must be dispositioned (resolved or explicitly marked as intentional with a comment) before a PR is ready to merge. Do not dismiss findings without explanation.
+CodeRabbit performs line-level code review. `.coderabbit.yaml` explicitly adds
+`dev` and `staging` as automatic-review base branches; its default-branch-only
+behavior is not sufficient for this repository's promotion model. All findings
+must be dispositioned (resolved or explicitly marked as intentional with a
+comment) before a PR is ready to merge. Do not dismiss findings without
+explanation.
 
 ---
 

@@ -303,6 +303,11 @@ treat a green post-push workflow by itself as branch-protection evidence.
 
 ## Octopus and CodeRabbit quick reference
 
+The repository-root `.coderabbit.yaml` must retain `dev` and `staging` under
+`reviews.auto_review.base_branches`; CodeRabbit otherwise skips automatic
+reviews whose base is not the default branch. See the
+[CodeRabbit automatic review controls](https://docs.coderabbit.ai/configuration/auto-review).
+
 | Action | How |
 |---|---|
 | Trigger Octopus after workflow installation | Reopen the PR or push a documented head update |

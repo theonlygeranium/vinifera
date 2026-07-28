@@ -34,6 +34,10 @@
   audited merge-cleanup outcome, including the direct-resolution regressions,
   remaining remote branches, default-branch Octopus bootstrap gap, and
   isolated-staging credential blocker.
+- `.coderabbit.yaml`, `AGENTS.md`, and `docs/agent-workflow.md`: Added
+  version-controlled automatic review coverage for PRs targeting `dev` and
+  `staging`, with incremental review enabled and a ten-commit pause threshold.
+  This replaces the default-branch-only behavior observed on PR #51.
 
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is
