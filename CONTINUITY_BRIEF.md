@@ -186,11 +186,12 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   Hosted Supabase native pgcrypto/pgTAP verification and all provider-backed
   activation evidence remain pending by design.
 - BS-06 audits every database-calling function in `server/services/` against
-  the final 21-migration tenancy model. It adds explicit organization and brand
-  predicates to all mobile offline-bootstrap reads, a focused cross-brand
+  its then-current 21-migration tenancy model. It adds explicit organization
+  and brand predicates to all mobile offline-bootstrap reads, a focused cross-brand
   query assertion, CODEOWNERS, a PR template, governance and Greptile guidance,
-  and current architecture documentation with all 20 activation gates still
-  pending. The branch is integrated with the direct-push guard and BS-02/BS-04
+  and current architecture documentation with all 20 activation gates pending
+  at that review point. The branch is integrated with the direct-push guard and
+  BS-02/BS-04
   route and observability baseline. The integrated branch passes the direct-push
   policy 9/9, dependency audit 0, Worker type generation, TypeScript, Vitest
   378/378, database gates 92/231/199/158/494, Vite and Pages rollback builds,
@@ -230,8 +231,9 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   root JSON file to scoped `.greptile/` configuration and rules, removes the
   generated Worker declaration from version control while regenerating it
   before CI verification/typecheck, and records the Phase 5 closure evidence
-  plus all 20 still-pending activation gates. These changes do not alter
-  runtime routes, provider activation, or the static production baseline.
+  plus all 20 activation gates, which were pending at that review point. These
+  changes do not alter runtime routes, provider activation, or the static
+  production baseline.
 - BS-04 adds a credential-independent error-observability and API-abuse
   boundary: optional PII-minimized Sentry capture at the Worker entry point, a
   centralized request-correlated Express error handler registered last, and
@@ -248,6 +250,19 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   authentication endpoints without weakening protected-route enforcement, and
   aligns the Phase 1–2 browser fixtures with the current brand/overview
   contracts.
+- BS-05 provides a pinned, single-command local Supabase/Worker/Vite workflow,
+  schema-valid synthetic two-tenant fixtures, loopback-only Auth bootstrap,
+  authenticated isolation smoke checks, and the 20-gate readiness ledger.
+  The integrated 22-migration chain and deterministic seed replay twice, the
+  full Vitest suite passes 436/436, and TypeScript passes. The same integrated
+  head also passes the native Supabase CLI 2.109.1 reset/seed and real
+  Worker/Auth flow with a populated nine-member Sunrise roster,
+  Pacific-to-Sunrise 403, member session, local magic-link callback with an
+  HTTP-only cookie, populated portal shipment history, desktop/375px UI, touch
+  targets, zero axe-core violations, and fail-closed shutdown cleanup. That is
+  partial local prerequisite evidence for Gates 1, 7, and 15; all 20 composite
+  activation gates remain `pending` until their complete hosted or provider
+  criteria are proved.
 - Phase 1–4 local architecture gates and the 94-test browser regression were
   recorded as passing in their phase QA reports.
 - Version 0.5.0 aligns the package, Android, and iOS source release and contains

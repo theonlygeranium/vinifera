@@ -260,11 +260,11 @@ select ok(
     select 1
     from pg_catalog.pg_proc as p
     join pg_catalog.pg_namespace as n on n.oid = p.pronamespace
-    where n.nspname = 'auth'
+    where n.nspname = 'private'
       and p.proname = 'org_id'
       and p.prorettype = 'uuid'::regtype
   ),
-  'auth.org_id safely exposes the tenant claim'
+  'private.org_id safely exposes the tenant claim'
 );
 
 select * from finish();

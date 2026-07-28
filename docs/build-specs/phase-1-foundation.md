@@ -47,7 +47,7 @@ This phase delivers: authentication, multi-tenant data architecture, Stripe subs
 
 - Organization model: each winery is an organization (tenant)
 - Row-Level Security (RLS) at the database layer — Winery A can NEVER see Winery B's data
-- RLS policies enforced on every table: `WHERE organization_id = auth.org_id()`
+- RLS policies enforced on every table: `WHERE organization_id = private.org_id()`
 - Staff belong to exactly one organization (enforced at DB level)
 - Members belong to exactly one organization
 - Super-admin role for platform operators (EdStratum Labs) — can access all orgs

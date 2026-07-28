@@ -5546,7 +5546,7 @@ as $$
 begin
   if not private.is_service_role()
     and not private.is_super_admin()
-    and coalesce(auth.auth_surface()::text, '') <> 'staff'
+    and coalesce(private.auth_surface()::text, '') <> 'staff'
   then
     raise exception using
       errcode = '42501',

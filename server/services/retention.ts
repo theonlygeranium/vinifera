@@ -934,6 +934,10 @@ export function portalLoginIdempotencyKey(
   return `activity:portal_login:${memberId}:${asOf.toISOString().slice(0, 10)}`;
 }
 
+export function portalLoginOccurredAt(asOf = new Date()): Date {
+  return new Date(`${asOf.toISOString().slice(0, 10)}T00:00:00.000Z`);
+}
+
 interface UnsubscribeClaims {
   exp: number;
   memberId: string;
@@ -1377,12 +1381,13 @@ export class ProductionRetentionService
     principal: MemberPrincipal,
     asOf = new Date(),
   ): Promise<void> {
+    const occurredAt = portalLoginOccurredAt(asOf);
     const { error } = await this.admin.rpc("record_member_activity_event", {
       p_event_type: "portal_login",
       p_idempotency_key: portalLoginIdempotencyKey(principal.user.id, asOf),
       p_member_id: principal.user.id,
       p_metadata: { source: "member_session" },
-      p_occurred_at: asOf.toISOString(),
+      p_occurred_at: occurredAt.toISOString(),
       p_organization_id: principal.organization.id,
       p_source_entity_id: principal.user.id,
       p_source_entity_type: "member",
@@ -1394,6 +1399,7 @@ export class ProductionRetentionService
       eventData: { source: "member_session" },
       eventType: "portal.login",
       memberId: principal.user.id,
+      occurredAt,
       requestKey: portalLoginIdempotencyKey(principal.user.id, asOf),
     });
   }

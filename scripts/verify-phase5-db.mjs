@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { bootstrapSql } from "./lib/pg-bootstrap.mjs";
 
 const allowSkip = process.env.VINIFERA_DB_VERIFY_ALLOW_SKIP === "1";
 const require = createRequire(import.meta.url);
@@ -73,17 +74,6 @@ async function readRepositoryFile(relativeFile) {
   return fs.readFile(path.join(repositoryRoot, relativeFile), "utf8");
 }
 
-async function sharedBootstrap() {
-  const source = await readRepositoryFile("scripts/verify-phase3-db.mjs");
-  const match = source.match(
-    /const bootstrapSql = `([\s\S]*?)`;\n\nasync function readRepositoryFile/,
-  );
-  if (!match?.[1]) {
-    throw new Error("Could not load the shared embedded PostgreSQL bootstrap.");
-  }
-  return match[1];
-}
-
 function assertionPlan(sql, testFile) {
   const plannedMatch = sql.match(/^select plan\((\d+)\);$/m);
   if (!plannedMatch) {
@@ -103,7 +93,7 @@ function assertionPlan(sql, testFile) {
 
 async function createDatabase() {
   const database = new PGlite();
-  await database.exec(await sharedBootstrap());
+  await database.exec(bootstrapSql);
   for (const migration of migrations) {
     let sql = await readRepositoryFile(migration);
     sql = sql.replace(

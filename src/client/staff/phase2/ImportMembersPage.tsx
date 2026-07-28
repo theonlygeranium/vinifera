@@ -100,7 +100,9 @@ export function ImportMembersPage() {
       });
       setResult(next);
       setFeedback({
-        message: `${next.importedCount} members imported into the live roster.`,
+        message: `${next.importedCount} ${
+          next.importedCount === 1 ? "member" : "members"
+        } imported into the live roster.`,
         kind: "success",
       });
     } catch (error) {

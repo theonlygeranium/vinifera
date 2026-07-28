@@ -22,15 +22,37 @@ npm ci
 npm run dev
 ```
 
-Vite serves the React staff application at `http://localhost:5173/app` and the member portal at `/portal`. Use the Worker server to exercise the marketing site, guide, API, and the complete production routing model.
+The pinned repository CLIs require no global Supabase or Wrangler install.
+`npm run dev` verifies Docker, starts Supabase, runs a local database reset
+(including `supabase/seed.sql`), creates local-only Auth users, starts the
+Worker at `http://127.0.0.1:8788`, starts Vite at
+`http://127.0.0.1:5173`, and runs authenticated smoke checks. It derives
+ephemeral local keys without printing them and deletes the temporary Worker
+environment file before terminating its child process trees. Port 5173 is
+strict: an occupied port stops the launcher instead of silently selecting a
+different URL.
 
-The Vite-only server is appropriate for focused application visual work. Use the Worker development server when testing API routes or static-surface regressions:
+BS-05 proved this workflow on the integrated baseline with Supabase CLI
+2.109.1 against a native Docker-compatible runtime. One native
+`supabase db reset --local` passed all 22 migrations plus the configured seed.
+Separately, the credential-independent verifier applies the seed twice and
+compares fixed brand identities across independent clean databases. The Auth
+bootstrap and authenticated HTTP/UI checks also pass on the integrated head. Read
+[local-dev-notes.md](./build-specs/local-dev-notes.md) for the exact
+clean-replay corrections and evidence. BS-05 records partial local
+prerequisites for Gates 1, 7, and 15; all 20 composite activation gates remain
+pending until their complete hosted or provider evidence is proved.
+
+The Vite-only server is appropriate for focused application visual work that
+does not require the API:
 
 ```bash
-npm run dev:worker
+npm run dev:frontend
 ```
 
-Do not put secrets in Vite-prefixed variables. The frontend intentionally has no direct provider credentials.
+The browser talks only to the Worker. `VITE_API_BASE_URL` may select a
+credential-free HTTPS origin or loopback HTTP; production defaults to the
+same origin. Do not put secrets in Vite-prefixed variables.
 
 ## Local environment
 
@@ -150,9 +172,12 @@ The migration source of truth is `supabase/migrations/`. Local configuration set
 
 ```bash
 npx supabase start
-npx supabase db reset
+npx supabase db reset --local
 npx supabase test db
 ```
+
+The reset automatically runs `supabase/seed.sql` through `[db.seed]` in
+`supabase/config.toml`; the current CLI has no `supabase db seed` command.
 
 Hosted migration deployment additionally requires encrypted CI secrets:
 
@@ -520,9 +545,11 @@ then runs the remaining test and build gates. This keeps validation reproducible
 from a fresh checkout while leaving the generated artifact untracked.
 
 The current credential-independent architecture gate passes generated Worker
-types, TypeScript, 388/388 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+types, TypeScript, 436/436 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
 3 199/199, Phase 4 158/158, Phase 5 513/513 embedded PostgreSQL/pgTAP
-assertions, and 145/145 Playwright tests with zero axe violations. Pages plus
+assertions, and the integrated 145/145 Playwright suite with zero axe
+violations.
+`test:e2e` is an alias of `qa:e2e`. Pages plus
 development, staging, and production Worker dry-run builds pass. The focused
 release controls pass 14/14, mobile-release controls 7/7, Stripe catalog
 controls 16/16, and mobile identity passes. These are local architecture

@@ -9,7 +9,7 @@
 --   The SECURITY DEFINER function accepted p_organization_id as a parameter
 --   but never verified the calling JWT's organization matched. Any authenticated
 --   user could enqueue email triggers for arbitrary organizations.
---   Fix: Add auth.org_id() validation, with service_role bypass for internal
+--   Fix: Add private.org_id() validation, with service_role bypass for internal
 --   server-side calls.
 --
 -- P0-4: claim_email_outbox_batch — missing service_role guard
@@ -59,7 +59,7 @@ begin
   -- organization as p_organization_id.  service_role (backend server-side calls)
   -- is exempt since it operates outside a user session.
   if coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
-    and auth.org_id() is distinct from p_organization_id
+    and private.org_id() is distinct from p_organization_id
   then
     raise exception using errcode = '42501', message = 'Organization authorization mismatch.';
   end if;

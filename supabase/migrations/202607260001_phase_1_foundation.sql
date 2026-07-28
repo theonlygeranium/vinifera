@@ -543,7 +543,7 @@ create trigger platform_users_single_auth_profile
 before insert or update of id on public.platform_users
 for each row execute function private.enforce_single_auth_profile();
 
-create or replace function auth.org_id()
+create or replace function private.org_id()
 returns uuid
 language plpgsql
 stable
@@ -564,7 +564,7 @@ begin
 end;
 $$;
 
-create or replace function auth.user_role()
+create or replace function private.user_role()
 returns text
 language sql
 stable
@@ -573,7 +573,7 @@ as $$
   select auth.jwt() ->> 'user_role';
 $$;
 
-create or replace function auth.auth_surface()
+create or replace function private.auth_surface()
 returns text
 language sql
 stable
@@ -582,7 +582,7 @@ as $$
   select auth.jwt() ->> 'auth_surface';
 $$;
 
-create or replace function auth.platform_role()
+create or replace function private.platform_role()
 returns text
 language sql
 stable
@@ -602,15 +602,15 @@ security definer
 set search_path = ''
 as $$
   select
-    auth.auth_surface() = 'staff'
-    and auth.org_id() = p_organization_id
+    private.auth_surface() = 'staff'
+    and private.org_id() = p_organization_id
     and exists (
       select 1
       from public.staff_users as s
       where s.id = auth.uid()
         and s.organization_id = p_organization_id
         and s.status = 'active'
-        and s.role::text = auth.user_role()
+        and s.role::text = private.user_role()
         and (p_roles is null or s.role = any (p_roles))
     );
 $$;
@@ -626,9 +626,9 @@ security definer
 set search_path = ''
 as $$
   select
-    auth.auth_surface() = 'member'
-    and auth.user_role() = 'member'
-    and auth.org_id() = p_organization_id
+    private.auth_surface() = 'member'
+    and private.user_role() = 'member'
+    and private.org_id() = p_organization_id
     and auth.uid() = p_auth_user_id
     and exists (
       select 1
@@ -646,8 +646,8 @@ security definer
 set search_path = ''
 as $$
   select
-    auth.auth_surface() = 'platform'
-    and auth.platform_role() = 'super_admin'
+    private.auth_surface() = 'platform'
+    and private.platform_role() = 'super_admin'
     and exists (
       select 1
       from public.platform_users as p
@@ -1440,17 +1440,15 @@ to service_role;
 
 grant usage, select on all sequences in schema public to service_role;
 
-revoke execute on function auth.org_id() from public, anon;
-revoke execute on function auth.user_role() from public, anon;
-revoke execute on function auth.auth_surface() from public, anon;
-revoke execute on function auth.platform_role() from public, anon;
-grant usage on schema auth to authenticated, service_role;
-grant execute on function auth.org_id() to authenticated, service_role;
-grant execute on function auth.user_role() to authenticated, service_role;
-grant execute on function auth.auth_surface() to authenticated, service_role;
-grant execute on function auth.platform_role() to authenticated, service_role;
-
 grant usage on schema private to authenticated, service_role;
+revoke execute on function private.org_id() from public, anon;
+revoke execute on function private.user_role() from public, anon;
+revoke execute on function private.auth_surface() from public, anon;
+revoke execute on function private.platform_role() from public, anon;
+grant execute on function private.org_id() to authenticated, service_role;
+grant execute on function private.user_role() to authenticated, service_role;
+grant execute on function private.auth_surface() to authenticated, service_role;
+grant execute on function private.platform_role() to authenticated, service_role;
 revoke execute on function private.is_staff_for_org(uuid, public.staff_role[])
   from public, anon;
 revoke execute on function private.is_member_for_org(uuid, uuid)

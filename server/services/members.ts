@@ -1350,6 +1350,7 @@ export class CoreClubMemberService {
       eventData?: Record<string, string | number | boolean | null>;
       eventType: string;
       memberId?: string | null;
+      occurredAt?: Date;
       requestKey: string;
     },
   ): Promise<void> {
@@ -1386,7 +1387,7 @@ export class CoreClubMemberService {
             requestKey: input.requestKey,
           }),
           p_member_id: input.memberId ?? null,
-          p_occurred_at: new Date().toISOString(),
+          p_occurred_at: (input.occurredAt ?? new Date()).toISOString(),
           p_organization_id: organizationId,
         });
         if (error) throw error;
@@ -2159,7 +2160,7 @@ export class CoreClubMemberService {
     const { data, error } = await this.admin
       .from("shipments")
       .select(
-        "id,member_id,release_id,status,shipping_address,tracking_number,carrier,charge_amount_cents,loyalty_discount_cents,tax_amount_cents,created_at,updated_at,releases(id,name,description,processing_date,embargo_date),shipment_items(id,wine_name,quantity,price_cents)",
+        "id,member_id,release_id,status,shipping_address,tracking_number,carrier,charge_amount_cents,loyalty_discount_cents,tax_amount_cents,created_at,updated_at,releases!shipments_release_same_brand_fkey(id,name,description,processing_date,embargo_date),shipment_items!shipment_items_shipment_same_brand_fkey(id,wine_name,quantity,price_cents)",
       )
       .eq("organization_id", principal.organization.id)
       .eq("brand_id", principal.brand.id)

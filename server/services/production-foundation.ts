@@ -277,8 +277,9 @@ export class ProductionFoundationService
     }
   }
 
-  async getStaffSession(): Promise<StaffPrincipal | null> {
-    const client = this.surfaceClient("staff");
+  async getStaffSession(
+    client = this.surfaceClient("staff"),
+  ): Promise<StaffPrincipal | null> {
     const { data, error } = await client.auth.getUser();
     if (error || !data.user) return null;
 
@@ -481,7 +482,7 @@ export class ProductionFoundationService
     if (data.session) {
       const { error: refreshError } = await staffClient.auth.refreshSession();
       if (!refreshError) {
-        principal = await this.getStaffSession();
+        principal = await this.getStaffSession(staffClient);
       }
     }
 
@@ -493,12 +494,13 @@ export class ProductionFoundationService
   }
 
   async staffLogin(input: { email: string; password: string }): Promise<StaffPrincipal> {
-    const { error } = await this.surfaceClient("staff").auth.signInWithPassword({
+    const staffClient = this.surfaceClient("staff");
+    const { error } = await staffClient.auth.signInWithPassword({
       email: normalizeEmail(input.email),
       password: input.password,
     });
     if (error) throw authFailure();
-    const principal = await this.getStaffSession();
+    const principal = await this.getStaffSession(staffClient);
     if (!principal) throw authFailure();
     return principal;
   }
@@ -706,7 +708,7 @@ export class ProductionFoundationService
       throw new AppError(401, "unauthorized", "The staff session could not be refreshed.");
     }
 
-    const principal = await this.getStaffSession();
+    const principal = await this.getStaffSession(client);
     if (!principal) throw authFailure();
     return principal;
   }

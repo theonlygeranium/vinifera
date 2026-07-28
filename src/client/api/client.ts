@@ -75,29 +75,59 @@ export function writeActiveBrandId(brandId: string | null) {
   }
 }
 
-function resolveApiUrl(path: `/api/${string}`) {
-  if (import.meta.env.VITE_CAPACITOR_BUILD !== "true") return path;
-  const configuredOrigin = import.meta.env.VITE_MOBILE_API_ORIGIN?.trim();
+export function resolveApiUrl(path: `/api/${string}`) {
+  const isCapacitorBuild =
+    import.meta.env.VITE_CAPACITOR_BUILD === "true";
+  const configuredOrigin = (
+    isCapacitorBuild
+      ? import.meta.env.VITE_MOBILE_API_ORIGIN
+      : import.meta.env.VITE_API_BASE_URL
+  )?.trim();
+  if (!isCapacitorBuild && !configuredOrigin) return path;
   if (!configuredOrigin) {
     throw new ApiError("The native API origin is not configured.", {
       status: 0,
       code: "INVALID_MOBILE_API_ORIGIN",
     });
   }
-  const origin = new URL(configuredOrigin);
+  let origin: URL;
+  try {
+    origin = new URL(configuredOrigin);
+  } catch {
+    throw new ApiError("The API origin is not a valid URL.", {
+      status: 0,
+      code: isCapacitorBuild
+        ? "INVALID_MOBILE_API_ORIGIN"
+        : "INVALID_API_ORIGIN",
+    });
+  }
+  const isLoopback =
+    origin.hostname === "127.0.0.1" ||
+    origin.hostname === "localhost" ||
+    origin.hostname === "[::1]";
+  const validProtocol =
+    origin.protocol === "https:" ||
+    (!isCapacitorBuild && isLoopback && origin.protocol === "http:");
   if (
-    origin.protocol !== "https:" ||
+    !validProtocol ||
     origin.username ||
     origin.password ||
-    origin.port ||
+    (isCapacitorBuild && origin.port) ||
     origin.pathname !== "/" ||
     origin.search ||
     origin.hash
   ) {
-    throw new ApiError("The native API origin must be a credential-free HTTPS origin.", {
-      status: 0,
-      code: "INVALID_MOBILE_API_ORIGIN",
-    });
+    throw new ApiError(
+      isCapacitorBuild
+        ? "The native API origin must be a credential-free HTTPS origin."
+        : "The API origin must be credential-free HTTPS, or loopback HTTP.",
+      {
+        status: 0,
+        code: isCapacitorBuild
+          ? "INVALID_MOBILE_API_ORIGIN"
+          : "INVALID_API_ORIGIN",
+      },
+    );
   }
   return new URL(path, origin).toString();
 }

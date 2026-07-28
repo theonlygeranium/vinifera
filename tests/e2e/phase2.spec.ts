@@ -759,7 +759,7 @@ test.describe("Phase 2 core club loop", () => {
     expect((await previewRequest).headers()["content-type"]).toContain("multipart/form-data");
     await expect(page.getByRole("heading", { name: "Map columns" })).toBeVisible();
     await page.getByRole("button", { name: /Import 1 valid member/ }).click();
-    await expect(page.getByText("1 members imported into the live roster.")).toBeVisible();
+    await expect(page.getByText("1 member imported into the live roster.")).toBeVisible();
   });
 
   test("Commerce7 optional fields submit the canonical CSV mapping contract", async ({

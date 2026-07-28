@@ -269,6 +269,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **What changed:** Added the BS-05 local-development harness with pinned
+  Supabase CLI, fail-fast Supabase/Worker/Vite orchestration, loopback-only
+  Auth bootstrap, synthetic two-tenant fixtures, authenticated smoke checks,
+  deterministic double-seed verification, a local quickstart, and a 20-gate
+  readiness ledger. A shared readiness helper requires simultaneous Worker
+  health and Vite `/app/` responses, bounds every probe and the wall-clock
+  startup window, rechecks both services after smoke, and fails immediately if
+  either process exits. A dated ADR records the loopback, ephemeral-secret,
+  contributor-file, process-cleanup, and Auth boundaries. Browser-origin
+  regressions cover same-origin production,
+  loopback HTTP, credential-free HTTPS, invalid credentials/path/query/URL,
+  and the unchanged stricter Capacitor policy. `test:e2e` aliases the canonical
+  `qa:e2e` command. **Why:** Contributors need a reproducible local application
+  path without hosted/provider credentials, and CI must prevent fixture or
+  browser-origin policy drift. **Deployment impact:** CI gains a Docker-free
+  22-migration seed gate; no hosted database, provider, Worker, Pages, secret,
+  DNS, or activation mutation occurs. **Verification:** `npm ci`, dependency
+  audit, script syntax checks, TypeScript, Vitest 436/436, focused BS-05 tests
+  62/62, and `npm run qa:local-seed`.
 - **What changed:** Added the domain-service decomposition ADR and linked
   architecture/service-manifest guidance, documenting extracted ownership,
   import direction, neutral shared primitives, compatibility barrels, and the
@@ -429,6 +448,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **What changed:** Vinifera JWT helpers and all migration/test references now
+  use the application-owned `private` schema, migration 020 revokes the
+  correct text-argument function signature, local seed application is
+  idempotent, staff login/invite resolution reuses the response-owning
+  Supabase client, member portal relationship embeds name their brand-scoped
+  foreign keys, and daily portal-login analytics use canonical midnight UTC.
+  The BS-05 readiness ledger records partial local prerequisite evidence for
+  Gates 1, 7, and 15 while keeping all 20 composite activation gates `pending`.
+  Local fixture brands now use fixed IDs verified across independent clean
+  databases, local URL parsing rejects credentials and non-origin components,
+  shared local-config and PostgreSQL-bootstrap modules prevent verifier drift
+  across the local seed and Phase 3–5 database gates,
+  and single-result roster/import feedback uses the correct singular label.
+  **Why:** The native local stack and independent review exposed
+  managed-schema, replay, response-cookie, ambiguous relationship,
+  duplicate-idempotency, fixture-reproducibility, URL-boundary, readiness
+  semantics, and UI-copy defects that embedded or mocked checks did not.
+  **Deployment impact:** Local replay, Worker behavior, fixture identity,
+  loopback validation, and member-count copy are corrected, but no hosted
+  schema/provider state is changed. **Verification:** Native and embedded
+  22-migration seed replay, independent clean-database brand identity,
+  authenticated two-tenant Worker/Auth smoke, TypeScript, Vitest 436/436,
+  focused BS-05 tests 62/62, Playwright 145/145, real desktop/375px axe-core
+  with zero violations, 375px touch targets, and fail-closed shutdown cleanup.
 - BS-06 review follow-up clarifies that CODEOWNERS routes review but is not
   currently branch-protection enforced, expands the pull-request checklist to
   cover dependency, database, and package gates, pins the tenancy audit to its

@@ -20,6 +20,7 @@ import {
   encodeLoyaltyLedgerCursor,
   normalizeCancelFlowAnalyticsSnapshot,
   portalLoginIdempotencyKey,
+  portalLoginOccurredAt,
   recordEmailProviderEvent,
   renderTransactionalEmail,
   resolveBrandSenderIdentity,
@@ -834,6 +835,9 @@ describe("Phase 3 explainable retention rules", () => {
         new Date("2026-07-27T00:00:00.000Z"),
       ),
     ).toBe(`activity:portal_login:${memberId}:2026-07-27`);
+    expect(
+      portalLoginOccurredAt(new Date("2026-07-27T23:59:59.999Z")).toISOString(),
+    ).toBe("2026-07-27T00:00:00.000Z");
   });
 
   it("applies exact loyalty tier multipliers", () => {
