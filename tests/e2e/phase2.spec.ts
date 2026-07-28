@@ -623,6 +623,17 @@ test.describe("Phase 2 core club loop", () => {
     await expect(trigger).toBeFocused();
   });
 
+  test("release schedule cards identify participating club tiers", async ({
+    page,
+  }) => {
+    await page.goto("/app/releases");
+    const releaseCard = page
+      .getByRole("article")
+      .filter({ has: page.getByRole("heading", { name: "Fall 2026" }) });
+
+    await expect(releaseCard).toContainText("Club tiers: Founders Circle");
+  });
+
   test("staff can create a tier, member, and scheduled release", async ({ page }) => {
     await page.goto("/app/tiers");
     await page.getByRole("button", { name: "Create Tier" }).click();

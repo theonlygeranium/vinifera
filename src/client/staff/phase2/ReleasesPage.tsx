@@ -415,6 +415,11 @@ export function ReleasesPage() {
                 <p>{release.description || "No release description."}</p>
                 <ul className="release-card__meta">
                   <li>
+                    <CheckCircle2 aria-hidden="true" />
+                    Club tiers:{" "}
+                    {release.tiers.map((tier) => tier.name).join(", ")}
+                  </li>
+                  <li>
                     <Wine aria-hidden="true" />
                     {release.wines.reduce((sum, wine) => sum + wine.quantity, 0)}{" "}
                     bottles
