@@ -92,7 +92,10 @@ argument or with a newly generated value on each retry.
 **Enforces:** Every service function that queries the database must constrain
 the operation by `brand_id` or `organization_id`. The PR gate re-evaluates
 query chains touched by additions or deletions and requires the predicate on
-the same individual chain as the selected or mutated operation.
+the same individual chain as the selected or mutated operation. It also tracks
+removed tenant predicates directly, including predicates applied through a
+later query-variable assignment; only a nearby added predicate can replace a
+removed one.
 
 **Why it matters:** The server uses privileged database credentials in some
 paths, so explicit service-layer scoping is required as defense in depth for

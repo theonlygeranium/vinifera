@@ -340,6 +340,163 @@ describe("Octopus runbook bridge", () => {
     }
   });
 
+  it("rejects a tenant predicate deleted from a later query assignment", () => {
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const embeddedChecker = qualityRunbook.match(
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+    )?.[1];
+    expect(embeddedChecker).toBeTruthy();
+    const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+    const checker = embeddedChecker
+      .split("\n")
+      .map((line) => line.slice(Math.min(indentation, line.length)))
+      .join("\n");
+
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-builder-"));
+    try {
+      const serviceDirectory = join(fixture, "server", "services");
+      const commitDiffDirectory = join(fixture, "commit-diffs");
+      mkdirSync(serviceDirectory, { recursive: true });
+      mkdirSync(commitDiffDirectory);
+      writeFileSync(
+        join(serviceDirectory, "members.ts"),
+        [
+          "export async function unsafe(admin) {",
+          '  let query = admin.from("members").select("*");',
+          "  const one = 1;",
+          "  const two = 2;",
+          "  const three = 3;",
+          "  const four = 4;",
+          "  return { query, one, two, three, four };",
+          "}",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "--- a/server/services/members.ts",
+          "+++ b/server/services/members.ts",
+          "@@ -1,9 +1,8 @@",
+          " export async function unsafe(admin) {",
+          '   let query = admin.from("members").select("*");',
+          "   const one = 1;",
+          "   const two = 2;",
+          "   const three = 3;",
+          "   const four = 4;",
+          '-  query = query.eq("brand_id", brandId);',
+          "   return { query, one, two, three, four };",
+          " }",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "--- a/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "@@ -1 +1,2 @@",
+          "+security regression fixture",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(commitDiffDirectory, "fixture.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync(
+        "python3",
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain(
+        "FAIL Rule 8: server/services/members.ts:7",
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("does not split a scoped query at a nested Array.from call", () => {
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const embeddedChecker = qualityRunbook.match(
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+    )?.[1];
+    expect(embeddedChecker).toBeTruthy();
+    const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+    const checker = embeddedChecker
+      .split("\n")
+      .map((line) => line.slice(Math.min(indentation, line.length)))
+      .join("\n");
+
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-array-"));
+    try {
+      const serviceDirectory = join(fixture, "server", "services");
+      const commitDiffDirectory = join(fixture, "commit-diffs");
+      mkdirSync(serviceDirectory, { recursive: true });
+      mkdirSync(commitDiffDirectory);
+      writeFileSync(
+        join(serviceDirectory, "members.ts"),
+        [
+          "export async function safe(admin, brandId, ids) {",
+          '  return admin.from("members").update({ ids: Array.from(ids) }).eq("brand_id", brandId);',
+          "}",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "new file mode 100644",
+          "--- /dev/null",
+          "+++ b/server/services/members.ts",
+          "@@ -0,0 +1,3 @@",
+          "+export async function safe(admin, brandId, ids) {",
+          '+  return admin.from("members").update({ ids: Array.from(ids) }).eq("brand_id", brandId);',
+          "+}",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "--- a/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "@@ -1 +1,2 @@",
+          "+security regression fixture",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(commitDiffDirectory, "fixture.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync(
+        "python3",
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
   it("requires a changelog update in every commit", () => {
     const qualityRunbook = readFileSync(
       new URL(
