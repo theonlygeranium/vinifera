@@ -110,7 +110,7 @@ No email body, token, callback code, or cookie value belongs in the evidence.
 After the database gate passes:
 
 1. Enable `STAGING_CLOUDFLARE_DEPLOY_ENABLED`.
-2. Dispatch the staging workflow from the verified `main` commit.
+2. Dispatch the staging workflow from the verified `staging` commit.
 3. Require the deployment to target only `vinifera-staging` on `workers.dev`.
 4. Verify `/api/health` returns JSON with service `vinifera-api`.
 5. Verify `/api/health/configuration` reports the Phase 1 database and Auth
@@ -127,11 +127,11 @@ Use a Stripe test secret only. Keep `LIVE_BILLING_ENABLED=false` or unset.
 
 ### 5.1 Probe and authorize the test account
 
-Dispatch `Stripe test catalog activation` from the exact `main` commit:
+Dispatch `Stripe test catalog activation` from the exact `staging` commit:
 
 ```text
 operation: probe
-git_sha: <full main SHA>
+git_sha: <full staging SHA>
 confirmation: PROBE VINIFERA STRIPE TEST ACCOUNT
 ```
 

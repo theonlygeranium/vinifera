@@ -3,6 +3,12 @@
 ## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
 
 ### Fixed
+- `.github/workflows/ci.yml`,
+  `.github/workflows/stripe-test-catalog.yml`, and hosted activation
+  documentation: Aligned staging mutations and Stripe test-catalog operations
+  with the three-tier promotion model. Staging now runs from the immutable
+  `staging` head instead of `main`, while production controls remain
+  `main`-bound.
 - `.github/workflows/octopus-pr-quality-gates.yml`: Routed Octopus PR quality
   gates to the `dev`, `staging`, and `main` PR bases and added
   `ready_for_review` activity. The prior `main`-only filter prevented
@@ -30,9 +36,11 @@
   one-time bootstrap exception for this workflow correction.
 
 ### Deployment impact
-- No application, routing, database, provider, Pages, or Worker behavior
-  changes. Future and re-triggered PRs to `dev` invoke the self-hosted Octopus
-  `PR Quality Gates` runbook.
+- No application, routing, database, provider, Pages, or Worker resource is
+  changed by this commit. Future and re-triggered PRs to `dev` invoke the
+  self-hosted Octopus `PR Quality Gates` runbook. After the matching GitHub
+  environment branch-policy update, pushes and explicit activation workflows
+  on `staging` are authorized to use staging-only credentials.
 
 ### Verification
 - Validate workflow syntax, run the repository docs-only CI lane, confirm
@@ -41,6 +49,9 @@
   runs before merge.
 - Run the focused Octopus bridge tests and confirm the hosted workflow waits
   for the self-hosted runbook result.
+- Promote an immutable `dev` head to `staging`, verify the quality workflow
+  triggers on the resulting `staging` push, and confirm the read-only readiness
+  and Stripe test-catalog workflows reject non-`staging` refs.
 
 ## [Unreleased] — 2026-07-28 (UI Testing Spec Formatting Fix)
 

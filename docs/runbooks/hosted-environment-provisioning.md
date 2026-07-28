@@ -17,6 +17,12 @@ Three GitHub environments separate authority:
 Configure required reviewers and prevent self-review where the GitHub plan
 supports it. Do not place production credentials in `staging`.
 
+Restrict the `staging` environment to the `staging` branch. Staging
+migrations, Worker deployment, readiness probes, and Stripe test-catalog
+operations must run from the immutable head of that branch after the
+human-controlled `dev` to `staging` promotion. Keep `production` and
+`mobile-release` restricted to `main`.
+
 Generic repository secrets are deliberately limited to
 `.github/workflows/hosted-readiness.yml`, which performs GET-only provider
 checks and emits a credential-free report. Mutating workflows do not fall back

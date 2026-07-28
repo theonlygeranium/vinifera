@@ -3,7 +3,7 @@ name: Quality and staging deployment
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [staging]
   workflow_dispatch:
 
 concurrency:
