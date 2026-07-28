@@ -149,11 +149,14 @@ test.describe("Phase 1 public authentication surfaces", () => {
   test("marketing free-trial calls to action open staff signup", async ({
     page,
   }) => {
-    await page.route("**/api/health", (route) =>
+    await page.route("**/api/health/configuration", (route) =>
       route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          data: { service: "vinifera-api", status: "ok" },
+          data: {
+            database: { configured: true, missing: [] },
+            email: { configured: true, missing: [] },
+          },
         }),
       }),
     );
@@ -171,10 +174,33 @@ test.describe("Phase 1 public authentication surfaces", () => {
   test("marketing free-trial calls to action stay on pricing without the Worker runtime", async ({
     page,
   }) => {
-    await page.route("**/api/health", (route) =>
+    await page.route("**/api/health/configuration", (route) =>
       route.fulfill({
         contentType: "text/html",
         body: "<!doctype html><title>Static Pages fallback</title>",
+      }),
+    );
+    await page.goto("/");
+    const freeTrialCallsToAction = page.locator("[data-signup-cta]");
+
+    await expect(freeTrialCallsToAction).toHaveCount(6);
+    for (const callToAction of await freeTrialCallsToAction.all()) {
+      await expect(callToAction).toHaveAttribute("href", "#pricing");
+    }
+  });
+
+  test("marketing free-trial calls to action stay on pricing when signup is not configured", async ({
+    page,
+  }) => {
+    await page.route("**/api/health/configuration", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            database: { configured: true, missing: [] },
+            email: { configured: false, missing: ["AUTH_EMAIL_ENABLED"] },
+          },
+        }),
       }),
     );
     await page.goto("/");

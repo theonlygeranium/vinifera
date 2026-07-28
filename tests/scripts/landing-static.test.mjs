@@ -25,14 +25,19 @@ describe("marketing landing page interaction targets", () => {
     expect(navButtonRule).toContain("display: inline-flex");
   });
 
-  test("trial links fail safely until the Worker health contract is proven", () => {
+  test("trial links fail safely until signup configuration is proven", () => {
     expect(landingPage.match(/<a\b[^>]*data-signup-cta/g)).toHaveLength(6);
     expect(landingPage.match(/href="#pricing" data-signup-cta/g)).toHaveLength(6);
     expect(landingPage).toContain('<script src="/marketing.js"></script>');
     expect(marketingScript).toContain(
-      'payload?.data?.service !== "vinifera-api"',
+      'fetch("/api/health/configuration"',
     );
-    expect(marketingScript).toContain('payload?.data?.status !== "ok"');
+    expect(marketingScript).toContain(
+      "payload?.data?.database?.configured !== true",
+    );
+    expect(marketingScript).toContain(
+      "payload?.data?.email?.configured !== true",
+    );
     expect(marketingScript).toContain(
       'anchor.setAttribute("href", "/app/signup")',
     );

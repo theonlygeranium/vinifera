@@ -13,10 +13,10 @@ document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
 });
 
 // Static Pages keeps trial CTAs on pricing because /app/* is its rollback
-// prototype. Promote them only when this origin proves the Worker is active.
+// prototype. Promote them only when this origin proves signup is configured.
 (async function enableRuntimeSignupCtas() {
   try {
-    const response = await fetch("/api/health", {
+    const response = await fetch("/api/health/configuration", {
       credentials: "same-origin",
       headers: { Accept: "application/json" },
     });
@@ -28,8 +28,8 @@ document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
     }
     const payload = await response.json();
     if (
-      payload?.data?.service !== "vinifera-api" ||
-      payload?.data?.status !== "ok"
+      payload?.data?.database?.configured !== true ||
+      payload?.data?.email?.configured !== true
     ) {
       return;
     }

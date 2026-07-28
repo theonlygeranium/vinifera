@@ -64,6 +64,11 @@
 - `public/marketing.js` and `tests/e2e/phase1.spec.ts`: Closing the marketing
   mobile menu with Escape now restores focus from a hidden menu link to the
   hamburger control, with a 375px keyboard regression test.
+- `public/marketing.js`, `tests/e2e/phase1.spec.ts`, and
+  `tests/scripts/landing-static.test.mjs`: Marketing trial CTAs now require
+  both database and authentication-email readiness from the Worker
+  configuration report before linking to staff signup; generic API health or a
+  partially configured runtime retains the safe pricing fallback.
 
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is
