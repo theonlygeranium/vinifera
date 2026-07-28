@@ -1,7 +1,7 @@
 # Vinifera UI Testing Specification
-**Version:** 1.0 | **Repo:** `theonlygeranium/vinifera` | **Branch target:** `dev`  
-**Owner:** EdStratum Labs / `founder@edstratumlabs.ai`  
-**Baseline:** v0.5.0 — BS-01 through BS-06 merged, 448 Vitest + 145 Playwright/axe passing  
+**Version:** 1.0 | **Repo:** `theonlygeranium/vinifera` | **Branch target:** `dev`
+**Owner:** EdStratum Labs / `founder@edstratumlabs.ai`
+**Baseline:** v0.5.0 — BS-01 through BS-06 merged, 448 Vitest + 145 Playwright/axe passing
 **Last updated:** 2026-07-28
 
 ---
@@ -783,9 +783,9 @@ npm run check           # TypeScript + 448 Vitest must pass
 # 5. Update CHANGELOG.md under [Unreleased]
 # 6. Commit with correct conventional commit format:
 #    fix(ui): <short description>
-#    
+#
 #    <what changed and why>
-#    
+#
 #    Verification: npm run check; 448/448 Vitest; 145/145 Playwright/axe
 # 7. Open PR targeting dev
 ```
