@@ -32,6 +32,11 @@
 5. **Update CHANGELOG.md on every commit.** No exceptions.
 6. **Preserve WCAG compliance.** All pages must pass axe-core with 0 WCAG 2.1 AA violations. Run the QA test suite before pushing.
 7. **Test on mobile.** Every visual change must be verified at 375px viewport width. Touch targets must meet 44×44px (WCAG 2.5.5).
+8. **Own every PR through completion.** Opening a PR is not completion. Use an
+   available wait or monitoring mechanism until required CI and Greptile pass
+   and zero unresolved review threads remain; disposition every finding,
+   retest and re-review after each push, and merge only with explicit
+   authorization. Follow the complete loop in `docs/agent-workflow.md`.
 
 ---
 
@@ -154,7 +159,9 @@ All pages must pass axe-core with 0 violations. The QA test suite is at `/worksp
 
 ## 7. Git Workflow
 
-- All production work on `main`. Experimental changes: `feature/<description>` branch.
+- Every change must use a scoped branch and pull request targeting `main`.
+- Never commit or push directly to `main`.
+- Use the branch prefixes documented in `docs/agent-workflow.md`.
 - Never force-push to `main` without explicit human authorization.
 - Before committing: CHANGELOG updated, no secrets in source.
 

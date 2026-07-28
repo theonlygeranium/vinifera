@@ -6,12 +6,18 @@ This file contains the exact prompts to give Codex agents for the **Vinifera Str
 
 ## Before You Start
 
-Read these three files in full before dispatching any agent:
+Read these four files in full before dispatching any agent:
 
 1. `AGENTS.md` — prime directives and file ownership
 2. `CONTINUITY_BRIEF.md` — current state, activation gates, what is and is not live
 3. `docs/build-specs/CODEX-DISPATCH-GUIDE.md` — full wave structure, merge order, and risk notes
 4. `docs/agent-workflow.md` — branching rules and Greptile workflow
+
+Every dispatched prompt inherits the mandatory PR ownership and completion loop
+in `docs/agent-workflow.md`. Opening a PR is not completion. These sprint
+prompts grant no merge authority: after all required checks pass and zero
+unresolved review threads remain, leave the PR ready and report its status
+unless a human task instruction or authorized label explicitly permits merge.
 
 ---
 
@@ -55,7 +61,10 @@ Branch: chore/bs-01-greptile-hygiene
 PR target: main
 PR title: chore: BS-01 — Greptile config upgrade and repo hygiene
 
-Do NOT merge the PR. Leave it open for Greptile review and CI. Do not touch AGENTS.md.
+Follow docs/agent-workflow.md through all required checks and zero unresolved
+review threads. This prompt grants no merge authority; leave the PR ready and
+report its final status. Do not touch AGENTS.md without separate explicit
+human authorization.
 ```
 
 ---
@@ -88,7 +97,9 @@ Branch: refactor/bs-02-route-decomposition
 PR target: main
 PR title: refactor: BS-02 — decompose server/app.ts into domain-scoped route files
 
-Do NOT merge the PR. Leave it open for Greptile review and CI.
+Follow docs/agent-workflow.md through all required checks and zero unresolved
+review threads. This prompt grants no merge authority; leave the PR ready and
+report its final status.
 ```
 
 ---
@@ -121,8 +132,9 @@ Branch: refactor/bs-03-service-decomposition
 PR target: main
 PR title: refactor: BS-03 — decompose monolithic service files into domain modules
 
-Do NOT merge the PR. Leave it open for Greptile review and CI. This PR must not merge
-until BS-02 is merged first per the dispatch guide merge order.
+Follow docs/agent-workflow.md through all required checks and zero unresolved
+review threads. This prompt grants no merge authority; leave the PR ready and
+report its final status. BS-02 must merge first per the dispatch guide.
 ```
 
 ---
@@ -150,7 +162,9 @@ Branch: feat/bs-04-observability-rate-limiting
 PR target: main
 PR title: feat: BS-04 — add observability integration and API rate limiting
 
-Do NOT merge the PR. Leave it open for Greptile review and CI.
+Follow docs/agent-workflow.md through all required checks and zero unresolved
+review threads. This prompt grants no merge authority; leave the PR ready and
+report its final status.
 ```
 
 ---
@@ -179,7 +193,9 @@ Branch: feat/bs-05-local-dev-ui-readiness
 PR target: main
 PR title: feat: BS-05 — local dev environment and platform UI testability
 
-Do NOT merge the PR. Leave it open for Greptile review and CI.
+Follow docs/agent-workflow.md through all required checks and zero unresolved
+review threads. This prompt grants no merge authority; leave the PR ready and
+report its final status.
 ```
 
 ---
@@ -207,7 +223,9 @@ Branch: docs/bs-06-docs-hardening-tenancy
 PR target: main
 PR title: docs: BS-06 — hardening documentation, tenancy audit, and QA report
 
-Do NOT merge the PR. Leave it open for Greptile review and CI.
+Follow docs/agent-workflow.md through all required checks and zero unresolved
+review threads. This prompt grants no merge authority; leave the PR ready and
+report its final status.
 ```
 
 ---
@@ -215,6 +233,7 @@ Do NOT merge the PR. Leave it open for Greptile review and CI.
 ## Notes
 
 - Every agent must update `CHANGELOG.md` in their commit per repo convention.
-- No agent may modify `AGENTS.md` — it is human-owner-only (`founder@edstratumlabs.ai`).
+- `AGENTS.md` is human-owner-only and may be modified only with explicit,
+  task-specific authorization.
 - Greptile will review every PR. Use 👍 when Greptile correctly identifies missing `brand_id` scoping. Use 👎 when Greptile incorrectly suggests switching to Bearer headers for web routes or removing activation guards.
 - The dispatch guide (`docs/build-specs/CODEX-DISPATCH-GUIDE.md`) contains full context, risk notes, and the complete merge order. Send it as reference context alongside this prompt when dispatching agents.

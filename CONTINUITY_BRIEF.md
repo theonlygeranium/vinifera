@@ -148,6 +148,15 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- Owner-authorized PR governance now makes PR ownership a terminal agent
+  condition: the implementation agent monitors Greptile, required CI, and
+  every review thread until the PR is ready or explicitly blocked. GitHub
+  requires current branches, the three protected checks, and resolved
+  conversations; five precedence-ordered labels scope a 15-minute Codex safety
+  monitor's ability to watch, apply low-risk fixes, escalate, or merge. The
+  monitor cannot self-grant fix or merge authority, and sensitive changes
+  require human review. This changes repository process only, not runtime or
+  activation state.
 - The repository README now displays the CodeRabbit pull-request review badge,
   making automated review coverage visible without changing application,
   deployment, provider, or activation behavior.
