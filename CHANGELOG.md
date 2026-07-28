@@ -12,21 +12,37 @@
   with the previously merged mobile select sizing, portal status, manager role
   gate, and branded document-title assertions. The direct resolution had
   silently replaced those tests rather than resolving them together.
+- `.github/workflows/promote-dev-to-staging.yml`: Open the promotion PR before
+  provider probes, use an event-producing token so pull-request CI and Octopus
+  actually run and so the merged staging push invokes deployment workflows,
+  exclude the promotion run from its own exact-SHA polling, require aggregate
+  CI, Octopus, CodeRabbit, the latest registered statuses, and zero unresolved
+  threads, and fail unless GitHub confirms an exact-head merge. This removes
+  the original self-deadlock, missing-label failure, suppressed staging event,
+  and false-success merge path.
+- `tests/scripts/promote-dev-to-staging.test.mjs`: Added source-contract coverage
+  for PR ordering, event triggering, self-run exclusion, review gates,
+  credential documentation, and exact-head merge confirmation.
+
 ### Changed
-- **Governance amendment (Options 1+2+4):** `dev → staging` promotion is now
-  automated via `promote-dev-to-staging.yml`. The workflow fires on every push
-  to `dev`, runs a double Schubert health probe (pre-flight + pre-merge), waits
-  for all CI checks to pass, then squash-merges. All gate failures leave the PR
-  open for human inspection.
+- **Governance amendment (Options 1+2+4):** `dev → staging` promotion is
+  automated via `promote-dev-to-staging.yml`. The workflow opens or updates a
+  promotion PR, probes authenticated staging Supabase REST availability twice,
+  waits for exact-head CI and review gates, then squash-merges. All post-PR gate
+  failures leave the PR open for inspection.
 - `staging → main` promotion remains exclusively human-initiated.
-- `AGENTS.md` Sections 7 and 9 updated to reflect amended promotion rules.
-- New ADR: `docs/decisions/2026-07-28-automated-dev-staging-promotion.md`.
+- `AGENTS.md`, `docs/agent-workflow.md`, and the promotion ADR now describe the
+  implemented order, exact gates, token-trigger requirement, and the current
+  missing staging-probe credentials instead of claiming they are installed.
 
 **Deployment impact:** The landing page again routes trial traffic to signup.
 No provider, branch, Pages project, or production environment is mutated by
-this commit. **Verification:** Run `npm run check`,
+the UI repair commit. The promotion workflow remains intentionally fail-closed
+until an isolated staging Supabase target exists and its URL/anon-key secrets
+are installed. **Verification:** Run `npm run check`,
 `npx playwright test tests/e2e/phase1.spec.ts tests/e2e/phase5.spec.ts`, and
-`git diff --check`.
+`git diff --check`; validate the workflow with `actionlint`; then require fresh
+PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
 
 ## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
 

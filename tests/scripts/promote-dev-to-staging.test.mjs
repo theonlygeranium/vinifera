@@ -1,0 +1,56 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+const workflow = readFileSync(
+  new URL("../../.github/workflows/promote-dev-to-staging.yml", import.meta.url),
+  "utf8",
+);
+const adr = readFileSync(
+  new URL(
+    "../../docs/decisions/2026-07-28-automated-dev-staging-promotion.md",
+    import.meta.url,
+  ),
+  "utf8",
+);
+
+describe("dev to staging promotion contract", () => {
+  it("opens an event-producing PR before any provider gate", () => {
+    expect(
+      workflow.match(
+        /GH_TOKEN: \$\{\{ secrets\.GH_PAT_FOR_OCTOPUS \}\}/g,
+      ),
+    ).toHaveLength(2);
+    expect(workflow).toMatch(
+      /staging-rest-pre:[\s\S]*?needs: open-pr[\s\S]*?STAGING_SUPABASE_URL/,
+    );
+    expect(workflow).not.toContain('--label "automated-promotion"');
+  });
+
+  it("cannot deadlock while waiting on its own push workflow", () => {
+    expect(workflow).toContain("CURRENT_RUN_ID: ${{ github.run_id }}");
+    expect(workflow).toContain('contains($run_url)) | not');
+  });
+
+  it("requires exact-head CI, automated review, and resolved threads", () => {
+    expect(workflow).toContain('"Type, test, build, and package"');
+    expect(workflow).toContain('"Run PR Quality Gates"');
+    expect(workflow).toContain('.context == "CodeRabbit"');
+    expect(workflow).toContain("reviewThreads(first:100)");
+    expect(workflow).toContain("pageInfo{hasNextPage}");
+    expect(workflow).toContain("group_by(.name)");
+    expect(workflow).toContain("group_by(.context)");
+    expect(workflow).toContain("current_sha");
+    expect(workflow).toContain('[[ "$current_sha" != "$PR_SHA" ]]');
+  });
+
+  it("fails unless GitHub confirms an exact-head merge", () => {
+    expect(workflow).toContain('--match-head-commit "$PR_SHA"');
+    expect(workflow).toContain('[[ "$state" != "MERGED"');
+    expect(workflow).not.toMatch(/gh pr merge[\s\S]{0,500}\|\s*grep/);
+  });
+
+  it("documents the currently unconfigured staging probe credentials", () => {
+    expect(adr).toContain("they are not configured");
+    expect(adr).not.toContain("These are already present");
+  });
+});

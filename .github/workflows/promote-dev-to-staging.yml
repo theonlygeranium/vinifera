@@ -1,36 +1,5 @@
 name: Promote dev to staging
 
-# ─── Governance: Options 1 + 2 + 4 (Amendment 2026-07-28) ────────────────────
-#
-# This workflow implements the three governance amendments approved by the
-# human owner on 2026-07-28:
-#
-#   Option 1 — Agent opens the dev→staging PR (was: human-only).
-#   Option 2 — Agent auto-merges dev→staging when all gates pass, with
-#               double Schubert health-check guardrails to fail closed on
-#               infrastructure degradation.
-#   Option 4 — staging→main gate remains exclusively human-initiated.
-#               This workflow touches staging only.
-#
-# GUARDRAILS against silent breaking (Option 2 mitigations):
-#   1. Gate 1  — Schubert health probe via Supabase REST API (avoids Bot
-#                Fight Mode by authenticating through the Kong gateway with
-#                the staging service-role key). Fails closed on non-2xx.
-#   2. Gate 2  — Wait for all CI checks on the promotion PR to complete.
-#                Any failing check aborts the merge and leaves the PR open
-#                for human inspection.
-#   3. Gate 3  — Second Schubert health re-check immediately before the
-#                merge commit. Guards against the race where Schubert
-#                degrades between Gate 1 and merge.
-#   4. Fail-open PR — on any gate failure the PR is left open (not closed),
-#                so the human owner can inspect and merge or discard manually.
-#   5. Concurrency lock — only one run of this workflow at a time. A slower
-#                queued run is cancelled; a replace-in-progress run takes over.
-#   6. Explicit merge strategy — uses squash merge to keep staging history
-#                clean and traceable.
-#
-# ─────────────────────────────────────────────────────────────────────────────
-
 on:
   push:
     branches:
@@ -38,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run — open PR but do not merge'
+        description: "Dry run — open PR and evaluate gates without merging"
         required: false
-        default: 'false'
+        default: "false"
         type: choice
-        options: ['false', 'true']
+        options: ["false", "true"]
 
 concurrency:
   group: vinifera-promote-dev-to-staging
@@ -53,65 +22,19 @@ permissions:
   pull-requests: write
 
 env:
-  PR_TITLE: 'chore(release): promote dev → staging'
+  PR_TITLE: "chore(release): promote dev → staging"
   PR_BODY: |
     **Automated promotion:** dev → staging
 
-    This PR was opened automatically by `promote-dev-to-staging.yml` after a
-    push to `dev`. All CI checks and Schubert health probes passed at the time
-    of merge. Review the commit log below before promoting further to `main`.
+    This PR was opened automatically after a push to `dev`. Automation will
+    merge it only if the staging Supabase REST probes, required CI and review
+    checks, and unresolved-thread gate all pass for the captured head commit.
 
     > **staging → main** is a human-only gate and is never automated.
 
 jobs:
-  # ─── Gate 1: Schubert health probe ─────────────────────────────────────────
-  schubert-health-pre:
-    name: Schubert pre-flight health probe
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      healthy: ${{ steps.probe.outputs.healthy }}
-
-    steps:
-      - name: Probe staging Supabase REST API via Kong
-        id: probe
-        env:
-          STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
-          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${STAGING_SUPABASE_URL:-}" || -z "${STAGING_SUPABASE_ANON_KEY:-}" ]]; then
-            echo "::error::STAGING_SUPABASE_URL or STAGING_SUPABASE_ANON_KEY secret is not configured."
-            echo "healthy=false" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-
-          http_code=$(curl -sf -o /dev/null -w "%{http_code}" \
-            --max-time 15 \
-            --retry 3 \
-            --retry-delay 5 \
-            -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
-            -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
-            "${STAGING_SUPABASE_URL}/rest/v1/" || echo "000")
-
-          echo "Schubert REST probe HTTP status: $http_code"
-
-          if [[ "$http_code" =~ ^2 ]]; then
-            echo "healthy=true" >> "$GITHUB_OUTPUT"
-            echo "✅ Schubert is healthy (HTTP $http_code)"
-            echo "### Schubert pre-flight: ✅ healthy (HTTP $http_code)" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "healthy=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Schubert health probe failed (HTTP $http_code). Promotion aborted — PR left open for human inspection."
-            echo "### Schubert pre-flight: ❌ FAILED (HTTP $http_code) — promotion aborted" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-
-  # ─── Open or update the promotion PR ────────────────────────────────────────
   open-pr:
     name: Open or update dev→staging PR
-    needs: schubert-health-pre
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -119,17 +42,21 @@ jobs:
       pr_sha: ${{ steps.upsert.outputs.pr_sha }}
 
     steps:
-      - name: Upsert promotion PR
+      - name: Upsert promotion PR using an event-producing token
         id: upsert
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           REPO: ${{ github.repository }}
           PR_TITLE: ${{ env.PR_TITLE }}
           PR_BODY: ${{ env.PR_BODY }}
         run: |
           set -euo pipefail
 
-          # Look for an existing open PR dev→staging
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::GH_PAT_FOR_OCTOPUS is required to open the PR and trigger pull_request CI."
+            exit 1
+          fi
+
           existing=$(gh pr list \
             --repo "$REPO" \
             --head dev \
@@ -140,101 +67,176 @@ jobs:
 
           if [[ -n "$existing" ]]; then
             echo "Existing promotion PR #$existing found — updating body."
-            gh pr edit "$existing" \
-              --repo "$REPO" \
-              --body "$PR_BODY"
+            gh pr edit "$existing" --repo "$REPO" --body "$PR_BODY"
             pr_number="$existing"
           else
-            pr_number=$(gh pr create \
+            pr_url=$(gh pr create \
               --repo "$REPO" \
               --head dev \
               --base staging \
               --title "$PR_TITLE" \
               --body "$PR_BODY" \
-              --label "automated-promotion" \
-              --no-maintainer-edit \
-              | grep -Eo '[0-9]+$')
+              --no-maintainer-edit)
+            pr_number="${pr_url##*/}"
+            if [[ ! "$pr_number" =~ ^[0-9]+$ ]]; then
+              echo "::error::Could not resolve the created promotion PR number."
+              exit 1
+            fi
             echo "Opened new promotion PR #$pr_number"
           fi
 
-          # Capture the head SHA of dev at this moment
           pr_sha=$(gh pr view "$pr_number" \
             --repo "$REPO" \
             --json headRefOid \
             --jq '.headRefOid')
+          if [[ ! "$pr_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Promotion PR head is not an exact commit SHA."
+            exit 1
+          fi
 
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
           echo "pr_sha=$pr_sha" >> "$GITHUB_OUTPUT"
           echo "### Promotion PR: #$pr_number (head: \`${pr_sha:0:12}\`)" >> "$GITHUB_STEP_SUMMARY"
 
-  # ─── Gate 2: Wait for PR CI checks ──────────────────────────────────────────
-  wait-for-ci:
-    name: Wait for promotion PR CI checks
+  staging-rest-pre:
+    name: Staging Supabase REST pre-flight
     needs: open-pr
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    outputs:
-      ci_passed: ${{ steps.poll.outputs.ci_passed }}
+    timeout-minutes: 5
 
     steps:
-      - name: Poll CI checks on promotion PR head SHA
-        id: poll
+      - name: Probe staging Supabase REST API
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR_SHA: ${{ needs.open-pr.outputs.pr_sha }}
+          STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
         run: |
           set -euo pipefail
 
-          echo "Polling CI for SHA ${PR_SHA:0:12}..."
+          if [[ -z "${STAGING_SUPABASE_URL:-}" || -z "${STAGING_SUPABASE_ANON_KEY:-}" ]]; then
+            echo "::error::STAGING_SUPABASE_URL and STAGING_SUPABASE_ANON_KEY must be configured."
+            exit 1
+          fi
 
-          deadline=$(( $(date +%s) + 1500 ))   # 25-minute hard cap
+          http_code=$(curl -sS -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            --retry 3 \
+            --retry-delay 5 \
+            -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
+            "${STAGING_SUPABASE_URL%/}/rest/v1/" || printf "000")
+
+          if [[ "$http_code" =~ ^2 ]]; then
+            echo "### Staging REST pre-flight: ✅ HTTP $http_code" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::Staging REST pre-flight failed (HTTP $http_code); PR remains open."
+            exit 1
+          fi
+
+  wait-for-gates:
+    name: Wait for promotion PR gates
+    needs: [open-pr, staging-rest-pre]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Poll exact-head CI, review status, and threads
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.open-pr.outputs.pr_number }}
+          PR_SHA: ${{ needs.open-pr.outputs.pr_sha }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          deadline=$(( $(date +%s) + 2400 ))
+          required_checks=(
+            "Type, test, build, and package"
+            "Run PR Quality Gates"
+          )
+
           while true; do
-            now=$(date +%s)
-            if (( now > deadline )); then
-              echo "::error::CI polling timed out after 25 minutes."
-              echo "ci_passed=false" >> "$GITHUB_OUTPUT"
+            if (( $(date +%s) > deadline )); then
+              echo "::error::Promotion gates timed out after 40 minutes."
               exit 1
             fi
 
-            checks=$(gh api \
-              "repos/$REPO/commits/$PR_SHA/check-runs" \
-              --jq '.check_runs')
-
-            total=$(echo "$checks" | jq length)
-            completed=$(echo "$checks" | jq '[.[] | select(.status == "completed")] | length')
-            failed=$(echo "$checks" | jq '[.[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral")] | length')
-
-            echo "  CI: $completed/$total checks complete, $failed failed"
-
-            if (( total == 0 )); then
-              echo "  No checks registered yet — waiting..."
-              sleep 20
-              continue
-            fi
-
-            if (( failed > 0 )); then
-              failed_names=$(echo "$checks" | jq -r '[.[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral") | .name] | join(", ")')
-              echo "::error::CI checks failed: $failed_names — promotion aborted."
-              echo "ci_passed=false" >> "$GITHUB_OUTPUT"
-              echo "### CI gate: ❌ FAILED — $failed_names" >> "$GITHUB_STEP_SUMMARY"
+            current_sha=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+              --json headRefOid --jq '.headRefOid')
+            if [[ "$current_sha" != "$PR_SHA" ]]; then
+              echo "::error::PR head changed from captured SHA $PR_SHA to $current_sha."
               exit 1
             fi
 
-            if (( completed == total )); then
-              echo "✅ All $total CI checks passed"
-              echo "ci_passed=true" >> "$GITHUB_OUTPUT"
-              echo "### CI gate: ✅ all $total checks passed" >> "$GITHUB_STEP_SUMMARY"
+            checks=$(gh api "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
+              --jq '.check_runs' \
+              | jq --arg run_url "/actions/runs/$CURRENT_RUN_ID/" \
+                '[.[] | select((.details_url // "" | contains($run_url)) | not)]
+                 | group_by(.name)
+                 | map(sort_by(.started_at // .created_at) | last)')
+            statuses=$(gh api "repos/$REPO/commits/$PR_SHA/status" --jq '.statuses' \
+              | jq 'group_by(.context) | map(sort_by(.created_at) | last)')
+            threads=$(gh api graphql \
+              -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved} pageInfo{hasNextPage}}}}}' \
+              -f owner="${REPO%%/*}" \
+              -f name="${REPO#*/}" \
+              -F number="$PR_NUMBER")
+            if [[ "$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$threads")" == "true" ]]; then
+              echo "::error::Review thread count exceeds the validated 100-thread page."
+              exit 1
+            fi
+            unresolved=$(jq \
+              '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length' \
+              <<<"$threads")
+
+            failed_checks=$(jq -r \
+              '[.[] | select(.status == "completed" and (.conclusion | IN("success","skipped","neutral") | not)) | .name] | join(", ")' \
+              <<<"$checks")
+            failed_statuses=$(jq -r \
+              '[.[] | select(.state | IN("failure","error")) | .context] | unique | join(", ")' \
+              <<<"$statuses")
+            if [[ -n "$failed_checks" || -n "$failed_statuses" ]]; then
+              echo "::error::Failed gates — checks: ${failed_checks:-none}; statuses: ${failed_statuses:-none}."
+              exit 1
+            fi
+
+            missing=()
+            pending=()
+            for required in "${required_checks[@]}"; do
+              count=$(jq --arg required "$required" '[.[] | select(.name == $required)] | length' <<<"$checks")
+              success=$(jq --arg required "$required" \
+                '[.[] | select(.name == $required and .status == "completed" and (.conclusion | IN("success","skipped","neutral")))] | length' \
+                <<<"$checks")
+              if (( count == 0 )); then
+                missing+=("$required")
+              elif (( success == 0 )); then
+                pending+=("$required")
+              fi
+            done
+
+            coderabbit=$(jq -r \
+              '[.[] | select(.context == "CodeRabbit")] | sort_by(.created_at) | last | .state // "missing"' \
+              <<<"$statuses")
+            other_pending=$(jq \
+              '[.[] | select(.status != "completed")] | length' <<<"$checks")
+            pending_statuses=$(jq \
+              '[.[] | select(.state == "pending")] | length' <<<"$statuses")
+
+            echo "Required missing=${#missing[@]} pending=${#pending[@]}; CodeRabbit=$coderabbit; other pending checks=$other_pending statuses=$pending_statuses; unresolved threads=$unresolved"
+
+            if (( ${#missing[@]} == 0 && ${#pending[@]} == 0 )) \
+              && [[ "$coderabbit" == "success" ]] \
+              && (( other_pending == 0 && pending_statuses == 0 && unresolved == 0 )); then
+              echo "### PR gates: ✅ exact-head CI, Octopus, CodeRabbit, and threads passed" >> "$GITHUB_STEP_SUMMARY"
               break
             fi
 
             sleep 20
           done
 
-  # ─── Gate 3: Schubert re-check immediately before merge ─────────────────────
-  schubert-health-pre-merge:
-    name: Schubert pre-merge health re-check
-    needs: [open-pr, wait-for-ci]
+  staging-rest-pre-merge:
+    name: Staging Supabase REST pre-merge re-check
+    needs: [open-pr, wait-for-gates]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -246,60 +248,62 @@ jobs:
         run: |
           set -euo pipefail
 
-          http_code=$(curl -sf -o /dev/null -w "%{http_code}" \
+          http_code=$(curl -sS -o /dev/null -w "%{http_code}" \
             --max-time 15 \
             --retry 2 \
             --retry-delay 5 \
             -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
-            "${STAGING_SUPABASE_URL}/rest/v1/" || echo "000")
-
-          echo "Schubert pre-merge re-check HTTP status: $http_code"
+            "${STAGING_SUPABASE_URL%/}/rest/v1/" || printf "000")
 
           if [[ "$http_code" =~ ^2 ]]; then
-            echo "✅ Schubert pre-merge re-check passed (HTTP $http_code)"
-            echo "### Schubert pre-merge re-check: ✅ healthy (HTTP $http_code)" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Staging REST pre-merge: ✅ HTTP $http_code" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::error::Schubert degraded before merge (HTTP $http_code). Promotion aborted — PR left open."
-            echo "### Schubert pre-merge re-check: ❌ FAILED (HTTP $http_code) — merge aborted" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Staging REST pre-merge probe failed (HTTP $http_code); PR remains open."
             exit 1
           fi
 
-  # ─── Merge ───────────────────────────────────────────────────────────────────
   merge:
     name: Squash-merge promotion PR
-    needs: [open-pr, wait-for-ci, schubert-health-pre-merge]
+    needs: [open-pr, wait-for-gates, staging-rest-pre-merge]
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Dry-run check
+      - name: Report dry run
         if: github.event.inputs.dry_run == 'true'
         run: |
-          echo "::notice::Dry run — skipping merge. PR #${{ needs.open-pr.outputs.pr_number }} is open for human inspection."
-          echo "### Dry run — merge skipped" >> "$GITHUB_STEP_SUMMARY"
-          exit 0
+          echo "::notice::Dry run — PR #${{ needs.open-pr.outputs.pr_number }} remains open."
+          echo "### Dry run: merge skipped" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Squash-merge dev→staging
+      - name: Squash-merge exact promotion head
         if: github.event.inputs.dry_run != 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ needs.open-pr.outputs.pr_number }}
           PR_SHA: ${{ needs.open-pr.outputs.pr_sha }}
         run: |
           set -euo pipefail
 
-          merge_sha=$(gh pr merge "$PR_NUMBER" \
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::GH_PAT_FOR_OCTOPUS is required so the staging push triggers its workflows."
+            exit 1
+          fi
+
+          gh pr merge "$PR_NUMBER" \
             --repo "$REPO" \
             --squash \
+            --match-head-commit "$PR_SHA" \
             --subject "chore(release): promote dev → staging" \
-            --body "Automated squash-merge via promote-dev-to-staging.yml. All gates passed. Head SHA: ${PR_SHA:0:12}." \
-            --delete-branch=false \
-            | grep -Eo '[0-9a-f]{40}' | head -1 || echo "")
+            --body "Automated exact-head promotion from dev at ${PR_SHA:0:12}."
 
-          echo "✅ Promotion PR #$PR_NUMBER merged"
-          echo "### Merge: ✅ PR #$PR_NUMBER squash-merged" >> "$GITHUB_STEP_SUMMARY"
-          echo "staging HEAD updated from dev @ \`${PR_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "> **staging → main** is a human-only gate. No further automated promotion will occur." >> "$GITHUB_STEP_SUMMARY"
+          state=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json state --jq '.state')
+          merge_sha=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json mergeCommit --jq '.mergeCommit.oid // ""')
+          if [[ "$state" != "MERGED" || ! "$merge_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::GitHub did not confirm a completed merge."
+            exit 1
+          fi
+
+          echo "### Merge: ✅ PR #$PR_NUMBER at \`${merge_sha:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "> **staging → main** remains a human-only gate." >> "$GITHUB_STEP_SUMMARY"
