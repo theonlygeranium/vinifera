@@ -8,6 +8,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **What changed:** Corrected `AGENTS.md` to use `.nvmrc` as the documented
+  Node version pin (`22.22.0`) and to retain `package.json`'s compatible
+  minimum (`>=22.12.0`). **Why:** The agent guide still named Node 20 even
+  though the repository pin, CI workflows, package engine, and README all use
+  Node 22. **Deployment impact:** Documentation and governance only; no
+  workflow, build, runtime, route, provider, hosted-data, or activation
+  behavior changes. **Verification:** Compare `AGENTS.md`, `.nvmrc`,
+  `package.json`, the README, and workflow Node settings; run
+  `npm audit --audit-level=moderate`, `npm run check`, `npm run qa:e2e`, and
+  `git diff --check`.
+
+
+### Added
+
+- **What changed:** Rewrote `AGENTS.md` to correct stale workflow names
+  (`hosted-readiness.yml`, `production-worker-release.yml`,
+  `stripe-test-catalog.yml`, `stripe-live-billing-cutover.yml`,
+  `credential-envelope-rotation.yml`, `mobile-release.yml`,
+  `direct-push-guard.yml`, `ci.yml`), updated verified test counts to
+  448 Vitest / 250 / 199 / 158 / 513 DB / 145 Playwright-axe, added explicit
+  `dev:frontend` documentation, corrected Sentry description to
+  "integrated, secret-gated," and added Section 9 (Agent Collaboration
+  Architecture) and Section 10 (Contact and Authorization). Introduced ADR
+  `docs/decisions/2026-07-28-agents-md-governance-update.md` recording the
+  ownership policy update from "Human owner only" to "Any agent via PR —
+  human owner must review and merge." Updated `CODEX-PROMPT.md` to v0.5.0,
+  corrected gate order (Auth = Gate 3, Stripe reconciliation = Gate 4 per
+  `CONTINUITY_BRIEF.md`), and fixed the pre-activation audit prompt to
+  clarify that the audit produces a report document and does not modify
+  application source. Updated `README.md` Production Build badge to v0.5.0
+  and Phase 2 quality row to 250 database assertions. **Why:** Eleven
+  unresolved review threads from Greptile (P1: wrong workflow names, missing
+  CHANGELOG, gate order, test counts) and CodeRabbit (Major: version
+  inconsistency, assertion count, prompt contradiction; Minor: Sentry wording,
+  dev command clarity) blocked merge of PR #21 under the zero-unresolved-thread
+  requirement. **Deployment impact:** Documentation and governance only;
+  application code, build output, routes, provider activation, hosted data, and
+  all 20 activation gates are unchanged. **Verification:** Review corrected
+  workflow names against `.github/workflows/` directory, verify gate order
+  against `CONTINUITY_BRIEF.md` activation gates 3 and 4, run
+  `npm run check` to confirm 448 Vitest and 145 Playwright/axe counts,
+  inspect ADR and updated ownership table in `AGENTS.md`.
+
+
 ### Added
 
 - **What changed:** Established mandatory end-to-end PR ownership for agents,
@@ -32,19 +78,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   routes, provider activation, and the live Pages baseline are unchanged.
   **Verification:** Render the README badge URL, confirm the badge targets
   `theonlygeranium/vinifera`, run `npm run check`, `npm run qa:e2e`, and
-  `git diff --check`.
-
-### Changed
-
-- **What changed:** Corrected `AGENTS.md` to use `.nvmrc` as the documented
-  Node version pin (`22.22.0`) and to retain `package.json`'s compatible
-  minimum (`>=22.12.0`). **Why:** The agent guide still named Node 20 even
-  though the repository pin, CI workflows, package engine, and README all use
-  Node 22. **Deployment impact:** Documentation and governance only; no
-  workflow, build, runtime, route, provider, hosted-data, or activation
-  behavior changes. **Verification:** Compare `AGENTS.md`, `.nvmrc`,
-  `package.json`, the README, and workflow Node settings; run
-  `npm audit --audit-level=moderate`, `npm run check`, `npm run qa:e2e`, and
   `git diff --check`.
 
 ### Fixed
