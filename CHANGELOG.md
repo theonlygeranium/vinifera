@@ -400,6 +400,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   routing, and headers are unchanged. **Verification:** Run the focused Phase
   4 churn-intelligence test, `npm run check`, `npm run qa:e2e`, and inspect the
   metric at 1440px and 375px in Jeff - Pro Chrome.
+
+- **What changed:** Restricted brand creation and editing controls to Owner and
+  Admin sessions while preserving read access and brand switching for Manager
+  and Staff roles, with a Phase 5 manager regression. **Why:** Managers could
+  discover and open `Add brand`, `Create brand`, and `Edit` mutation controls
+  even though brand administration is owner/admin-only. **Deployment impact:**
+  Staff brand-management presentation only; server authorization, brand data,
+  billing, providers, routing, and headers are unchanged. **Verification:** Run
+  the focused manager role-gating test, `npm run check`, `npm run qa:e2e`, and
+  inspect Owner and Manager sessions at 1440px and 375px in Jeff - Pro Chrome.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,
