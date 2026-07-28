@@ -199,6 +199,9 @@ export function StaffShell({
 
   return (
     <div className="staff-app">
+      <a className="skip-link" href="#main">
+        Skip to main content
+      </a>
       <button
         type="button"
         className={`staff-app__overlay${menuOpen ? " staff-app__overlay--open" : ""}`}
@@ -328,7 +331,7 @@ export function StaffShell({
           </div>
         </header>
 
-        <main className="staff-content">
+        <main id="main" className="staff-content" tabIndex={-1}>
           <div className="staff-live-region" aria-live="polite">
             <FormFeedback message={error} />
           </div>

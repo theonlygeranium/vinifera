@@ -459,6 +459,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   **Verification:** Run the focused LoadingScreen test, `npm run check`,
   `npm run qa:e2e`, and inspect staff/member loading states in Jeff - Pro
   Chrome.
+
+- **What changed:** Added the exact staff-workspace skip link, a focusable
+  `main` target, visible-on-focus styling above the mobile update banner, an
+  explicit card-surface background, and a mobile keyboard regression.
+  **Why:** Every authenticated staff route omitted the accessibility sweep's
+  required `Skip to main content` bypass control. **Deployment impact:** Staff
+  shell markup and styling only; navigation, APIs, hosted data, providers,
+  routes, and activation gates are unchanged. **Verification:** Run
+  `npm run check`, `npm run qa:e2e`, and confirm the skip link can be focused
+  and activated at 375px and 1440px.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,
