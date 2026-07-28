@@ -163,10 +163,13 @@ pinned PR heads in order:
 | 14 | #41 | `bd3700e` |
 | 15 | #42 | `ef25890` |
 
-Each PR branch was based directly on the pinned `dev` revision; cherry-pick all
-commits in each `dev..head` range before moving to the next row. Review
-follow-ups on #39–#41 landed after this integrated measurement and were each
-validated separately with full `npm run check` and 145/145 Playwright runs.
+Check out the pinned base
+`4d0ba11641b46620d4ef966a9401348fd6b6271b`, then cherry-pick all commits in
+each `4d0ba11641b46620d4ef966a9401348fd6b6271b..head` range in chronological
+order before moving to the next row. Do not substitute the moving `dev`
+reference. Review follow-ups on #39–#41 landed after this integrated measurement
+and were each validated separately with full `npm run check` and 145/145
+Playwright runs.
 
 From a clean checkout of the reconstructed snapshot or an individual PR:
 
