@@ -148,6 +148,9 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- The repository README now displays the CodeRabbit pull-request review badge,
+  making automated review coverage visible without changing application,
+  deployment, provider, or activation behavior.
 - BS-03 decomposes the two service monoliths into member, club, order,
   analytics, Stripe, EasyPost, communications, webhook, and shared
   provider-runtime modules. `core-club.ts` and `integrations.ts` are now

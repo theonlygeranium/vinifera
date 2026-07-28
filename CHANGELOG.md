@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **What changed:** Added the CodeRabbit pull-request review badge to the
+  README's repository status badges. **Why:** Make the repository's automated
+  pull-request review coverage visible to visitors and contributors.
+  **Deployment impact:** Documentation only; application code, build output,
+  routes, provider activation, and the live Pages baseline are unchanged.
+  **Verification:** Render the README badge URL, confirm the badge targets
+  `theonlygeranium/vinifera`, run `npm run check`, `npm run qa:e2e`, and
+  `git diff --check`.
+
 ### Fixed
 
 - **What changed:** Daily portal-login recording now stores the real occurrence

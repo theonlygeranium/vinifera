@@ -13,6 +13,7 @@ A web-based platform for wine club operations — member management, shipment pr
 [![WCAG 2.1 AA](https://img.shields.io/badge/WCAG_2.1_AA-✓_0_Violations-success?style=flat-square)](https://vinifera.edstratumlabs.ai/)
 [![Cloudflare Workers](https://img.shields.io/badge/Runtime-Cloudflare_Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![Node](https://img.shields.io/badge/Node-22-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/theonlygeranium/vinifera?utm_source=oss&utm_medium=github&utm_campaign=theonlygeranium%2Fvinifera&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
 </div>
 
