@@ -30,7 +30,7 @@ describe("dev to staging promotion contract", () => {
       workflow.match(
         /GH_TOKEN: \$\{\{ secrets\.GH_PAT_FOR_OCTOPUS \}\}/g,
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(workflow).toMatch(
       /staging-rest-pre:[\s\S]*?needs: open-pr[\s\S]*?STAGING_SUPABASE_URL/,
     );
@@ -91,7 +91,7 @@ describe("dev to staging promotion contract", () => {
       "select(.submittedAt >= $pr_created_at)",
     );
     expect(workflow).toContain("coderabbit_reviews > 0");
-    expect(workflow.match(/gh api --paginate --slurp/g)).toHaveLength(4);
+    expect(workflow.match(/gh api --paginate --slurp/g)).toHaveLength(2);
     expect(workflow).toContain(
       '"repos/$REPO/commits/$PR_SHA/statuses?per_page=100"',
     );
@@ -122,18 +122,16 @@ describe("dev to staging promotion contract", () => {
     expect(octopusWorkflow).toContain('if: always()');
   });
 
-  it("fails unless GitHub confirms an exact-head merge", () => {
-    expect(workflow).toMatch(
-      /Squash-merge exact promotion head[\s\S]*?Promotion gates changed after polling; refusing to merge\.[\s\S]*?gh pr merge/,
-    );
-    expect(workflow).toContain("invalid_checks");
-    expect(workflow).toContain("invalid_statuses");
+  it("reports readiness without an unsafe automatic merge", () => {
+    expect(workflow).toContain("name: Report promotion readiness");
     expect(workflow).toContain(
-      '.conclusion | IN("success","skipped","neutral") | not',
+      "GitHub exposes an atomic expected-head merge guard but no expected-base guard",
     );
-    expect(workflow).toContain('--match-head-commit "$PR_SHA"');
-    expect(workflow).toContain('[[ "$state" != "MERGED"');
-    expect(workflow).not.toMatch(/gh pr merge[\s\S]{0,500}\|\s*grep/);
+    expect(workflow).toContain(
+      '[[ "$current_base_name" != "staging" || "$current_base_sha" != "$PR_BASE_SHA" ]]',
+    );
+    expect(workflow).not.toContain("gh pr merge");
+    expect(workflow).not.toContain("--match-head-commit");
   });
 
   it("documents the currently unconfigured staging probe credentials", () => {

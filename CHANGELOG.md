@@ -10,6 +10,11 @@
   promotion capture and revalidate that base through merge. A temporary or
   later base-branch change can no longer produce a reusable success status for
   an unreviewed comparison.
+- `.github/workflows/promote-dev-to-staging.yml` and governance documentation:
+  Removed the automatic PR merge after exact-head review found that GitHub's
+  merge API has no atomic expected-base guard. Automation now captures and
+  validates both revisions, runs every readiness gate, and leaves the PR open
+  for a human to re-check and merge.
 - `.octopus/runbooks/pr-quality-gates/runbook.ocl` and its contract test:
   Persist the resolved merge-base SHA in task-scoped state before the separate
   Rules 4–10 action sources it. Without this transfer, strict shell mode
@@ -92,10 +97,9 @@
   Octopus application without storing credential values in the repository.
 - `.github/workflows/promote-dev-to-staging.yml` and its contract tests:
   Paginate every exact-head check and status query and revalidate CI, Octopus,
-  CodeRabbit, and unresolved review threads immediately before merge. A gate
-  that changes after the polling job now fails closed instead of racing the
-  exact-head merge. The required aggregate must succeed, while intentionally
-  skipped or neutral non-required GitHub job checks remain valid.
+  CodeRabbit, and unresolved review threads before reporting readiness. The
+  required aggregate must succeed, while intentionally skipped or neutral
+  non-required GitHub job checks remain valid.
 - `.github/workflows/octopus-pr-quality-gates.yml`,
   `.github/scripts/octopus-runbook.mjs`, and the PR quality-gates runbook:
   Pass the event head as a required `ExpectedHeadSHA` prompt and reject live PR
@@ -116,11 +120,11 @@
   authoritative cross-agent handoff identifying each actor, authority,
   strategist-report correction, repair group, evidence boundary, one-PR
   CodeRabbit waiver, active blockers, and recommended release sequence.
-- **Governance amendment (Options 1+2+4):** `dev → staging` promotion is
-  automated via `promote-dev-to-staging.yml`. The workflow opens or updates a
-  promotion PR, probes authenticated staging Supabase REST availability twice,
-  waits for exact-head CI and review gates, then squash-merges. All post-PR gate
-  failures leave the PR open for inspection.
+- **Governance safety amendment:** `dev → staging` readiness is automated via
+  `promote-dev-to-staging.yml`. The workflow opens or updates a promotion PR,
+  probes authenticated staging Supabase REST availability twice, waits for
+  exact-head/base CI and review gates, and reports readiness without merging.
+  Both environment-branch merges remain human-triggered.
 - `staging → main` promotion remains exclusively human-initiated.
 - `AGENTS.md`, `docs/agent-workflow.md`, and the promotion ADR now describe the
   implemented order, exact gates, token-trigger requirement, and the current

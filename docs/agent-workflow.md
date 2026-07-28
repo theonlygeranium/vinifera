@@ -2,8 +2,8 @@
 
 > Canonical instructions for AI coding agents (WRITER Agent, Codex, Claude Code) working on vinifera.
 > Every change to this repo must flow through a pull request. Agent-authored work targets
-> `dev`; gate-controlled automation moves `dev` to `staging`, while a
-> human-controlled promotion pull request moves `staging` to `main`.
+> `dev`; gate-controlled automation prepares and validates the `dev` to
+> `staging` PR, while humans perform both environment-branch merges.
 
 ## Why PRs are required
 

@@ -79,8 +79,11 @@ left race windows between gate evaluation and merge.
   own exact-head polling.
 - Paginates check/status lookup, binds results to the current PR instance and
   creation time, distinguishes required success from intentional skips, checks
-  unresolved threads, repeats every gate immediately before merge, and verifies
-  GitHub's exact-head merge result.
+  unresolved threads, and captures both the head and staging base.
+- Leaves the validated PR open for a human merge. Exact-head review confirmed
+  that GitHub's merge API exposes an atomic expected-head guard but no
+  expected-base guard, so the prior automatic merge could not close its final
+  read-to-merge race.
 
 ### Octopus trust boundary
 
@@ -166,7 +169,7 @@ domain cutover is claimed by this evidence.
   code is present on GitHub's default branch. The authenticated Octopus project
   also lacks a published runnable snapshot, while the repository currently
   stores a Config-as-Code OCL definition.
-- Automated `dev` to `staging` promotion remains fail closed because no
+- Automated `dev` to `staging` readiness remains fail closed because no
   isolated staging Supabase target or `STAGING_SUPABASE_URL` /
   `STAGING_SUPABASE_ANON_KEY` secrets exist.
 - Production and the static Pages rollback baseline are untouched.
@@ -183,7 +186,7 @@ domain cutover is claimed by this evidence.
    above are satisfied. The CodeRabbit waiver alone is not an Octopus waiver.
 4. Provision an isolated staging Supabase project (or approve the required
    account-plan change), install only its URL and anon key in the staging
-   environment, and exercise the repaired automated promotion.
+   environment, and exercise the repaired automated readiness workflow.
 5. Reconcile `dev` to `staging`, run hosted Worker configuration/Auth/Realtime,
    desktop/375px browser, axe, and provider-readiness validation, then use a
    separately reviewed human promotion from `staging` to `main`.

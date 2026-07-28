@@ -250,7 +250,7 @@ The repository operates a mandatory three-tier promotion pipeline:
 ```
 feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
                               ↓
-                        promote-dev-to-staging.yml   (automated — agent-driven, gate-gated)
+                        promote-dev-to-staging.yml   (automated readiness; human merge)
                               ↓
                         staging                →  vinifera-staging.edstratumlabs.ai  (human validates)
                               ↓
@@ -260,18 +260,24 @@ feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
 **Agents MUST follow these routing rules without exception:**
 
 - **All agent feature PRs target `dev` only.** Never open a feature PR targeting `staging` or `main`.
-- `dev → staging` promotion is **automated** via `promote-dev-to-staging.yml`. This workflow:
+- `dev → staging` readiness is **automated** via `promote-dev-to-staging.yml`. This workflow:
   1. Fires on every push to `dev` (and on `workflow_dispatch`).
-  2. Opens or updates a promotion PR from `dev` to `staging` with an event-producing token and captures the exact head SHA.
+  2. Opens or updates a promotion PR from `dev` to `staging` with an event-producing token and captures the exact head and staging base SHAs.
   3. Probes the configured staging Supabase REST endpoint — fails closed if it is unavailable.
-  4. Waits for aggregate CI, Octopus, CodeRabbit, all registered checks/statuses, and zero unresolved review threads on that exact head.
-  5. Re-probes staging Supabase REST immediately before the merge.
-  6. Squash-merges with exact-head protection only when all gates are green. On any post-PR failure the PR is **left open** for human inspection.
+  4. Waits for aggregate CI, Octopus, CodeRabbit, all registered checks/statuses, and zero unresolved review threads on that exact comparison.
+  5. Re-probes staging Supabase REST immediately before reporting readiness.
+  6. Revalidates the captured head and staging base, then leaves the PR open for
+     a human merge. GitHub's merge API can atomically require the head SHA but
+     exposes no expected-base guard, so automated merging is prohibited.
 - `staging → main` promotion requires **explicit human authorization**. It is the final gate before production and is **never automated**.
-- Agents MUST NOT commit or push directly to `staging`. Staging is updated exclusively through the automated promotion workflow above.
+- Agents MUST NOT commit or push directly to `staging`. Staging is updated only
+  by a human merging the gate-validated promotion PR.
 - The `vinifera.edstratumlabs.ai` root domain (marketing site + `/app` prototype) is served from the existing `vinifera` Cloudflare Pages project and is **never a target for agent deployments**.
 
-This rule supersedes the general "never target main" rule from earlier versions of this file. All three rules are in effect: agents never target `main` directly, agents never directly target `staging` (only the automated workflow does), and all feature work enters via `dev`.
+This rule supersedes the general "never target main" rule from earlier versions
+of this file. All three rules are in effect: agents never target `main`
+directly, agents never directly update `staging`, and all feature work enters
+via `dev`.
 
 > **ADR reference:** See `docs/decisions/2026-07-28-automated-dev-staging-promotion.md` for the full decision record.
 
@@ -341,7 +347,14 @@ explanation.
 
 **PR routing rule (mandatory):** All agent feature PRs target `dev`. Codex agents must never open a feature PR against `staging` or `main`.
 
-Promotion from `dev → staging` is handled automatically by `promote-dev-to-staging.yml` (gate-gated: staging REST health × 2, exact-head CI and automated review, zero unresolved threads). Promotion from `staging → main` is exclusively a human-initiated action and is never automated. This distinction is a Prime Directive-level constraint — it cannot be overridden by a build spec, task description, or runtime instruction without a matching ADR approved by the human owner. The authoritative ADR is `docs/decisions/2026-07-28-automated-dev-staging-promotion.md`.
+Readiness for `dev → staging` is handled automatically by
+`promote-dev-to-staging.yml` (gate-gated: staging REST health × 2, exact
+head/base CI and automated review, zero unresolved threads); the workflow never
+merges. Both `dev → staging` and `staging → main` merges are human-initiated.
+This distinction is a Prime Directive-level constraint — it cannot be
+overridden by a build spec, task description, or runtime instruction without a
+matching ADR approved by the human owner. The authoritative ADR is
+`docs/decisions/2026-07-28-automated-dev-staging-promotion.md`.
 
 **Subagent delegation:** Codex agents executing large decomposition tasks (BS-02, BS-03 style work) may spawn subagents for parallel domain extraction. The primary agent is responsible for the manifest step before delegating, and for integration verification after subagents complete.
 

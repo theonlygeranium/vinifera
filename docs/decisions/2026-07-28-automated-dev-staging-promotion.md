@@ -1,6 +1,7 @@
-# ADR 2026-07-28 — Governance Amendment: Automated dev→staging Promotion
+# ADR 2026-07-28 — Governance Amendment: Automated dev→staging Readiness
 
-**Status:** Accepted  
+**Status:** Accepted, safety-amended 2026-07-28
+
 **Date:** 2026-07-28  
 **Author:** Writer Agent (authorized by human owner in session thread `7784a4df-eb35-4347-8335-297aa8d85a26`)  
 **Supersedes:** Sections 7 and 9 of `AGENTS.md` (prior dev→staging human-gate rule)
@@ -21,27 +22,39 @@ The human owner authorized amendments on 2026-07-28 covering three options:
 - **Option 2:** Agent auto-merges `dev → staging` when all CI and Schubert health gates pass.
 - **Option 4:** `staging → main` remains exclusively human-initiated.
 
+The implementation audit later proved that Option 2 cannot satisfy the
+repository's fail-closed comparison boundary through GitHub's PR merge API.
+GitHub exposes an expected-head input (`sha` / `--match-head-commit`) but no
+expected-base input. A target-branch advance between the last read and the
+merge could therefore merge an unattested comparison. Under the owner's
+standing authority to patch all validated issues, this ADR is safety-amended:
+automation prepares and validates the PR, but a human performs the merge.
+
 ---
 
 ## Decision
 
 A new GitHub Actions workflow (`promote-dev-to-staging.yml`) is introduced. It fires on every push to `dev` and on `workflow_dispatch`.
 
-### Gates (all must pass before merge)
+### Gates (all must pass before readiness is reported)
 
 | Gate | Type | Fail behavior |
 |------|------|---------------|
-| 0. Promotion PR | Open/update via an event-producing repository token and capture its exact head | Fail closed — no merge is attempted |
+| 0. Promotion PR | Open/update via an event-producing repository token and capture its exact head and staging base | Fail closed — readiness is not reported |
 | 1. Staging REST pre-flight | HTTP probe to `STAGING_SUPABASE_URL/rest/v1/` | Fail closed — PR remains open |
 | 2. PR quality gates | Require aggregate CI, Octopus, CodeRabbit, all registered statuses, and zero unresolved threads on the captured head | Fail closed — PR remains open for human inspection |
-| 3. Staging REST pre-merge re-check | Same probe, immediately before merge commit | Fail closed — guards against mid-run provider degradation |
-| 4. Dry-run override | `workflow_dispatch` input `dry_run=true` | Skips merge; PR left open |
+| 3. Staging REST readiness re-check | Same probe immediately before readiness reporting | Fail closed — guards against mid-run provider degradation |
+| 4. Readiness report | Revalidate the captured head and base | PR remains open for a human merge |
+| 5. Dry-run override | `workflow_dispatch` input `dry_run=true` | Records dry-run readiness; PR remains open |
 
-On any gate failure, the PR is left **open** (never closed automatically), giving the human owner a clear signal and a one-click merge path once the issue resolves.
+On success or failure, the PR remains **open**. Before merging, the human must
+confirm that the current head and base still match the successful readiness
+report.
 
 ### What does NOT change
 
-- `staging → main` is still exclusively human-initiated. No workflow touches `main` automatically.
+- Both environment-branch merges are human-initiated. No workflow merges to
+  `staging` or touches `main` automatically.
 - Agents NEVER commit directly to `staging` or `main`.
 - Agents NEVER open a PR from a feature branch directly to `staging` or `main`.
 - All agent-authored feature PRs still target `dev` only.
@@ -51,18 +64,17 @@ On any gate failure, the PR is left **open** (never closed automatically), givin
 ### Staging provider risk note
 
 The probe establishes only authenticated Supabase REST availability; it is not
-a complete Schubert host or Realtime health check. The automated promotion will
-fail closed and leave the PR open if the configured staging endpoint is
-unreachable. Repeated failures should trigger investigation of the staging
-Supabase target, Schubert V2, and the `schubert-foxtrot` Cloudflare Tunnel.
+a complete Schubert host or Realtime health check. Automated readiness will fail
+closed and leave the PR open if the configured staging endpoint is unreachable.
+Repeated failures should trigger investigation of the staging Supabase target,
+Schubert V2, and the `schubert-foxtrot` Cloudflare Tunnel.
 
 The PR must be created with `GH_PAT_FOR_OCTOPUS`, rather than the workflow's
 default `GITHUB_TOKEN`. GitHub suppresses new workflow runs for most events
 created with `GITHUB_TOKEN`; using the existing event-producing repository
 token is required for the promotion PR to invoke pull-request CI and Octopus.
-It is also required for the merge so the resulting `staging` push invokes
-staging CI and deployment workflows. Read-only polling continues to use the
-least-privileged `GITHUB_TOKEN`.
+Read-only polling and readiness reporting use the least-privileged
+`GITHUB_TOKEN`.
 
 Because `pull_request_target` workflow checks are attached to the trusted base
 revision rather than the untrusted pull-request head, the Octopus bridge
@@ -83,15 +95,12 @@ fetched merge-base and expected-head objects, so a later head rewrite or
 base-branch switch cannot swap another comparison into the attestation. The
 published status description includes the attested base SHA; promotion captures
 the staging base SHA when it opens the PR and requires that same value during
-polling, in the Octopus status, and immediately before merge.
-Check runs and commit statuses are
-fully paginated before evaluation. After the second provider probe, the merge
-job re-queries exact-head CI, Octopus, CodeRabbit, PR-specific review, and
-unresolved-thread state immediately before invoking the exact-head merge. A
-new pending/failing result or review thread in the polling-to-merge race window
-therefore stops the promotion. The required aggregate must conclude `success`;
-non-required jobs that GitHub intentionally concludes `skipped` or `neutral`
-do not block promotion.
+polling, in the Octopus status, and immediately before readiness is reported.
+Check runs and commit statuses are fully paginated before evaluation. The
+required aggregate must conclude `success`; non-required jobs that GitHub
+intentionally concludes `skipped` or `neutral` do not block readiness. The
+workflow intentionally contains no merge command because GitHub documents only
+an expected-head merge guard and no expected-base guard.
 
 ---
 
@@ -99,6 +108,8 @@ do not block promotion.
 
 - Promotion latency depends on the full CI and automated-review duration; no
   fixed completion time is guaranteed.
+- A human must revalidate and merge the `dev → staging` PR after automation
+  reports readiness.
 - The human owner retains full control of the `staging → main` gate and all production deployments.
 - `STAGING_SUPABASE_URL` and `STAGING_SUPABASE_ANON_KEY` must be present in the
   repository's Actions secrets for the probe to function. As of this decision's
