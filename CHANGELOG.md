@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **What changed:** Daily portal-login recording now stores the real occurrence
+  timestamp. A same-member, same-day retry accepts only the database's exact
+  activity-idempotency conflict, verifies the existing organization-, brand-,
+  member-, source-, and metadata-scoped event, and reuses its original
+  timestamp for the analytics replay. **Why:** Midnight UTC normalization
+  shifted brand-local daily analytics and backdated portal-login recency used
+  by churn calculations. **Deployment impact:** Portal activity and analytics
+  timestamps remain truthful while daily retries stay idempotent; no schema,
+  hosted provider, secret, Pages, DNS, or production-data mutation occurs.
+  **Verification:** Run the portal-login identity/replay tests, focused BS-05
+  suite, full repository checks, and `git diff --check`.
+
 ### Security
 
 - **What changed:** Final review follow-up pins both the integrated local build
@@ -316,8 +330,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   browser-origin policy drift. **Deployment impact:** CI gains a Docker-free
   22-migration seed gate; no hosted database, provider, Worker, Pages, secret,
   DNS, or activation mutation occurs. **Verification:** `npm ci`, dependency
-  audit, script syntax checks, TypeScript, Vitest 445/445, focused BS-05 tests
-  71/71, and `npm run qa:local-seed`.
+  audit, script syntax checks, TypeScript, Vitest 448/448, focused BS-05 tests
+  74/74, and `npm run qa:local-seed`.
 - **What changed:** Added the domain-service decomposition ADR and linked
   architecture/service-manifest guidance, documenting extracted ownership,
   import direction, neutral shared primitives, compatibility barrels, and the
@@ -483,7 +497,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   correct text-argument function signature, local seed application is
   idempotent, staff login/invite resolution reuses the response-owning
   Supabase client, member portal relationship embeds name their brand-scoped
-  foreign keys, and daily portal-login analytics use canonical midnight UTC.
+  foreign keys, and daily portal-login analytics preserve the first real
+  occurrence timestamp while replaying idempotently.
   The BS-05 readiness ledger records partial local prerequisite evidence for
   Gates 1, 7, and 15 while keeping all 20 composite activation gates `pending`.
   Local fixture brands now use fixed IDs verified across independent clean
@@ -499,8 +514,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   loopback validation, and member-count copy are corrected, but no hosted
   schema/provider state is changed. **Verification:** Native and embedded
   22-migration seed replay, independent clean-database brand identity,
-  authenticated two-tenant Worker/Auth smoke, TypeScript, Vitest 445/445,
-  focused BS-05 tests 71/71, Playwright 145/145, real desktop/375px axe-core
+  authenticated two-tenant Worker/Auth smoke, TypeScript, Vitest 448/448,
+  focused BS-05 tests 74/74, Playwright 145/145, real desktop/375px axe-core
   with zero violations, 375px touch targets, and fail-closed shutdown cleanup.
 - BS-06 review follow-up clarifies that CODEOWNERS routes review but is not
   currently branch-protection enforced, expands the pull-request checklist to

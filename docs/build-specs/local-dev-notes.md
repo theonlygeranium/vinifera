@@ -108,9 +108,11 @@ shipment data.
 That populated portal check exposed parallel organization- and brand-scoped
 foreign keys that made PostgREST's implicit `shipments` relationship embeds
 ambiguous. The portal query now names the brand-scoped release and item
-relationships. Repeated session checks also use one canonical midnight UTC
-timestamp with the existing one-event-per-member-per-day key, so database and
-analytics idempotency fingerprints replay without noisy failed writes.
+relationships. Repeated session checks retain the first real portal-login
+occurrence timestamp with the existing one-event-per-member-per-UTC-day key.
+Later same-day checks verify the scoped database event and reuse its timestamp,
+so database and analytics replays remain idempotent without shifting
+brand-local metrics or churn recency.
 
 ## Evidence collected
 
@@ -119,7 +121,7 @@ analytics idempotency fingerprints replay without noisy failed writes.
 | Toolchain | Node 22.22.3; npm 10.9.8; Supabase CLI 2.109.1; Wrangler 4.114.0; Docker client 29.6.2/server 29.5.2 on Colima 0.10.3 |
 | `npm ci` | Passed; 406 packages installed, 407 audited; 0 vulnerabilities |
 | Script syntax | `bash -n` and `node --check` passed |
-| Integrated tests | TypeScript passed; Vitest passed 43 files and 445/445 tests; the focused browser-origin, harness, foundation-origin, and retention set passed 71/71 |
+| Integrated tests | TypeScript passed; Vitest passed 43 files and 448/448 tests; the focused browser-origin, harness, foundation-origin, and retention set passed 74/74 |
 | Embedded phase gates | Phase 1–5 passed 92/92, 250/250, 199/199, 158/158, and 513/513 assertions |
 | Embedded replay | Passed all 22 migrations, two consecutive seed applications, fixture cardinality/state mix, tenant integrity, fixed brand IDs, and an independent clean-database identity comparison |
 | Native seed replay | The integrated 22-migration head passed `supabase db reset --local` with the configured seed and produced the exact default brand IDs `20000000-0000-4000-8000-000000000001` and `20000000-0000-4000-8000-000000000002`. |

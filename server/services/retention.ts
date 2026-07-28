@@ -935,7 +935,17 @@ export function portalLoginIdempotencyKey(
 }
 
 export function portalLoginOccurredAt(asOf = new Date()): Date {
-  return new Date(`${asOf.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  return new Date(asOf.getTime());
+}
+
+export function isPortalLoginReplayConflict(
+  error: { code?: string; message?: string } | null,
+): boolean {
+  return (
+    error?.code === "23505" &&
+    error.message ===
+      "Activity idempotency key was already used for a different request."
+  );
 }
 
 interface UnsubscribeClaims {
@@ -1381,10 +1391,14 @@ export class ProductionRetentionService
     principal: MemberPrincipal,
     asOf = new Date(),
   ): Promise<void> {
-    const occurredAt = portalLoginOccurredAt(asOf);
+    const idempotencyKey = portalLoginIdempotencyKey(
+      principal.user.id,
+      asOf,
+    );
+    let occurredAt = portalLoginOccurredAt(asOf);
     const { error } = await this.admin.rpc("record_member_activity_event", {
       p_event_type: "portal_login",
-      p_idempotency_key: portalLoginIdempotencyKey(principal.user.id, asOf),
+      p_idempotency_key: idempotencyKey,
       p_member_id: principal.user.id,
       p_metadata: { source: "member_session" },
       p_occurred_at: occurredAt.toISOString(),
@@ -1393,14 +1407,49 @@ export class ProductionRetentionService
       p_source_entity_type: "member",
     });
     if (error) {
-      throw databaseError("Member portal activity could not be recorded.");
+      if (!isPortalLoginReplayConflict(error)) {
+        throw databaseError("Member portal activity could not be recorded.");
+      }
+      const { data: existing, error: replayError } = await this.admin
+        .from("member_activity_events")
+        .select(
+          "member_id,event_type,source_entity_type,source_entity_id,occurred_at,metadata",
+        )
+        .eq("organization_id", principal.organization.id)
+        .eq("brand_id", principal.brand.id)
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle();
+      const existingMetadata =
+        existing?.metadata && typeof existing.metadata === "object"
+          ? (existing.metadata as Record<string, unknown>)
+          : null;
+      const existingMetadataKeys = existingMetadata
+        ? Object.keys(existingMetadata)
+        : [];
+      const replayOccurredAt = new Date(String(existing?.occurred_at ?? ""));
+      if (
+        replayError ||
+        !existing ||
+        existing.member_id !== principal.user.id ||
+        existing.event_type !== "portal_login" ||
+        existing.source_entity_type !== "member" ||
+        existing.source_entity_id !== principal.user.id ||
+        existingMetadataKeys.length !== 1 ||
+        existingMetadata?.source !== "member_session" ||
+        Number.isNaN(replayOccurredAt.getTime()) ||
+        replayOccurredAt.toISOString().slice(0, 10) !==
+          asOf.toISOString().slice(0, 10)
+      ) {
+        throw databaseError("Member portal activity replay could not be verified.");
+      }
+      occurredAt = replayOccurredAt;
     }
     await this.recordDomainAnalyticsEvent(principal, {
       eventData: { source: "member_session" },
       eventType: "portal.login",
       memberId: principal.user.id,
       occurredAt,
-      requestKey: portalLoginIdempotencyKey(principal.user.id, asOf),
+      requestKey: idempotencyKey,
     });
   }
 

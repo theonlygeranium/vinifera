@@ -18,9 +18,11 @@ import {
   deliverLoggedTestEmail,
   decodeLoyaltyLedgerCursor,
   encodeLoyaltyLedgerCursor,
+  isPortalLoginReplayConflict,
   normalizeCancelFlowAnalyticsSnapshot,
   portalLoginIdempotencyKey,
   portalLoginOccurredAt,
+  ProductionRetentionService,
   recordEmailProviderEvent,
   renderTransactionalEmail,
   resolveBrandSenderIdentity,
@@ -34,6 +36,7 @@ import {
 } from "../../server/services/retention";
 import type {
   FoundationServiceFactory,
+  MemberPrincipal,
   RetentionService,
   WorkerEnv,
 } from "../../server/types";
@@ -46,6 +49,40 @@ const commandId = "50000000-0000-4000-8000-000000000001";
 const signingSecret = "test-only-signing-secret-with-enough-entropy";
 const unsubscribeSignedAt = "2026-07-26T00:00:00.000Z";
 const unsubscribeExpiresAt = "2026-08-25T00:00:00.000Z";
+
+const memberPrincipal: MemberPrincipal = {
+  brand: { id: "20000000-0000-4000-8000-000000000001" },
+  organization: {
+    id: organizationId,
+    name: "Sunrise Cellars",
+  },
+  user: {
+    authUserId: "90000000-0000-4000-8000-000000000001",
+    email: "avery@example.test",
+    firstName: "Avery",
+    id: memberId,
+    lastName: "Stone",
+    status: "active",
+  },
+};
+
+function portalLoginRecorder(admin: SupabaseClient): {
+  recordMemberPortalLogin(
+    principal: MemberPrincipal,
+    asOf: Date,
+  ): Promise<void>;
+} {
+  const service = Object.create(
+    ProductionRetentionService.prototype,
+  ) as Record<string, unknown>;
+  Object.defineProperty(service, "admin", { value: admin });
+  return service as unknown as {
+    recordMemberPortalLogin(
+      principal: MemberPrincipal,
+      asOf: Date,
+    ): Promise<void>;
+  };
+}
 
 function retention(overrides: Partial<RetentionService> = {}): RetentionService {
   return {
@@ -837,7 +874,160 @@ describe("Phase 3 explainable retention rules", () => {
     ).toBe(`activity:portal_login:${memberId}:2026-07-27`);
     expect(
       portalLoginOccurredAt(new Date("2026-07-27T23:59:59.999Z")).toISOString(),
-    ).toBe("2026-07-27T00:00:00.000Z");
+    ).toBe("2026-07-27T23:59:59.999Z");
+    expect(
+      isPortalLoginReplayConflict({
+        code: "23505",
+        message:
+          "Activity idempotency key was already used for a different request.",
+      }),
+    ).toBe(true);
+    expect(
+      isPortalLoginReplayConflict({
+        code: "23505",
+        message: "A different unique constraint failed.",
+      }),
+    ).toBe(false);
+  });
+
+  it("records the real portal-login time on the first daily event", async () => {
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({ data: "activity-id", error: null })
+      .mockResolvedValueOnce({ data: "analytics-id", error: null });
+    const from = vi.fn();
+    const service = portalLoginRecorder({
+      from,
+      rpc,
+    } as unknown as SupabaseClient);
+    const occurredAt = new Date("2026-07-27T23:59:59.999Z");
+
+    await service.recordMemberPortalLogin(memberPrincipal, occurredAt);
+
+    expect(rpc.mock.calls[0]).toEqual([
+      "record_member_activity_event",
+      expect.objectContaining({ p_occurred_at: occurredAt.toISOString() }),
+    ]);
+    expect(rpc.mock.calls[1]).toEqual([
+      "record_analytics_event",
+      expect.objectContaining({ p_occurred_at: occurredAt.toISOString() }),
+    ]);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("reuses the verified first occurrence on a same-day replay", async () => {
+    const firstOccurredAt = "2026-07-27T08:15:00.000Z";
+    const retryOccurredAt = new Date("2026-07-27T23:59:59.999Z");
+    const replayQuery = {
+      eq: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: {
+          event_type: "portal_login",
+          member_id: memberId,
+          metadata: { source: "member_session" },
+          occurred_at: firstOccurredAt,
+          source_entity_id: memberId,
+          source_entity_type: "member",
+        },
+        error: null,
+      }),
+      select: vi.fn(),
+    };
+    replayQuery.select.mockReturnValue(replayQuery);
+    replayQuery.eq.mockReturnValue(replayQuery);
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: "23505",
+          message:
+            "Activity idempotency key was already used for a different request.",
+        },
+      })
+      .mockResolvedValueOnce({ data: "analytics-id", error: null });
+    const from = vi.fn().mockReturnValue(replayQuery);
+    const service = portalLoginRecorder({
+      from,
+      rpc,
+    } as unknown as SupabaseClient);
+
+    await service.recordMemberPortalLogin(
+      memberPrincipal,
+      retryOccurredAt,
+    );
+
+    expect(rpc.mock.calls[0]).toEqual([
+      "record_member_activity_event",
+      expect.objectContaining({
+        p_occurred_at: retryOccurredAt.toISOString(),
+      }),
+    ]);
+    expect(from).toHaveBeenCalledWith("member_activity_events");
+    expect(replayQuery.eq).toHaveBeenCalledWith(
+      "organization_id",
+      organizationId,
+    );
+    expect(replayQuery.eq).toHaveBeenCalledWith(
+      "brand_id",
+      memberPrincipal.brand.id,
+    );
+    expect(rpc.mock.calls[1]).toEqual([
+      "record_analytics_event",
+      expect.objectContaining({ p_occurred_at: firstOccurredAt }),
+    ]);
+  });
+
+  it("rejects replay rows with changed metadata or a different UTC day", async () => {
+    for (const data of [
+      {
+        event_type: "portal_login",
+        member_id: memberId,
+        metadata: { campaign: "unexpected", source: "member_session" },
+        occurred_at: "2026-07-27T08:15:00.000Z",
+        source_entity_id: memberId,
+        source_entity_type: "member",
+      },
+      {
+        event_type: "portal_login",
+        member_id: memberId,
+        metadata: { source: "member_session" },
+        occurred_at: "2026-07-26T23:59:59.999Z",
+        source_entity_id: memberId,
+        source_entity_type: "member",
+      },
+    ]) {
+      const replayQuery = {
+        eq: vi.fn(),
+        maybeSingle: vi.fn().mockResolvedValue({ data, error: null }),
+        select: vi.fn(),
+      };
+      replayQuery.select.mockReturnValue(replayQuery);
+      replayQuery.eq.mockReturnValue(replayQuery);
+      const rpc = vi.fn().mockResolvedValue({
+        data: null,
+        error: {
+          code: "23505",
+          message:
+            "Activity idempotency key was already used for a different request.",
+        },
+      });
+      const service = portalLoginRecorder({
+        from: vi.fn().mockReturnValue(replayQuery),
+        rpc,
+      } as unknown as SupabaseClient);
+
+      await expect(
+        service.recordMemberPortalLogin(
+          memberPrincipal,
+          new Date("2026-07-27T23:59:59.999Z"),
+        ),
+      ).rejects.toMatchObject({
+        code: "upstream_error",
+        message: "Member portal activity replay could not be verified.",
+      });
+      expect(rpc).toHaveBeenCalledTimes(1);
+    }
   });
 
   it("applies exact loyalty tier multipliers", () => {
