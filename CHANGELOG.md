@@ -11,8 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **What changed:** Added the CodeRabbit pull-request review badge to the
-  README's repository status badges. **Why:** Make the repository's automated
-  pull-request review coverage visible to visitors and contributors.
+  README's repository status badges and linked it to this repository's
+  CodeRabbit-reviewed pull requests. **Why:** Make the repository's automated
+  pull-request review coverage visible and directly discoverable to visitors
+  and contributors.
   **Deployment impact:** Documentation only; application code, build output,
   routes, provider activation, and the live Pages baseline are unchanged.
   **Verification:** Render the README badge URL, confirm the badge targets
