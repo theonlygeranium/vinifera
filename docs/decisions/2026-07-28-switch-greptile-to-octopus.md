@@ -59,6 +59,8 @@ fork pull requests and branch names outside
 `[A-Za-z0-9][A-Za-z0-9._/-]{0,199}` and Git's own branch-name contract. Only
 that validated output reaches the runbook prompt, preventing shell syntax from
 crossing into the self-hosted checkout script.
+Rejected source validation produces an explicit failing `Run PR Quality Gates`
+job; it cannot turn the mandatory reviewer into a skipped-success state.
 
 The current self-hosted Octopus Server predates the Executions API required by
 `run-runbook-action` v3 and newer. Until the server is upgraded to at least

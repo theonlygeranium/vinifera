@@ -13,8 +13,9 @@ the promoted `staging` branch did not invoke the staging deployment pipeline.
 
 ## Decision
 
-- Trigger the quality and optional staging deployment pipeline on pushes to
-  `staging`.
+- Trigger the quality pipeline on pushes to `staging` and `main`, while
+  permitting optional staging migration and deployment jobs only when the
+  pushed ref is exactly `staging`.
 - Bind the Stripe test-catalog workflow to the exact immutable head of
   `origin/staging`.
 - Restrict the GitHub `staging` environment to the `staging` branch.

@@ -18,6 +18,12 @@
 - `.github/workflows/octopus-pr-quality-gates.yml`: Added an unprivileged
   source-validation job that rejects forks and shell-capable branch names
   before any Octopus, GitHub, or Access secret can enter a job.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Made rejected source
+  validation produce an explicit failed quality-gate job rather than a skipped
+  reviewer state.
+- `.github/workflows/ci.yml`: Retained post-merge quality validation on `main`
+  while explicitly restricting staging migration and Worker deployment jobs
+  to `refs/heads/staging`.
 - `.github/workflows/ci.yml`,
   `.github/workflows/stripe-test-catalog.yml`, and hosted activation
   documentation: Aligned staging mutations and Stripe test-catalog operations

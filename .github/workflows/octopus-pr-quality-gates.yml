@@ -43,11 +43,21 @@ jobs:
     name: Run PR Quality Gates
     runs-on: ubuntu-latest
     needs: validate-source
+    if: always()
 
     permissions:
       contents: read
 
     steps:
+      - name: Enforce trusted source validation
+        env:
+          VALIDATION_RESULT: ${{ needs.validate-source.result }}
+        run: |
+          if [[ "$VALIDATION_RESULT" != "success" ]]; then
+            echo "::error::Trusted PR source validation did not pass."
+            exit 1
+          fi
+
       - name: Check out trusted default-branch bridge
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

@@ -3,7 +3,7 @@ name: Quality and staging deployment
 on:
   pull_request:
   push:
-    branches: [staging]
+    branches: [staging, main]
   workflow_dispatch:
 
 concurrency:
@@ -499,6 +499,7 @@ jobs:
     needs: [quality]
     if: >-
       github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/staging' &&
       vars.STAGING_SUPABASE_MIGRATION_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -556,6 +557,7 @@ jobs:
     needs: [quality, database]
     if: >-
       github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/staging' &&
       vars.STAGING_CLOUDFLARE_DEPLOY_ENABLED == 'true' &&
       needs.database.result == 'success'
     runs-on: ubuntu-latest

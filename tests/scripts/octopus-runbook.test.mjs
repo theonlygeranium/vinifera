@@ -277,8 +277,29 @@ describe("Octopus workflow trust boundary", () => {
         /PR_BRANCH: \$\{\{ github\.event\.pull_request\.head\.ref \}\}/g,
       ),
     ).toHaveLength(1);
+    expect(workflow).toContain("needs: validate-source\n    if: always()");
+    expect(workflow).toContain(
+      'VALIDATION_RESULT: ${{ needs.validate-source.result }}',
+    );
+    expect(workflow).toContain(
+      'if [[ "$VALIDATION_RESULT" != "success" ]]; then',
+    );
     expect(workflow).not.toMatch(
       /uses:\s+actions\/checkout@(main|master|v[0-9]+)(\s|$)/,
     );
+  });
+});
+
+describe("staging workflow branch boundary", () => {
+  it("validates main after merge but mutates staging only from staging", () => {
+    const workflow = readFileSync(
+      new URL("../../.github/workflows/ci.yml", import.meta.url),
+      "utf8",
+    );
+
+    expect(workflow).toContain("branches: [staging, main]");
+    expect(
+      workflow.match(/github\.ref == 'refs\/heads\/staging'/g),
+    ).toHaveLength(2);
   });
 });
