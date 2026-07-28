@@ -2,6 +2,7 @@ name: Quality and staging deployment
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   push:
     branches: [staging, main]
   workflow_dispatch:

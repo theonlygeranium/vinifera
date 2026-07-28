@@ -97,9 +97,11 @@ published status description includes the attested base SHA; promotion captures
 the staging base SHA when it opens the PR and requires that same value during
 polling, in the Octopus status, and immediately before readiness is reported.
 Each attempt writes a new timestamped marker to the PR body, forcing fresh PR
-events. CI check associations must name both captured revisions, while statuses
-and CodeRabbit reviews must be created after that attempt began. An unchanged
-head cannot reuse evidence from an older staging base.
+events. The quality workflow explicitly handles the resulting `edited` event,
+so an unchanged head receives a new base-bound CI run before attempt-fresh
+evidence is required. CI check associations must name both captured revisions,
+while statuses and CodeRabbit reviews must be created after that attempt began.
+An unchanged head cannot reuse evidence from an older staging base.
 Check runs and commit statuses are fully paginated before evaluation. The
 required aggregate must conclude `success`; non-required jobs that GitHub
 intentionally concludes `skipped` or `neutral` do not block readiness. The

@@ -91,7 +91,8 @@ left race windows between gate evaluation and merge.
 - Starts every readiness attempt with a timestamped PR marker. CI associations
   must attest the captured head and base, and statuses/reviews must be newer
   than the attempt, preventing unchanged-head evidence reuse after staging
-  advances.
+  advances. Quality CI now listens for the marker's `edited` event so the
+  attempt-fresh check requirement cannot deadlock on an unchanged head.
 
 ### Octopus trust boundary
 

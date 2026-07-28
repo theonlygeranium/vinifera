@@ -23,6 +23,10 @@ const octopusWorkflow = readFileSync(
   ),
   "utf8",
 );
+const ciWorkflow = readFileSync(
+  new URL("../../.github/workflows/ci.yml", import.meta.url),
+  "utf8",
+);
 
 describe("dev to staging promotion contract", () => {
   it("opens an event-producing PR before any provider gate", () => {
@@ -78,6 +82,9 @@ describe("dev to staging promotion contract", () => {
       "GATE_REQUESTED_AT: ${{ needs.open-pr.outputs.gate_requested_at }}",
     );
     expect(workflow).toContain("Readiness attempt started:");
+    expect(ciWorkflow).toMatch(
+      /pull_request:\n\s+types: \[opened, synchronize, reopened, ready_for_review, edited\]/,
+    );
     expect(workflow).toContain(
       "select(.started_at >= $gate_requested_at)",
     );

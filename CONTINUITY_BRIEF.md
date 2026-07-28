@@ -180,7 +180,9 @@ all against `dev`. PRs #27–#28, #31–#34, and #36–#43 were squash-merged. P
   merge. Normal and dry-run readiness both refresh the complete head/base,
   CI/status, review, and thread evidence after the second provider probe. Each
   readiness attempt has a timestamped PR marker; CI must name the captured base
-  and head, and statuses/reviews must be newer than that attempt.
+  and head, and statuses/reviews must be newer than that attempt. Quality CI
+  handles the marker's `edited` event, guaranteeing a fresh run when the
+  promotion head itself has not changed.
 - GitHub Actions run `30402814978` passed the full and Android lanes plus the
   required aggregate for PR #51 head `97ceed6`. The subsequent exact-head Codex
   review found that checkout did not persist `MERGE_BASE_SHA` for the isolated

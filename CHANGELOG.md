@@ -28,6 +28,9 @@
   name the captured head and base, and accept statuses and CodeRabbit reviews
   only when they were created during that attempt. A prior review of the same
   head against an older staging base cannot satisfy readiness.
+- `.github/workflows/ci.yml` and the promotion contract: Handle the readiness
+  marker's pull-request `edited` event so every attempt creates a fresh,
+  base-bound quality run even when the `dev` head has not changed.
 - `.octopus/runbooks/pr-quality-gates/runbook.ocl` and its contract test:
   Persist the resolved merge-base SHA in task-scoped state before the separate
   Rules 4–10 action sources it. Without this transfer, strict shell mode
