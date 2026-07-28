@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 
+### Removed
+
+- **Greptile GitHub App and `.greptile/` configuration directory.** Greptile has
+  been replaced by Octopus Deploy for deployment automation and code quality gate
+  enforcement. The 10 architectural rules from `.greptile/rules.md` have been
+  preserved verbatim in the Octopus `Vinifera` project `PR Quality Gates` runbook.
+  CodeRabbit remains active and unaffected for PR review.
+
 ### Added
 
 - **What changed:** Rewrote `AGENTS.md` to correct stale workflow names
