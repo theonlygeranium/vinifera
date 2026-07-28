@@ -136,7 +136,12 @@ closed after direct resolution commits.
   runtime code. The secure workflow and runbook bridge must be promoted to
   `main` before Octopus can be a real dev/staging gate. The corrected bridge
   publishes its trusted runbook outcome as an explicit status on the PR head,
-  because `pull_request_target` check runs attach to the base revision.
+  because `pull_request_target` check runs attach to the base revision. The
+  promotion gate additionally requires check-run association with the current
+  PR, status timestamps no older than PR creation, and an Octopus description
+  naming that PR. CodeRabbit must also have an exact-head review attached to
+  the current PR; its commit status alone is insufficient. These bindings
+  prevent a recreated PR at the same SHA from inheriting stale results.
   Octopus Deploy's authenticated `main` project view also shows no published
   runbook.
 - Cloudflare Access now has one scoped `Vinifera GitHub Actions — Octopus`

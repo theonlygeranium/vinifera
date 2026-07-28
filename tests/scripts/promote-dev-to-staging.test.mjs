@@ -53,7 +53,7 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).toContain('"Type, test, build, and package"');
     expect(workflow).toContain('.context == "Octopus PR Quality Gates"');
     expect(workflow).toContain(
-      '"$octopus_description" == "Runbook completed"',
+      '"$octopus_description" == "$expected_octopus_description"',
     );
     expect(workflow).toContain('.context == "CodeRabbit"');
     expect(workflow).toContain(
@@ -67,6 +67,23 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).toContain("required_failed");
     expect(workflow).toContain("current_sha");
     expect(workflow).toContain('[[ "$current_sha" != "$PR_SHA" ]]');
+    expect(workflow).toContain(
+      "PR_CREATED_AT: ${{ needs.open-pr.outputs.pr_created_at }}",
+    );
+    expect(workflow).toContain(
+      "select(any(.pull_requests[]?; .number == $pr_number))",
+    );
+    expect(workflow).toContain(
+      "select(.created_at >= $pr_created_at)",
+    );
+    expect(workflow).toContain(
+      "select(.author.login == \"coderabbitai\")",
+    );
+    expect(workflow).toContain("select(.commit.oid == $pr_sha)");
+    expect(workflow).toContain(
+      "select(.submittedAt >= $pr_created_at)",
+    );
+    expect(workflow).toContain("coderabbit_reviews > 0");
   });
 
   it("publishes the trusted Octopus result on the pull-request head SHA", () => {
@@ -82,7 +99,9 @@ describe("dev to staging promotion contract", () => {
     expect(octopusWorkflow).toContain(
       '-f context="Octopus PR Quality Gates"',
     );
-    expect(octopusWorkflow).toContain('description="Runbook completed"');
+    expect(octopusWorkflow).toContain(
+      'description="Runbook completed for PR #$PR_NUMBER"',
+    );
     expect(octopusWorkflow).toContain('if: always()');
   });
 

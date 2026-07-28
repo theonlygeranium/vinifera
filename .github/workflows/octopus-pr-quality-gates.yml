@@ -82,6 +82,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
           REPO: ${{ github.repository }}
           RUNBOOK_OUTCOME: ${{ steps.runbook.outcome }}
@@ -96,10 +97,10 @@ jobs:
           fi
 
           state="failure"
-          description="Trusted source validation or Octopus runbook failed"
+          description="Runbook failed for PR #$PR_NUMBER"
           if [[ "$VALIDATION_RESULT" == "success" && "$RUNBOOK_OUTCOME" == "success" ]]; then
             state="success"
-            description="Runbook completed"
+            description="Runbook completed for PR #$PR_NUMBER"
           fi
 
           gh api --method POST "repos/$REPO/statuses/$PR_SHA" \

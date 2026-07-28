@@ -68,8 +68,14 @@ Because `pull_request_target` workflow checks are attached to the trusted base
 revision rather than the untrusted pull-request head, the Octopus bridge
 publishes a separate `Octopus PR Quality Gates` commit status on the exact PR
 head SHA after the trusted runbook finishes. Promotion requires that exact-head
-status with the `Runbook completed` description; it does not infer an Octopus
-result from a check attached to another revision.
+status with a description naming the current promotion PR; it does not infer an
+Octopus result from a check attached to another revision. Check runs must also
+identify the current PR in GitHub's `pull_requests` association, and
+commit-status results must be no older than the PR creation timestamp. Closing
+and recreating a promotion PR at the same `dev` SHA therefore cannot inherit
+the prior PR's CI or review results. CodeRabbit must also have submitted a
+review on the current PR at the captured head SHA; its commit status alone is
+not accepted as proof of PR-specific review.
 
 ---
 
