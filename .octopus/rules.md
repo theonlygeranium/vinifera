@@ -93,9 +93,10 @@ argument or with a newly generated value on each retry.
 the operation by `brand_id` or `organization_id`. The PR gate re-evaluates
 query chains touched by additions or deletions and requires the predicate on
 the same individual chain as the selected or mutated operation. It also tracks
-removed tenant predicates directly, including predicates applied through a
-later query-variable assignment; only a nearby added predicate can replace a
-removed one.
+predicates applied through later query-variable assignments. For changed
+service files, the gate models complete queries at the trusted base and current
+head: unchanged legacy unscoped operations are grandfathered, newly unscoped
+surviving operations fail, and a fully deleted query is ignored.
 
 **Why it matters:** The server uses privileged database credentials in some
 paths, so explicit service-layer scoping is required as defense in depth for

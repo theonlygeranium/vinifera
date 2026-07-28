@@ -24,6 +24,74 @@ function jsonResponse(payload, status = 200) {
   });
 }
 
+function embeddedQualityChecker() {
+  const qualityRunbook = readFileSync(
+    new URL(
+      "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const embeddedChecker = qualityRunbook.match(
+    /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+  )?.[1];
+  expect(embeddedChecker).toBeTruthy();
+  const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+  return embeddedChecker
+    .split("\n")
+    .map((line) => line.slice(Math.min(indentation, line.length)))
+    .join("\n");
+}
+
+function runRule8BaseHeadFixture({ baseSource, headSource, diff }) {
+  const checker = embeddedQualityChecker();
+  const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-base-"));
+  const serviceDirectory = join(fixture, "server", "services");
+  const serviceFile = join(serviceDirectory, "members.ts");
+  const commitDiffDirectory = join(fixture, "commit-diffs");
+  mkdirSync(serviceDirectory, { recursive: true });
+  mkdirSync(commitDiffDirectory);
+  writeFileSync(join(fixture, "CHANGELOG.md"), "# Fixture\n");
+  if (baseSource !== null) {
+    writeFileSync(serviceFile, baseSource);
+  }
+  for (const args of [
+    ["init", "--quiet"],
+    ["config", "user.email", "fixture@example.test"],
+    ["config", "user.name", "Fixture"],
+    ["add", "."],
+    ["commit", "--quiet", "-m", "fixture base"],
+  ]) {
+    const result = spawnSync("git", args, { cwd: fixture, encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+  }
+  const baseSha = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: fixture,
+    encoding: "utf8",
+  }).stdout.trim();
+  if (headSource === null) {
+    rmSync(serviceFile, { force: true });
+  } else {
+    writeFileSync(serviceFile, headSource);
+  }
+  writeFileSync(join(fixture, "pr.diff"), diff);
+  writeFileSync(
+    join(commitDiffDirectory, "fixture.diff"),
+    [
+      "diff --git a/server/services/members.ts b/server/services/members.ts",
+      "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+      "",
+    ].join("\n"),
+  );
+  const result = spawnSync(
+    "python3",
+    ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory, baseSha],
+    { input: checker, encoding: "utf8" },
+  );
+  rmSync(fixture, { recursive: true, force: true });
+  return result;
+}
+
 describe("Octopus runbook bridge", () => {
   it("keeps PR code out of secret-bearing auto-fix paths", () => {
     const workflow = readFileSync(
@@ -114,7 +182,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -194,7 +262,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -271,7 +339,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -349,7 +417,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -418,7 +486,7 @@ describe("Octopus runbook bridge", () => {
       );
       expect(result.status).toBe(1);
       expect(result.stdout).toContain(
-        "FAIL Rule 8: server/services/members.ts:7",
+        "FAIL Rule 8: server/services/members.ts:2",
       );
     } finally {
       rmSync(fixture, { recursive: true, force: true });
@@ -434,7 +502,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -497,6 +565,126 @@ describe("Octopus runbook bridge", () => {
     }
   });
 
+  it("accepts a new query scoped through a later variable assignment", () => {
+    const headSource = [
+      "export async function safe(admin, brandId) {",
+      '  let query = admin.from("members").select("*");',
+      "  const audit = true;",
+      '  query = query.eq("brand_id", brandId);',
+      "  return { query, audit };",
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource: null,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/server/services/members.ts",
+        "@@ -0,0 +1,6 @@",
+        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+  });
+
+  it("rejects removal of a multiline later tenant predicate", () => {
+    const baseSource = [
+      "export async function unsafe(admin, brandId) {",
+      '  let query = admin.from("members").select("*");',
+      "  const one = 1;",
+      "  const two = 2;",
+      "  const three = 3;",
+      "  query = query.eq(",
+      '    "brand_id",',
+      "    brandId,",
+      "  );",
+      "  return { query, one, two, three };",
+      "}",
+      "",
+    ].join("\n");
+    const headSource = [
+      "export async function unsafe(admin) {",
+      '  let query = admin.from("members").select("*");',
+      "  const one = 1;",
+      "  const two = 2;",
+      "  const three = 3;",
+      "  return { query, one, two, three };",
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "--- a/server/services/members.ts",
+        "+++ b/server/services/members.ts",
+        "@@ -1,11 +1,7 @@",
+        "-export async function unsafe(admin, brandId) {",
+        "+export async function unsafe(admin) {",
+        '   let query = admin.from("members").select("*");',
+        "   const one = 1;",
+        "   const two = 2;",
+        "   const three = 3;",
+        "-  query = query.eq(",
+        '-    "brand_id",',
+        "-    brandId,",
+        "-  );",
+        "   return { query, one, two, three };",
+        " }",
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
+  });
+
+  it("accepts deletion of an entire scoped query", () => {
+    const baseSource = [
+      "export async function obsolete(admin, brandId) {",
+      '  return admin.from("members").select("*").eq("brand_id", brandId);',
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource,
+      headSource: null,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "deleted file mode 100644",
+        "--- a/server/services/members.ts",
+        "+++ /dev/null",
+        "@@ -1,3 +0,0 @@",
+        "-export async function obsolete(admin, brandId) {",
+        '-  return admin.from("members").select("*").eq("brand_id", brandId);',
+        "-}",
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+  });
+
   it("requires a changelog update in every commit", () => {
     const qualityRunbook = readFileSync(
       new URL(
@@ -506,7 +694,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;

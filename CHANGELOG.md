@@ -157,16 +157,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- **What changed:** Octopus Rule 8 now tracks removed tenant predicates
-  directly, including later query-variable assignments, and accepts a
-  replacement only when a new tenant predicate is nearby. Known JavaScript
-  utility constructors such as `Array.from()` are excluded as query boundaries
-  without restricting legitimate dynamic Supabase table arguments.
-  Documentation and regressions cover both review cases. **Why:** Source-line
-  proximity could miss a distant predicate deletion, while treating every
-  `.from()` token as Supabase could reject correctly scoped mutations.
-  **Deployment impact:** PR security analysis only; application runtime and
-  environment activation are unchanged. **Verification:** Run
+- **What changed:** Octopus Rule 8 now models complete queries in the trusted
+  base and current head, including multiline predicates and later
+  query-variable assignments. New or newly unscoped surviving queries fail;
+  unchanged legacy unscoped operations remain grandfathered, and fully deleted
+  queries are ignored. Known JavaScript utility constructors such as
+  `Array.from()` are excluded as query boundaries without restricting dynamic
+  Supabase table arguments. Documentation and regressions cover every reviewed
+  case. **Why:** Source-line proximity could miss distant or multiline predicate
+  deletion, reject valid later assignments, or block removal of an entire safe
+  query. **Deployment impact:** PR security analysis only; application runtime
+  and environment activation are unchanged. **Verification:** Run
   `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`, and
   `git diff --check`.
 - **What changed:** The Octopus Rule 8 deletion regression now models a pure

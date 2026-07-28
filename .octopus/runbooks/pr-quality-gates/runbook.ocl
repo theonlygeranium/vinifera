@@ -184,10 +184,11 @@ for commit in data:
                     set -euo pipefail
                     source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
                     cd "$WORK_DIR"
-                    python3 - "$WORK_DIR" "$WORK_DIR/pr.diff" "$WORK_DIR/commit-diffs" <<'PY'
+                    python3 - "$WORK_DIR" "$WORK_DIR/pr.diff" "$WORK_DIR/commit-diffs" "$BASE_SHA" <<'PY'
 import pathlib
 import re
 import shlex
+import subprocess
 import sys
 
 work_dir = pathlib.Path(sys.argv[1]).resolve()
@@ -195,12 +196,10 @@ diff_lines = pathlib.Path(sys.argv[2]).read_text(
     encoding="utf-8", errors="replace"
 ).splitlines()
 commit_diff_dir = pathlib.Path(sys.argv[3]).resolve()
+base_sha = sys.argv[4] if len(sys.argv) > 4 else ""
 added = []
-removed = []
-affected_new_lines = {}
 changed_files = set()
 path = None
-old_line = None
 new_line = None
 
 for line in diff_lines:
@@ -209,30 +208,20 @@ for line in diff_lines:
         path = parts[3][2:] if len(parts) >= 4 and parts[3].startswith("b/") else None
         if path:
             changed_files.add(path)
-        old_line = None
         new_line = None
         continue
-    match = re.match(
-        r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@",
-        line,
-    )
+    match = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@", line)
     if match:
-        old_line = int(match.group(1))
-        new_line = int(match.group(2))
+        new_line = int(match.group(1))
         continue
-    if path is None or old_line is None or new_line is None:
+    if path is None or new_line is None:
         continue
     if line.startswith("+") and not line.startswith("+++"):
         added.append((path, new_line, line[1:]))
-        affected_new_lines.setdefault(path, set()).add(new_line)
         new_line += 1
     elif line.startswith("-") and not line.startswith("---"):
-        removed.append((path, old_line, max(1, new_line), line[1:]))
-        affected_new_lines.setdefault(path, set()).add(max(1, new_line))
-        old_line += 1
         continue
     elif not line.startswith("\\"):
-        old_line += 1
         new_line += 1
 
 failures = []
@@ -308,12 +297,21 @@ def has_tenant_predicate(source):
         )
     )
 
-def tenant_query_segments(file_path):
-    candidate = (work_dir / file_path).resolve()
-    if work_dir not in candidate.parents or not candidate.is_file():
-        return []
-    source = candidate.read_text(encoding="utf-8", errors="replace")
-    masked = mask_non_code(source)
+def statement_spans(masked):
+    start = 0
+    spans = []
+    for match in re.finditer(r";", masked):
+        spans.append((start, match.end()))
+        start = match.end()
+    if start < len(masked):
+        spans.append((start, len(masked)))
+    return spans
+
+def brace_depth(masked, position):
+    prefix = masked[:position]
+    return prefix.count("{") - prefix.count("}")
+
+def database_from_calls(masked):
     utility_receivers = {
         "Array",
         "ArrayBuffer",
@@ -341,64 +339,117 @@ def tenant_query_segments(file_path):
         if receiver_match and receiver_match.group(1) in utility_receivers:
             continue
         from_calls.append(match)
-    segments = []
-    for index, from_call in enumerate(from_calls):
-        next_from = (
-            from_calls[index + 1].start()
-            if index + 1 < len(from_calls)
-            else len(source)
-        )
-        semicolon = masked.find(";", from_call.end(), next_from)
-        end = semicolon + 1 if semicolon >= 0 else next_from
-        segment = source[from_call.start():end]
-        masked_segment = masked[from_call.start():end]
-        if not re.search(
-            r"\.(?:select|update|delete|insert|upsert)\s*\(",
-            masked_segment,
-        ):
-            continue
-        start_line = source.count("\n", 0, from_call.start()) + 1
-        end_line = source.count("\n", 0, end) + 1
-        segments.append((start_line, end_line, segment))
-    return segments
+    return from_calls
 
-added_by_file = {}
-for file_path, line_number, text in added:
-    added_by_file.setdefault(file_path, []).append((line_number, text))
-
-for file_path, line_number, replacement_anchor, text in removed:
-    if not file_path.startswith("server/services/") or not file_path.endswith(".ts"):
-        continue
-    if not has_tenant_predicate(text):
-        continue
-    nearby_additions = "\n".join(
-        added_text
-        for added_line, added_text in added_by_file.get(file_path, [])
-        if abs(added_line - replacement_anchor) <= 3
-    )
-    if has_tenant_predicate(nearby_additions):
-        continue
-    failures.append(("Rule 8", f"{file_path}:{line_number}", text.strip()))
-
-for file_path, affected_lines in affected_new_lines.items():
-    if not file_path.startswith("server/services/") or not file_path.endswith(".ts"):
-        continue
-    for start_line, end_line, segment in tenant_query_segments(file_path):
-        if not any(start_line - 2 <= line <= end_line + 2 for line in affected_lines):
-            continue
-        if not has_tenant_predicate(segment):
-            excerpt = next(
-                (
-                    line.strip()
-                    for line in segment.splitlines()
-                    if re.search(
-                        r"\.(?:select|update|delete|insert|upsert)\s*\(",
-                        mask_non_code(line),
-                    )
-                ),
-                segment.strip(),
+def query_models(source):
+    masked = mask_non_code(source)
+    spans = statement_spans(masked)
+    from_calls = database_from_calls(masked)
+    models = []
+    for statement_start, statement_end in spans:
+        statement_calls = [
+            match
+            for match in from_calls
+            if statement_start <= match.start() < statement_end
+        ]
+        for index, from_call in enumerate(statement_calls):
+            end = (
+                statement_calls[index + 1].start()
+                if index + 1 < len(statement_calls)
+                else statement_end
             )
-            failures.append(("Rule 8", f"{file_path}:{start_line}", excerpt))
+            segment = source[from_call.start():end]
+            masked_segment = masked[from_call.start():end]
+            if not re.search(
+                r"\.(?:select|update|delete|insert|upsert)\s*\(",
+                masked_segment,
+            ):
+                continue
+            prefix = masked[statement_start:from_call.start()]
+            variable_match = re.search(
+                r"(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)"
+                r"\s*=\s*(?:await\s*)?[^;]*$",
+                prefix,
+            )
+            if not variable_match:
+                variable_match = re.search(
+                    r"(?:^|\n)\s*([A-Za-z_$][A-Za-z0-9_$]*)"
+                    r"\s*=\s*(?:await\s*)?[^;]*$",
+                    prefix,
+                )
+            variable = variable_match.group(1) if variable_match else None
+            model_parts = [segment]
+            model_end = end
+            if variable:
+                base_depth = brace_depth(masked, from_call.start())
+                for later_start, later_end in spans:
+                    if later_start < statement_end:
+                        continue
+                    if brace_depth(masked, later_start) != base_depth:
+                        continue
+                    later_masked = masked[later_start:later_end]
+                    if re.search(
+                        rf"(?:const|let|var)\s+{re.escape(variable)}\b",
+                        later_masked,
+                    ):
+                        break
+                    if re.search(
+                        rf"\b{re.escape(variable)}\s*=\s*(?:await\s*)?"
+                        rf"{re.escape(variable)}\.",
+                        later_masked,
+                    ):
+                        model_parts.append(source[later_start:later_end])
+                        model_end = later_end
+            model = "\n".join(model_parts)
+            start_line = source.count("\n", 0, from_call.start()) + 1
+            end_line = source.count("\n", 0, model_end) + 1
+            models.append((start_line, end_line, model))
+    return models
+
+def query_fingerprint(model):
+    return re.sub(r"\s+", "", model)
+
+def base_file_source(file_path):
+    if not base_sha:
+        return ""
+    result = subprocess.run(
+        ["git", "show", f"{base_sha}:{file_path}"],
+        cwd=work_dir,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout if result.returncode == 0 else ""
+
+for file_path in changed_files:
+    if not file_path.startswith("server/services/") or not file_path.endswith(".ts"):
+        continue
+    candidate = (work_dir / file_path).resolve()
+    if work_dir not in candidate.parents or not candidate.is_file():
+        continue
+    head_source = candidate.read_text(encoding="utf-8", errors="replace")
+    base_unscoped = {
+        query_fingerprint(model)
+        for _, _, model in query_models(base_file_source(file_path))
+        if not has_tenant_predicate(model)
+    }
+    for start_line, _, model in query_models(head_source):
+        if has_tenant_predicate(model):
+            continue
+        if query_fingerprint(model) in base_unscoped:
+            continue
+        excerpt = next(
+            (
+                line.strip()
+                for line in model.splitlines()
+                if re.search(
+                    r"\.(?:select|update|delete|insert|upsert)\s*\(",
+                    mask_non_code(line),
+                )
+            ),
+            model.strip(),
+        )
+        failures.append(("Rule 8", f"{file_path}:{start_line}", excerpt))
 
 for file_path, line_number, text in added:
     if not file_path.startswith("server/") or not file_path.endswith(".ts"):
