@@ -675,6 +675,10 @@ test.describe("Phase 5 provider and brand workflows", () => {
     await expect(
       page.getByRole("button", { name: "Save brand experience" }),
     ).toBeDisabled();
+    await logoUrl.fill("https://cdn.qa-winery.example:8443/logo.png");
+    expect(await logoUrl.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
+    await logoUrl.fill("https://user:pass@cdn.qa-winery.example/logo.png");
+    expect(await logoUrl.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(false);
     await logoUrl.fill("https://cdn.qa-winery.example/logo.png");
     await expect(logoUrl).toHaveAttribute("aria-invalid", "false");
     expect(await logoUrl.evaluate((input: HTMLInputElement) => input.checkValidity())).toBe(true);

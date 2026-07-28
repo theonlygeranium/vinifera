@@ -131,6 +131,7 @@ export function WhiteLabelPage() {
     message: string;
   } | null>(null);
   const previousBrandId = useRef(brand?.id ?? null);
+  const logoUrlInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!brand) return;
@@ -153,20 +154,28 @@ export function WhiteLabelPage() {
   );
   const themePasses =
     primaryContrast?.passes === true && secondaryContrast?.passes === true;
+  const normalizedLogoUrl = draft.logoUrl.trim();
   const logoUrlIsValid = useMemo(() => {
-    const value = draft.logoUrl.trim();
-    if (!value) return true;
+    if (!normalizedLogoUrl) return true;
     try {
-      const url = new URL(value);
+      const url = new URL(normalizedLogoUrl);
       return (
         url.protocol === "https:" &&
         url.username === "" &&
-        url.password === ""
+        url.password === "" &&
+        url.port === ""
       );
     } catch {
       return false;
     }
-  }, [draft.logoUrl]);
+  }, [normalizedLogoUrl]);
+  useEffect(() => {
+    logoUrlInput.current?.setCustomValidity(
+      logoUrlIsValid
+        ? ""
+        : "Use a credential-free HTTPS URL without a custom port.",
+    );
+  }, [logoUrlIsValid]);
   const eligible = session?.organization?.planTier === "reserve";
 
   async function saveBranding(event: FormEvent<HTMLFormElement>) {
@@ -176,7 +185,7 @@ export function WhiteLabelPage() {
     setFeedback(null);
     try {
       await patchJson(`/api/brands/${brand.id}`, {
-        logoUrl: draft.logoUrl || null,
+        logoUrl: normalizedLogoUrl || null,
         primaryColor: draft.primaryColor,
         secondaryColor: draft.secondaryColor,
         fontFamily: draft.fontFamily,
@@ -376,10 +385,10 @@ export function WhiteLabelPage() {
           <div className="form-field">
             <label htmlFor="brand-logo-url">Logo URL (HTTPS)</label>
             <input
+              ref={logoUrlInput}
               id="brand-logo-url"
               type="url"
               inputMode="url"
-              pattern="https://.*"
               aria-describedby="brand-logo-url-help"
               aria-invalid={!logoUrlIsValid}
               value={draft.logoUrl}
@@ -578,8 +587,8 @@ export function WhiteLabelPage() {
         <aside className="white-label-preview" aria-label="Member portal preview">
           <div className="white-label-preview__device" style={previewStyle}>
             <header>
-              {draft.logoUrl && logoUrlIsValid ? (
-                <img src={draft.logoUrl} alt={`${brand.name} logo preview`} />
+              {normalizedLogoUrl && logoUrlIsValid ? (
+                <img src={normalizedLogoUrl} alt={`${brand.name} logo preview`} />
               ) : (
                 <span aria-hidden="true">
                   <ShieldCheck />
