@@ -1,0 +1,22 @@
+{
+  "strictness": "medium",
+  "commentTypes": {
+    "logic": true,
+    "security": true,
+    "style": true,
+    "syntax": false
+  },
+  "ignore": [
+    "*.lock",
+    "package-lock.json",
+    "worker-configuration.d.ts",
+    "android/**",
+    "ios/**",
+    "dist/**",
+    ".wrangler/**"
+  ],
+  "excludeAuthors": [
+    "chatgpt-codex-connector",
+    "coderabbitai"
+  ]
+}

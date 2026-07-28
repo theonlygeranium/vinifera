@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- Replaced Greptile with Octopus as the AI code review tool (self-hosted). Greptile removed
+  as a required GitHub branch protection check. Branch protection now requires only
+  `Type, test, build, and package` and `Block direct push to main`.
+- Migrated `.greptile/` config directory to `.octopus/`. Architectural boundary rules
+  (`rules.md`) are preserved; `config.json` updated to add `excludeAuthors` for bot
+  accounts; `files.json` unchanged.
+- Updated `AGENTS.md` Section 8 to reference Octopus instead of Greptile and updated
+  directory tree, ownership table, and tool registry accordingly.
+
+### Added
+- ADR `docs/decisions/2026-07-28-switch-greptile-to-octopus.md` documenting the
+  transition rationale, self-hosting approach, and rollback path.
+
 
 ### Removed
 
