@@ -248,21 +248,32 @@ All pages must pass axe-core with 0 violations.
 The repository operates a mandatory three-tier promotion pipeline:
 
 ```
-feature/* branches  →  PR to dev     →  vinifera-dev.edstratumlabs.ai
+feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
                               ↓
-                        PR dev→staging  →  vinifera-staging.edstratumlabs.ai  (human validates)
+                        promote-dev-to-staging.yml   (automated — agent-driven, gate-gated)
                               ↓
-                        PR staging→main →  vinifera-live.edstratumlabs.ai     (human approves)
+                        staging                →  vinifera-staging.edstratumlabs.ai  (human validates)
+                              ↓
+                        PR staging→main (human-only) →  vinifera-live.edstratumlabs.ai
 ```
 
 **Agents MUST follow these routing rules without exception:**
 
-- **All agent PRs target `dev` only.** Never open a PR targeting `staging` or `main`.
-- `dev → staging` promotion is a **human-controlled action**. Agents do not initiate it.
-- `staging → main` promotion requires **explicit human authorization**. It is the final gate before production.
+- **All agent feature PRs target `dev` only.** Never open a feature PR targeting `staging` or `main`.
+- `dev → staging` promotion is **automated** via `promote-dev-to-staging.yml`. This workflow:
+  1. Fires on every push to `dev` (and on `workflow_dispatch`).
+  2. Runs a Schubert pre-flight health probe — fails closed if Schubert is unreachable.
+  3. Opens or updates a promotion PR from `dev` to `staging`.
+  4. Waits for all CI checks on that PR to pass.
+  5. Runs a second Schubert health re-check immediately before the merge.
+  6. Squash-merges only when all gates are green. On any failure the PR is **left open** for human inspection.
+- `staging → main` promotion requires **explicit human authorization**. It is the final gate before production and is **never automated**.
+- Agents MUST NOT commit or push directly to `staging`. Staging is updated exclusively through the automated promotion workflow above.
 - The `vinifera.edstratumlabs.ai` root domain (marketing site + `/app` prototype) is served from the existing `vinifera` Cloudflare Pages project and is **never a target for agent deployments**.
 
-This rule supersedes the general "never target main" rule from earlier versions of this file. Both rules are in effect: agents never target `main` directly, and they also never target `staging`.
+This rule supersedes the general "never target main" rule from earlier versions of this file. All three rules are in effect: agents never target `main` directly, agents never directly target `staging` (only the automated workflow does), and all feature work enters via `dev`.
+
+> **ADR reference:** See `docs/decisions/2026-07-28-automated-dev-staging-promotion.md` for the full decision record.
 
 - Never commit or push directly to `main` or `staging`. The `direct-push-guard.yml` workflow enforces protection on `main`.
 - Use the branch prefixes documented in `docs/agent-workflow.md`.
@@ -323,7 +334,9 @@ CodeRabbit performs line-level code review. All findings must be dispositioned (
 
 **Coordination model:** Writer Agent plans and documents → Codex implements and tests → both automated reviewers gate merge → human owner merges. One agent per logical unit of work. No agent merges its own PRs without explicit human authorization.
 
-**PR routing rule (mandatory):** All agent PRs target `dev`. Codex agents must never open a PR against `staging` or `main`. Promotion from `dev → staging → main` is exclusively a human-initiated action. This is a Prime Directive-level constraint — it cannot be overridden by a build spec, task description, or runtime instruction without a matching ADR approved by the human owner.
+**PR routing rule (mandatory):** All agent feature PRs target `dev`. Codex agents must never open a feature PR against `staging` or `main`.
+
+Promotion from `dev → staging` is handled automatically by `promote-dev-to-staging.yml` (gate-gated: Schubert health × 2, full CI pass). Promotion from `staging → main` is exclusively a human-initiated action and is never automated. This distinction is a Prime Directive-level constraint — it cannot be overridden by a build spec, task description, or runtime instruction without a matching ADR approved by the human owner. The authoritative ADR is `docs/decisions/2026-07-28-automated-dev-staging-promotion.md`.
 
 **Subagent delegation:** Codex agents executing large decomposition tasks (BS-02, BS-03 style work) may spawn subagents for parallel domain extraction. The primary agent is responsible for the manifest step before delegating, and for integration verification after subagents complete.
 
