@@ -780,6 +780,7 @@ test.describe("Phase 5 verified-host member branding", () => {
     await expect(
       page.getByRole("link", { name: "QA Estate Wine Club home" }),
     ).toBeVisible();
+    await expect(page).toHaveTitle("QA Estate Wine Club");
     await expect(page.locator(".brand__mark--custom img")).toHaveAttribute(
       "src",
       "https://cdn.qa-winery.example/logo.svg",
@@ -793,6 +794,9 @@ test.describe("Phase 5 verified-host member branding", () => {
         (element) => getComputedStyle(element).fontFamily,
       ),
     ).toContain("Georgia");
+    await page.getByRole("link", { name: "Winery staff sign in" }).click();
+    await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+    await expect(page).toHaveTitle("Vinifera Club Management");
   });
 
   test("canonical response renders Vinifera defaults", async ({ page }) => {

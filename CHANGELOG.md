@@ -410,6 +410,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   billing, providers, routing, and headers are unchanged. **Verification:** Run
   the focused manager role-gating test, `npm run check`, `npm run qa:e2e`, and
   inspect Owner and Manager sessions at 1440px and 375px in Jeff - Pro Chrome.
+
+- **What changed:** Applied a validated custom member-portal title to the
+  browser document while the branded member surface is mounted, restored the
+  prior title on provider cleanup without recapturing the custom title during
+  branding refreshes, and added a verified-host browser regression that also
+  checks the title after SPA navigation back to staff login.
+  **Why:** Custom branding appeared in the wordmark but left the browser and
+  assistive document context generically titled `Vinifera Club Management`.
+  **Deployment impact:** Member-portal document metadata only; staff titles,
+  branding validation, member data, APIs, provider activation, routing, and
+  headers are unchanged. **Verification:** Run the focused verified-host
+  branding test, `npm run check`, `npm run qa:e2e`, and inspect the custom
+  title at 1440px and 375px in Jeff - Pro Chrome.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,
