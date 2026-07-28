@@ -29,4 +29,50 @@ jobs:
           use_guided_failure: false
           variables: |
             PRBranch: ${{ github.head_ref }}
+            PRNumber: ${{ github.event.pull_request.number }}
+            GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
+
+  # Runs only when quality-gates fails — posts AI analysis + auto-fix diff as PR comments
+  comment-and-fix:
+    name: Post AI Analysis and Auto-Fix Suggestions
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    if: failure()
+
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Run PR Comment Bot Runbook 🤖
+        uses: OctopusDeploy/run-runbook-action@v1
+        env:
+          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_SPACE: Default
+        with:
+          project: Vinifera
+          runbook: PR Comment Bot
+          environments: Development
+          use_guided_failure: false
+          variables: |
+            PRBranch: ${{ github.head_ref }}
+            PRNumber: ${{ github.event.pull_request.number }}
+            GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
+
+      - name: Run Auto-Fix Suggestions Runbook 🔧
+        uses: OctopusDeploy/run-runbook-action@v1
+        env:
+          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_SPACE: Default
+        with:
+          project: Vinifera
+          runbook: Auto-Fix Suggestions
+          environments: Development
+          use_guided_failure: false
+          variables: |
+            PRBranch: ${{ github.head_ref }}
+            PRNumber: ${{ github.event.pull_request.number }}
             GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
