@@ -436,11 +436,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **What changed:** Made `FormFeedback` return no DOM node for null or empty
   messages while preserving alert/status semantics for real feedback, with
-  focused component coverage. **Why:** Empty feedback created a blank
+  focused component coverage. The existing live-region spacing is now reserved
+  by its wrapper rather than by the feedback child, preserving the stable page
+  geometry while the child is absent. **Why:** Empty feedback created a blank
   assertive live region that could announce meaningless updates to assistive
-  technology. **Deployment impact:** Shared form-feedback presentation only;
-  submissions, APIs, provider activation, routing, and headers are unchanged.
-  **Verification:** Run the focused FormFeedback tests, `npm run check`,
+  technology, while removing its layout footprint pushed the loyalty tablet
+  surface above the CLS budget. **Deployment impact:** Shared form-feedback
+  presentation only; submissions, APIs, provider activation, routing, and
+  headers are unchanged. **Verification:** Run the focused FormFeedback tests,
+  the repeated loyalty/tablet Playwright performance case, `npm run check`,
   `npm run qa:e2e`, and inspect empty/error/success states in Jeff - Pro Chrome.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
