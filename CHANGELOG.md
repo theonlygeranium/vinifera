@@ -482,6 +482,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   providers, routes, and activation gates are unchanged. **Verification:** Run
   `npm run check`, `npm run qa:e2e`, and measure focused controls at 375px and
   1440px.
+
+- **What changed:** Increased the mobile staff brand-context select text to
+  16px and added a 375px computed-style regression. **Why:** The responsive
+  sweep found 11px select text on every authenticated staff route, which can
+  trigger automatic zoom in iOS form controls and violates the mobile input
+  criterion. **Deployment impact:** Mobile staff-header typography only;
+  brand selection behavior, APIs, hosted data, providers, routes, and
+  activation gates are unchanged. **Verification:** Run `npm run check`,
+  `npm run qa:e2e`, and measure the select at 375px, 412px, and 430px.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,

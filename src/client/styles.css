@@ -6611,7 +6611,7 @@ select:focus-visible {
     width: 132px;
     max-width: 132px;
     padding-left: 8px;
-    font-size: 11px;
+    font-size: 16px;
   }
 
   .integration-health {
