@@ -104,6 +104,23 @@
   triggers on the resulting `staging` push, and confirm the read-only readiness
   and Stripe test-catalog workflows reject non-`staging` refs.
 
+## [Unreleased] — 2026-07-28 (UI Testing Work Manifest)
+
+### Added
+- `docs/build-specs/ui-test-manifest-2026-07-28.md`: Recorded SA-01 through
+  SA-12 test-domain assignments, isolated worktree paths, sequencing,
+  single-defect fix-branch conventions, baseline evidence, and activation
+  safety boundaries before subagent dispatch.
+
+### Verification
+- `npm run check`: 448/448 Vitest tests passed with TypeScript, Worker type,
+  Vite build, and Worker dry-run checks successful.
+- `npm run qa:e2e`: 145/145 Playwright/axe tests passed.
+
+### Deployment impact
+- Documentation only. No runtime, routing, provider, hosted environment, or
+  activation-gate state changed.
+
 ## [Unreleased] — 2026-07-28 (UI Testing Spec Formatting Fix)
 
 ### Fixed
