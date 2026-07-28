@@ -81,6 +81,20 @@ the per-run prompt and GitHub secret input can be removed together.
 The server upgrade is an operational follow-up; switching to v4 must be
 validated in a PR before removing this bridge.
 
+The quality runbook resolves the immutable PR head and base SHAs through the
+GitHub API, fetches those exact commits with an ephemeral HTTP authorization
+header, and removes the remote before inspecting pull-request content. Rules
+4–10 are evaluated against added lines or the exact tree diff so the successful
+path includes tenant-isolation Rule 8 without turning grandfathered baseline
+findings into unrelated failures.
+
+The former `PR Comment Bot` and `Auto-Fix Suggestions` failure runbooks are
+retired. Running `npm ci`, formatter binaries, or other pull-request-controlled
+code on the self-hosted Octopus server would cross the trust boundary even when
+lifecycle scripts are disabled. Failed rule output remains available in the
+Octopus task and GitHub check logs; remediation is performed in a normal,
+unprivileged feature-branch workflow.
+
 ---
 
 ## Consequences
@@ -101,6 +115,9 @@ validated in a PR before removing this bridge.
 - If the AI server is unavailable, Octopus reviews will not fire. Octopus is not a
   branch-protection context, but its missing review blocks merge under the repository
   workflow until the service recovers or the human owner documents a one-time exception.
+- Octopus no longer posts AI-generated failure comments or formatter patches.
+  This intentionally trades convenience for a smaller secret-bearing execution
+  surface.
 
 ### Bootstrap correction
 

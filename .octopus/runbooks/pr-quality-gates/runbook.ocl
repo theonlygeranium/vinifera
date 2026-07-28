@@ -18,17 +18,54 @@ process {
 
         action {
             action_type = "Octopus.Script"
-            notes = "Clone the PR branch so subsequent steps can run checks against the source code."
+            notes = "Resolve the trusted PR metadata through GitHub, fetch exact immutable commits without persisting the PAT, and detach the checkout."
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
-                    set -e
-                    REPO_URL="https://#{GitHubPAT}@github.com/theonlygeranium/vinifera.git"
+                    set -euo pipefail
                     BRANCH="#{PRBranch}"
                     WORK_DIR="/tmp/vinifera-pr-$$"
-                    echo "Cloning branch: $BRANCH"
-                    git clone --depth=1 --branch "$BRANCH" "$REPO_URL" "$WORK_DIR"
-                    echo "WORK_DIR=$WORK_DIR" > /tmp/octopus_pr_workdir
+                    AUTH_HEADER="Authorization: Bearer #{GitHubPAT}"
+                    PR_JSON=$(curl -fsS \
+                        -H "$AUTH_HEADER" \
+                        -H "Accept: application/vnd.github+json" \
+                        -H "X-GitHub-Api-Version: 2022-11-28" \
+                        "https://api.github.com/repos/theonlygeranium/vinifera/pulls/#{PRNumber}")
+                    PR_METADATA=$(printf '%s' "$PR_JSON" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+print(data["head"]["repo"]["full_name"])
+print(data["head"]["ref"])
+print(data["head"]["sha"])
+print(data["base"]["sha"])
+')
+                    HEAD_REPOSITORY=$(printf '%s\n' "$PR_METADATA" | sed -n '1p')
+                    HEAD_REF=$(printf '%s\n' "$PR_METADATA" | sed -n '2p')
+                    HEAD_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '3p')
+                    BASE_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '4p')
+                    [ "$HEAD_REPOSITORY" = "theonlygeranium/vinifera" ] || {
+                        echo "FAIL: pull request head repository is not trusted"
+                        exit 1
+                    }
+                    [ "$HEAD_REF" = "$BRANCH" ] || {
+                        echo "FAIL: prompted branch does not match pull request metadata"
+                        exit 1
+                    }
+
+                    mkdir -p "$WORK_DIR"
+                    cd "$WORK_DIR"
+                    git init --quiet
+                    git remote add origin https://github.com/theonlygeranium/vinifera.git
+                    git -c http.extraHeader="$AUTH_HEADER" fetch --quiet --no-tags --depth=1 origin "$BASE_SHA" "$HEAD_SHA"
+                    git checkout --quiet --detach "$HEAD_SHA"
+                    git remote remove origin
+                    unset AUTH_HEADER PR_JSON PR_METADATA
+
+                    {
+                        echo "WORK_DIR=$WORK_DIR"
+                        echo "HEAD_SHA=$HEAD_SHA"
+                        echo "BASE_SHA=$BASE_SHA"
+                    } > /tmp/octopus_pr_workdir
                     echo "Checkout complete: $WORK_DIR"
                     EOT
                 Octopus.Action.Script.ScriptSource = "Inline"
@@ -93,6 +130,62 @@ process {
                     VIOLATIONS=$(grep -rn --include="*.ts" -E "(sk_live_|sk_test_|rk_live_|ep_test_|re_)[A-Za-z0-9_]+" server/ src/ 2>/dev/null||true)
                     [ -n "$VIOLATIONS" ] && echo "FAIL: $VIOLATIONS" && exit 1
                     echo "PASS: Rule 3"
+                    EOT
+                Octopus.Action.Script.ScriptSource = "Inline"
+                Octopus.Action.Script.Syntax = "Bash"
+            }
+        }
+    }
+
+    step "rules-4-through-10-change-aware-guards" {
+        name = "Rules 4-10: Change-Aware Security and Tenancy Guards"
+
+        action {
+            action_type = "Octopus.Script"
+            notes = "Evaluate added server lines plus the exact base-to-head tree diff so input validation, auth, provider, idempotency, tenancy, changelog, and type rules fail closed without grandfathered baseline noise."
+            properties = {
+                Octopus.Action.RunOnServer = "true"
+                Octopus.Action.Script.ScriptBody = <<-EOT
+                    set -euo pipefail
+                    source /tmp/octopus_pr_workdir
+                    cd "$WORK_DIR"
+                    FAILURES=0
+
+                    added_lines() {
+                        git diff --unified=0 "$BASE_SHA" "$HEAD_SHA" -- "$@" \
+                            | grep '^+' \
+                            | grep -v '^+++' \
+                            || true
+                    }
+
+                    R4=$(added_lines 'server/routes/**/*.ts' | grep -E 'req\.(body|params)' | grep -Ev 'safeParse|\.parse\(' || true)
+                    [ -z "$R4" ] || { echo "FAIL Rule 4: added API input access lacks same-line Zod parsing"; echo "$R4"; FAILURES=$((FAILURES + 1)); }
+
+                    R5=$(added_lines 'server/**/*.ts' | grep -E 'headers\.authorization|Authorization.*Bearer' | grep -Ev 'mobile|native|\.test\.' || true)
+                    [ -z "$R5" ] || { echo "FAIL Rule 5: added server code reads a bearer token outside an approved native boundary"; echo "$R5"; FAILURES=$((FAILURES + 1)); }
+
+                    R6=$(added_lines 'server/services/**/*.ts' 'server/integrations/**/*.ts' | grep -Ei '(easypost|resend|stripe)\.' | grep -Ev 'isActive|isEnabled|activation|\.test\.' || true)
+                    [ -z "$R6" ] || { echo "FAIL Rule 6: added provider call lacks an activation guard on the changed line"; echo "$R6"; FAILURES=$((FAILURES + 1)); }
+
+                    R7=$(added_lines 'server/**/*.ts' | grep -E 'paymentIntents\.create|labels\.create|emails\.send' | grep -Ev 'idempotency|idempotencyKey' || true)
+                    [ -z "$R7" ] || { echo "FAIL Rule 7: added mutating provider call lacks an idempotency key on the changed line"; echo "$R7"; FAILURES=$((FAILURES + 1)); }
+
+                    R8=$(added_lines 'server/services/**/*.ts' | grep -E '\.(select|update|delete|insert)\(' | grep -Ev 'brand_id|organization_id|brandId|organizationId' || true)
+                    [ -z "$R8" ] || { echo "FAIL Rule 8: added service query lacks tenant scoping on the changed line"; echo "$R8"; FAILURES=$((FAILURES + 1)); }
+
+                    NON_DOC_DIFF=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Ev '(^docs/|\.md$)' || true)
+                    CHANGELOG_DIFF=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- CHANGELOG.md || true)
+                    [ -z "$NON_DOC_DIFF" ] || [ -n "$CHANGELOG_DIFF" ] || {
+                        echo "FAIL Rule 9: non-documentation changes require CHANGELOG.md"
+                        echo "$NON_DOC_DIFF"
+                        FAILURES=$((FAILURES + 1))
+                    }
+
+                    R10=$(added_lines 'server/**/*.ts' | grep -E ':[[:space:]]*any\b|as[[:space:]]+any\b' || true)
+                    [ -z "$R10" ] || { echo "FAIL Rule 10: added server TypeScript uses any"; echo "$R10"; FAILURES=$((FAILURES + 1)); }
+
+                    [ "$FAILURES" -eq 0 ] || exit 1
+                    echo "PASS: Rules 4-10"
                     EOT
                 Octopus.Action.Script.ScriptSource = "Inline"
                 Octopus.Action.Script.Syntax = "Bash"

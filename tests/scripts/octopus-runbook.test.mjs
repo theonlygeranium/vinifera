@@ -16,6 +16,38 @@ function jsonResponse(payload, status = 200) {
 }
 
 describe("Octopus runbook bridge", () => {
+  it("keeps PR code out of secret-bearing auto-fix paths", () => {
+    const workflow = readFileSync(
+      new URL(
+        "../../.github/workflows/octopus-pr-quality-gates.yml",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+
+    expect(workflow).not.toContain("Auto-Fix Suggestions");
+    expect(workflow).not.toContain("PR Comment Bot");
+    expect(qualityRunbook).not.toMatch(
+      /https:\/\/#\{GitHubPAT\}@github\.com/,
+    );
+    expect(qualityRunbook).toContain('git -c http.extraHeader="$AUTH_HEADER"');
+    expect(qualityRunbook).toContain("git remote remove origin");
+    expect(qualityRunbook).toContain(
+      "Rules 4-10: Change-Aware Security and Tenancy Guards",
+    );
+    expect(qualityRunbook).toContain("FAIL Rule 8");
+    expect(qualityRunbook).toContain(
+      'git diff --unified=0 "$BASE_SHA" "$HEAD_SHA"',
+    );
+  });
+
   it("normalizes an HTTPS server URL to the API root", () => {
     expect(normalizeApiBase("https://octopus.example.test/")).toBe(
       "https://octopus.example.test/api",
@@ -262,7 +294,7 @@ describe("Octopus workflow trust boundary", () => {
     expect(workflow).toContain(
       "ref: ${{ github.event.repository.default_branch }}",
     );
-    expect(workflow.match(/persist-credentials: false/g)).toHaveLength(2);
+    expect(workflow.match(/persist-credentials: false/g)).toHaveLength(1);
     expect(workflow).not.toContain("github.event.pull_request.head.sha");
     expect(workflow).not.toContain("github.head_ref");
     expect(workflow).toContain(

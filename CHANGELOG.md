@@ -3,6 +3,19 @@
 ## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
 
 ### Fixed
+- `.octopus/runbooks/pr-quality-gates/runbook.ocl`: Resolves immutable PR base
+  and head commits from GitHub, authenticates fetches with an ephemeral HTTP
+  header, removes the authenticated remote before inspection, and enforces
+  change-aware Rules 4–10—including tenant-isolation Rule 8—on the successful
+  Octopus path.
+- `.github/workflows/octopus-pr-quality-gates.yml` and `.octopus/runbooks/`:
+  Retired the secret-bearing AI-comment and auto-fix failure path. Pull-request
+  dependencies and formatter binaries are no longer executed on the
+  self-hosted Octopus server, and a PR failure cannot place a GitHub PAT near
+  untrusted lifecycle scripts.
+- `tests/scripts/octopus-runbook.test.mjs`: Added regression coverage requiring
+  the ephemeral authenticated checkout, complete Rule 8 enforcement, and the
+  absence of the retired auto-fix dispatch.
 - Branch history: Reconciled the existing `staging` ancestry into `dev` before
   promotion so the three-tier branches can advance through reviewable merge
   commits without force-pushes or discarded governance history.
@@ -66,10 +79,10 @@
 
 ### Deployment impact
 - No application, routing, database, provider, Pages, or Worker resource is
-  changed by this commit. Future and re-triggered PRs to `dev` invoke the
-  self-hosted Octopus `PR Quality Gates` runbook. After the matching GitHub
-  environment branch-policy update, pushes and explicit activation workflows
-  on `staging` are authorized to use staging-only credentials.
+  changed by this commit. The published Octopus `PR Quality Gates` snapshot
+  must be updated before the GitHub gate is re-triggered. Future PR failures
+  remain visible in the Octopus task and GitHub check logs; no self-hosted
+  auto-fix or AI-comment runbook is dispatched.
 
 ### Verification
 - Validate workflow syntax, run the repository docs-only CI lane, confirm
@@ -78,6 +91,9 @@
   runs before merge.
 - Run the focused Octopus bridge tests and confirm the hosted workflow waits
   for the self-hosted runbook result.
+- Confirm the published runbook resolves the exact PR commits, removes its
+  authenticated remote, passes all ten rules for a clean PR, and fails a
+  tenant-unscoped added service query.
 - Promote an immutable `dev` head to `staging`, verify the quality workflow
   triggers on the resulting `staging` push, and confirm the read-only readiness
   and Stripe test-catalog workflows reject non-`staging` refs.
