@@ -1,0 +1,11 @@
+variable "Octopus.Acquire.MaxParallelism" {
+    value "10" {
+        description = "Max parallel package acquisitions per deployment"
+    }
+}
+
+variable "Octopus.Action.MaxParallelism" {
+    value "10" {
+        description = "Max parallel actions per deployment step"
+    }
+}
