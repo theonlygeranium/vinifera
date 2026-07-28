@@ -83,7 +83,8 @@
   Paginate every exact-head check and status query and revalidate CI, Octopus,
   CodeRabbit, and unresolved review threads immediately before merge. A gate
   that changes after the polling job now fails closed instead of racing the
-  exact-head merge.
+  exact-head merge. The required aggregate must succeed, while intentionally
+  skipped or neutral non-required GitHub job checks remain valid.
 - `public/marketing.js`, `tests/e2e/phase1.spec.ts`, and
   `tests/scripts/landing-static.test.mjs`: Require the application capability,
   including `APP_ORIGIN`, in addition to database and authentication-email

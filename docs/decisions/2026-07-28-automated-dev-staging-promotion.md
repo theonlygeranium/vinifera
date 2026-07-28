@@ -80,7 +80,9 @@ fully paginated before evaluation. After the second provider probe, the merge
 job re-queries exact-head CI, Octopus, CodeRabbit, PR-specific review, and
 unresolved-thread state immediately before invoking the exact-head merge. A
 new pending/failing result or review thread in the polling-to-merge race window
-therefore stops the promotion.
+therefore stops the promotion. The required aggregate must conclude `success`;
+non-required jobs that GitHub intentionally concludes `skipped` or `neutral`
+do not block promotion.
 
 ---
 

@@ -115,6 +115,9 @@ describe("dev to staging promotion contract", () => {
     );
     expect(workflow).toContain("invalid_checks");
     expect(workflow).toContain("invalid_statuses");
+    expect(workflow).toContain(
+      '.conclusion | IN("success","skipped","neutral") | not',
+    );
     expect(workflow).toContain('--match-head-commit "$PR_SHA"');
     expect(workflow).toContain('[[ "$state" != "MERGED"');
     expect(workflow).not.toMatch(/gh pr merge[\s\S]{0,500}\|\s*grep/);

@@ -403,7 +403,7 @@ jobs:
             '[.[] | select(.name == "Type, test, build, and package" and .status == "completed" and .conclusion == "success")] | length' \
             <<<"$checks")
           invalid_checks=$(jq \
-            '[.[] | select(.status != "completed" or .conclusion != "success")] | length' \
+            '[.[] | select(.status != "completed" or (.conclusion | IN("success","skipped","neutral") | not))] | length' \
             <<<"$checks")
           octopus_success=$(jq --arg expected "Runbook completed for PR #$PR_NUMBER" \
             '[.[] | select(.context == "Octopus PR Quality Gates" and .state == "success" and .description == $expected)] | length' \
