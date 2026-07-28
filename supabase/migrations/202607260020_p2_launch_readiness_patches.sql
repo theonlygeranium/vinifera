@@ -456,7 +456,7 @@ revoke execute on function public.claim_email_outbox_batch(text, integer, intege
 grant execute on function public.claim_email_outbox_batch(text, integer, integer)
   to service_role;
 
-revoke execute on function public.complete_email_outbox_claim(uuid, uuid, public.email_status, text, text)
+revoke execute on function public.complete_email_outbox_claim(uuid, text, public.email_status, text, text)
   from public, anon, authenticated;
 grant execute on function public.complete_email_outbox_claim(uuid, text, public.email_status, text, text)
   to service_role;

@@ -137,7 +137,7 @@ values
 
 set local request.jwt.claims =
   '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated","organization_id":"not-a-uuid","user_role":"owner","auth_surface":"staff","platform_role":null}';
-select is(auth.org_id(), null::uuid, 'invalid organization claims fail closed');
+select is(private.org_id(), null::uuid, 'invalid organization claims fail closed');
 
 set local role authenticated;
 set local request.jwt.claims =

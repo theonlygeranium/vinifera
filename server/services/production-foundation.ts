@@ -93,6 +93,102 @@ function normalizedRequestHost(request: Request): string | null {
   return host && /^[a-z0-9.-]+$/.test(host) ? host : null;
 }
 
+function httpOrigin(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (
+      !["http:", "https:"].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.pathname !== "/" ||
+      url.search ||
+      url.hash
+    ) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return (
+    hostname === "127.0.0.1" ||
+    hostname === "localhost" ||
+    hostname === "[::1]"
+  );
+}
+
+function enforceApplicationOriginPolicy(
+  env: Pick<WorkerEnv, "APP_ENV">,
+  origin: string,
+): string {
+  const originUrl = new URL(origin);
+  const localMode =
+    env.APP_ENV === "development" || env.APP_ENV === "test";
+  if (
+    originUrl.protocol !== "https:" &&
+    (!localMode || !isLoopbackHostname(originUrl.hostname))
+  ) {
+    throw new AppError(
+      500,
+      "configuration_error",
+      "HTTP application origins are allowed only for loopback development and test.",
+    );
+  }
+  return origin;
+}
+
+export function resolveApplicationOrigin(
+  env: Pick<WorkerEnv, "APP_ENV" | "APP_ORIGIN">,
+  request: Pick<Request, "get" | "protocol">,
+): string {
+  const configuredOrigin = env.APP_ORIGIN?.trim();
+  if (configuredOrigin) {
+    const origin = httpOrigin(configuredOrigin);
+    if (!origin) {
+      throw new AppError(
+        500,
+        "configuration_error",
+        "APP_ORIGIN must be a credential-free HTTP or HTTPS origin.",
+      );
+    }
+    return enforceApplicationOriginPolicy(env, origin);
+  }
+  if (env.APP_ENV !== "development" && env.APP_ENV !== "test") {
+    throw new AppError(
+      500,
+      "configuration_error",
+      "APP_ORIGIN is required outside development and test.",
+    );
+  }
+
+  const requestOrigin = request.get("origin");
+  if (requestOrigin) {
+    const origin = httpOrigin(requestOrigin);
+    if (origin) return enforceApplicationOriginPolicy(env, origin);
+  }
+
+  const host = request.get("host");
+  if (host) {
+    const forwardedProtocol = request
+      .get("x-forwarded-proto")
+      ?.split(",")[0]
+      ?.trim();
+    const origin = httpOrigin(
+      `${forwardedProtocol || request.protocol}://${host}`,
+    );
+    if (origin) return enforceApplicationOriginPolicy(env, origin);
+    throw new AppError(
+      500,
+      "configuration_error",
+      "The request origin could not be derived safely.",
+    );
+  }
+  return enforceApplicationOriginPolicy(env, "http://localhost:5173");
+}
+
 function getPublicKey(env: WorkerEnv): string {
   return requireConfigured(
     env.SUPABASE_PUBLISHABLE_KEY ?? env.SUPABASE_ANON_KEY,
@@ -247,24 +343,7 @@ export class ProductionFoundationService
   }
 
   private applicationOrigin(): string {
-    const requestOrigin = this.request.get("origin");
-    if (requestOrigin) {
-      try {
-        return new URL(requestOrigin).origin;
-      } catch {
-        // The origin middleware rejects malformed values before state changes.
-      }
-    }
-
-    const host = this.request.get("host");
-    if (host) {
-      const forwardedProtocol = this.request
-        .get("x-forwarded-proto")
-        ?.split(",")[0]
-        ?.trim();
-      return `${forwardedProtocol || this.request.protocol}://${host}`;
-    }
-    return this.env.APP_ORIGIN ?? "http://localhost:5173";
+    return resolveApplicationOrigin(this.env, this.request);
   }
 
   private requireAuthEmail(): void {
@@ -277,8 +356,9 @@ export class ProductionFoundationService
     }
   }
 
-  async getStaffSession(): Promise<StaffPrincipal | null> {
-    const client = this.surfaceClient("staff");
+  async getStaffSession(
+    client = this.surfaceClient("staff"),
+  ): Promise<StaffPrincipal | null> {
     const { data, error } = await client.auth.getUser();
     if (error || !data.user) return null;
 
@@ -481,7 +561,7 @@ export class ProductionFoundationService
     if (data.session) {
       const { error: refreshError } = await staffClient.auth.refreshSession();
       if (!refreshError) {
-        principal = await this.getStaffSession();
+        principal = await this.getStaffSession(staffClient);
       }
     }
 
@@ -493,12 +573,13 @@ export class ProductionFoundationService
   }
 
   async staffLogin(input: { email: string; password: string }): Promise<StaffPrincipal> {
-    const { error } = await this.surfaceClient("staff").auth.signInWithPassword({
+    const staffClient = this.surfaceClient("staff");
+    const { error } = await staffClient.auth.signInWithPassword({
       email: normalizeEmail(input.email),
       password: input.password,
     });
     if (error) throw authFailure();
-    const principal = await this.getStaffSession();
+    const principal = await this.getStaffSession(staffClient);
     if (!principal) throw authFailure();
     return principal;
   }
@@ -706,7 +787,7 @@ export class ProductionFoundationService
       throw new AppError(401, "unauthorized", "The staff session could not be refreshed.");
     }
 
-    const principal = await this.getStaffSession();
+    const principal = await this.getStaffSession(client);
     if (!principal) throw authFailure();
     return principal;
   }

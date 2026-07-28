@@ -53,6 +53,7 @@ jobs:
           npm run qa:db:phase3
           npm run qa:db:phase4
           npm run qa:db:phase5
+          npm run qa:local-seed
 
       - name: Build static assets
         run: npm run build

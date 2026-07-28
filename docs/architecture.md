@@ -521,8 +521,9 @@ All animations are disabled under `@media (prefers-reduced-motion: reduce)`.
 
 ## Current activation gates
 
-The canonical gates below are reproduced from `CONTINUITY_BRIEF.md`. Source
-architecture and local tests do not change their status.
+The canonical gates below are reproduced from `CONTINUITY_BRIEF.md`. BS-05
+records partial local prerequisite evidence separately; a composite gate stays
+`pending` until its complete hosted or provider requirement is proved.
 
 | Gate | Requirement | Status |
 |---:|---|---|

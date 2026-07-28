@@ -40,14 +40,10 @@ The name comes from *Vitis vinifera*, the Latin species name for the primary win
 
 ## Project status
 
-v0.5.0: architecturally complete, operationally dormant pending 20 activation
-gates. See [`CONTINUITY_BRIEF.md`](./CONTINUITY_BRIEF.md).
-
-## Local development
-
-Use the current local and Worker commands documented under
-[Build & Deploy](#build--deploy). There is no standalone local quickstart in
-the repository today.
+v0.5.0: architecturally complete and operationally dormant while all 20
+activation gates remain `pending`. BS-05 records partial local prerequisites
+for Gates 1, 7, and 15 without promoting their composite statuses. See
+[`CONTINUITY_BRIEF.md`](./CONTINUITY_BRIEF.md).
 
 ## Agent workflow
 
@@ -57,7 +53,7 @@ All agent changes use pull requests, CI, and Greptile review as documented in
 ## Architecture
 
 The current Pages rollback baseline, Worker/Supabase topology, tenant model,
-provider guards, and 20 pending activation gates are documented in
+provider guards, and 20 activation gates are documented in
 [`docs/architecture.md`](./docs/architecture.md).
 
 ## Current live baseline
@@ -106,6 +102,34 @@ The prototype demonstrates thirteen functional areas across an administration po
 | **Observability** | Structured Worker logs + optional Sentry | Correlated safe errors are logged locally; Sentry capture activates only when its server-side DSN secret is configured |
 | **Auth** | Supabase Auth | JWT sessions, magic-link for members, password/OAuth for staff |
 
+## Local Development
+
+The local workflow is designed to start Supabase, reset and seed PostgreSQL,
+create loopback-only Auth users, build the application, start the Worker and
+Vite, and run authenticated tenant-isolation smoke checks:
+
+```bash
+npm ci
+npm run dev
+```
+
+Docker Desktop or another reachable Docker-compatible runtime is required.
+The integrated application uses `http://127.0.0.1:8788/app/`; Vite hot reload
+uses `http://127.0.0.1:5173/app/`. The command derives ephemeral Supabase keys
+from the local CLI and removes its temporary Worker environment file on exit.
+It never reads hosted or provider credentials, and it fails closed rather than
+selecting another Vite port when 5173 is occupied.
+
+BS-05 verified the complete integrated workflow with a native 22-migration
+Supabase reset and seed, local Auth, authenticated Worker requests, populated
+React member views, desktop and 375px axe-core checks, and a 375px touch-target
+audit. The same chain passes the credential-independent double-seed verifier.
+The clean-replay corrections are documented in
+[the local development notes](./docs/build-specs/local-dev-notes.md); the
+[quickstart](./docs/local-dev-quickstart.md) lists the synthetic test users and
+local-only cautions. Use `npm run dev:frontend` only for frontend work that
+does not need the API.
+
 ## Build & Deploy
 
 ```bash
@@ -114,12 +138,6 @@ npm ci
 
 # Build for production (outputs to dist/)
 npm run build
-
-# Visual development server
-npm run dev
-
-# Full Worker + API development server
-npm run dev:worker
 
 # Full local verification
 npm run check

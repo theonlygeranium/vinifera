@@ -19,8 +19,8 @@ enabled = true
 schema_paths = []
 
 [db.seed]
-enabled = false
-sql_paths = []
+enabled = true
+sql_paths = ["./seed.sql"]
 
 [realtime]
 enabled = false
@@ -39,12 +39,16 @@ enabled = false
 
 [auth]
 enabled = true
-site_url = "http://127.0.0.1:5173"
+site_url = "http://127.0.0.1:8788"
 additional_redirect_urls = [
   "http://localhost:5173/api/auth/staff/callback",
   "http://localhost:5173/api/auth/member/callback",
   "http://127.0.0.1:5173/api/auth/staff/callback",
   "http://127.0.0.1:5173/api/auth/member/callback",
+  "http://localhost:8788/api/auth/staff/callback",
+  "http://localhost:8788/api/auth/member/callback",
+  "http://127.0.0.1:8788/api/auth/staff/callback",
+  "http://127.0.0.1:8788/api/auth/member/callback",
   "https://vinifera.edstratumlabs.ai/api/auth/staff/callback",
   "https://vinifera.edstratumlabs.ai/api/auth/member/callback",
 ]

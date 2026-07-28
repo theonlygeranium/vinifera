@@ -3081,7 +3081,7 @@ declare
 begin
   if not private.is_service_role()
     and not private.is_super_admin()
-    and not private.is_staff_for_org(auth.org_id())
+    and not private.is_staff_for_org(private.org_id())
   then
     raise exception using
       errcode = '42501',

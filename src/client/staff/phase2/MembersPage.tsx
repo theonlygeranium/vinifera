@@ -467,7 +467,10 @@ export function MembersPage() {
           <p>Search, update, assign, and export your winery’s live members.</p>
         </div>
         {members.state.status === "ready" ? (
-          <strong>{members.state.data.total.toLocaleString()} members</strong>
+          <strong>
+            {members.state.data.total.toLocaleString()}{" "}
+            {members.state.data.total === 1 ? "member" : "members"}
+          </strong>
         ) : null}
       </div>
 

@@ -507,8 +507,8 @@ as $$
     private.is_service_role()
     or private.is_super_admin()
     or (
-      auth.auth_surface() = 'staff'
-      and auth.org_id() = p_organization_id
+      private.auth_surface() = 'staff'
+      and private.org_id() = p_organization_id
       and exists (
         select 1
         from public.staff_users as s
@@ -518,7 +518,7 @@ as $$
         where s.id = auth.uid()
           and s.organization_id = p_organization_id
           and s.status = 'active'
-          and s.role::text = auth.user_role()
+          and s.role::text = private.user_role()
           and (
             osa.scope = 'all_brands'
             or (
@@ -536,8 +536,8 @@ as $$
     )
     or (
       p_brand_id is not null
-      and auth.auth_surface() = 'member'
-      and auth.org_id() = p_organization_id
+      and private.auth_surface() = 'member'
+      and private.org_id() = p_organization_id
       and exists (
         select 1
         from public.members as m
@@ -575,7 +575,7 @@ begin
     return v_brand_ids;
   end if;
 
-  if auth.auth_surface() = 'staff' then
+  if private.auth_surface() = 'staff' then
     select coalesce(array_agg(brand.id), '{}'::uuid[])
     into v_brand_ids
     from public.staff_users as staff
@@ -589,9 +589,9 @@ begin
      and brand_access.staff_user_id = staff.id
      and brand_access.brand_id = brand.id
     where staff.id = auth.uid()
-      and staff.organization_id = auth.org_id()
+      and staff.organization_id = private.org_id()
       and staff.status = 'active'
-      and staff.role::text = auth.user_role()
+      and staff.role::text = private.user_role()
       and (
         organization_access.scope = 'all_brands'
         or brand_access.brand_id is not null
@@ -599,7 +599,7 @@ begin
     return v_brand_ids;
   end if;
 
-  if auth.auth_surface() = 'member' then
+  if private.auth_surface() = 'member' then
     select coalesce(array_agg(member.brand_id), '{}'::uuid[])
     into v_brand_ids
     from public.members as member
@@ -609,7 +609,7 @@ begin
     join public.organizations as organization
       on organization.id = member.organization_id
     where member.auth_user_id = auth.uid()
-      and member.organization_id = auth.org_id()
+      and member.organization_id = private.org_id()
       and brand.active
       and (
         (
@@ -853,7 +853,7 @@ begin
   )
   returning * into v_brand;
 
-  if auth.auth_surface() = 'staff' then
+  if private.auth_surface() = 'staff' then
     insert into public.staff_brand_access (
       organization_id,
       staff_user_id,
@@ -2633,7 +2633,7 @@ begin
     opted_in = p_opted_in,
     consented_at = case when p_opted_in then now() else null end,
     consented_by = case
-      when auth.auth_surface() = 'staff' then auth.uid()
+      when private.auth_surface() = 'staff' then auth.uid()
       else null
     end,
     status = case
@@ -7086,19 +7086,19 @@ $$;
 alter policy members_staff_select
   on public.members
   using (
-    organization_id = (select auth.org_id())
+    organization_id = (select private.org_id())
     and (
-      select private.is_staff_for_org((select auth.org_id()))
+      select private.is_staff_for_org((select private.org_id()))
     )
   );
 alter policy members_member_select
   on public.members
   using (
-    organization_id = (select auth.org_id())
+    organization_id = (select private.org_id())
     and auth_user_id = (select auth.uid())
     and (
       select private.is_member_for_org(
-        (select auth.org_id()),
+        (select private.org_id()),
         (select auth.uid())
       )
     )
@@ -7106,21 +7106,21 @@ alter policy members_member_select
 alter policy members_member_update
   on public.members
   using (
-    organization_id = (select auth.org_id())
+    organization_id = (select private.org_id())
     and auth_user_id = (select auth.uid())
     and (
       select private.is_member_for_org(
-        (select auth.org_id()),
+        (select private.org_id()),
         (select auth.uid())
       )
     )
   )
   with check (
-    organization_id = (select auth.org_id())
+    organization_id = (select private.org_id())
     and auth_user_id = (select auth.uid())
     and (
       select private.is_member_for_org(
-        (select auth.org_id()),
+        (select private.org_id()),
         (select auth.uid())
       )
     )

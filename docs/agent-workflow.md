@@ -9,6 +9,28 @@
 - **CI checks** (type, test, build, Cloudflare Pages) must pass before merging.
 - Every merge to `main` triggers a live deploy. Unreviewed code = unreviewed production.
 
+The credential-independent CI database contract runs the Phase 1-5 embedded
+PostgreSQL gates and `npm run qa:local-seed`. The latter replays every
+migration and applies the deterministic seed twice in PGlite, so local-fixture
+idempotence is enforced without Docker or hosted credentials.
+
+## Mandatory commit contract
+
+Every commit must update `CHANGELOG.md` and use the repository's Conventional
+Commits format:
+
+```text
+<type>(<scope>): <short summary>
+
+<body explaining what changed and why>
+
+Verification: <exact checks run>
+```
+
+The prompt templates below inherit this contract. A branch or PR is not ready
+for review if its commits omit the body, `Verification:` section, or changelog
+entry.
+
 ---
 
 ## Agent prompt templates
@@ -25,7 +47,8 @@ Branching rules (mandatory):
 - Create a branch named: <type>/<short-description>
   Branch types: feat/, fix/, chore/, refactor/, docs/, ci/
   Example: feat/churn-model-v2, fix/null-member-id
-- Commit all changes to that branch.
+- Commit all changes to that branch using the mandatory commit contract above,
+  including the `CHANGELOG.md` update.
 - Open a pull request targeting main with:
     Title: <type>: <concise description>
     Body: what changed, why, and any risks or assumptions
@@ -45,7 +68,8 @@ Repository: theonlygeranium/vinifera
 Branching rules (mandatory):
 - Do not push to main directly.
 - Create a branch: git checkout -b <type>/<short-description>
-- Commit changes to that branch only.
+- Commit changes to that branch only using the mandatory commit contract
+  above, including the `CHANGELOG.md` update.
 - Push and open a PR with: gh pr create --base main --title "<type>: <description>" --body "<summary>"
 - Do not merge. Leave open for Greptile + CI review.
 
@@ -63,7 +87,8 @@ Repository: theonlygeranium/vinifera
 Branching rules (mandatory):
 - Never commit to main directly.
 - Create a branch: git checkout -b <type>/<short-description>
-- Commit and push your changes, then open a PR targeting main.
+- Commit using the mandatory commit contract above, including the
+  `CHANGELOG.md` update, then push and open a PR targeting main.
 - After the PR is open, run /greploop to let Greptile review,
   fix all flagged issues, and iterate until the PR reaches 5/5 confidence.
 - Do not merge until CI and Greptile are both green.
@@ -95,6 +120,7 @@ Task:
 - [ ] `Type, test, build, and package` CI check passes
 - [ ] Cloudflare Pages preview deploy succeeded
 - [ ] PR description explains what changed and why
+- [ ] Commits include a body, `Verification:` section, and `CHANGELOG.md`
 - [ ] No secrets, API keys, or credentials in the diff
 
 ---
