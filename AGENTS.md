@@ -15,7 +15,7 @@
 
 ### Current status
 
-v0.6.0 — architecturally complete and structurally hardened. All 6 build specs (BS-01 through BS-06) have been merged to `main`. The platform source is complete, modular, and observable. All 20 hosted activation gates remain `pending` — see `CONTINUITY_BRIEF.md` for the full gate list and current state.
+v0.5.0 — source architecture complete and structurally hardened. All 6 build specs (BS-01 through BS-06) have been merged to `main`. The platform source is modular, observable, and locally runnable. All 20 hosted activation gates remain `pending` — see `CONTINUITY_BRIEF.md` for the full gate list and current state.
 
 The public custom domain continues to serve the verified static Cloudflare Pages rollback baseline. It is **not** evidence that the Worker application is live.
 
@@ -77,7 +77,7 @@ vinifera/
 │   ├── decisions/          # Architectural Decision Records (ADRs)
 │   ├── build-specs/        # BS-01 through BS-06 specs and dispatch guide
 │   └── agent-workflow.md   # Branching, PR, and review loop rules
-├── .github/workflows/      # 8 CI/CD workflows
+├── .github/workflows/      # 8 CI/CD workflows (see Section 5)
 ├── .greptile/              # Greptile architectural boundary rules
 ├── AGENTS.md               # YOU ARE HERE — agent collaboration guide
 ├── CONTINUITY_BRIEF.md     # Drop-in context for new agent sessions
@@ -92,7 +92,7 @@ vinifera/
 
 | File / Directory | Who can modify | Notes |
 |-----------------|----------------|-------|
-| `AGENTS.md` | Any agent via PR | Human owner **must review and merge**. Changes to Section 2 (Prime Directives) or this ownership table require a corresponding ADR in `docs/decisions/`. |
+| `AGENTS.md` | Any agent via PR | Human owner **must review and merge**. Changes to Section 2 (Prime Directives) or this ownership table require a corresponding ADR in `docs/decisions/`. See ADR `docs/decisions/2026-07-28-agents-md-governance-update.md`. |
 | `CONTINUITY_BRIEF.md` | Any agent | Must reflect current reality — update after every session |
 | `README.md` | Any agent | Must reflect reality — no aspirational content |
 | `CHANGELOG.md` | Any agent | Required on every commit |
@@ -113,7 +113,6 @@ vinifera/
 | `guide` | Any agent | Investor's guide — verify WCAG + mobile |
 | `public/_redirects` | Any agent | Test routing rules after changes |
 | `public/_headers` | Any agent | Test security headers after changes |
-| `AGENTS.md` _(self-reference)_ | — | See top row — PR required, human merge required |
 
 ---
 
@@ -135,7 +134,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 405/405 Vitest; 145/145 Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 448/448 Vitest; 145/145 Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -156,26 +155,26 @@ Decisions that **require** an ADR: changes to activation gate logic, new externa
 
 ## 5. CI/CD and Deployment
 
-The repository runs **8 GitHub Actions workflows**:
+The repository has **8 GitHub Actions workflows** under `.github/workflows/`:
 
-| Workflow | Trigger | What it does |
-|----------|---------|-------------|
-| `ci.yml` | PR, push to main | TypeScript check, Vitest (405+ tests), Phase 2–5 DB gates, Playwright/axe (145 tests) |
-| `pages.yml` | Push to main | Cloudflare Pages build and deploy |
-| `worker-staging.yml` | PR approval + hash | Deploy `vinifera-staging` Worker (credential-gated) |
-| `worker-production.yml` | Manual, protected | Deploy production Worker + domain move (credential-gated) |
-| `android.yml` | PR, push to main | Android lint, debug build, minified release build |
-| `mobile-release.yml` | Manual, protected | Signed iOS/Android artifacts for store tracks |
-| `stripe-bootstrap.yml` | Manual, protected | Stripe Price catalog reconciliation |
-| `direct-push-guard.yml` | Push to main | Enforces no direct commits reach main without a merged PR |
+| Workflow file | Trigger | What it does |
+|--------------|---------|-------------|
+| `ci.yml` | PR, push to main | TypeScript check, Vitest (448+ tests), Phase 2–5 DB gates, Playwright/axe (145 tests) |
+| `direct-push-guard.yml` | Push to main | Enforces no direct commits reach main without a merged PR; fails closed |
+| `hosted-readiness.yml` | Manual, protected | Apply Supabase migrations + deploy isolated `vinifera-staging` Worker (credential-gated) |
+| `production-worker-release.yml` | Manual, protected | Deploy production Worker, domain move, Pages rollback (credential-gated) |
+| `stripe-test-catalog.yml` | Manual, protected | Stripe test Price catalog bootstrap and reconciliation |
+| `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
+| `credential-envelope-rotation.yml` | Manual, protected | Rotate encrypted credential envelopes |
+| `mobile-release.yml` | Manual, protected | Signed iOS/Android artifacts for TestFlight and Play internal tracks |
 
 ### Deployment topology
 
 - **Static baseline:** Cloudflare Pages auto-deploys from `main` — `npm run build` → `dist/`
-- **Worker API:** `wrangler.jsonc` packages the Express BFF with Vite-built React assets; requires `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and other secrets to operate
+- **Worker API:** `wrangler.jsonc` packages the Express BFF with Vite-built React assets; requires `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RATE_LIMIT_PEPPER`, `MEMBER_BRAND_CONTEXT_SECRET`, and other secrets to operate
 - **Build command:** `npm run build` (non-negotiable)
 - **Output directory:** `dist/`
-- **Node version:** 22
+- **Node version:** See `.nvmrc` for the pinned version; `package.json` requires `>=22.12.0`
 
 ### Cloudflare Pages conventions
 
@@ -188,11 +187,11 @@ The repository runs **8 GitHub Actions workflows**:
 
 ## 6. Quality Assurance
 
-### Current verified test counts (v0.6.0 baseline)
+### Current verified test counts (v0.5.0 + BS-01–BS-06 baseline)
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 405 | `npm run check` |
+| Vitest unit/integration | 448 | `npm run check` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |
 | Phase 4 DB (intelligence) | 158 assertions | `npm run qa:db:phase4` |
@@ -200,6 +199,10 @@ The repository runs **8 GitHub Actions workflows**:
 | Playwright E2E + axe-core | 145 | `npm run qa:e2e` |
 
 A PR may not merge if any of these counts decrease without a documented justification in the PR description. Test regressions are blocking defects.
+
+### Local development
+
+`npm run dev` starts the full integrated stack (Supabase + Worker + Vite). It requires Docker Desktop or a compatible runtime. For frontend-only visual iteration without Docker, use `npm run dev:frontend` instead.
 
 ### WCAG 2.1 AA compliance
 
@@ -219,8 +222,8 @@ All pages must pass axe-core with 0 violations.
 
 ### Observability
 
-- **Sentry:** Integrated and source-complete. Error capture is secret-gated — activates only when `SENTRY_DSN` is configured server-side. Do not remove or disable the integration.
-- **Rate limiting:** Per-tenant, per-route rate limiting is active. Signing secrets for rate-limit hashing and member-context JWTs must remain independent — shared secrets are a critical security defect (see ADR for PR #15).
+- **Sentry:** Integrated at the Worker entry point (`server/worker.ts`) via `@sentry/cloudflare`. Error capture activates only when `SENTRY_DSN` is configured server-side; the integration is source-complete and secret-gated. Do not remove or disable it.
+- **Rate limiting:** Per-tenant, per-route native Cloudflare Rate Limiting is active. `RATE_LIMIT_PEPPER` and `MEMBER_BRAND_CONTEXT_SECRET` must remain independent — shared secrets are a critical security defect (see ADR for PR #15).
 
 ---
 
