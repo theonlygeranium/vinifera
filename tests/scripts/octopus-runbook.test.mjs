@@ -640,6 +640,46 @@ describe("Octopus runbook bridge", () => {
     );
   });
 
+  it("does not grandfather a change to a privileged database receiver", () => {
+    const baseSource = [
+      "export async function legacy(tenantClient) {",
+      '  return tenantClient.from("members").select("*");',
+      "}",
+      "",
+    ].join("\n");
+    const headSource = [
+      "export async function newlyPrivileged(admin) {",
+      '  return admin.from("members").select("*");',
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "--- a/server/services/members.ts",
+        "+++ b/server/services/members.ts",
+        "@@ -1,3 +1,3 @@",
+        "-export async function legacy(tenantClient) {",
+        '-  return tenantClient.from("members").select("*");',
+        "+export async function newlyPrivileged(admin) {",
+        '+  return admin.from("members").select("*");',
+        " }",
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
+  });
+
   it("follows a builder split before the database operation", () => {
     const headSource = [
       "export async function safe(admin, brandId) {",
@@ -669,6 +709,46 @@ describe("Octopus runbook bridge", () => {
       ].join("\n"),
     });
     expect(result.status, result.stdout + result.stderr).toBe(0);
+  });
+
+  it("does not borrow a tenant predicate from an adjacent function", () => {
+    const headSource = [
+      "export async function unsafe(admin) {",
+      '  const table = admin.from("members");',
+      '  const query = table.select("*");',
+      "  return query;",
+      "}",
+      "",
+      "export async function safe(admin, brandId) {",
+      '  const table = admin.from("members");',
+      '  let query = table.select("*");',
+      '  query = query.eq("brand_id", brandId);',
+      "  return query;",
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource: null,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/server/services/members.ts",
+        "@@ -0,0 +1,12 @@",
+        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
   });
 
   it("rejects removal of a multiline later tenant predicate", () => {

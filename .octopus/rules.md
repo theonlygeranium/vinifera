@@ -98,7 +98,10 @@ service files, the gate models complete queries at the trusted base and current
 head: unchanged legacy unscoped operations are grandfathered, newly unscoped
 surviving operations fail, and a fully deleted query is ignored. Legacy
 fingerprints are consumed one-to-one, and builder variables are followed across
-same-scope assignments before the database operation and tenant predicate.
+same-scope assignments within their enclosing block before the database
+operation and tenant predicate. The database receiver is part of the stable
+fingerprint so a move from an RLS-bound client to a privileged client is never
+grandfathered.
 
 **Why it matters:** The server uses privileged database credentials in some
 paths, so explicit service-layer scoping is required as defense in depth for

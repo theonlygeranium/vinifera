@@ -157,6 +157,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Octopus Rule 8 query fingerprints now include the database
+  receiver, and builder dataflow stops at the enclosing block. Statement
+  splitting ignores semicolons inside parentheses, while base-source lookup is
+  timeout-bounded and emits a fail-closed diagnostic. Regressions cover
+  RLS-to-admin receiver changes and same-named builders in adjacent functions.
+  **Why:** Receiver-free fingerprints could grandfather a move to privileged
+  access, and brace-depth equality alone could borrow a predicate from another
+  function. **Deployment impact:** PR security analysis only; application
+  runtime and environment activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`, and
+  `git diff --check`.
 - **What changed:** Octopus Rule 8 now consumes grandfathered unscoped query
   fingerprints one-to-one and follows builder variables when `.from(...)`, the
   database operation, and its tenant predicate are split across same-scope
