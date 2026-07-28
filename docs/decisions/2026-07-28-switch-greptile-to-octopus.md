@@ -81,6 +81,29 @@ the per-run prompt and GitHub secret input can be removed together.
 The server upgrade is an operational follow-up; switching to v4 must be
 validated in a PR before removing this bridge.
 
+The quality runbook resolves the immutable PR head and base SHAs through the
+GitHub API, fetches those exact commits with an ephemeral HTTP authorization
+header, and removes the remote before inspecting pull-request content. Rules
+4–10 consume GitHub's merge-base-aware PR diff and inspect bounded source
+windows around added calls, so the successful path includes tenant-isolation
+Rule 8 without turning target-branch advances, multiline safe calls, or
+grandfathered baseline findings into unrelated failures. Tenant checks require
+an actual `.eq`, `.in`, or `.match` predicate outside comments and string
+literals, and Rule 9 evaluates every commit independently.
+
+Queued and running quality-gate tasks are not canceled by later invocations.
+Each task uses its own state file and checkout, so every pull request owns an
+independent required result even when several review events overlap. GitHub
+authentication is passed to curl over stdin and to Git through environment
+configuration, keeping the PAT out of process arguments.
+
+The former `PR Comment Bot` and `Auto-Fix Suggestions` failure runbooks are
+retired. Running `npm ci`, formatter binaries, or other pull-request-controlled
+code on the self-hosted Octopus server would cross the trust boundary even when
+lifecycle scripts are disabled. Failed rule output remains available in the
+Octopus task and GitHub check logs; remediation is performed in a normal,
+unprivileged feature-branch workflow.
+
 ---
 
 ## Consequences
@@ -101,6 +124,9 @@ validated in a PR before removing this bridge.
 - If the AI server is unavailable, Octopus reviews will not fire. Octopus is not a
   branch-protection context, but its missing review blocks merge under the repository
   workflow until the service recovers or the human owner documents a one-time exception.
+- Octopus no longer posts AI-generated failure comments or formatter patches.
+  This intentionally trades convenience for a smaller secret-bearing execution
+  surface.
 
 ### Bootstrap correction
 
