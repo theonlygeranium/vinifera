@@ -288,7 +288,12 @@ export function ImportMembersPage() {
               </div>
             </div>
             {preview.rows.length ? (
-              <div className="data-table-wrap">
+              <div
+                className="data-table-wrap"
+                tabIndex={0}
+                role="region"
+                aria-label="CSV import preview; scroll horizontally for additional columns"
+              >
                 <table className="data-table data-table--preview">
                   <caption>First ten validated rows from the selected CSV</caption>
                   <thead>

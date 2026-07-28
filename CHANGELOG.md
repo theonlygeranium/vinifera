@@ -368,6 +368,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   are unchanged. **Verification:** Run the focused Phase 1 CTA test,
   `npm run check`, `npm run qa:e2e`, and confirm the links at desktop and
   375px widths open `/app/signup`.
+
+- **What changed:** Made the horizontally scrollable CSV import preview
+  keyboard-focusable, gave it an accessible label, and added focus plus
+  axe-core regression coverage after preview generation. **Why:** Keyboard
+  users could not reach or scroll wide valid and invalid CSV previews, and
+  axe-core reported `scrollable-region-focusable` at desktop and 375px.
+  **Deployment impact:** Staff import presentation only; CSV parsing, mapping,
+  validation, commit behavior, APIs, provider activation, routing, and headers
+  are unchanged. **Verification:** Run the focused Commerce7 import test,
+  `npm run check`, `npm run qa:e2e`, and verify the preview at 1440px and 375px
+  in the Jeff - Pro Chrome profile.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,

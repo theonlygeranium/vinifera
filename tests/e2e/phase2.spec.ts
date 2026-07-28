@@ -769,6 +769,13 @@ test.describe("Phase 2 core club loop", () => {
     await page.getByRole("button", { name: "Upload and preview" }).click();
     expect((await previewRequest).headers()["content-type"]).toContain("multipart/form-data");
     await expect(page.getByRole("heading", { name: "Map columns" })).toBeVisible();
+    const previewRegion = page.getByLabel(
+      "CSV import preview; scroll horizontally for additional columns",
+    );
+    await expect(previewRegion).toHaveAttribute("tabindex", "0");
+    await previewRegion.focus();
+    await expect(previewRegion).toBeFocused();
+    await assertA11y(page);
     await page.getByRole("button", { name: /Import 1 valid member/ }).click();
     await expect(page.getByText("1 member imported into the live roster.")).toBeVisible();
   });
