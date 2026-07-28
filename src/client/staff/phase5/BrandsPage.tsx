@@ -18,7 +18,7 @@ import {
   ErrorBlock,
   LoadingBlock,
 } from "../../shared/OperationalState";
-import { money } from "../phase2/format";
+import { money, sentence } from "../phase2/format";
 import { useApiResource } from "../phase2/useApiResource";
 import { useStaffSession } from "../StaffSessionContext";
 import { StaffShell } from "../StaffShell";
@@ -248,6 +248,11 @@ export function BrandsPage() {
                               Default
                             </span>
                           ) : null}
+                          <span
+                            className={`status-pill status-pill--${brand.domainStatus}`}
+                          >
+                            Portal {sentence(brand.domainStatus)}
+                          </span>
                         </div>
                         <p>
                           {brand.description ||
