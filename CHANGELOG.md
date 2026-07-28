@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+- `index.html` and `tests/e2e/phase1.spec.ts`: Restored all six marketing
+  free-trial links to `/app/signup` while retaining the four canonical pricing
+  tiers, and restored the staff skip-link regression assertion. The prior
+  direct PR #30 resolution had replaced later landing-page behavior and deleted
+  both previously merged tests.
+- `tests/e2e/phase5.spec.ts`: Recombined PR #35's HTTPS-logo validation coverage
+  with the previously merged mobile select sizing, portal status, manager role
+  gate, and branded document-title assertions. The direct resolution had
+  silently replaced those tests rather than resolving them together.
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is now
   automated via `promote-dev-to-staging.yml`. The workflow fires on every push
@@ -11,6 +21,12 @@
 - `staging → main` promotion remains exclusively human-initiated.
 - `AGENTS.md` Sections 7 and 9 updated to reflect amended promotion rules.
 - New ADR: `docs/decisions/2026-07-28-automated-dev-staging-promotion.md`.
+
+**Deployment impact:** The landing page again routes trial traffic to signup.
+No provider, branch, Pages project, or production environment is mutated by
+this commit. **Verification:** Run `npm run check`,
+`npx playwright test tests/e2e/phase1.spec.ts tests/e2e/phase5.spec.ts`, and
+`git diff --check`.
 
 ## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
 
