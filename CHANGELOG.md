@@ -390,6 +390,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   are unchanged. **Verification:** Run the focused Phase 1 desktop-header
   target test, `npm run check`, `npm run qa:e2e`, and inspect the header at
   1440px and 375px in Jeff - Pro Chrome.
+
+- **What changed:** Added the trained model's AUC-ROC score to the churn
+  intelligence metric grid and extended the Phase 4 browser regression to
+  require its label and formatted value. **Why:** The API already supplied
+  `aucRoc`, but the staff UI exposed only accuracy, leaving model-ranking
+  quality invisible. **Deployment impact:** Churn intelligence presentation
+  only; scoring, training, A/B validation, alerts, APIs, provider activation,
+  routing, and headers are unchanged. **Verification:** Run the focused Phase
+  4 churn-intelligence test, `npm run check`, `npm run qa:e2e`, and inspect the
+  metric at 1440px and 375px in Jeff - Pro Chrome.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,

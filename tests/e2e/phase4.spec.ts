@@ -1273,6 +1273,8 @@ test.describe("Phase 4 functional workflows", () => {
       }),
     ).toBeVisible();
     await expect(page.getByText("80.4%", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("AUC-ROC", { exact: true })).toBeVisible();
+    await expect(page.getByText("84.2%", { exact: true })).toBeVisible();
     await expect(page.getByText("Rules 61")).toBeVisible();
     await expect(page.getByText("ML 73")).toBeVisible();
     await expect(
