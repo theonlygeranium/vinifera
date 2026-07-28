@@ -130,7 +130,7 @@ describe("Octopus runbook bridge", () => {
     expect(qualityRunbook).toContain(
       'failures.append(("Rule 8", f"{file_path}:{start_line}"',
     );
-    expect(qualityRunbook).toContain("application/vnd.github.diff");
+    expect(qualityRunbook).not.toContain("application/vnd.github.diff");
     expect(qualityRunbook).toContain(
       'file_path.startswith("server/services/")',
     );
@@ -1316,6 +1316,17 @@ describe("Octopus workflow trust boundary", () => {
     expect(qualityRunbook).toContain(
       '[ "$HEAD_SHA" = "$EXPECTED_HEAD_SHA" ]',
     );
+    expect(qualityRunbook).toContain(
+      'git diff --no-ext-diff "$MERGE_BASE_SHA" "$HEAD_SHA"',
+    );
+    expect(qualityRunbook).toContain(
+      'git rev-list --reverse "$MERGE_BASE_SHA..$HEAD_SHA"',
+    );
+    expect(qualityRunbook).toContain(
+      'git show --format= --no-ext-diff "$commit_sha"',
+    );
+    expect(qualityRunbook).not.toContain("application/vnd.github.diff");
+    expect(qualityRunbook).not.toContain("/commits?per_page=");
     expect(workflow).toContain("git check-ref-format --branch");
     expect(workflow).toContain(
       "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$",

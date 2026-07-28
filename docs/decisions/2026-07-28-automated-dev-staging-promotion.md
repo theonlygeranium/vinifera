@@ -78,6 +78,9 @@ review on the current PR at the captured head SHA; its commit status alone is
 not accepted as proof of PR-specific review. The bridge passes the event head
 as the required `ExpectedHeadSHA` prompted runbook value, and the runbook
 refuses to check out or inspect the PR unless GitHub's live head matches it.
+All review diffs are then generated locally from the immutable fetched
+merge-base and expected-head objects, so a later branch rewrite cannot swap
+mutable PR artifacts into the attestation.
 Check runs and commit statuses are
 fully paginated before evaluation. After the second provider probe, the merge
 job re-queries exact-head CI, Octopus, CodeRabbit, PR-specific review, and

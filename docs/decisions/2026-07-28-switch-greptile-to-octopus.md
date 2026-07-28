@@ -87,8 +87,10 @@ validated in a PR before removing this bridge.
 
 The quality runbook resolves the immutable PR head and base SHAs through the
 GitHub API, fetches those exact commits with an ephemeral HTTP authorization
-header, and removes the remote before inspecting pull-request content. Rules
-4–10 consume GitHub's merge-base-aware PR diff and inspect bounded source
+header, and removes the remote before inspecting pull-request content. It
+derives the aggregate diff and each commit diff locally from those immutable
+objects; mutable PR diff and commit-list endpoints are not used. Rules 4–10
+consume the resulting merge-base-aware PR diff and inspect bounded source
 windows around added calls, so the successful path includes tenant-isolation
 Rule 8 without turning target-branch advances, multiline safe calls, or
 grandfathered baseline findings into unrelated failures. Tenant checks require

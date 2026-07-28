@@ -43,13 +43,11 @@ print(data["head"]["repo"]["full_name"])
 print(data["head"]["ref"])
 print(data["head"]["sha"])
 print(data["base"]["sha"])
-print(data["commits"])
 ')
                     HEAD_REPOSITORY=$(printf '%s\n' "$PR_METADATA" | sed -n '1p')
                     HEAD_REF=$(printf '%s\n' "$PR_METADATA" | sed -n '2p')
                     HEAD_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '3p')
                     BASE_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '4p')
-                    COMMIT_COUNT=$(printf '%s\n' "$PR_METADATA" | sed -n '5p')
                     [ "$HEAD_REPOSITORY" = "theonlygeranium/vinifera" ] || {
                         echo "FAIL: pull request head repository is not trusted"
                         exit 1
@@ -81,33 +79,22 @@ print(data["commits"])
                     }
                     git checkout --quiet --detach "$HEAD_SHA"
                     git remote remove origin
-                    github_curl "application/vnd.github.diff" \
-                        "https://api.github.com/repos/theonlygeranium/vinifera/pulls/#{PRNumber}" \
+                    git diff --no-ext-diff "$MERGE_BASE_SHA" "$HEAD_SHA" \
                         > "$WORK_DIR/pr.diff"
 
-                    [ "$COMMIT_COUNT" -le 100 ] || {
+                    mapfile -t COMMIT_SHAS < <(
+                        git rev-list --reverse "$MERGE_BASE_SHA..$HEAD_SHA"
+                    )
+                    [ "${#COMMIT_SHAS[@]}" -le 100 ] || {
                         echo "FAIL: pull request has more than 100 commits"
                         exit 1
                     }
-                    COMMITS_JSON=$(github_curl "application/vnd.github+json" \
-                        "https://api.github.com/repos/theonlygeranium/vinifera/pulls/#{PRNumber}/commits?per_page=100")
-                    printf '%s' "$COMMITS_JSON" > "$WORK_DIR/pr-commits.json"
                     mkdir -p "$WORK_DIR/commit-diffs"
-                    COMMIT_SHAS=$(printf '%s' "$COMMITS_JSON" | python3 -c '
-import json, sys
-data = json.load(sys.stdin)
-expected = int(sys.argv[1])
-if len(data) != expected:
-    raise SystemExit(f"FAIL: expected {expected} PR commits, received {len(data)}")
-for commit in data:
-    print(commit["sha"])
-' "$COMMIT_COUNT")
-                    while IFS= read -r commit_sha; do
-                        github_curl "application/vnd.github.diff" \
-                            "https://api.github.com/repos/theonlygeranium/vinifera/commits/$commit_sha" \
+                    for commit_sha in "${COMMIT_SHAS[@]}"; do
+                        git show --format= --no-ext-diff "$commit_sha" \
                             > "$WORK_DIR/commit-diffs/$commit_sha.diff"
-                    done <<< "$COMMIT_SHAS"
-                    unset PR_JSON PR_METADATA COMMITS_JSON COMMIT_SHAS
+                    done
+                    unset PR_JSON PR_METADATA COMMIT_SHAS
 
                     {
                         echo "WORK_DIR=$WORK_DIR"

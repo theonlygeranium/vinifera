@@ -89,7 +89,9 @@
   `.github/scripts/octopus-runbook.mjs`, and the PR quality-gates runbook:
   Pass the event head as a required `ExpectedHeadSHA` prompt and reject live PR
   metadata that names another commit before Octopus checks out or reviews code.
-  The published status can no longer claim success for a different revision.
+  Generate the aggregate and per-commit diffs locally from the immutable
+  merge-base/head objects, so the published status cannot claim success for a
+  different or mid-review rewritten revision.
 - `public/marketing.js`, `tests/e2e/phase1.spec.ts`, and
   `tests/scripts/landing-static.test.mjs`: Require the application capability,
   including `APP_ORIGIN`, in addition to database and authentication-email
