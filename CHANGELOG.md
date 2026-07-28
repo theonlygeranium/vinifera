@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased] — 2026-07-28 (Three-Tier Environment)
+
+### Added
+- Three-tier deployment architecture: `vinifera-dev` (dev branch), `vinifera-staging` (staging branch), `vinifera-live` (main branch).
+- `staging` branch created from `dev` at `f530c46deb1a`.
+- `vinifera-staging` Cloudflare Pages project provisioned at `vinifera-staging.edstratumlabs.ai` with CNAME + Cloudflare-proxied SSL.
+- Supabase staging project blocked by free plan 2-project limit — staging Pages project provisioned but temporarily shares dev Supabase project (`cfrqrllmyquggqjkzifs`) until Pro plan upgrade.
+
+### Changed
+- `AGENTS.md`: Added three-tier environment model with mandatory PR routing rules (`dev` only for all agents). Updated deployment topology table (4 Cloudflare Pages projects). Updated agent coordination model with Prime Directive-level PR routing constraint.
+- `docs/build-specs/CODEX-DISPATCH-GUIDE.md`: All 6 session PR targets updated from `main` → `dev`. All Greptile references replaced with Octopus. Added three-tier environment model header with explicit routing rule. Merge order updated to reference `dev` checks.
+
+### Architecture
+- Promotion pipeline: `feature/* → PR to dev → human promotes dev→staging → human approves staging→main`
+- Agents never open PRs against `staging` or `main` — enforced in AGENTS.md Section 7 and Section 9.
+- Supabase staging DB: upgrade to Pro plan at supabase.com/dashboard to provision a third isolated project.
+
+
+
 ## [Unreleased] — 2026-07-28
 
 ### Added
