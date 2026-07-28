@@ -21,13 +21,13 @@ function resourceItems(payload) {
   throw new Error("Octopus returned an unexpected resource-list shape");
 }
 
-async function requestJson(fetchImpl, url, apiKey, options = {}) {
+async function requestJson(fetchImpl, url, authenticationHeaders, options = {}) {
   const response = await fetchImpl(url, {
     ...options,
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      "X-Octopus-ApiKey": apiKey,
+      ...authenticationHeaders,
       ...options.headers,
     },
     signal: options.signal ?? AbortSignal.timeout(15_000),
@@ -41,7 +41,13 @@ async function requestJson(fetchImpl, url, apiKey, options = {}) {
   return response.json();
 }
 
-async function findByName(fetchImpl, apiBase, apiKey, path, name) {
+async function findByName(
+  fetchImpl,
+  apiBase,
+  authenticationHeaders,
+  path,
+  name,
+) {
   const query = new URLSearchParams({
     partialName: name,
     skip: "0",
@@ -50,7 +56,7 @@ async function findByName(fetchImpl, apiBase, apiKey, path, name) {
   const payload = await requestJson(
     fetchImpl,
     `${apiBase}/${path}?${query}`,
-    apiKey,
+    authenticationHeaders,
   );
   const match = resourceItems(payload).find((item) => item.Name === name);
   if (!match) {
@@ -99,6 +105,8 @@ export async function runRunbook({
   log = console.log,
 }) {
   const requiredEnvironment = [
+    "CF_ACCESS_CLIENT_ID",
+    "CF_ACCESS_CLIENT_SECRET",
     "GH_PAT_FOR_OCTOPUS",
     "OCTOPUS_API_KEY",
     "OCTOPUS_URL",
@@ -113,11 +121,15 @@ export async function runRunbook({
   if (!runbookName) throw new Error("Runbook name is required");
 
   const apiBase = normalizeApiBase(environment.OCTOPUS_URL);
-  const apiKey = environment.OCTOPUS_API_KEY;
+  const authenticationHeaders = {
+    "CF-Access-Client-Id": environment.CF_ACCESS_CLIENT_ID,
+    "CF-Access-Client-Secret": environment.CF_ACCESS_CLIENT_SECRET,
+    "X-Octopus-ApiKey": environment.OCTOPUS_API_KEY,
+  };
   const space = await findByName(
     fetchImpl,
     apiBase,
-    apiKey,
+    authenticationHeaders,
     "spaces",
     "Default",
   );
@@ -125,21 +137,21 @@ export async function runRunbook({
   const octopusEnvironment = await findByName(
     fetchImpl,
     spaceBase,
-    apiKey,
+    authenticationHeaders,
     "environments",
     "Development",
   );
   const project = await findByName(
     fetchImpl,
     spaceBase,
-    apiKey,
+    authenticationHeaders,
     "projects",
     "Vinifera",
   );
   const runbook = await findByName(
     fetchImpl,
     spaceBase,
-    apiKey,
+    authenticationHeaders,
     `projects/${project.Id}/runbooks`,
     runbookName,
   );
@@ -150,7 +162,7 @@ export async function runRunbook({
   const preview = await requestJson(
     fetchImpl,
     `${spaceBase}/runbooks/${runbook.Id}/runbookRuns/preview/${octopusEnvironment.Id}`,
-    apiKey,
+    authenticationHeaders,
   );
   const formValues = resolveFormValues(preview, {
     PRBranch: environment.PR_BRANCH,
@@ -161,7 +173,7 @@ export async function runRunbook({
   const run = await requestJson(
     fetchImpl,
     `${spaceBase}/runbookRuns`,
-    apiKey,
+    authenticationHeaders,
     {
       method: "POST",
       body: JSON.stringify({
@@ -192,7 +204,7 @@ export async function runRunbook({
     const task = await requestJson(
       fetchImpl,
       `${apiBase}/tasks/${run.TaskId}`,
-      apiKey,
+      authenticationHeaders,
     );
     if (task.State === "Success") {
       log(`Octopus runbook passed: ${runbookName}`);
@@ -207,7 +219,7 @@ export async function runRunbook({
   await requestJson(
     fetchImpl,
     `${apiBase}/tasks/${run.TaskId}/cancel`,
-    apiKey,
+    authenticationHeaders,
     { method: "POST", body: "{}" },
   );
   throw new Error(`Octopus runbook timed out after ${timeoutMs}ms`);

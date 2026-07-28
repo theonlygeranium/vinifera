@@ -58,8 +58,12 @@ documented REST flow for prompted runbooks: resolve exact resources, map prompt
 names through the preview form, create the published run, poll its task, and
 cancel after 15 minutes. The bridge rejects non-HTTPS endpoints, fails closed
 on missing prompts/resources or unexpected API shapes, and never logs prompt
-values. The server upgrade is an operational follow-up; switching to v4 must
-be validated in a PR before removing this bridge.
+values. Because the Octopus hostname is protected by Cloudflare Access, GitHub
+Actions also supplies a narrowly scoped Access service token through encrypted
+`OCTOPUS_CF_ACCESS_CLIENT_ID` and `OCTOPUS_CF_ACCESS_CLIENT_SECRET` secrets.
+The Access application must use a Service Auth policy restricted to that token.
+The server upgrade is an operational follow-up; switching to v4 must be
+validated in a PR before removing this bridge.
 
 ---
 

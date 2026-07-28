@@ -100,6 +100,8 @@ describe("Octopus runbook bridge", () => {
       runRunbook({
         runbookName: "PR Quality Gates",
         environment: {
+          CF_ACCESS_CLIENT_ID: "access-client-id",
+          CF_ACCESS_CLIENT_SECRET: "access-client-secret",
           GH_PAT_FOR_OCTOPUS: "secret-pat",
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
@@ -124,6 +126,14 @@ describe("Octopus runbook bridge", () => {
       "V-2": "44",
       "V-3": "secret-pat",
     });
+    expect(
+      calls.every(
+        ({ options }) =>
+          options.headers["CF-Access-Client-Id"] === "access-client-id" &&
+          options.headers["CF-Access-Client-Secret"] === "access-client-secret" &&
+          options.headers["X-Octopus-ApiKey"] === "secret-api-key",
+      ),
+    ).toBe(true);
     expect(log).toHaveBeenCalledWith(
       "Octopus runbook passed: PR Quality Gates",
     );

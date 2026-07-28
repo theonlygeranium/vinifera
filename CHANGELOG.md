@@ -18,6 +18,10 @@
   `tests/scripts/octopus-runbook.test.mjs`: Added the HTTPS-only, fail-closed
   bridge and focused coverage for URL normalization, prompt mapping, required
   prompt enforcement, run creation, and successful task completion.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Added encrypted
+  `OCTOPUS_CF_ACCESS_CLIENT_ID` and `OCTOPUS_CF_ACCESS_CLIENT_SECRET` inputs
+  so the hosted runner can authenticate through the Octopus hostname's
+  Cloudflare Access Service Auth policy before using the Octopus API key.
 - `.github/pull_request_template.md` and `docs/agent-workflow.md`: Replaced
   stale Greptile and direct-to-`main` instructions with the current
   Octopus/CodeRabbit review loop and `dev` PR routing.
