@@ -126,10 +126,13 @@ closed after direct resolution commits.
   PR #51 restores the remaining signup behavior and recombines all deleted
   assertions with the intended pricing and HTTPS-logo changes.
 - Octopus still does not run on `dev` PRs because `pull_request_target` loads
-  the workflow from the default branch, and `main` retains the old main-only
-  definition. The secure dev workflow and runbook bridge must be promoted to
+  the workflow from GitHub's default branch. The current remote `main` head
+  (`b019327b4d49` at audit time) retains the old `pull_request`/main-only
+  workflow and nonexistent action reference; the corrected
+  `pull_request_target` definition visible on `dev` is not default-branch
+  runtime code. The secure workflow and runbook bridge must be promoted to
   `main` before Octopus can be a real dev/staging gate. Octopus Deploy's
-  authenticated project view also shows no runbook on `main`.
+  authenticated `main` project view also shows no published runbook.
 - CodeRabbit auto-review is disabled for non-default base branches. Promotion
   automation must request `@coderabbitai review` and reject the otherwise
   successful "review skipped" status.

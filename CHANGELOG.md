@@ -42,6 +42,17 @@
 - `CONTINUITY_BRIEF.md`: Recorded verified deletion of the stale merged PR
   #49/#50 remote branches after the strategist's three-branch cleanup claim was
   found to be premature.
+- `index.html`, `tests/e2e/phase1.spec.ts`, and
+  `tests/scripts/landing-static.test.mjs`: Trial CTAs now fail safely to the
+  pricing section on static Pages and switch to `/app/signup` only after the
+  same-origin `/api/health` response proves the Vinifera Worker runtime.
+  Marketing interactions moved from CSP-blocked inline blocks to the
+  self-hosted `public/marketing.js`, preserving signup enhancement, smooth
+  scrolling, motion, and the mobile menu under the Worker's `script-src
+  'self'` policy.
+- `CONTINUITY_BRIEF.md`: Pinned the Octopus bootstrap finding to the audited
+  GitHub default-branch SHA and distinguished `main` runtime workflow code from
+  the corrected but not-yet-promoted `dev` definition.
 
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is

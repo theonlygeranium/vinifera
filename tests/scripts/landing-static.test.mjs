@@ -5,6 +5,10 @@ const landingPage = readFileSync(
   new URL("../../index.html", import.meta.url),
   "utf8",
 );
+const marketingScript = readFileSync(
+  new URL("../../public/marketing.js", import.meta.url),
+  "utf8",
+);
 
 function firstRule(selector) {
   return landingPage.match(new RegExp(`\\${selector}\\s*\\{[^}]*\\}`))?.[0];
@@ -19,5 +23,18 @@ describe("marketing landing page interaction targets", () => {
     expect(navLinkRule).toContain("display: inline-flex");
     expect(navButtonRule).toContain("min-height: 44px");
     expect(navButtonRule).toContain("display: inline-flex");
+  });
+
+  test("trial links fail safely until the Worker health contract is proven", () => {
+    expect(landingPage.match(/<a\b[^>]*data-signup-cta/g)).toHaveLength(6);
+    expect(landingPage.match(/href="#pricing" data-signup-cta/g)).toHaveLength(6);
+    expect(landingPage).toContain('<script src="/marketing.js"></script>');
+    expect(marketingScript).toContain(
+      'payload?.data?.service !== "vinifera-api"',
+    );
+    expect(marketingScript).toContain('payload?.data?.status !== "ok"');
+    expect(marketingScript).toContain(
+      'anchor.setAttribute("href", "/app/signup")',
+    );
   });
 });

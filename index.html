@@ -843,7 +843,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
       </div>
       <div class="nav-cta">
         <a href="/app/" class="btn-nav btn-nav-ghost"><i data-lucide="layout-dashboard" style="width:14px;height:14px"></i> Live Demo</a>
-        <a href="/app/signup" class="btn-nav btn-nav-wine">Start Free Trial</a>
+        <a href="#pricing" data-signup-cta class="btn-nav btn-nav-wine">Start Free Trial</a>
       </div>
       <button class="mob-hamburger" id="mobHamburger" aria-label="Open menu" aria-expanded="false">
         <span></span><span></span><span></span>
@@ -858,7 +858,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
   <a class="nav-link" href="#integrations">Integrations</a>
   <a class="nav-link" href="/guide/">Investor's Guide</a>
   <a href="/app/" class="btn-nav btn-nav-ghost" style="display:block;margin:8px 16px 4px;text-align:center;padding:11px 16px"><i data-lucide="layout-dashboard" style="width:14px;height:14px;display:inline;vertical-align:middle;margin-right:6px"></i> Live Demo</a>
-  <a href="/app/signup" class="btn-nav btn-nav-wine" style="display:block;margin:4px 16px 8px;text-align:center;padding:11px 16px">Start Free Trial</a>
+  <a href="#pricing" data-signup-cta class="btn-nav btn-nav-wine" style="display:block;margin:4px 16px 8px;text-align:center;padding:11px 16px">Start Free Trial</a>
 </div>
 </header>
 
@@ -967,7 +967,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
     <h1 class="hero-headline">Your wine club deserves software that works as hard as <em>you&nbsp;do.</em></h1>
     <p class="hero-sub">Vinifera gives winery teams a single, intelligent operations hub — from the harvest dinner signup to the doorstep delivery — without the patchwork of spreadsheets, clunky legacy systems, or missing AI that defines every competitor.</p>
     <div class="hero-actions">
-      <a href="/app/signup" class="btn-gold"><i data-lucide="play-circle" style="width:18px;height:18px"></i> Start Free — 30 Days</a>
+      <a href="#pricing" data-signup-cta class="btn-gold"><i data-lucide="play-circle" style="width:18px;height:18px"></i> Start Free — 30 Days</a>
       <a href="/app/" class="btn-ghost" style="color:rgba(255,255,255,0.8);border-color:rgba(255,255,255,0.3)"><i data-lucide="monitor" style="width:16px;height:16px"></i> Explore the Prototype</a>
     </div>
     <div class="hero-proof">
@@ -1376,7 +1376,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
             <li class="pricing-feature dim"><i data-lucide="x"></i> Custom portal domain</li>
             <li class="pricing-feature dim"><i data-lucide="x"></i> API access</li>
           </ul>
-          <a href="/app/signup" class="pricing-cta pricing-cta-ghost">Start Free Trial</a>
+          <a href="#pricing" data-signup-cta class="pricing-cta pricing-cta-ghost">Start Free Trial</a>
           <p class="pricing-limit">30-day free trial · No card required</p>
         </div>
       </div>
@@ -1399,7 +1399,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
             <li class="pricing-feature"><i data-lucide="check"></i> Full compliance suite</li>
             <li class="pricing-feature dim"><i data-lucide="x"></i> Dedicated onboarding</li>
           </ul>
-          <a href="/app/signup" class="pricing-cta pricing-cta-primary">Start Free Trial</a>
+          <a href="#pricing" data-signup-cta class="pricing-cta pricing-cta-primary">Start Free Trial</a>
           <p class="pricing-limit">30-day free trial · No card required</p>
         </div>
       </div>
@@ -1469,7 +1469,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
       <h2 class="cta-title">Your next club release should be your best one.</h2>
       <p class="cta-sub">Set up takes under a day. Your data migrates in under a week. And the churn model starts learning immediately — no training period, no configuration overhead.</p>
       <div class="cta-actions">
-        <a href="/app/signup" class="btn-gold"><i data-lucide="play-circle" style="width:18px;height:18px"></i> Start 30-Day Free Trial</a>
+        <a href="#pricing" data-signup-cta class="btn-gold"><i data-lucide="play-circle" style="width:18px;height:18px"></i> Start 30-Day Free Trial</a>
         <a href="/app/" class="btn-ghost" style="color:rgba(255,255,255,0.85);border-color:rgba(255,255,255,0.3)"><i data-lucide="monitor" style="width:16px;height:16px"></i> Explore Live Prototype</a>
       </div>
       <div class="cta-proof">No credit card · Full data migration included · Cancel any time</div>
@@ -1533,60 +1533,7 @@ button { cursor: pointer; font-family: inherit; border: none; }
   </div>
 </footer>
 
-<script>
-  lucide.createIcons();
-
-  // Smooth scroll for anchor links
-  document.querySelectorAll('a[href^="#"]').forEach(a => {
-    a.addEventListener('click', e => {
-      const target = document.querySelector(a.getAttribute('href'));
-      if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-    });
-  });
-
-  // Scroll-triggered motion. Text remains fully opaque so its contrast is
-  // stable for assistive technology throughout the transition.
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => { if (entry.isIntersecting) { entry.target.style.transform = 'translateY(0)'; } });
-  }, { threshold: 0.1 });
-  document.querySelectorAll('.feature-card, .problem-card, .workflow-step, .testimonial-card, .pricing-card, .ai-feature').forEach(el => {
-    el.style.transform = 'translateY(18px)';
-    el.style.transition = 'transform 0.5s ease';
-    observer.observe(el);
-  });
-</script>
-
-<script>
-(function() {
-  var btn = document.getElementById('mobHamburger');
-  var menu = document.getElementById('mobileMenu');
-  if (!btn || !menu) return;
-
-  btn.addEventListener('click', function() {
-    var open = menu.classList.toggle('open');
-    btn.classList.toggle('open', open);
-    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  });
-
-  // Close on link click
-  menu.querySelectorAll('a').forEach(function(a) {
-    a.addEventListener('click', function() {
-      menu.classList.remove('open');
-      btn.classList.remove('open');
-      btn.setAttribute('aria-expanded', 'false');
-    });
-  });
-
-  // Close on ESC
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-      menu.classList.remove('open');
-      btn.classList.remove('open');
-      btn.setAttribute('aria-expanded', 'false');
-    }
-  });
-})();
-</script>
+<script src="/marketing.js"></script>
 
 </body>
 </html>
