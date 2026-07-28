@@ -379,6 +379,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   are unchanged. **Verification:** Run the focused Commerce7 import test,
   `npm run check`, `npm run qa:e2e`, and verify the preview at 1440px and 375px
   in the Jeff - Pro Chrome profile.
+
+- **What changed:** Increased every visible desktop marketing-header link and
+  button to at least a 44px target height and added a source regression that
+  preserves the target CSS for links and buttons. **Why:** The
+  navigation links measured 34–42px tall in the Jeff - Pro Chrome profile,
+  below the repository's required 44×44px interaction target. **Deployment
+  impact:** Static marketing header spacing only; navigation destinations,
+  authentication, application data, provider activation, routing, and headers
+  are unchanged. **Verification:** Run the focused Phase 1 desktop-header
+  target test, `npm run check`, `npm run qa:e2e`, and inspect the header at
+  1440px and 375px in Jeff - Pro Chrome.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,
