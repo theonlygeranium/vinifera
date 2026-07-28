@@ -545,6 +545,18 @@ test.describe("Phase 5 provider and brand workflows", () => {
     await expect(
       page.getByRole("heading", { name: "All brands overview" }),
     ).toBeVisible();
+    await expect(
+      page
+        .locator(".brand-management-list article")
+        .filter({ hasText: "QA Estate" })
+        .getByText("Portal Pending Validation"),
+    ).toBeVisible();
+    await expect(
+      page
+        .locator(".brand-management-list article")
+        .filter({ hasText: "QA Cellars" })
+        .getByText("Portal Unconfigured"),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Add brand" }).click();
     const dialog = page.getByRole("dialog", { name: "Create a brand" });
     await dialog.getByLabel("Brand name").fill("QA Mountain");

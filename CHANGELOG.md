@@ -423,6 +423,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   headers are unchanged. **Verification:** Run the focused verified-host
   branding test, `npm run check`, `npm run qa:e2e`, and inspect the custom
   title at 1440px and 375px in Jeff - Pro Chrome.
+
+- **What changed:** Added each managed brand's portal-domain status to its
+  portfolio card and extended the Phase 5 brand workflow regression for
+  pending-validation and unconfigured states. **Why:** Non-default brand cards
+  exposed name and member count but no status, leaving staff unable to
+  distinguish activation readiness. **Deployment impact:** Staff brand-card
+  presentation only; brand domains, SSL, billing, APIs, provider activation,
+  routing, and headers are unchanged. **Verification:** Run the focused
+  all-brand workflow test, `npm run check`, `npm run qa:e2e`, and inspect both
+  status states at 1440px and 375px in Jeff - Pro Chrome.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,
