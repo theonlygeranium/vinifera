@@ -1,0 +1,171 @@
+# Vinifera Deployment Process
+# Stored at .octopus/deployment_process.ocl
+# Deploys the Vinifera application to the schubert-v2 SSH target.
+# Triggered on release creation — auto-promotes to Development.
+
+step "pull-and-build" {
+    name = "Pull Latest Code and Build"
+
+    target_roles = ["vinifera-app"]
+
+    action {
+        action_type = "Octopus.Script"
+        notes = "SSH to schubert-v2, pull the release commit, install dependencies, and build."
+        properties = {
+            Octopus.Action.RunOnServer = "false"
+            Octopus.Action.Script.ScriptBody = <<-EOT
+                set -e
+                APP_DIR="/opt/vinifera"
+                RELEASE_SHA="#{Octopus.Release.Git.CommitHash}"
+
+                echo "=== Deploying Vinifera release #{Octopus.Release.Number} ==="
+                echo "Commit: $RELEASE_SHA"
+
+                if [ ! -d "$APP_DIR" ]; then
+                    echo "First deploy — cloning repository..."
+                    sudo mkdir -p "$APP_DIR"
+                    sudo chown z121532:z121532 "$APP_DIR"
+                    git clone https://#{GitHubPAT}@github.com/theonlygeranium/vinifera.git "$APP_DIR"
+                fi
+
+                cd "$APP_DIR"
+
+                echo "Fetching and checking out $RELEASE_SHA..."
+                git fetch origin
+                git checkout "$RELEASE_SHA"
+
+                echo "Installing dependencies..."
+                npm ci --prefer-offline
+
+                echo "Building application..."
+                npm run build
+
+                echo "Build complete."
+                EOT
+            Octopus.Action.Script.ScriptSource = "Inline"
+            Octopus.Action.Script.Syntax = "Bash"
+        }
+    }
+}
+
+step "restart-application" {
+    name = "Restart Application with PM2"
+
+    target_roles = ["vinifera-app"]
+
+    action {
+        action_type = "Octopus.Script"
+        notes = "Restart or start the Vinifera application using PM2. Creates PM2 config on first deploy."
+        properties = {
+            Octopus.Action.RunOnServer = "false"
+            Octopus.Action.Script.ScriptBody = <<-EOT
+                set -e
+                APP_DIR="/opt/vinifera"
+                PM2_APP_NAME="vinifera"
+                ENV="#{Octopus.Environment.Name}"
+
+                cd "$APP_DIR"
+
+                # Write environment variables from Octopus secrets to .env
+                cat > "$APP_DIR/.env" <<ENV
+NODE_ENV=#{NodeEnv}
+DATABASE_URL=#{DatabaseUrl}
+SUPABASE_URL=#{SupabaseUrl}
+SUPABASE_SERVICE_KEY=#{SupabaseServiceKey}
+STRIPE_SECRET_KEY=#{StripeSecretKey}
+RESEND_API_KEY=#{ResendApiKey}
+ENV
+
+                # Ensure PM2 is available
+                if ! command -v pm2 &>/dev/null; then
+                    echo "Installing PM2 globally..."
+                    sudo npm install -g pm2
+                fi
+
+                # Reload if running, otherwise start fresh
+                if pm2 describe "$PM2_APP_NAME" > /dev/null 2>&1; then
+                    echo "Reloading $PM2_APP_NAME with zero-downtime reload..."
+                    pm2 reload "$PM2_APP_NAME" --update-env
+                else
+                    echo "Starting $PM2_APP_NAME for the first time..."
+                    pm2 start "$APP_DIR/dist/server/index.js" \
+                        --name "$PM2_APP_NAME" \
+                        --env-file "$APP_DIR/.env" \
+                        --max-restarts 5 \
+                        --restart-delay 3000
+                    pm2 save
+                fi
+
+                echo "Application status:"
+                pm2 describe "$PM2_APP_NAME" | grep -E "status|uptime|restarts"
+                EOT
+            Octopus.Action.Script.ScriptSource = "Inline"
+            Octopus.Action.Script.Syntax = "Bash"
+        }
+    }
+}
+
+step "smoke-test" {
+    name = "Smoke Test"
+
+    action {
+        action_type = "Octopus.Script"
+        notes = "Verifies the application responds to HTTP after deploy. Fails the deployment if health check does not return 200 within 30 seconds."
+        properties = {
+            Octopus.Action.RunOnServer = "true"
+            Octopus.Action.Script.ScriptBody = <<-EOT
+                set -e
+                HEALTH_URL="#{AppHealthUrl}"
+                MAX_ATTEMPTS=6
+                SLEEP=5
+
+                echo "Smoke testing $HEALTH_URL..."
+
+                for i in $(seq 1 $MAX_ATTEMPTS); do
+                    STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+                    echo "Attempt $i: HTTP $STATUS"
+                    if [ "$STATUS" = "200" ] || [ "$STATUS" = "204" ]; then
+                        echo "Health check passed."
+                        exit 0
+                    fi
+                    [ $i -lt $MAX_ATTEMPTS ] && sleep $SLEEP
+                done
+
+                echo "FAIL: Health check did not return 200 after $((MAX_ATTEMPTS * SLEEP))s."
+                exit 1
+                EOT
+            Octopus.Action.Script.ScriptSource = "Inline"
+            Octopus.Action.Script.Syntax = "Bash"
+        }
+    }
+}
+
+step "notify-on-failure" {
+    name = "Notify on Deployment Failure"
+    condition = "Failure"
+
+    action {
+        action_type = "Octopus.Script"
+        notes = "Posts a GitHub issue comment on the triggering commit if deployment fails."
+        properties = {
+            Octopus.Action.RunOnServer = "true"
+            Octopus.Action.Script.ScriptBody = <<-EOT
+                COMMIT_SHA="#{Octopus.Release.Git.CommitHash}"
+                RELEASE="#{Octopus.Release.Number}"
+                ENV="#{Octopus.Environment.Name}"
+                LOG_URL="https://octopus.schubert.life/app#/Spaces-1/projects/vinifera/releases/$RELEASE"
+
+                curl -sf -X POST \
+                    "https://api.github.com/repos/theonlygeranium/vinifera/commits/$COMMIT_SHA/comments" \
+                    -H "Authorization: Bearer #{GitHubPAT}" \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" \
+                    -d "{"body": "❌ **Octopus Deploy failed** for release \`$RELEASE\` to **$ENV**. [View deployment log]($LOG_URL)"}" \
+                    && echo "Failure comment posted to commit." \
+                    || echo "WARNING: Could not post failure comment."
+                EOT
+            Octopus.Action.Script.ScriptSource = "Inline"
+            Octopus.Action.Script.Syntax = "Bash"
+        }
+    }
+}
