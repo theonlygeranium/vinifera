@@ -33,7 +33,7 @@ function embeddedQualityChecker() {
     "utf8",
   );
   const embeddedChecker = qualityRunbook.match(
-    /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+    /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
   )?.[1];
   expect(embeddedChecker).toBeTruthy();
   const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -182,7 +182,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -262,7 +262,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -339,7 +339,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -417,7 +417,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -502,7 +502,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -950,6 +950,31 @@ describe("Octopus runbook bridge", () => {
     expect(result.status, result.stdout + result.stderr).toBe(0);
   });
 
+  it("rejects an unscoped operation on a caller-supplied builder", () => {
+    const result = runRule8BaseHeadFixture({
+      baseSource: "",
+      headSource: [
+        "export async function list(table) {",
+        '  return table.select("*");',
+        "}",
+        "",
+      ].join("\n"),
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "--- a/server/services/members.ts",
+        "+++ b/server/services/members.ts",
+        "@@ -0,0 +1,3 @@",
+        "+export async function list(table) {",
+        '+  return table.select("*");',
+        "+}",
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("FAIL Rule 8");
+  });
+
   it("requires a changelog update in every commit", () => {
     const qualityRunbook = readFileSync(
       new URL(
@@ -959,7 +984,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;

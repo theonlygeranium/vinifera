@@ -65,7 +65,11 @@ print(data["commits"])
                     GIT_CONFIG_COUNT=1 \
                     GIT_CONFIG_KEY_0=http.extraHeader \
                     GIT_CONFIG_VALUE_0="Authorization: Bearer #{GitHubPAT}" \
-                        git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA" "$HEAD_SHA"
+                        git fetch --quiet --no-tags --depth=100 origin "$BASE_SHA" "$HEAD_SHA"
+                    MERGE_BASE_SHA=$(git merge-base "$BASE_SHA" "$HEAD_SHA") || {
+                        echo "FAIL: unable to resolve pull request merge base"
+                        exit 1
+                    }
                     git checkout --quiet --detach "$HEAD_SHA"
                     git remote remove origin
                     github_curl "application/vnd.github.diff" \
@@ -184,7 +188,7 @@ for commit in data:
                     set -euo pipefail
                     source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
                     cd "$WORK_DIR"
-                    python3 - "$WORK_DIR" "$WORK_DIR/pr.diff" "$WORK_DIR/commit-diffs" "$BASE_SHA" <<'PY'
+                    python3 - "$WORK_DIR" "$WORK_DIR/pr.diff" "$WORK_DIR/commit-diffs" "$MERGE_BASE_SHA" <<'PY'
 import pathlib
 import re
 import shlex
@@ -364,6 +368,14 @@ def query_models(source):
     masked = mask_non_code(source)
     spans = statement_spans(masked)
     from_calls = database_from_calls(masked)
+    rooted_variables = {
+        match.group(1)
+        for match in re.finditer(
+            r"(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)"
+            r"\s*=\s*(?:await\s*)?[^;]*\.from\s*\(",
+            masked,
+        )
+    }
     models = []
     for statement_start, statement_end in spans:
         statement_calls = [
@@ -494,6 +506,19 @@ def query_models(source):
                         receiver_match is not None,
                     )
                 )
+        if statement_calls:
+            continue
+        statement_masked = masked[statement_start:statement_end]
+        operation = re.search(
+            r"([A-Za-z_$][A-Za-z0-9_$]*)\s*\."
+            r"(?:select|update|delete|insert|upsert)\s*\(",
+            statement_masked,
+        )
+        if operation and operation.group(1) not in rooted_variables:
+            model = source[statement_start:statement_end]
+            start_line = source.count("\n", 0, statement_start) + 1
+            end_line = source.count("\n", 0, statement_end) + 1
+            models.append((start_line, end_line, model, True))
     return models
 
 def query_fingerprint(model):

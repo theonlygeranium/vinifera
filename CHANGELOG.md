@@ -155,6 +155,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Hardened Octopus Rule 8 to check operation-only query builders supplied by callers and to compare legacy query fingerprints against the pull request's actual merge base rather than the moving base-branch tip.
+
 ### Fixed
 
 - **What changed:** Octopus Rule 8 now models assigned descendants of a shared
