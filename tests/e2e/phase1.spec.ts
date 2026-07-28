@@ -125,6 +125,20 @@ test.describe("Phase 1 public authentication surfaces", () => {
     });
   }
 
+  test("marketing free-trial calls to action open staff signup", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const freeTrialCallsToAction = page
+      .locator("a")
+      .filter({ hasText: /Start (?:Free|30-Day Free)/ });
+
+    expect(await freeTrialCallsToAction.count()).toBeGreaterThan(0);
+    for (const callToAction of await freeTrialCallsToAction.all()) {
+      await expect(callToAction).toHaveAttribute("href", "/app/signup");
+    }
+  });
+
   for (const viewport of [
     { name: "mobile", width: 375, height: 812 },
     { name: "tablet", width: 768, height: 1024 },
