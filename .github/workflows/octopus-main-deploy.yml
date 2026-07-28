@@ -1,0 +1,77 @@
+name: Octopus Deploy — Main to Development
+
+on:
+  push:
+    branches:
+      - main
+    # Only trigger on meaningful changes — skip docs and workflow-only changes
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".github/**"
+      - ".octopus/**"
+
+jobs:
+  create-and-deploy:
+    name: Create Release and Deploy to Development
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Octopus CLI 🐙
+        uses: OctopusDeploy/install-octopus-cli-action@v3
+
+      - name: Log into Octopus Deploy
+        env:
+          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_SPACE: Default
+        run: |
+          echo "Octopus URL: $OCTOPUS_URL"
+          octopus account current
+
+      - name: Push Build Information 📦
+        uses: OctopusDeploy/push-build-information-action@v3
+        env:
+          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_SPACE: Default
+        with:
+          packages: |
+            Vinifera
+          version: ${{ github.run_number }}.${{ github.sha }}
+
+      - name: Create Octopus Release 🚀
+        uses: OctopusDeploy/create-release-action@v3
+        id: create_release
+        env:
+          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_SPACE: Default
+        with:
+          project: Vinifera
+          release_number: "${{ github.run_number }}-${{ github.sha }}"
+          git_ref: main
+          git_commit: ${{ github.sha }}
+
+      - name: Deploy to Development 🏗️
+        uses: OctopusDeploy/deploy-release-action@v3
+        env:
+          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_SPACE: Default
+        with:
+          project: Vinifera
+          release_number: ${{ steps.create_release.outputs.release_number }}
+          environments: |
+            Development
+          # Development deploys are automatic — no manual intervention required.
+          # Staging and Production require manual approval in Octopus.
