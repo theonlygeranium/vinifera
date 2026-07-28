@@ -155,6 +155,93 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Hardened Octopus Rule 8 to check operation-only query builders supplied by callers and to compare legacy query fingerprints against the pull request's actual merge base rather than the moving base-branch tip.
+
+### Fixed
+
+- **What changed:** Octopus Rule 8 now models assigned descendants of a shared
+  `.from(...)` table builder as independent leaf chains. A regression combines
+  a scoped select and unscoped delete from the same root and verifies the delete
+  fails. **Why:** Merging forked descendants let one branch's tenant predicate
+  satisfy a different unscoped operation. **Deployment impact:** PR security
+  analysis only; application runtime and environment activation are unchanged.
+  **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`,
+  `npm run build:worker`, and `git diff --check`.
+- **What changed:** Octopus Rule 8 now refuses to grandfather unscoped queries
+  whose receiver is a call, computed property, parenthesized expression, or
+  other form that cannot be normalized into a stable member identity. A
+  call-receiver privilege-change regression covers the fail-closed behavior.
+  **Why:** Collapsing unknown receivers to `.from(...)` could make distinct
+  tenant and admin clients share a legacy fingerprint. **Deployment impact:** PR
+  security analysis only; application runtime and environment activation are
+  unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`,
+  `npm run build:worker`, and `git diff --check`.
+- **What changed:** Octopus Rule 8 now accepts tracked predicates only from
+  unconditional same-scope assignments or returns and preserves complete member
+  receiver chains such as `ctx.admin` in query fingerprints. Regressions cover
+  conditional predicates and receiver changes between member expressions.
+  **Why:** A false branch could leave a query unscoped, while truncating both
+  receivers to `admin` could grandfather a privilege-boundary change.
+  **Deployment impact:** PR security analysis only; application runtime and
+  environment activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`,
+  `npm run build:worker`, and `git diff --check`.
+- **What changed:** Octopus Rule 8 query fingerprints now include the database
+  receiver, and builder dataflow stops at the enclosing block. Statement
+  splitting ignores semicolons inside parentheses, while base-source lookup is
+  timeout-bounded and emits a fail-closed diagnostic. Regressions cover
+  RLS-to-admin receiver changes and same-named builders in adjacent functions.
+  **Why:** Receiver-free fingerprints could grandfather a move to privileged
+  access, and brace-depth equality alone could borrow a predicate from another
+  function. **Deployment impact:** PR security analysis only; application
+  runtime and environment activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`, and
+  `git diff --check`.
+- **What changed:** Octopus Rule 8 now consumes grandfathered unscoped query
+  fingerprints one-to-one and follows builder variables when `.from(...)`, the
+  database operation, and its tenant predicate are split across same-scope
+  assignments. Documentation and regressions cover duplicate legacy
+  fingerprints and pre-operation builder splits. **Why:** Set membership could
+  grandfather unlimited new duplicates, while discarding an operation-free
+  `.from(...)` statement could miss a later unscoped `.select()`. **Deployment
+  impact:** PR security analysis only; application runtime and environment
+  activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`, and
+  `git diff --check`.
+- **What changed:** Octopus Rule 8 now models complete queries in the trusted
+  base and current head, including multiline predicates and later
+  query-variable assignments. New or newly unscoped surviving queries fail;
+  unchanged legacy unscoped operations remain grandfathered, and fully deleted
+  queries are ignored. Known JavaScript utility constructors such as
+  `Array.from()` are excluded as query boundaries without restricting dynamic
+  Supabase table arguments. Documentation and regressions cover every reviewed
+  case. **Why:** Source-line proximity could miss distant or multiline predicate
+  deletion, reject valid later assignments, or block removal of an entire safe
+  query. **Deployment impact:** PR security analysis only; application runtime
+  and environment activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`, and
+  `git diff --check`.
+- **What changed:** The Octopus Rule 8 deletion regression now models a pure
+  predicate-line deletion from a valid automatic-semicolon-insertion query
+  chain, with no compensating added line. **Why:** The fixture must prove the
+  deletion anchor itself triggers re-evaluation. **Deployment impact:** Test
+  evidence only; the gate implementation and application runtime are unchanged.
+  **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`.
+- **What changed:** Octopus Rule 8 now re-evaluates tenant query chains touched
+  by additions or deletions and binds each `brand_id`/`organization_id`
+  predicate to its individual database chain. The Rule 8 documentation now
+  states those change-aware and per-chain semantics, and regression fixtures
+  cover deleted tenant predicates and adjacent scoped/unscoped queries.
+  **Why:** A deleted predicate was invisible to the added-line scanner, and a
+  nearby scoped query could incorrectly satisfy a separate unscoped operation.
+  **Deployment impact:** PR security analysis only; application runtime,
+  routing, providers, and environment activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, the embedded Bash
+  syntax test, `npm run typecheck`, `npm run build`, and `git diff --check`.
+
 ### Changed
 - Replaced Greptile with Octopus as the AI code review tool (self-hosted). Greptile removed
   as a required GitHub branch protection check. Branch protection now requires only

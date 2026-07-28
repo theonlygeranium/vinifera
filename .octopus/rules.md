@@ -90,7 +90,23 @@ argument or with a newly generated value on each retry.
 ## 8. Tenant isolation on every service function
 
 **Enforces:** Every service function that queries the database must constrain
-the operation by `brand_id` or `organization_id`.
+the operation by `brand_id` or `organization_id`. The PR gate re-evaluates
+query chains touched by additions or deletions and requires the predicate on
+the same individual chain as the selected or mutated operation. It also tracks
+predicates applied through later query-variable assignments. For changed
+service files, the gate models complete queries at the pull request merge base
+and current head: unchanged legacy unscoped operations are grandfathered, newly unscoped
+surviving operations fail, and a fully deleted query is ignored. Legacy
+fingerprints are consumed one-to-one, and builder variables are followed across
+same-scope assignments within their enclosing block before the database
+operation and tenant predicate. The database receiver is part of the stable
+fingerprint so a move from an RLS-bound client to a privileged client is never
+grandfathered. Conditional builder assignments are not accepted as tenant
+scoping because the unscoped execution path still exists. Unscoped queries
+whose receiver expression cannot be normalized are never grandfathered. Forked
+descendants of a shared table builder are evaluated as independent leaf chains.
+Operations on caller-supplied builders are checked even when the local function
+does not call `.from(...)`.
 
 **Why it matters:** The server uses privileged database credentials in some
 paths, so explicit service-layer scoping is required as defense in depth for

@@ -24,6 +24,74 @@ function jsonResponse(payload, status = 200) {
   });
 }
 
+function embeddedQualityChecker() {
+  const qualityRunbook = readFileSync(
+    new URL(
+      "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const embeddedChecker = qualityRunbook.match(
+    /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+  )?.[1];
+  expect(embeddedChecker).toBeTruthy();
+  const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+  return embeddedChecker
+    .split("\n")
+    .map((line) => line.slice(Math.min(indentation, line.length)))
+    .join("\n");
+}
+
+function runRule8BaseHeadFixture({ baseSource, headSource, diff }) {
+  const checker = embeddedQualityChecker();
+  const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-base-"));
+  const serviceDirectory = join(fixture, "server", "services");
+  const serviceFile = join(serviceDirectory, "members.ts");
+  const commitDiffDirectory = join(fixture, "commit-diffs");
+  mkdirSync(serviceDirectory, { recursive: true });
+  mkdirSync(commitDiffDirectory);
+  writeFileSync(join(fixture, "CHANGELOG.md"), "# Fixture\n");
+  if (baseSource !== null) {
+    writeFileSync(serviceFile, baseSource);
+  }
+  for (const args of [
+    ["init", "--quiet"],
+    ["config", "user.email", "fixture@example.test"],
+    ["config", "user.name", "Fixture"],
+    ["add", "."],
+    ["commit", "--quiet", "-m", "fixture base"],
+  ]) {
+    const result = spawnSync("git", args, { cwd: fixture, encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+  }
+  const baseSha = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: fixture,
+    encoding: "utf8",
+  }).stdout.trim();
+  if (headSource === null) {
+    rmSync(serviceFile, { force: true });
+  } else {
+    writeFileSync(serviceFile, headSource);
+  }
+  writeFileSync(join(fixture, "pr.diff"), diff);
+  writeFileSync(
+    join(commitDiffDirectory, "fixture.diff"),
+    [
+      "diff --git a/server/services/members.ts b/server/services/members.ts",
+      "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+      "",
+    ].join("\n"),
+  );
+  const result = spawnSync(
+    "python3",
+    ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory, baseSha],
+    { input: checker, encoding: "utf8" },
+  );
+  rmSync(fixture, { recursive: true, force: true });
+  return result;
+}
+
 describe("Octopus runbook bridge", () => {
   it("keeps PR code out of secret-bearing auto-fix paths", () => {
     const workflow = readFileSync(
@@ -59,7 +127,9 @@ describe("Octopus runbook bridge", () => {
     expect(qualityRunbook).toContain(
       "Rules 4-10: Change-Aware Security and Tenancy Guards",
     );
-    expect(qualityRunbook).toContain('failures.append(("Rule 8", location');
+    expect(qualityRunbook).toContain(
+      'failures.append(("Rule 8", f"{file_path}:{start_line}"',
+    );
     expect(qualityRunbook).toContain("application/vnd.github.diff");
     expect(qualityRunbook).toContain(
       'file_path.startswith("server/services/")',
@@ -112,7 +182,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -183,6 +253,728 @@ describe("Octopus runbook bridge", () => {
     }
   });
 
+  it("rejects a query whose tenant predicate is deleted", () => {
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const embeddedChecker = qualityRunbook.match(
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+    )?.[1];
+    expect(embeddedChecker).toBeTruthy();
+    const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+    const checker = embeddedChecker
+      .split("\n")
+      .map((line) => line.slice(Math.min(indentation, line.length)))
+      .join("\n");
+
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-delete-"));
+    try {
+      const serviceDirectory = join(fixture, "server", "services");
+      const commitDiffDirectory = join(fixture, "commit-diffs");
+      mkdirSync(serviceDirectory, { recursive: true });
+      mkdirSync(commitDiffDirectory);
+      writeFileSync(
+        join(serviceDirectory, "members.ts"),
+        [
+          "export async function unsafe(admin) {",
+          '  return admin.from("members")',
+          '    .select("*")',
+          "}",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "--- a/server/services/members.ts",
+          "+++ b/server/services/members.ts",
+          "@@ -1,5 +1,4 @@",
+          " export async function unsafe(admin) {",
+          '   return admin.from("members")',
+          '     .select("*")',
+          '-    .eq("brand_id", brandId);',
+          " }",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "--- a/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "@@ -1 +1,2 @@",
+          "+security regression fixture",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(commitDiffDirectory, "fixture.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync(
+        "python3",
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain(
+        "FAIL Rule 8: server/services/members.ts:2",
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("binds tenant predicates to the individual changed query", () => {
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const embeddedChecker = qualityRunbook.match(
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+    )?.[1];
+    expect(embeddedChecker).toBeTruthy();
+    const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+    const checker = embeddedChecker
+      .split("\n")
+      .map((line) => line.slice(Math.min(indentation, line.length)))
+      .join("\n");
+
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-bind-"));
+    try {
+      const serviceDirectory = join(fixture, "server", "services");
+      const commitDiffDirectory = join(fixture, "commit-diffs");
+      mkdirSync(serviceDirectory, { recursive: true });
+      mkdirSync(commitDiffDirectory);
+      writeFileSync(
+        join(serviceDirectory, "members.ts"),
+        [
+          "export async function mixed(admin, brandId) {",
+          '  const scoped = await admin.from("members").select("*").eq("brand_id", brandId);',
+          '  const unsafe = await admin.from("shipments").select("*");',
+          "  return { scoped, unsafe };",
+          "}",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "--- a/server/services/members.ts",
+          "+++ b/server/services/members.ts",
+          "@@ -1,3 +1,5 @@",
+          " export async function mixed(admin, brandId) {",
+          '   const scoped = await admin.from("members").select("*").eq("brand_id", brandId);',
+          '+  const unsafe = await admin.from("shipments").select("*");',
+          "+  return { scoped, unsafe };",
+          "+}",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "--- a/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "@@ -1 +1,2 @@",
+          "+security regression fixture",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(commitDiffDirectory, "fixture.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync(
+        "python3",
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain(
+        "FAIL Rule 8: server/services/members.ts:3",
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a tenant predicate deleted from a later query assignment", () => {
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const embeddedChecker = qualityRunbook.match(
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+    )?.[1];
+    expect(embeddedChecker).toBeTruthy();
+    const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+    const checker = embeddedChecker
+      .split("\n")
+      .map((line) => line.slice(Math.min(indentation, line.length)))
+      .join("\n");
+
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-builder-"));
+    try {
+      const serviceDirectory = join(fixture, "server", "services");
+      const commitDiffDirectory = join(fixture, "commit-diffs");
+      mkdirSync(serviceDirectory, { recursive: true });
+      mkdirSync(commitDiffDirectory);
+      writeFileSync(
+        join(serviceDirectory, "members.ts"),
+        [
+          "export async function unsafe(admin) {",
+          '  let query = admin.from("members").select("*");',
+          "  const one = 1;",
+          "  const two = 2;",
+          "  const three = 3;",
+          "  const four = 4;",
+          "  return { query, one, two, three, four };",
+          "}",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "--- a/server/services/members.ts",
+          "+++ b/server/services/members.ts",
+          "@@ -1,9 +1,8 @@",
+          " export async function unsafe(admin) {",
+          '   let query = admin.from("members").select("*");',
+          "   const one = 1;",
+          "   const two = 2;",
+          "   const three = 3;",
+          "   const four = 4;",
+          '-  query = query.eq("brand_id", brandId);',
+          "   return { query, one, two, three, four };",
+          " }",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "--- a/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "@@ -1 +1,2 @@",
+          "+security regression fixture",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(commitDiffDirectory, "fixture.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync(
+        "python3",
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain(
+        "FAIL Rule 8: server/services/members.ts:2",
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("does not split a scoped query at a nested Array.from call", () => {
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const embeddedChecker = qualityRunbook.match(
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
+    )?.[1];
+    expect(embeddedChecker).toBeTruthy();
+    const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+    const checker = embeddedChecker
+      .split("\n")
+      .map((line) => line.slice(Math.min(indentation, line.length)))
+      .join("\n");
+
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-array-"));
+    try {
+      const serviceDirectory = join(fixture, "server", "services");
+      const commitDiffDirectory = join(fixture, "commit-diffs");
+      mkdirSync(serviceDirectory, { recursive: true });
+      mkdirSync(commitDiffDirectory);
+      writeFileSync(
+        join(serviceDirectory, "members.ts"),
+        [
+          "export async function safe(admin, brandId, ids) {",
+          '  return admin.from("members").update({ ids: Array.from(ids) }).eq("brand_id", brandId);',
+          "}",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "new file mode 100644",
+          "--- /dev/null",
+          "+++ b/server/services/members.ts",
+          "@@ -0,0 +1,3 @@",
+          "+export async function safe(admin, brandId, ids) {",
+          '+  return admin.from("members").update({ ids: Array.from(ids) }).eq("brand_id", brandId);',
+          "+}",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "--- a/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "@@ -1 +1,2 @@",
+          "+security regression fixture",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(commitDiffDirectory, "fixture.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync(
+        "python3",
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a new query scoped through a later variable assignment", () => {
+    const headSource = [
+      "export async function safe(admin, brandId) {",
+      '  let query = admin.from("members").select("*");',
+      "  const audit = true;",
+      '  query = query.eq("brand_id", brandId);',
+      "  return { query, audit };",
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource: null,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/server/services/members.ts",
+        "@@ -0,0 +1,6 @@",
+        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+  });
+
+  it("does not grandfather a duplicate of a legacy unscoped query", () => {
+    const legacy = [
+      "export async function legacy(admin) {",
+      '  return admin.from("members").select("*");',
+      "}",
+      "",
+    ].join("\n");
+    const duplicate = [
+      legacy.trimEnd(),
+      "",
+      "export async function newlyUnsafe(admin) {",
+      '  return admin.from("members").select("*");',
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource: legacy,
+      headSource: duplicate,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "--- a/server/services/members.ts",
+        "+++ b/server/services/members.ts",
+        "@@ -1,3 +1,7 @@",
+        " export async function legacy(admin) {",
+        '   return admin.from("members").select("*");',
+        " }",
+        "+",
+        "+export async function newlyUnsafe(admin) {",
+        '+  return admin.from("members").select("*");',
+        "+}",
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:6",
+    );
+  });
+
+  it("does not grandfather a change to a privileged database receiver", () => {
+    const baseSource = [
+      "export async function legacy(ctx) {",
+      '  return ctx.tenantClient.from("members").select("*");',
+      "}",
+      "",
+    ].join("\n");
+    const headSource = [
+      "export async function newlyPrivileged() {",
+      '  return this.admin.from("members").select("*");',
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "--- a/server/services/members.ts",
+        "+++ b/server/services/members.ts",
+        "@@ -1,3 +1,3 @@",
+        "-export async function legacy(ctx) {",
+        '-  return ctx.tenantClient.from("members").select("*");',
+        "+export async function newlyPrivileged() {",
+        '+  return this.admin.from("members").select("*");',
+        " }",
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
+  });
+
+  it("refuses to grandfather an unscoped call-expression receiver", () => {
+    const baseSource = [
+      "export async function legacy() {",
+      '  return getTenantClient().from("members").select("*");',
+      "}",
+      "",
+    ].join("\n");
+    const headSource = [
+      "export async function newlyPrivileged() {",
+      '  return getAdminClient().from("members").select("*");',
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "--- a/server/services/members.ts",
+        "+++ b/server/services/members.ts",
+        "@@ -1,3 +1,3 @@",
+        "-export async function legacy() {",
+        '-  return getTenantClient().from("members").select("*");',
+        "+export async function newlyPrivileged() {",
+        '+  return getAdminClient().from("members").select("*");',
+        " }",
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
+  });
+
+  it("follows a builder split before the database operation", () => {
+    const headSource = [
+      "export async function safe(admin, brandId) {",
+      '  const table = admin.from("members");',
+      '  let query = table.select("*");',
+      '  query = query.eq("brand_id", brandId);',
+      "  return query;",
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource: null,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/server/services/members.ts",
+        "@@ -0,0 +1,6 @@",
+        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+  });
+
+  it("evaluates forked builder descendants as independent query chains", () => {
+    const headSource = [
+      "export async function mixed(admin, brandId) {",
+      '  const table = admin.from("members");',
+      '  const scoped = table.select("*").eq("brand_id", brandId);',
+      "  const unsafe = table.delete();",
+      "  return { scoped, unsafe };",
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource: null,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/server/services/members.ts",
+        "@@ -0,0 +1,6 @@",
+        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
+    expect(result.stdout).toContain("table.delete()");
+  });
+
+  it("does not borrow a tenant predicate from an adjacent function", () => {
+    const headSource = [
+      "export async function unsafe(admin) {",
+      '  const table = admin.from("members");',
+      '  const query = table.select("*");',
+      "  return query;",
+      "}",
+      "",
+      "export async function safe(admin, brandId) {",
+      '  const table = admin.from("members");',
+      '  let query = table.select("*");',
+      '  query = query.eq("brand_id", brandId);',
+      "  return query;",
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource: null,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/server/services/members.ts",
+        "@@ -0,0 +1,12 @@",
+        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
+  });
+
+  it("rejects a conditionally applied tenant predicate", () => {
+    const headSource = [
+      "export async function unsafe(admin, brandId) {",
+      '  let query = admin.from("members").select("*");',
+      "  if (false) {",
+      '    query = query.eq("brand_id", brandId);',
+      "  }",
+      "  return query;",
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource: null,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/server/services/members.ts",
+        "@@ -0,0 +1,7 @@",
+        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
+  });
+
+  it("rejects removal of a multiline later tenant predicate", () => {
+    const baseSource = [
+      "export async function unsafe(admin, brandId) {",
+      '  let query = admin.from("members").select("*");',
+      "  const one = 1;",
+      "  const two = 2;",
+      "  const three = 3;",
+      "  query = query.eq(",
+      '    "brand_id",',
+      "    brandId,",
+      "  );",
+      "  return { query, one, two, three };",
+      "}",
+      "",
+    ].join("\n");
+    const headSource = [
+      "export async function unsafe(admin) {",
+      '  let query = admin.from("members").select("*");',
+      "  const one = 1;",
+      "  const two = 2;",
+      "  const three = 3;",
+      "  return { query, one, two, three };",
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "--- a/server/services/members.ts",
+        "+++ b/server/services/members.ts",
+        "@@ -1,11 +1,7 @@",
+        "-export async function unsafe(admin, brandId) {",
+        "+export async function unsafe(admin) {",
+        '   let query = admin.from("members").select("*");',
+        "   const one = 1;",
+        "   const two = 2;",
+        "   const three = 3;",
+        "-  query = query.eq(",
+        '-    "brand_id",',
+        "-    brandId,",
+        "-  );",
+        "   return { query, one, two, three };",
+        " }",
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
+  });
+
+  it("accepts deletion of an entire scoped query", () => {
+    const baseSource = [
+      "export async function obsolete(admin, brandId) {",
+      '  return admin.from("members").select("*").eq("brand_id", brandId);',
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource,
+      headSource: null,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "deleted file mode 100644",
+        "--- a/server/services/members.ts",
+        "+++ /dev/null",
+        "@@ -1,3 +0,0 @@",
+        "-export async function obsolete(admin, brandId) {",
+        '-  return admin.from("members").select("*").eq("brand_id", brandId);',
+        "-}",
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+  });
+
+  it("rejects an unscoped operation on a caller-supplied builder", () => {
+    const result = runRule8BaseHeadFixture({
+      baseSource: "",
+      headSource: [
+        "export async function list(table) {",
+        '  return table.select("*");',
+        "}",
+        "",
+      ].join("\n"),
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "--- a/server/services/members.ts",
+        "+++ b/server/services/members.ts",
+        "@@ -0,0 +1,3 @@",
+        "+export async function list(table) {",
+        '+  return table.select("*");',
+        "+}",
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("FAIL Rule 8");
+  });
+
   it("requires a changelog update in every commit", () => {
     const qualityRunbook = readFileSync(
       new URL(
@@ -192,7 +984,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" "\$MERGE_BASE_SHA" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
