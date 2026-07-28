@@ -461,7 +461,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Chrome.
 
 - **What changed:** Added the exact staff-workspace skip link, a focusable
-  `main` target, visible-on-focus styling, and a mobile keyboard regression.
+  `main` target, visible-on-focus styling above the mobile update banner, an
+  explicit card-surface background, and a mobile keyboard regression.
   **Why:** Every authenticated staff route omitted the accessibility sweep's
   required `Skip to main content` bypass control. **Deployment impact:** Staff
   shell markup and styling only; navigation, APIs, hosted data, providers,
