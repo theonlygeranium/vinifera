@@ -157,6 +157,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Octopus Rule 8 now consumes grandfathered unscoped query
+  fingerprints one-to-one and follows builder variables when `.from(...)`, the
+  database operation, and its tenant predicate are split across same-scope
+  assignments. Documentation and regressions cover duplicate legacy
+  fingerprints and pre-operation builder splits. **Why:** Set membership could
+  grandfather unlimited new duplicates, while discarding an operation-free
+  `.from(...)` statement could miss a later unscoped `.select()`. **Deployment
+  impact:** PR security analysis only; application runtime and environment
+  activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`, and
+  `git diff --check`.
 - **What changed:** Octopus Rule 8 now models complete queries in the trusted
   base and current head, including multiline predicates and later
   query-variable assignments. New or newly unscoped surviving queries fail;

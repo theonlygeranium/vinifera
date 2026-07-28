@@ -190,6 +190,7 @@ import re
 import shlex
 import subprocess
 import sys
+from collections import Counter
 
 work_dir = pathlib.Path(sys.argv[1]).resolve()
 diff_lines = pathlib.Path(sys.argv[2]).read_text(
@@ -359,12 +360,6 @@ def query_models(source):
                 else statement_end
             )
             segment = source[from_call.start():end]
-            masked_segment = masked[from_call.start():end]
-            if not re.search(
-                r"\.(?:select|update|delete|insert|upsert)\s*\(",
-                masked_segment,
-            ):
-                continue
             prefix = masked[statement_start:from_call.start()]
             variable_match = re.search(
                 r"(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)"
@@ -380,6 +375,7 @@ def query_models(source):
             variable = variable_match.group(1) if variable_match else None
             model_parts = [segment]
             model_end = end
+            tracked_variables = {variable} if variable else set()
             if variable:
                 base_depth = brace_depth(masked, from_call.start())
                 for later_start, later_end in spans:
@@ -388,19 +384,37 @@ def query_models(source):
                     if brace_depth(masked, later_start) != base_depth:
                         continue
                     later_masked = masked[later_start:later_end]
-                    if re.search(
-                        rf"(?:const|let|var)\s+{re.escape(variable)}\b",
+                    receiver = next(
+                        (
+                            tracked
+                            for tracked in tracked_variables
+                            if re.search(
+                                rf"\b{re.escape(tracked)}\."
+                                r"(?:select|update|delete|insert|upsert|eq|in|match)"
+                                r"\s*\(",
+                                later_masked,
+                            )
+                        ),
+                        None,
+                    )
+                    if receiver is None:
+                        continue
+                    model_parts.append(source[later_start:later_end])
+                    model_end = later_end
+                    assignment = re.search(
+                        rf"(?:const|let|var)?\s*"
+                        rf"([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:await\s*)?"
+                        rf"{re.escape(receiver)}\.",
                         later_masked,
-                    ):
-                        break
-                    if re.search(
-                        rf"\b{re.escape(variable)}\s*=\s*(?:await\s*)?"
-                        rf"{re.escape(variable)}\.",
-                        later_masked,
-                    ):
-                        model_parts.append(source[later_start:later_end])
-                        model_end = later_end
+                    )
+                    if assignment:
+                        tracked_variables.add(assignment.group(1))
             model = "\n".join(model_parts)
+            if not re.search(
+                r"\.(?:select|update|delete|insert|upsert)\s*\(",
+                mask_non_code(model),
+            ):
+                continue
             start_line = source.count("\n", 0, from_call.start()) + 1
             end_line = source.count("\n", 0, model_end) + 1
             models.append((start_line, end_line, model))
@@ -428,15 +442,17 @@ for file_path in changed_files:
     if work_dir not in candidate.parents or not candidate.is_file():
         continue
     head_source = candidate.read_text(encoding="utf-8", errors="replace")
-    base_unscoped = {
+    base_unscoped = Counter(
         query_fingerprint(model)
         for _, _, model in query_models(base_file_source(file_path))
         if not has_tenant_predicate(model)
-    }
+    )
     for start_line, _, model in query_models(head_source):
         if has_tenant_predicate(model):
             continue
-        if query_fingerprint(model) in base_unscoped:
+        fingerprint = query_fingerprint(model)
+        if base_unscoped[fingerprint] > 0:
+            base_unscoped[fingerprint] -= 1
             continue
         excerpt = next(
             (
