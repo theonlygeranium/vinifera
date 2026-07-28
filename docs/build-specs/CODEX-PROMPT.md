@@ -20,7 +20,7 @@ review threads remain, leave the PR ready and report its status.
 
 ---
 
-## Current Repository State (v0.6.0)
+## Current Repository State (v0.5.0)
 
 All build specs have been merged. The following structural work is complete:
 
@@ -33,7 +33,7 @@ All build specs have been merged. The following structural work is complete:
 | BS-05 | ✅ Merged | `npm run dev` local stack with seeded tenants, authenticated smoke tests |
 | BS-06 | ✅ Merged | Tenancy audit, `docs/architecture.md`, governance ADR, Greptile training notes |
 
-**Verified test baseline:** 405 Vitest · 250/199/158/513 DB assertions · 145 Playwright/axe
+**Verified test baseline:** 448 Vitest · 250/199/158/513 DB assertions · 145 Playwright/axe
 
 ---
 
@@ -45,8 +45,8 @@ The next milestone is transitioning from operationally dormant to live. This req
 
 1. Provision hosted Supabase staging project → apply all 22 migrations → run pgTAP
 2. Deploy `vinifera-staging` Worker → verify `/api/health` returns JSON
-3. Reconcile Stripe Price catalog from prior run `30218801133` using fixed lookup keys
-4. Configure Supabase Auth (OTP, OAuth, SMTP relay, custom access-token hook)
+3. Configure Supabase Auth (custom access-token hook, 900-second OTP expiry, Google OAuth, SMTP relay)
+4. Reconcile Stripe Price catalog from prior run `30218801133` using fixed lookup keys; bootstrap/verify all four recurring Prices; register `/api/billing/webhook`
 5. Wire EasyPost test API key + winery origin address
 6. Verify Resend sending domain (DKIM/SPF)
 7. Run ten-member full billing proof cycle (charge, fulfill, track, email)
@@ -75,7 +75,7 @@ Before writing a single line of code, read these files in full:
 3. docs/agent-workflow.md
 4. docs/architecture.md
 
-Your task is a read-only audit. Do not modify any files. Produce a verification report covering:
+Your task is a read-only source audit — do not modify any application source, migration, or configuration file. Your only output is the report document below. Produce a verification report covering:
 
 1. All 22 supabase/migrations/ files — confirm sequential numbering with no gaps
 2. CONTINUITY_BRIEF.md activation gate list — confirm all 20 gates are accurately described
@@ -120,7 +120,7 @@ Your task:
 
 Acceptance criteria:
 - npm audit --audit-level=moderate exits 0
-- All test counts at or above: 405 Vitest, 145 Playwright/axe
+- All test counts at or above: 448 Vitest, 145 Playwright/axe
 - No TypeScript errors (npm run check)
 
 Branch: chore/dependency-audit-YYYY-MM-DD
