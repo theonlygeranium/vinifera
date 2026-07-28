@@ -8,29 +8,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+
 ### Added
 
-- **What changed:** Added a fail-closed, exact-base/head CI classifier with an
-  explicit Markdown allowlist, a restricted documentation validation lane,
-  focused classifier and required-gate policy tests, and an `if: always()`
-  required aggregation job retaining the exact
-  `Type, test, build, and package` check name. Full quality plus Android remain
-  mandatory for every non-documentation, unknown, ambiguous, copied, deleted,
-  workflow, dependency, configuration, source, test, database, deployment,
-  security, or mobile change and every push to `main`. Governance documents
-  now explain that CI—not labels, titles, checkboxes, or author claims—selects
-  the lane. **Why:** The complete quality, database, browser, and native suite
-  is necessary for runtime-affecting work but adds avoidable time and runner
-  cost to strictly classified Markdown-only pull requests. **Deployment
-  impact:** Repository CI and governance only; the Pages rollback artifact,
-  Worker, hosted database, providers, secrets, DNS, mobile distribution, and
-  all activation flags remain unchanged and fail closed. **Verification:** Run
-  `npm ci`, `npm audit --audit-level=moderate`, `npm run check`,
-  `npm run qa:e2e`, direct-push policy tests, docs CI policy tests,
-  workflow YAML validation, the documented changed-file matrix,
-  credential-pattern scan, and `git diff --check`; confirm this workflow PR
-  selects full CI and the exact required check aggregates only the successful
-  selected lane.
+- **What changed:** Rewrote `AGENTS.md` to correct stale workflow names
+  (`hosted-readiness.yml`, `production-worker-release.yml`,
+  `stripe-test-catalog.yml`, `stripe-live-billing-cutover.yml`,
+  `credential-envelope-rotation.yml`, `mobile-release.yml`,
+  `direct-push-guard.yml`, `ci.yml`), updated verified test counts to
+  448 Vitest / 250 / 199 / 158 / 513 DB / 145 Playwright-axe, added explicit
+  `dev:frontend` documentation, corrected Sentry description to
+  "integrated, secret-gated," and added Section 9 (Agent Collaboration
+  Architecture) and Section 10 (Contact and Authorization). Introduced ADR
+  `docs/decisions/2026-07-28-agents-md-governance-update.md` recording the
+  ownership policy update from "Human owner only" to "Any agent via PR —
+  human owner must review and merge." Updated `CODEX-PROMPT.md` to v0.5.0,
+  corrected gate order (Auth = Gate 3, Stripe reconciliation = Gate 4 per
+  `CONTINUITY_BRIEF.md`), and fixed the pre-activation audit prompt to
+  clarify that the audit produces a report document and does not modify
+  application source. Updated `README.md` Production Build badge to v0.5.0
+  and Phase 2 quality row to 250 database assertions. **Why:** Eleven
+  unresolved review threads from Greptile (P1: wrong workflow names, missing
+  CHANGELOG, gate order, test counts) and CodeRabbit (Major: version
+  inconsistency, assertion count, prompt contradiction; Minor: Sentry wording,
+  dev command clarity) blocked merge of PR #21 under the zero-unresolved-thread
+  requirement. **Deployment impact:** Documentation and governance only;
+  application code, build output, routes, provider activation, hosted data, and
+  all 20 activation gates are unchanged. **Verification:** Review corrected
+  workflow names against `.github/workflows/` directory, verify gate order
+  against `CONTINUITY_BRIEF.md` activation gates 3 and 4, run
+  `npm run check` to confirm 448 Vitest and 145 Playwright/axe counts,
+  inspect ADR and updated ownership table in `AGENTS.md`.
+
+
+### Added
+
 - **What changed:** Established mandatory end-to-end PR ownership for agents,
   a label-scoped 15-minute Codex safety monitor, explicit human-escalation and
   merge-authority rules, required review-thread disposition, and GitHub
@@ -71,26 +83,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
-- **What changed:** Review follow-up expands the docs-lane credential scan to
-  fine-grained GitHub PATs and Stripe restricted live keys, validates inline
-  and reference-style local Markdown links, derives documentation compatibility
-  from the repository Node pin while enforcing the currently authorized
-  `.nvmrc` and engine values in full-lane policy tests, rejects conflicting
-  README/AGENTS Node guidance, and requires an added or modified root
-  `CHANGELOG.md` rather than accepting a rename-away. The workflow now
-  explicitly fetches the exact PR base with read-only checkout credentials,
-  removes the unused attacker-controlled multiline path output, sanitizes
-  summary paths, and aligns the docs audit with the full lane's production
-  dependency scope. **Why:** Exact-head CodeRabbit and Greptile review found
-  scanner, link, version-drift, rename, fork-fetch, output-delimiter, and audit
-  consistency cases that could weaken or destabilize the restricted lane or
-  defer a Node-contract failure until a later docs PR. **Deployment impact:**
-  CI validation and governance only; no runtime, route, schema, provider,
-  secret, Pages, DNS, mobile, hosted state, or activation change.
-  **Verification:** Run the docs CI policy suite, `npm run check`, workflow
-  YAML parsing, exact-diff credential scan, and `git diff --check`, then wait
-  for fresh full CI, Android, Greptile, CodeRabbit, and zero unresolved review
-  threads.
 - **What changed:** Final review follow-up pins both the integrated local build
   and Vite server to browser mode and the loopback Worker API origin,
   preserves explicit browser/mobile API-origin policy errors through request
