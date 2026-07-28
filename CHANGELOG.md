@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased] — 2026-07-28 (UI Testing Specification)
+
+### Added
+- `docs/build-specs/vinifera-ui-testing-doc.md`: Codex-optimized UI testing specification covering all 23 staff application routes, member portal, and static surfaces (landing page, investor guide). Defines 12 parallel subagent assignments (SA-01 through SA-12), detailed test tables with expected results and viewport requirements, axe-core WCAG 2.1 AA sweep, responsive layout sweep at 5 viewports, bug fix protocol with worktree/branch conventions, Octopus/CodeRabbit disposition table, and acceptance criteria (448/448 Vitest, 145/145 Playwright/axe, zero axe violations, all 20 activation gates confirmed pending).
+
 ## [Unreleased] — 2026-07-28 (Three-Tier Environment)
 
 ### Added
