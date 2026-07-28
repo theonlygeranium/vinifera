@@ -133,7 +133,7 @@ test.describe("Phase 1 public authentication surfaces", () => {
       .locator("a")
       .filter({ hasText: /Start (?:Free|30-Day Free)/ });
 
-    expect(await freeTrialCallsToAction.count()).toBeGreaterThan(0);
+    await expect(freeTrialCallsToAction).toHaveCount(6);
     for (const callToAction of await freeTrialCallsToAction.all()) {
       await expect(callToAction).toHaveAttribute("href", "/app/signup");
     }

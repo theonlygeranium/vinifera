@@ -135,7 +135,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - **What changed:** Routed all six marketing free-trial calls to action to the
-  staff workspace signup page and added end-to-end coverage for every link.
+  staff workspace signup page and added an exact six-link end-to-end inventory
+  check for every link.
   **Why:** The visible trial buttons previously jumped to pricing or used empty
   placeholder links, preventing prospective winery teams from starting
   signup. **Deployment impact:** Marketing navigation only; authentication,
