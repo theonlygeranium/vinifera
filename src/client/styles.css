@@ -1469,7 +1469,7 @@ table caption {
   gap: 8px;
 }
 
-.staff-live-region:not(:empty) {
+.staff-live-region {
   margin-bottom: 14px;
 }
 

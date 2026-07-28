@@ -87,7 +87,9 @@ export function StaffDashboard() {
 
   return (
     <StaffShell title="Dashboard">
-      <FormFeedback message={notice} kind="success" />
+      <div aria-live="polite">
+        <FormFeedback message={notice} kind="success" />
+      </div>
       <section className="welcome-panel" aria-labelledby="welcome-title">
         <div>
           <p className="eyebrow">Workspace ready</p>
