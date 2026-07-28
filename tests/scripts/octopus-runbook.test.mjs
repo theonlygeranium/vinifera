@@ -1273,7 +1273,15 @@ describe("Octopus workflow trust boundary", () => {
       "ref: ${{ github.event.repository.default_branch }}",
     );
     expect(workflow.match(/persist-credentials: false/g)).toHaveLength(1);
-    expect(workflow).not.toContain("github.event.pull_request.head.sha");
+    expect(
+      workflow.match(/github\.event\.pull_request\.head\.sha/g),
+    ).toHaveLength(1);
+    expect(workflow).toContain(
+      "PR_SHA: ${{ github.event.pull_request.head.sha }}",
+    );
+    expect(workflow).not.toContain(
+      "ref: ${{ github.event.pull_request.head.sha }}",
+    );
     expect(workflow).not.toContain("github.head_ref");
     expect(workflow).toContain(
       "HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}",

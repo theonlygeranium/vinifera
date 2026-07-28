@@ -64,6 +64,13 @@ It is also required for the merge so the resulting `staging` push invokes
 staging CI and deployment workflows. Read-only polling continues to use the
 least-privileged `GITHUB_TOKEN`.
 
+Because `pull_request_target` workflow checks are attached to the trusted base
+revision rather than the untrusted pull-request head, the Octopus bridge
+publishes a separate `Octopus PR Quality Gates` commit status on the exact PR
+head SHA after the trusted runbook finishes. Promotion requires that exact-head
+status with the `Runbook completed` description; it does not infer an Octopus
+result from a check attached to another revision.
+
 ---
 
 ## Consequences

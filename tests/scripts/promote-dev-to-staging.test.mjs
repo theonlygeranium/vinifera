@@ -16,6 +16,13 @@ const codeRabbit = readFileSync(
   new URL("../../.coderabbit.yaml", import.meta.url),
   "utf8",
 );
+const octopusWorkflow = readFileSync(
+  new URL(
+    "../../.github/workflows/octopus-pr-quality-gates.yml",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 describe("dev to staging promotion contract", () => {
   it("opens an event-producing PR before any provider gate", () => {
@@ -44,7 +51,10 @@ describe("dev to staging promotion contract", () => {
 
   it("requires exact-head CI, automated review, and resolved threads", () => {
     expect(workflow).toContain('"Type, test, build, and package"');
-    expect(workflow).toContain('"Run PR Quality Gates"');
+    expect(workflow).toContain('.context == "Octopus PR Quality Gates"');
+    expect(workflow).toContain(
+      '"$octopus_description" == "Runbook completed"',
+    );
     expect(workflow).toContain('.context == "CodeRabbit"');
     expect(workflow).toContain(
       '"$coderabbit_description" == "Review completed"',
@@ -57,6 +67,23 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).toContain("required_failed");
     expect(workflow).toContain("current_sha");
     expect(workflow).toContain('[[ "$current_sha" != "$PR_SHA" ]]');
+  });
+
+  it("publishes the trusted Octopus result on the pull-request head SHA", () => {
+    expect(octopusWorkflow).toMatch(
+      /quality-gates:[\s\S]*?permissions:\n\s+contents: read\n\s+statuses: write/,
+    );
+    expect(octopusWorkflow).toContain(
+      "PR_SHA: ${{ github.event.pull_request.head.sha }}",
+    );
+    expect(octopusWorkflow).toContain(
+      '"repos/$REPO/statuses/$PR_SHA"',
+    );
+    expect(octopusWorkflow).toContain(
+      '-f context="Octopus PR Quality Gates"',
+    );
+    expect(octopusWorkflow).toContain('description="Runbook completed"');
+    expect(octopusWorkflow).toContain('if: always()');
   });
 
   it("fails unless GitHub confirms an exact-head merge", () => {

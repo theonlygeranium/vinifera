@@ -69,6 +69,11 @@
   both database and authentication-email readiness from the Worker
   configuration report before linking to staff signup; generic API health or a
   partially configured runtime retains the safe pricing fallback.
+- `.github/workflows/octopus-pr-quality-gates.yml`,
+  `.github/workflows/promote-dev-to-staging.yml`, and the promotion contract:
+  The trusted Octopus bridge now publishes its runbook outcome on the exact PR
+  head SHA, so promotion no longer waits for a `pull_request_target` check that
+  GitHub attaches only to the base revision.
 
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is

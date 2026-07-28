@@ -134,8 +134,11 @@ closed after direct resolution commits.
   workflow and nonexistent action reference; the corrected
   `pull_request_target` definition visible on `dev` is not default-branch
   runtime code. The secure workflow and runbook bridge must be promoted to
-  `main` before Octopus can be a real dev/staging gate. Octopus Deploy's
-  authenticated `main` project view also shows no published runbook.
+  `main` before Octopus can be a real dev/staging gate. The corrected bridge
+  publishes its trusted runbook outcome as an explicit status on the PR head,
+  because `pull_request_target` check runs attach to the base revision.
+  Octopus Deploy's authenticated `main` project view also shows no published
+  runbook.
 - `.coderabbit.yaml` now enables CodeRabbit auto-review for `dev` and
   `staging`. Promotion automation additionally requests an explicit review and
   accepts only the exact `Review completed` status description, because
