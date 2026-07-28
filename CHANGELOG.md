@@ -21,6 +21,9 @@
   with the three-tier promotion model. Staging now runs from the immutable
   `staging` head instead of `main`, while production controls remain
   `main`-bound.
+- `docs/runbooks/phase-1-hosted-activation.md`: Reconciled the remaining
+  environment-policy and Stripe bootstrap examples with the staging-only
+  control boundary.
 - `.github/workflows/octopus-pr-quality-gates.yml`: Routed Octopus PR quality
   gates to the `dev`, `staging`, and `main` PR bases and added
   `ready_for_review` activity. The prior `main`-only filter prevented

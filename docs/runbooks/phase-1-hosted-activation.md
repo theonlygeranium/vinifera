@@ -21,8 +21,8 @@ project and Stripe test mode.
 ## 1. Provision the isolated staging boundary
 
 1. Create a GitHub `staging` environment.
-   Require repository-owner review and restrict it to `main`; self-review is
-   currently permitted until a second authorized reviewer exists.
+   Require repository-owner review and restrict it to `staging`; self-review
+   is currently permitted until a second authorized reviewer exists.
 2. Add the staging Supabase project reference and Cloudflare account ID to the
    repository's reviewed, hashed target allowlist. Do not reuse a production
    target.
@@ -155,7 +155,7 @@ From the reviewed allowlist commit, dispatch:
 
 ```text
 operation: bootstrap
-git_sha: <full reviewed main SHA>
+git_sha: <full reviewed staging SHA>
 confirmation: BOOTSTRAP VINIFERA STRIPE TEST CATALOG
 ```
 
