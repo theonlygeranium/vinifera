@@ -214,7 +214,7 @@ describe("Octopus runbook bridge", () => {
         [
           "export async function unsafe(admin) {",
           '  return admin.from("members")',
-          '    .select("*");',
+          '    .select("*")',
           "}",
           "",
         ].join("\n"),
@@ -228,7 +228,7 @@ describe("Octopus runbook bridge", () => {
           "@@ -1,5 +1,4 @@",
           " export async function unsafe(admin) {",
           '   return admin.from("members")',
-          '     .select("*");',
+          '     .select("*")',
           '-    .eq("brand_id", brandId);',
           " }",
           "diff --git a/CHANGELOG.md b/CHANGELOG.md",

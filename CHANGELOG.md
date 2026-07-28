@@ -157,6 +157,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** The Octopus Rule 8 deletion regression now models a pure
+  predicate-line deletion from a valid automatic-semicolon-insertion query
+  chain, with no compensating added line. **Why:** The fixture must prove the
+  deletion anchor itself triggers re-evaluation. **Deployment impact:** Test
+  evidence only; the gate implementation and application runtime are unchanged.
+  **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`.
 - **What changed:** Octopus Rule 8 now re-evaluates tenant query chains touched
   by additions or deletions and binds each `brand_id`/`organization_id`
   predicate to its individual database chain. The Rule 8 documentation now
