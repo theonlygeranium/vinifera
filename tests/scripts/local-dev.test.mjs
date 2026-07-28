@@ -55,6 +55,8 @@ describe("local development privilege boundaries", () => {
     expect(viteCommand).toContain(
       'VITE_API_BASE_URL="http://127.0.0.1:8788"',
     );
+    expect(buildCommand).toContain('VITE_CAPACITOR_BUILD="false"');
+    expect(viteCommand).toContain('VITE_CAPACITOR_BUILD="false"');
     for (const name of serverOnlyNames) {
       expect(buildCommand).toContain(`-u ${name}`);
       expect(viteCommand).toContain(`-u ${name}`);

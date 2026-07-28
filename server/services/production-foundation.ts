@@ -112,6 +112,34 @@ function httpOrigin(value: string): string | null {
   }
 }
 
+function isLoopbackHostname(hostname: string): boolean {
+  return (
+    hostname === "127.0.0.1" ||
+    hostname === "localhost" ||
+    hostname === "[::1]"
+  );
+}
+
+function enforceApplicationOriginPolicy(
+  env: Pick<WorkerEnv, "APP_ENV">,
+  origin: string,
+): string {
+  const originUrl = new URL(origin);
+  const localMode =
+    env.APP_ENV === "development" || env.APP_ENV === "test";
+  if (
+    originUrl.protocol !== "https:" &&
+    (!localMode || !isLoopbackHostname(originUrl.hostname))
+  ) {
+    throw new AppError(
+      500,
+      "configuration_error",
+      "HTTP application origins are allowed only for loopback development and test.",
+    );
+  }
+  return origin;
+}
+
 export function resolveApplicationOrigin(
   env: Pick<WorkerEnv, "APP_ENV" | "APP_ORIGIN">,
   request: Pick<Request, "get" | "protocol">,
@@ -126,7 +154,7 @@ export function resolveApplicationOrigin(
         "APP_ORIGIN must be a credential-free HTTP or HTTPS origin.",
       );
     }
-    return origin;
+    return enforceApplicationOriginPolicy(env, origin);
   }
   if (env.APP_ENV !== "development" && env.APP_ENV !== "test") {
     throw new AppError(
@@ -139,7 +167,7 @@ export function resolveApplicationOrigin(
   const requestOrigin = request.get("origin");
   if (requestOrigin) {
     const origin = httpOrigin(requestOrigin);
-    if (origin) return origin;
+    if (origin) return enforceApplicationOriginPolicy(env, origin);
   }
 
   const host = request.get("host");
@@ -151,14 +179,14 @@ export function resolveApplicationOrigin(
     const origin = httpOrigin(
       `${forwardedProtocol || request.protocol}://${host}`,
     );
-    if (origin) return origin;
+    if (origin) return enforceApplicationOriginPolicy(env, origin);
     throw new AppError(
       500,
       "configuration_error",
       "The request origin could not be derived safely.",
     );
   }
-  return "http://localhost:5173";
+  return enforceApplicationOriginPolicy(env, "http://localhost:5173");
 }
 
 function getPublicKey(env: WorkerEnv): string {

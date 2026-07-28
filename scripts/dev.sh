@@ -151,6 +151,7 @@ env \
   -u SUPABASE_ANON_KEY \
   -u SUPABASE_SERVICE_ROLE_KEY \
   -u SUPABASE_URL \
+  VITE_CAPACITOR_BUILD="false" \
   VITE_API_BASE_URL="http://127.0.0.1:8788" \
   npm run build
 npx --no-install wrangler dev \
@@ -168,6 +169,7 @@ env \
   -u SUPABASE_ANON_KEY \
   -u SUPABASE_SERVICE_ROLE_KEY \
   -u SUPABASE_URL \
+  VITE_CAPACITOR_BUILD="false" \
   VITE_API_BASE_URL="http://127.0.0.1:8788" \
   npm run dev:frontend &
 frontend_pid=$!

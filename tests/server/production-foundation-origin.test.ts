@@ -18,7 +18,10 @@ describe("production foundation application origin", () => {
   it("routes cross-origin Vite auth callbacks through the configured Worker", () => {
     expect(
       resolveApplicationOrigin(
-        { APP_ORIGIN: "http://127.0.0.1:8788" },
+        {
+          APP_ENV: "development",
+          APP_ORIGIN: "http://127.0.0.1:8788",
+        },
         requestWithOrigin("http://127.0.0.1:5173"),
       ),
     ).toBe("http://127.0.0.1:8788");
@@ -31,6 +34,28 @@ describe("production foundation application origin", () => {
         requestWithOrigin("https://vinifera.example"),
       ),
     ).toThrow("APP_ORIGIN must be a credential-free HTTP or HTTPS origin.");
+  });
+
+  it("rejects HTTP APP_ORIGIN outside explicit loopback local modes", () => {
+    for (const env of [
+      {
+        APP_ENV: "production" as const,
+        APP_ORIGIN: "http://vinifera.example",
+      },
+      {
+        APP_ENV: "development" as const,
+        APP_ORIGIN: "http://vinifera.example",
+      },
+    ]) {
+      expect(() =>
+        resolveApplicationOrigin(
+          env,
+          requestWithOrigin("https://vinifera.example"),
+        ),
+      ).toThrow(
+        "HTTP application origins are allowed only for loopback development and test.",
+      );
+    }
   });
 
   it("requires APP_ORIGIN in hosted environments", () => {
@@ -49,6 +74,17 @@ describe("production foundation application origin", () => {
         requestWithOrigin("http://127.0.0.1:5173"),
       ),
     ).toBe("http://127.0.0.1:5173");
+  });
+
+  it("applies the loopback HTTP rule to request-derived origins", () => {
+    expect(() =>
+      resolveApplicationOrigin(
+        { APP_ENV: "development" },
+        requestWithOrigin("http://attacker.example"),
+      ),
+    ).toThrow(
+      "HTTP application origins are allowed only for loopback development and test.",
+    );
   });
 
   it("fails closed when APP_ENV is missing or unknown", () => {

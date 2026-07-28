@@ -11,17 +11,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Security
 
 - **What changed:** Final review follow-up pins both the integrated local build
-  and Vite server to the loopback Worker API origin, preserves explicit
-  browser/mobile API-origin policy errors through request and download
-  helpers, and makes hosted callback/return origin resolution require a valid
-  configured `APP_ORIGIN`; request-header fallback requires explicit
-  `development` or `test`, is normalized before use, and missing or unknown
-  environment modes fail closed. **Why:** CodeRabbit, hosted Codex, and
-  independent review identified
-  ambient-build, error-reporting, and hosted fallback paths that could produce
-  a misrouted bundle, conceal unsafe configuration, or trust request-derived
-  callback origins. **Deployment impact:** Local builds deterministically call
-  port 8788 and staging/production fail closed without canonical
+  and Vite server to browser mode and the loopback Worker API origin,
+  preserves explicit browser/mobile API-origin policy errors through request
+  and download helpers, and makes hosted callback/return origin resolution
+  require a valid configured `APP_ORIGIN`; request-header fallback requires
+  explicit `development` or `test`, is normalized before use, and missing or
+  unknown environment modes fail closed. Configured and request-derived HTTP
+  origins are accepted only for loopback development/test; hosted and
+  non-loopback origins require HTTPS. **Why:** CodeRabbit, hosted Codex, and
+  independent review identified ambient-build, mobile-mode, error-reporting,
+  hosted HTTP, and fallback paths that could produce a misrouted bundle,
+  conceal unsafe configuration, or trust request-derived callback origins.
+  **Deployment impact:** Local builds deterministically call port 8788 in
+  browser mode and staging/production fail closed without canonical
   `APP_ORIGIN`; no hosted migration, provider, secret, Pages, DNS, or data
   mutation is performed. **Verification:** Run the browser and foundation
   origin regressions, launcher tests, native stack smoke, full repository
@@ -314,8 +316,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   browser-origin policy drift. **Deployment impact:** CI gains a Docker-free
   22-migration seed gate; no hosted database, provider, Worker, Pages, secret,
   DNS, or activation mutation occurs. **Verification:** `npm ci`, dependency
-  audit, script syntax checks, TypeScript, Vitest 443/443, focused BS-05 tests
-  69/69, and `npm run qa:local-seed`.
+  audit, script syntax checks, TypeScript, Vitest 445/445, focused BS-05 tests
+  71/71, and `npm run qa:local-seed`.
 - **What changed:** Added the domain-service decomposition ADR and linked
   architecture/service-manifest guidance, documenting extracted ownership,
   import direction, neutral shared primitives, compatibility barrels, and the
@@ -497,8 +499,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   loopback validation, and member-count copy are corrected, but no hosted
   schema/provider state is changed. **Verification:** Native and embedded
   22-migration seed replay, independent clean-database brand identity,
-  authenticated two-tenant Worker/Auth smoke, TypeScript, Vitest 443/443,
-  focused BS-05 tests 69/69, Playwright 145/145, real desktop/375px axe-core
+  authenticated two-tenant Worker/Auth smoke, TypeScript, Vitest 445/445,
+  focused BS-05 tests 71/71, Playwright 145/145, real desktop/375px axe-core
   with zero violations, 375px touch targets, and fail-closed shutdown cleanup.
 - BS-06 review follow-up clarifies that CODEOWNERS routes review but is not
   currently branch-protection enforced, expands the pull-request checklist to
