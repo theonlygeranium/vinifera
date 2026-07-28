@@ -110,7 +110,8 @@ store activation checks in the phase QA reports pass.
 The complete handoff is in
 `docs/build-specs/ui-test-report-2026-07-28.md`. The mission opened manifest PR
 #27, fifteen isolated defect PRs #28–#42, and report PR #43, all against `dev`.
-No PR was merged.
+PRs #27–#28, #31–#34, and #36–#43 were squash-merged. PRs #30 and #35 were
+closed after direct resolution commits.
 
 - Baseline `dev` at `4d0ba11` passed 448/448 checks and 145/145 Playwright
   tests.
@@ -118,13 +119,25 @@ No PR was merged.
   passed 454/454 checks and a final complete 149/149 Playwright run.
 - Authenticated Jeff - Pro Chrome spot checks at mobile and desktop reported
   zero axe violations, horizontal overflow, or console errors.
-- PRs #28–#37 and #39–#42 have passing CI and CodeRabbit with no unresolved
-  threads. PR #38 has no unresolved threads and passes locally, but hosted CI
-  deterministically records the unrelated tablet loyalty CLS sample
-  `0.10867015769084296` against the `< 0.1` gate.
-- Octopus did not run because its workflow opens PRs to `main`, while repository
-  governance requires mission PRs to target `dev`. Both Octopus and CodeRabbit
-  are required before merge, so none of these PRs is merge-ready.
+- The 14 squash merges are patch-identical to their reviewed PR diffs. The
+  direct PR #30/#35 resolutions were not: they replaced current files, restored
+  six obsolete marketing CTA destinations, and deleted merged Phase 1/5
+  regression assertions. PR #49 repaired the WCAG focus/touch-target source;
+  PR #51 restores the remaining signup behavior and recombines all deleted
+  assertions with the intended pricing and HTTPS-logo changes.
+- Octopus still does not run on `dev` PRs because `pull_request_target` loads
+  the workflow from the default branch, and `main` retains the old main-only
+  definition. The secure dev workflow and runbook bridge must be promoted to
+  `main` before Octopus can be a real dev/staging gate. Octopus Deploy's
+  authenticated project view also shows no runbook on `main`.
+- CodeRabbit auto-review is disabled for non-default base branches. Promotion
+  automation must request `@coderabbitai review` and reject the otherwise
+  successful "review skipped" status.
+- Remote branch cleanup was incomplete: the merged governance and WCAG branches
+  remained after the report claimed only `main`, `dev`, and `staging`.
+- Automated `dev → staging` promotion remains fail-closed because the isolated
+  staging Supabase target and `STAGING_SUPABASE_URL` /
+  `STAGING_SUPABASE_ANON_KEY` Actions secrets do not yet exist.
 - Open product/API decisions include the retention attempt list, a staff
   loyalty Redeem action, Team roster data, the Owner invitation security
   contract, the single-brand switcher, mobile dashboard spacing, CSV browser

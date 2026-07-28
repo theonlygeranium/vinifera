@@ -29,6 +29,7 @@ describe("dev to staging promotion contract", () => {
   it("can read gates and excludes every promotion attempt on the same SHA", () => {
     expect(workflow).toMatch(/permissions:\n  checks: read/);
     expect(workflow).toContain("statuses: read");
+    expect(workflow).toContain('--body "@coderabbitai review"');
     expect(workflow).toContain("promotion_checks='[");
     expect(workflow).toContain('$promotion_checks | index($name) | not');
     expect(workflow).not.toContain("CURRENT_RUN_ID");
@@ -38,6 +39,7 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).toContain('"Type, test, build, and package"');
     expect(workflow).toContain('"Run PR Quality Gates"');
     expect(workflow).toContain('.context == "CodeRabbit"');
+    expect(workflow).toContain('! "$coderabbit_description" =~ [Ss]kipped');
     expect(workflow).toContain("reviewThreads(first:100)");
     expect(workflow).toContain("pageInfo{hasNextPage}");
     expect(workflow).toContain("group_by(.name)");

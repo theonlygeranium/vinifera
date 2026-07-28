@@ -27,6 +27,13 @@
   explicit check/status read permissions and excluded every promotion job name,
   including prior attempts on the same commit, so credential repair or a
   transient-provider retry cannot be poisoned by an older failed run.
+- `.github/workflows/promote-dev-to-staging.yml`: Explicitly request a
+  CodeRabbit review on the non-default staging base and reject a nominally
+  successful status whose description says the review was skipped.
+- `CONTINUITY_BRIEF.md`: Replaced the stale pre-merge UI mission state with the
+  audited merge-cleanup outcome, including the direct-resolution regressions,
+  remaining remote branches, default-branch Octopus bootstrap gap, and
+  isolated-staging credential blocker.
 
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is

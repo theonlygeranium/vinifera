@@ -96,6 +96,10 @@ jobs:
             exit 1
           fi
 
+          gh pr comment "$pr_number" \
+            --repo "$REPO" \
+            --body "@coderabbitai review"
+
           echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
           echo "pr_sha=$pr_sha" >> "$GITHUB_OUTPUT"
           echo "### Promotion PR: #$pr_number (head: \`${pr_sha:0:12}\`)" >> "$GITHUB_STEP_SUMMARY"
@@ -223,17 +227,21 @@ jobs:
             done
 
             coderabbit=$(jq -r \
-              '[.[] | select(.context == "CodeRabbit")] | sort_by(.created_at) | last | .state // "missing"' \
+              '[.[] | select(.context == "CodeRabbit")] | last | .state // "missing"' \
+              <<<"$statuses")
+            coderabbit_description=$(jq -r \
+              '[.[] | select(.context == "CodeRabbit")] | last | .description // ""' \
               <<<"$statuses")
             other_pending=$(jq \
               '[.[] | select(.status != "completed")] | length' <<<"$checks")
             pending_statuses=$(jq \
               '[.[] | select(.state == "pending")] | length' <<<"$statuses")
 
-            echo "Required missing=${#missing[@]} pending=${#pending[@]}; CodeRabbit=$coderabbit; other pending checks=$other_pending statuses=$pending_statuses; unresolved threads=$unresolved"
+            echo "Required missing=${#missing[@]} pending=${#pending[@]}; CodeRabbit=$coderabbit ($coderabbit_description); other pending checks=$other_pending statuses=$pending_statuses; unresolved threads=$unresolved"
 
             if (( ${#missing[@]} == 0 && ${#pending[@]} == 0 )) \
               && [[ "$coderabbit" == "success" ]] \
+              && [[ ! "$coderabbit_description" =~ [Ss]kipped ]] \
               && (( other_pending == 0 && pending_statuses == 0 && unresolved == 0 )); then
               echo "### PR gates: ✅ exact-head CI, Octopus, CodeRabbit, and threads passed" >> "$GITHUB_STEP_SUMMARY"
               break
