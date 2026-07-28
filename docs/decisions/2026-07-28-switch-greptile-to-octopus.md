@@ -44,6 +44,13 @@ now requires only:
 
 CodeRabbit remains active and unchanged.
 
+Octopus is a mandatory workflow review gate for every agent-authored pull request
+targeting `dev`. The GitHub workflow listens to `opened`, `synchronize`, `reopened`,
+and `ready_for_review` activity on `dev` pull requests and invokes the self-hosted
+`PR Quality Gates` runbook in the `Development` environment. It is not a GitHub
+branch-protection status check because the self-hosted service can be unavailable;
+an unavailable or missing Octopus review still blocks merge under `AGENTS.md`.
+
 ---
 
 ## Consequences
@@ -62,7 +69,18 @@ CodeRabbit remains active and unchanged.
 - Greptile's learning model (thumbs-up/down feedback) is not replicated in Octopus out of
   the box; custom rules in `.octopus/rules.md` carry this function instead.
 - If the AI server is unavailable, Octopus reviews will not fire. Octopus is not a
-  required CI gate, so PRs can still merge — this is intentional.
+  branch-protection context, but its missing review blocks merge under the repository
+  workflow until the service recovers or the human owner documents a one-time exception.
+
+### Bootstrap correction
+
+The initial workflow listened only for pull requests targeting `main`, while the
+three-tier governance model routes every agent-authored pull request to `dev`. The
+workflow itself therefore could not receive an Octopus review before correcting its
+base-branch filter. The human owner explicitly authorized this one-time bootstrap
+exception on 2026-07-28: the correction may merge after CI, CodeRabbit, manual diff
+review, and zero unresolved threads. After that merge, all open product pull requests
+must be re-triggered and pass Octopus before merging.
 
 ### Rollback Path
 Greptile can be reinstated by:

@@ -1,5 +1,30 @@
 # Changelog
 
+## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
+
+### Fixed
+- `.github/workflows/octopus-pr-quality-gates.yml`: Routed Octopus PR quality
+  gates to the mandatory `dev` integration branch and added
+  `ready_for_review` activity. The prior `main`-only filter prevented every
+  agent-authored product PR from invoking the required reviewer.
+- `.github/pull_request_template.md` and `docs/agent-workflow.md`: Replaced
+  stale Greptile and direct-to-`main` instructions with the current
+  Octopus/CodeRabbit review loop and `dev` PR routing.
+- `docs/decisions/2026-07-28-switch-greptile-to-octopus.md`: Reconciled the
+  ADR with current repository governance and recorded the human-authorized,
+  one-time bootstrap exception for this workflow correction.
+
+### Deployment impact
+- No application, routing, database, provider, Pages, or Worker behavior
+  changes. Future and re-triggered PRs to `dev` invoke the self-hosted Octopus
+  `PR Quality Gates` runbook.
+
+### Verification
+- Validate workflow syntax, run the repository docs-only CI lane, confirm
+  CodeRabbit and zero unresolved review threads on the bootstrap PR, merge it
+  to `dev`, then reopen the pending product PRs and require successful Octopus
+  runs before merge.
+
 ## [Unreleased] — 2026-07-28 (UI Testing Spec Formatting Fix)
 
 ### Fixed
