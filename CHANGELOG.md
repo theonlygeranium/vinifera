@@ -20,6 +20,9 @@
   Octopus attestation, and unresolved threads after the second provider probe
   for both normal and dry-run readiness. Dry-run now skips only mutation, not
   evidence validation.
+- `.github/workflows/promote-dev-to-staging.yml`: Bracket the final evidence
+  refresh with head/base reads and reject readiness if either revision changes
+  while checks, statuses, reviews, or threads are queried.
 - `.octopus/runbooks/pr-quality-gates/runbook.ocl` and its contract test:
   Persist the resolved merge-base SHA in task-scoped state before the separate
   Rules 4–10 action sources it. Without this transfer, strict shell mode

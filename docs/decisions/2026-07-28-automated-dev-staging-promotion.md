@@ -88,9 +88,9 @@ and recreating a promotion PR at the same `dev` SHA therefore cannot inherit
 the prior PR's CI or review results. CodeRabbit must also have submitted a
 review on the current PR at the captured head SHA; its commit status alone is
 not accepted as proof of PR-specific review. The bridge passes the event head,
-base ref, and base SHA as required prompted runbook values, and the runbook
-refuses to check out or inspect the PR unless all three still match GitHub's
-live metadata. All review diffs are then generated locally from the immutable
+base ref, and base SHA as required runbook inputs, and the runbook refuses to
+check out or inspect the PR unless all three still match GitHub's live metadata.
+All review diffs are then generated locally from the immutable
 fetched merge-base and expected-head objects, so a later head rewrite or
 base-branch switch cannot swap another comparison into the attestation. The
 published status description includes the attested base SHA; promotion captures
@@ -102,7 +102,8 @@ intentionally concludes `skipped` or `neutral` do not block readiness. The
 workflow intentionally contains no merge command because GitHub documents only
 an expected-head merge guard and no expected-base guard. Normal and dry-run
 paths share the same final evidence revalidation after the second provider
-probe.
+probe. Head/base reads bracket that evidence refresh so readiness is not
+reported if either revision changes while the APIs are queried.
 
 ---
 

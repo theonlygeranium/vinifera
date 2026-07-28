@@ -86,7 +86,8 @@ left race windows between gate evaluation and merge.
   read-to-merge race.
 - Revalidates the captured comparison, exact checks/statuses, PR-specific
   reviews, and unresolved threads after the second provider probe. Dry-run uses
-  the same evidence path and changes only the readiness label.
+  the same evidence path and changes only the readiness label. Head/base reads
+  bracket the refreshed evidence snapshot.
 
 ### Octopus trust boundary
 

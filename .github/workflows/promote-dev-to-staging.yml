@@ -451,6 +451,18 @@ jobs:
             exit 1
           fi
 
+          final_metadata=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json baseRefName,baseRefOid,headRefOid)
+          final_sha=$(jq -r '.headRefOid' <<<"$final_metadata")
+          final_base_name=$(jq -r '.baseRefName' <<<"$final_metadata")
+          final_base_sha=$(jq -r '.baseRefOid' <<<"$final_metadata")
+          if [[ "$final_sha" != "$PR_SHA" \
+            || "$final_base_name" != "staging" \
+            || "$final_base_sha" != "$PR_BASE_SHA" ]]; then
+            echo "::error::PR comparison changed while readiness evidence was refreshed."
+            exit 1
+          fi
+
           echo "::notice::PR #$PR_NUMBER passed automated readiness at head ${PR_SHA:0:12} and base ${PR_BASE_SHA:0:12}; a human must re-check the current base and merge."
           if [[ "$DRY_RUN" == "true" ]]; then
             echo "### Dry-run readiness passed: PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"

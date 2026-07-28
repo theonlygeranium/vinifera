@@ -129,6 +129,11 @@ describe("dev to staging promotion contract", () => {
       "Promotion gates changed after polling; readiness is no longer valid.",
     );
     expect(workflow).toContain(
+      "PR comparison changed while readiness evidence was refreshed.",
+    );
+    expect(workflow).toContain("final_metadata");
+    expect(workflow).toContain('[[ "$final_sha" != "$PR_SHA"');
+    expect(workflow).toContain(
       "DRY_RUN: ${{ github.event.inputs.dry_run }}",
     );
     expect(workflow).not.toContain(
