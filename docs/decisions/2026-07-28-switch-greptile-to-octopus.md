@@ -84,9 +84,10 @@ validated in a PR before removing this bridge.
 The quality runbook resolves the immutable PR head and base SHAs through the
 GitHub API, fetches those exact commits with an ephemeral HTTP authorization
 header, and removes the remote before inspecting pull-request content. Rules
-4–10 are evaluated against added lines or the exact tree diff so the successful
-path includes tenant-isolation Rule 8 without turning grandfathered baseline
-findings into unrelated failures.
+4–10 consume GitHub's merge-base-aware PR diff and inspect bounded source
+windows around added calls, so the successful path includes tenant-isolation
+Rule 8 without turning target-branch advances, multiline safe calls, or
+grandfathered baseline findings into unrelated failures.
 
 The former `PR Comment Bot` and `Auto-Fix Suggestions` failure runbooks are
 retired. Running `npm ci`, formatter binaries, or other pull-request-controlled

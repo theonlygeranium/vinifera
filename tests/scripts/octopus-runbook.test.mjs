@@ -1,4 +1,13 @@
-import { readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -42,10 +51,82 @@ describe("Octopus runbook bridge", () => {
     expect(qualityRunbook).toContain(
       "Rules 4-10: Change-Aware Security and Tenancy Guards",
     );
-    expect(qualityRunbook).toContain("FAIL Rule 8");
+    expect(qualityRunbook).toContain('failures.append(("Rule 8", location');
+    expect(qualityRunbook).toContain("application/vnd.github.diff");
     expect(qualityRunbook).toContain(
-      'git diff --unified=0 "$BASE_SHA" "$HEAD_SHA"',
+      'file_path.startswith("server/services/")',
     );
+    expect(qualityRunbook).toContain(
+      're.search(r"\\bidempotency(?:Key)?\\b", window',
+    );
+    expect(qualityRunbook).toContain(
+      "parts[3][2:] if len(parts) >= 4",
+    );
+  });
+
+  it("rejects an unscoped query added to a flat service file", () => {
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const embeddedChecker = qualityRunbook.match(
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" <<'PY'\n([\s\S]*?)\n\s*PY/,
+    )?.[1];
+    expect(embeddedChecker).toBeTruthy();
+    const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+    const checker = embeddedChecker
+      .split("\n")
+      .map((line) => line.slice(Math.min(indentation, line.length)))
+      .join("\n");
+
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-"));
+    try {
+      const serviceDirectory = join(fixture, "server", "services");
+      mkdirSync(serviceDirectory, { recursive: true });
+      writeFileSync(
+        join(serviceDirectory, "members.ts"),
+        [
+          "export async function unsafe(admin) {",
+          '  return admin.from("members").select("*");',
+          "}",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "new file mode 100644",
+          "--- /dev/null",
+          "+++ b/server/services/members.ts",
+          "@@ -0,0 +1,3 @@",
+          "+export async function unsafe(admin) {",
+          '+  return admin.from("members").select("*");',
+          "+}",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "--- a/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "@@ -1 +1,2 @@",
+          "+security regression fixture",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync(
+        "python3",
+        ["-", fixture, join(fixture, "pr.diff")],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain(
+        "FAIL Rule 8: server/services/members.ts:2",
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
   });
 
   it("normalizes an HTTPS server URL to the API root", () => {

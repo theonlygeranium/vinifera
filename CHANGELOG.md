@@ -6,8 +6,9 @@
 - `.octopus/runbooks/pr-quality-gates/runbook.ocl`: Resolves immutable PR base
   and head commits from GitHub, authenticates fetches with an ephemeral HTTP
   header, removes the authenticated remote before inspection, and enforces
-  change-aware Rules 4–10—including tenant-isolation Rule 8—on the successful
-  Octopus path.
+  change-aware Rules 4–10—including tenant-isolation Rule 8—against GitHub's
+  merge-base-aware PR diff. Multiline source windows distinguish safe
+  idempotency, tenant filters, and native bearer handling from violations.
 - `.github/workflows/octopus-pr-quality-gates.yml` and `.octopus/runbooks/`:
   Retired the secret-bearing AI-comment and auto-fix failure path. Pull-request
   dependencies and formatter binaries are no longer executed on the

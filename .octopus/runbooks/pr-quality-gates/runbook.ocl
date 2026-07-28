@@ -59,6 +59,12 @@ print(data["base"]["sha"])
                     git -c http.extraHeader="$AUTH_HEADER" fetch --quiet --no-tags --depth=1 origin "$BASE_SHA" "$HEAD_SHA"
                     git checkout --quiet --detach "$HEAD_SHA"
                     git remote remove origin
+                    curl -fsS \
+                        -H "$AUTH_HEADER" \
+                        -H "Accept: application/vnd.github.diff" \
+                        -H "X-GitHub-Api-Version: 2022-11-28" \
+                        "https://api.github.com/repos/theonlygeranium/vinifera/pulls/#{PRNumber}" \
+                        > "$WORK_DIR/pr.diff"
                     unset AUTH_HEADER PR_JSON PR_METADATA
 
                     {
@@ -149,42 +155,107 @@ print(data["base"]["sha"])
                     set -euo pipefail
                     source /tmp/octopus_pr_workdir
                     cd "$WORK_DIR"
-                    FAILURES=0
+                    python3 - "$WORK_DIR" "$WORK_DIR/pr.diff" <<'PY'
+import pathlib
+import re
+import shlex
+import sys
 
-                    added_lines() {
-                        git diff --unified=0 "$BASE_SHA" "$HEAD_SHA" -- "$@" \
-                            | grep '^+' \
-                            | grep -v '^+++' \
-                            || true
-                    }
+work_dir = pathlib.Path(sys.argv[1]).resolve()
+diff_lines = pathlib.Path(sys.argv[2]).read_text(
+    encoding="utf-8", errors="replace"
+).splitlines()
+added = []
+changed_files = set()
+path = None
+new_line = None
 
-                    R4=$(added_lines 'server/routes/**/*.ts' | grep -E 'req\.(body|params)' | grep -Ev 'safeParse|\.parse\(' || true)
-                    [ -z "$R4" ] || { echo "FAIL Rule 4: added API input access lacks same-line Zod parsing"; echo "$R4"; FAILURES=$((FAILURES + 1)); }
+for line in diff_lines:
+    if line.startswith("diff --git "):
+        parts = shlex.split(line)
+        path = parts[3][2:] if len(parts) >= 4 and parts[3].startswith("b/") else None
+        if path:
+            changed_files.add(path)
+        new_line = None
+        continue
+    match = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@", line)
+    if match:
+        new_line = int(match.group(1))
+        continue
+    if path is None or new_line is None:
+        continue
+    if line.startswith("+") and not line.startswith("+++"):
+        added.append((path, new_line, line[1:]))
+        new_line += 1
+    elif line.startswith("-") and not line.startswith("---"):
+        continue
+    elif not line.startswith("\\"):
+        new_line += 1
 
-                    R5=$(added_lines 'server/**/*.ts' | grep -E 'headers\.authorization|Authorization.*Bearer' | grep -Ev 'mobile|native|\.test\.' || true)
-                    [ -z "$R5" ] || { echo "FAIL Rule 5: added server code reads a bearer token outside an approved native boundary"; echo "$R5"; FAILURES=$((FAILURES + 1)); }
+failures = []
 
-                    R6=$(added_lines 'server/services/**/*.ts' 'server/integrations/**/*.ts' | grep -Ei '(easypost|resend|stripe)\.' | grep -Ev 'isActive|isEnabled|activation|\.test\.' || true)
-                    [ -z "$R6" ] || { echo "FAIL Rule 6: added provider call lacks an activation guard on the changed line"; echo "$R6"; FAILURES=$((FAILURES + 1)); }
+def source_window(file_path, line_number, before=8, after=24):
+    candidate = (work_dir / file_path).resolve()
+    if work_dir not in candidate.parents or not candidate.is_file():
+        return ""
+    lines = candidate.read_text(encoding="utf-8", errors="replace").splitlines()
+    start = max(0, line_number - 1 - before)
+    end = min(len(lines), line_number + after)
+    return "\n".join(lines[start:end])
 
-                    R7=$(added_lines 'server/**/*.ts' | grep -E 'paymentIntents\.create|labels\.create|emails\.send' | grep -Ev 'idempotency|idempotencyKey' || true)
-                    [ -z "$R7" ] || { echo "FAIL Rule 7: added mutating provider call lacks an idempotency key on the changed line"; echo "$R7"; FAILURES=$((FAILURES + 1)); }
+for file_path, line_number, text in added:
+    if not file_path.startswith("server/") or not file_path.endswith(".ts"):
+        continue
+    window = source_window(file_path, line_number)
+    location = f"{file_path}:{line_number}"
 
-                    R8=$(added_lines 'server/services/**/*.ts' | grep -E '\.(select|update|delete|insert)\(' | grep -Ev 'brand_id|organization_id|brandId|organizationId' || true)
-                    [ -z "$R8" ] || { echo "FAIL Rule 8: added service query lacks tenant scoping on the changed line"; echo "$R8"; FAILURES=$((FAILURES + 1)); }
+    if file_path.startswith("server/routes/") and re.search(r"\breq\.(?:body|params)\b", text):
+        if not re.search(r"(?:safeParse|\.parse)\s*\(", window):
+            failures.append(("Rule 4", location, text))
 
-                    NON_DOC_DIFF=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Ev '(^docs/|\.md$)' || true)
-                    CHANGELOG_DIFF=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- CHANGELOG.md || true)
-                    [ -z "$NON_DOC_DIFF" ] || [ -n "$CHANGELOG_DIFF" ] || {
-                        echo "FAIL Rule 9: non-documentation changes require CHANGELOG.md"
-                        echo "$NON_DOC_DIFF"
-                        FAILURES=$((FAILURES + 1))
-                    }
+    inbound_auth = re.search(
+        r"\b(?:request|req)\.(?:get|header)\(\s*['\"]authorization['\"]",
+        text,
+        re.IGNORECASE,
+    )
+    if inbound_auth and not re.search(r"\b(?:mobile|native)\b", window, re.IGNORECASE):
+        failures.append(("Rule 5", location, text))
 
-                    R10=$(added_lines 'server/**/*.ts' | grep -E ':[[:space:]]*any\b|as[[:space:]]+any\b' || true)
-                    [ -z "$R10" ] || { echo "FAIL Rule 10: added server TypeScript uses any"; echo "$R10"; FAILURES=$((FAILURES + 1)); }
+    if (
+        (file_path.startswith("server/services/") or file_path.startswith("server/integrations/"))
+        and re.search(r"\b(?:easypost|resend|stripe)\.", text, re.IGNORECASE)
+        and not re.search(r"\b(?:isActive|isEnabled|activation)\b", window)
+    ):
+        failures.append(("Rule 6", location, text))
 
-                    [ "$FAILURES" -eq 0 ] || exit 1
+    if re.search(r"(?:paymentIntents\.create|labels\.create|emails\.send)", text):
+        if not re.search(r"\bidempotency(?:Key)?\b", window, re.IGNORECASE):
+            failures.append(("Rule 7", location, text))
+
+    if file_path.startswith("server/services/") and re.search(
+        r"\.(?:select|update|delete|insert)\s*\(", text
+    ):
+        if not re.search(
+            r"\b(?:brand_id|organization_id|brandId|organizationId)\b", window
+        ):
+            failures.append(("Rule 8", location, text))
+
+    if re.search(r":[ \t]*any\b|\bas[ \t]+any\b", text):
+        failures.append(("Rule 10", location, text))
+
+non_docs = sorted(
+    file_path
+    for file_path in changed_files
+    if not (file_path.startswith("docs/") or file_path.endswith(".md"))
+)
+if non_docs and "CHANGELOG.md" not in changed_files:
+    failures.append(("Rule 9", "CHANGELOG.md", ", ".join(non_docs)))
+
+if failures:
+    for rule, location, text in failures:
+        print(f"FAIL {rule}: {location}: {text}")
+    raise SystemExit(1)
+PY
                     echo "PASS: Rules 4-10"
                     EOT
                 Octopus.Action.Script.ScriptSource = "Inline"
