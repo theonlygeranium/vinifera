@@ -449,7 +449,9 @@ def query_models(source):
                 continue
             start_line = source.count("\n", 0, segment_start) + 1
             end_line = source.count("\n", 0, model_end) + 1
-            models.append((start_line, end_line, model))
+            models.append(
+                (start_line, end_line, model, receiver_match is not None)
+            )
     return models
 
 def query_fingerprint(model):
@@ -489,10 +491,12 @@ for file_path in changed_files:
     head_source = candidate.read_text(encoding="utf-8", errors="replace")
     base_unscoped = Counter(
         query_fingerprint(model)
-        for _, _, model in query_models(base_file_source(file_path))
-        if not has_tenant_predicate(model)
+        for _, _, model, receiver_known in query_models(
+            base_file_source(file_path)
+        )
+        if receiver_known and not has_tenant_predicate(model)
     )
-    for start_line, _, model in query_models(head_source):
+    for start_line, _, model, _ in query_models(head_source):
         if has_tenant_predicate(model):
             continue
         fingerprint = query_fingerprint(model)

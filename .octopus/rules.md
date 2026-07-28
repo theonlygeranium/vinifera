@@ -102,7 +102,8 @@ same-scope assignments within their enclosing block before the database
 operation and tenant predicate. The database receiver is part of the stable
 fingerprint so a move from an RLS-bound client to a privileged client is never
 grandfathered. Conditional builder assignments are not accepted as tenant
-scoping because the unscoped execution path still exists.
+scoping because the unscoped execution path still exists. Unscoped queries
+whose receiver expression cannot be normalized are never grandfathered.
 
 **Why it matters:** The server uses privileged database credentials in some
 paths, so explicit service-layer scoping is required as defense in depth for

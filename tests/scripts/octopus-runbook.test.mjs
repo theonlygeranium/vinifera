@@ -680,6 +680,46 @@ describe("Octopus runbook bridge", () => {
     );
   });
 
+  it("refuses to grandfather an unscoped call-expression receiver", () => {
+    const baseSource = [
+      "export async function legacy() {",
+      '  return getTenantClient().from("members").select("*");',
+      "}",
+      "",
+    ].join("\n");
+    const headSource = [
+      "export async function newlyPrivileged() {",
+      '  return getAdminClient().from("members").select("*");',
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "--- a/server/services/members.ts",
+        "+++ b/server/services/members.ts",
+        "@@ -1,3 +1,3 @@",
+        "-export async function legacy() {",
+        '-  return getTenantClient().from("members").select("*");',
+        "+export async function newlyPrivileged() {",
+        '+  return getAdminClient().from("members").select("*");',
+        " }",
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
+  });
+
   it("follows a builder split before the database operation", () => {
     const headSource = [
       "export async function safe(admin, brandId) {",

@@ -157,6 +157,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Octopus Rule 8 now refuses to grandfather unscoped queries
+  whose receiver is a call, computed property, parenthesized expression, or
+  other form that cannot be normalized into a stable member identity. A
+  call-receiver privilege-change regression covers the fail-closed behavior.
+  **Why:** Collapsing unknown receivers to `.from(...)` could make distinct
+  tenant and admin clients share a legacy fingerprint. **Deployment impact:** PR
+  security analysis only; application runtime and environment activation are
+  unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`,
+  `npm run build:worker`, and `git diff --check`.
 - **What changed:** Octopus Rule 8 now accepts tracked predicates only from
   unconditional same-scope assignments or returns and preserves complete member
   receiver chains such as `ctx.admin` in query fingerprints. Regressions cover
