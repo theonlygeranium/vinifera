@@ -48,8 +48,14 @@ describe("Octopus runbook bridge", () => {
     expect(qualityRunbook).not.toMatch(
       /https:\/\/#\{GitHubPAT\}@github\.com/,
     );
-    expect(qualityRunbook).toContain('git -c http.extraHeader="$AUTH_HEADER"');
+    expect(qualityRunbook).not.toContain("-H \"$AUTH_HEADER\"");
+    expect(qualityRunbook).not.toContain("git -c http.extraHeader");
+    expect(qualityRunbook).toContain("GIT_CONFIG_KEY_0=http.extraHeader");
+    expect(qualityRunbook).toContain("curl -fsS --config -");
     expect(qualityRunbook).toContain("git remote remove origin");
+    expect(qualityRunbook).toContain(
+      '/tmp/octopus_pr_workdir_#{Octopus.Task.Id}',
+    );
     expect(qualityRunbook).toContain(
       "Rules 4-10: Change-Aware Security and Tenancy Guards",
     );
@@ -59,11 +65,42 @@ describe("Octopus runbook bridge", () => {
       'file_path.startswith("server/services/")',
     );
     expect(qualityRunbook).toContain(
-      're.search(r"\\bidempotency(?:Key)?\\b", window',
+      're.search(r"\\bidempotency(?:Key)?\\b", masked_window',
     );
     expect(qualityRunbook).toContain(
       "parts[3][2:] if len(parts) >= 4",
     );
+  });
+
+  it("keeps every embedded Octopus Bash action syntactically valid", () => {
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const bodies = [
+      ...qualityRunbook.matchAll(
+        /Octopus\.Action\.Script\.ScriptBody = <<-EOT\n([\s\S]*?)\n\s*EOT/g,
+      ),
+    ].map((match) => match[1]);
+    expect(bodies.length).toBeGreaterThan(0);
+
+    for (const body of bodies) {
+      const indentation = body.match(/^(\s*)\S/m)?.[1].length ?? 0;
+      const prefix = " ".repeat(indentation);
+      const script = body
+        .split("\n")
+        .map((line) => (line.startsWith(prefix) ? line.slice(indentation) : line))
+        .join("\n")
+        .replaceAll(/#\{[^}]+\}/g, "fixture");
+      const result = spawnSync("bash", ["-n"], {
+        input: script,
+        encoding: "utf8",
+      });
+      expect(result.status, result.stderr).toBe(0);
+    }
   });
 
   it("rejects an unscoped query added to a flat service file", () => {
@@ -75,7 +112,7 @@ describe("Octopus runbook bridge", () => {
       "utf8",
     );
     const embeddedChecker = qualityRunbook.match(
-      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" <<'PY'\n([\s\S]*?)\n\s*PY/,
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
     )?.[1];
     expect(embeddedChecker).toBeTruthy();
     const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
@@ -87,12 +124,14 @@ describe("Octopus runbook bridge", () => {
     const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-"));
     try {
       const serviceDirectory = join(fixture, "server", "services");
+      const commitDiffDirectory = join(fixture, "commit-diffs");
       mkdirSync(serviceDirectory, { recursive: true });
+      mkdirSync(commitDiffDirectory);
       writeFileSync(
         join(serviceDirectory, "members.ts"),
         [
-          "export async function unsafe(admin) {",
-          '  return admin.from("members").select("*");',
+          "export async function unsafe(admin, brandId) {",
+          '  return admin.from("members").select("*"); // .eq("brand_id", brandId)',
           "}",
           "",
         ].join("\n"),
@@ -105,8 +144,8 @@ describe("Octopus runbook bridge", () => {
           "--- /dev/null",
           "+++ b/server/services/members.ts",
           "@@ -0,0 +1,3 @@",
-          "+export async function unsafe(admin) {",
-          '+  return admin.from("members").select("*");',
+          "+export async function unsafe(admin, brandId) {",
+          '+  return admin.from("members").select("*"); // .eq("brand_id", brandId)',
           "+}",
           "diff --git a/CHANGELOG.md b/CHANGELOG.md",
           "--- a/CHANGELOG.md",
@@ -116,15 +155,79 @@ describe("Octopus runbook bridge", () => {
           "",
         ].join("\n"),
       );
+      writeFileSync(
+        join(commitDiffDirectory, "fixture.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "",
+        ].join("\n"),
+      );
 
       const result = spawnSync(
         "python3",
-        ["-", fixture, join(fixture, "pr.diff")],
+        [
+          "-",
+          fixture,
+          join(fixture, "pr.diff"),
+          commitDiffDirectory,
+        ],
         { input: checker, encoding: "utf8" },
       );
       expect(result.status).toBe(1);
       expect(result.stdout).toContain(
         "FAIL Rule 8: server/services/members.ts:2",
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("requires a changelog update in every commit", () => {
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const embeddedChecker = qualityRunbook.match(
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+    )?.[1];
+    expect(embeddedChecker).toBeTruthy();
+    const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+    const checker = embeddedChecker
+      .split("\n")
+      .map((line) => line.slice(Math.min(indentation, line.length)))
+      .join("\n");
+
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule9-"));
+    try {
+      const commitDiffDirectory = join(fixture, "commit-diffs");
+      mkdirSync(commitDiffDirectory);
+      writeFileSync(join(fixture, "pr.diff"), "");
+      writeFileSync(
+        join(commitDiffDirectory, "missing-changelog.diff"),
+        [
+          "diff --git a/src/client/example.ts b/src/client/example.ts",
+          "+++ b/src/client/example.ts",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync(
+        "python3",
+        [
+          "-",
+          fixture,
+          join(fixture, "pr.diff"),
+          commitDiffDirectory,
+        ],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain(
+        "FAIL Rule 9: missing-changelog: src/client/example.ts",
       );
     } finally {
       rmSync(fixture, { recursive: true, force: true });

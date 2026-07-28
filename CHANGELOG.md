@@ -9,7 +9,11 @@
   change-aware Rules 4–10—including tenant-isolation Rule 8—against GitHub's
   merge-base-aware PR diff. Multiline source windows distinguish safe
   idempotency, tenant filters, and native bearer handling from violations.
-  Concurrent pull-request runs no longer cancel one another.
+  Tenant safety now requires an actual query predicate rather than a nearby
+  identifier or comment, and every commit is checked for its own changelog
+  update. Concurrent pull-request runs use task-scoped state and
+  no longer cancel or overwrite one another. GitHub credentials are supplied
+  through stdin or process environment rather than process arguments.
 - `.github/workflows/octopus-pr-quality-gates.yml` and `.octopus/runbooks/`:
   Retired the secret-bearing AI-comment and auto-fix failure path. Pull-request
   dependencies and formatter binaries are no longer executed on the

@@ -25,11 +25,15 @@ process {
                     set -euo pipefail
                     BRANCH="#{PRBranch}"
                     WORK_DIR="/tmp/vinifera-pr-$$"
-                    AUTH_HEADER="Authorization: Bearer #{GitHubPAT}"
-                    PR_JSON=$(curl -fsS \
-                        -H "$AUTH_HEADER" \
-                        -H "Accept: application/vnd.github+json" \
-                        -H "X-GitHub-Api-Version: 2022-11-28" \
+                    STATE_FILE="/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
+                    github_curl() {
+                        local accept="$1"
+                        shift
+                        printf 'header = "Authorization: Bearer %s"\nheader = "Accept: %s"\nheader = "X-GitHub-Api-Version: 2022-11-28"\n' \
+                            "#{GitHubPAT}" "$accept" \
+                            | curl -fsS --config - "$@"
+                    }
+                    PR_JSON=$(github_curl "application/vnd.github+json" \
                         "https://api.github.com/repos/theonlygeranium/vinifera/pulls/#{PRNumber}")
                     PR_METADATA=$(printf '%s' "$PR_JSON" | python3 -c '
 import json, sys
@@ -38,11 +42,13 @@ print(data["head"]["repo"]["full_name"])
 print(data["head"]["ref"])
 print(data["head"]["sha"])
 print(data["base"]["sha"])
+print(data["commits"])
 ')
                     HEAD_REPOSITORY=$(printf '%s\n' "$PR_METADATA" | sed -n '1p')
                     HEAD_REF=$(printf '%s\n' "$PR_METADATA" | sed -n '2p')
                     HEAD_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '3p')
                     BASE_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '4p')
+                    COMMIT_COUNT=$(printf '%s\n' "$PR_METADATA" | sed -n '5p')
                     [ "$HEAD_REPOSITORY" = "theonlygeranium/vinifera" ] || {
                         echo "FAIL: pull request head repository is not trusted"
                         exit 1
@@ -56,22 +62,45 @@ print(data["base"]["sha"])
                     cd "$WORK_DIR"
                     git init --quiet
                     git remote add origin https://github.com/theonlygeranium/vinifera.git
-                    git -c http.extraHeader="$AUTH_HEADER" fetch --quiet --no-tags --depth=1 origin "$BASE_SHA" "$HEAD_SHA"
+                    GIT_CONFIG_COUNT=1 \
+                    GIT_CONFIG_KEY_0=http.extraHeader \
+                    GIT_CONFIG_VALUE_0="Authorization: Bearer #{GitHubPAT}" \
+                        git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA" "$HEAD_SHA"
                     git checkout --quiet --detach "$HEAD_SHA"
                     git remote remove origin
-                    curl -fsS \
-                        -H "$AUTH_HEADER" \
-                        -H "Accept: application/vnd.github.diff" \
-                        -H "X-GitHub-Api-Version: 2022-11-28" \
+                    github_curl "application/vnd.github.diff" \
                         "https://api.github.com/repos/theonlygeranium/vinifera/pulls/#{PRNumber}" \
                         > "$WORK_DIR/pr.diff"
-                    unset AUTH_HEADER PR_JSON PR_METADATA
+
+                    [ "$COMMIT_COUNT" -le 100 ] || {
+                        echo "FAIL: pull request has more than 100 commits"
+                        exit 1
+                    }
+                    COMMITS_JSON=$(github_curl "application/vnd.github+json" \
+                        "https://api.github.com/repos/theonlygeranium/vinifera/pulls/#{PRNumber}/commits?per_page=100")
+                    printf '%s' "$COMMITS_JSON" > "$WORK_DIR/pr-commits.json"
+                    mkdir -p "$WORK_DIR/commit-diffs"
+                    COMMIT_SHAS=$(printf '%s' "$COMMITS_JSON" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+expected = int(sys.argv[1])
+if len(data) != expected:
+    raise SystemExit(f"FAIL: expected {expected} PR commits, received {len(data)}")
+for commit in data:
+    print(commit["sha"])
+' "$COMMIT_COUNT")
+                    while IFS= read -r commit_sha; do
+                        github_curl "application/vnd.github.diff" \
+                            "https://api.github.com/repos/theonlygeranium/vinifera/commits/$commit_sha" \
+                            > "$WORK_DIR/commit-diffs/$commit_sha.diff"
+                    done <<< "$COMMIT_SHAS"
+                    unset PR_JSON PR_METADATA COMMITS_JSON COMMIT_SHAS
 
                     {
                         echo "WORK_DIR=$WORK_DIR"
                         echo "HEAD_SHA=$HEAD_SHA"
                         echo "BASE_SHA=$BASE_SHA"
-                    } > /tmp/octopus_pr_workdir
+                    } > "$STATE_FILE"
                     echo "Checkout complete: $WORK_DIR"
                     EOT
                 Octopus.Action.Script.ScriptSource = "Inline"
@@ -89,7 +118,7 @@ print(data["base"]["sha"])
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
-                    source /tmp/octopus_pr_workdir 2>/dev/null || WORK_DIR="/tmp/vinifera-pr"
+                    source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}" 2>/dev/null || WORK_DIR="/tmp/vinifera-pr"
                     cd "$WORK_DIR"
                     grep -rn --include="*.ts" -E "createClient\s*\(|from [\"']@supabase/supabase-js[\"']" server/routes/ 2>/dev/null && echo "FAIL: Direct DB access in routes" && exit 1 || echo "PASS: Rule 1"
                     EOT
@@ -108,7 +137,7 @@ print(data["base"]["sha"])
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
-                    source /tmp/octopus_pr_workdir 2>/dev/null || WORK_DIR="/tmp/vinifera-pr"
+                    source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}" 2>/dev/null || WORK_DIR="/tmp/vinifera-pr"
                     cd "$WORK_DIR"
                     V1=$(grep -rn --include="*.ts" "from.*server/routes" server/services/ 2>/dev/null||true)
                     V2=$(grep -rn --include="*.ts" "from.*server/integrations" server/routes/ 2>/dev/null||true)
@@ -131,7 +160,7 @@ print(data["base"]["sha"])
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
-                    source /tmp/octopus_pr_workdir 2>/dev/null || WORK_DIR="/tmp/vinifera-pr"
+                    source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}" 2>/dev/null || WORK_DIR="/tmp/vinifera-pr"
                     cd "$WORK_DIR"
                     VIOLATIONS=$(grep -rn --include="*.ts" -E "(sk_live_|sk_test_|rk_live_|ep_test_|re_)[A-Za-z0-9_]+" server/ src/ 2>/dev/null||true)
                     [ -n "$VIOLATIONS" ] && echo "FAIL: $VIOLATIONS" && exit 1
@@ -148,14 +177,14 @@ print(data["base"]["sha"])
 
         action {
             action_type = "Octopus.Script"
-            notes = "Evaluate added server lines plus the exact base-to-head tree diff so input validation, auth, provider, idempotency, tenancy, changelog, and type rules fail closed without grandfathered baseline noise."
+            notes = "Evaluate GitHub's merge-base-aware PR diff and per-commit diffs so input validation, auth, provider, idempotency, tenancy, changelog, and type rules fail closed without grandfathered baseline noise."
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
                     set -euo pipefail
-                    source /tmp/octopus_pr_workdir
+                    source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
                     cd "$WORK_DIR"
-                    python3 - "$WORK_DIR" "$WORK_DIR/pr.diff" <<'PY'
+                    python3 - "$WORK_DIR" "$WORK_DIR/pr.diff" "$WORK_DIR/commit-diffs" <<'PY'
 import pathlib
 import re
 import shlex
@@ -165,6 +194,7 @@ work_dir = pathlib.Path(sys.argv[1]).resolve()
 diff_lines = pathlib.Path(sys.argv[2]).read_text(
     encoding="utf-8", errors="replace"
 ).splitlines()
+commit_diff_dir = pathlib.Path(sys.argv[3]).resolve()
 added = []
 changed_files = set()
 path = None
@@ -203,53 +233,135 @@ def source_window(file_path, line_number, before=8, after=24):
     end = min(len(lines), line_number + after)
     return "\n".join(lines[start:end])
 
+def mask_non_code(source):
+    masked = list(source)
+    state = "code"
+    index = 0
+    while index < len(source):
+        char = source[index]
+        next_char = source[index + 1] if index + 1 < len(source) else ""
+        if state == "code":
+            if char == "/" and next_char == "/":
+                masked[index] = masked[index + 1] = " "
+                state = "line-comment"
+                index += 2
+                continue
+            if char == "/" and next_char == "*":
+                masked[index] = masked[index + 1] = " "
+                state = "block-comment"
+                index += 2
+                continue
+            if char in ("'", '"', "`"):
+                masked[index] = " "
+                state = char
+        elif state == "line-comment":
+            if char == "\n":
+                state = "code"
+            else:
+                masked[index] = " "
+        elif state == "block-comment":
+            masked[index] = " "
+            if char == "*" and next_char == "/":
+                masked[index + 1] = " "
+                state = "code"
+                index += 2
+                continue
+        else:
+            masked[index] = " "
+            if char == "\\":
+                if index + 1 < len(source):
+                    masked[index + 1] = " "
+                    index += 2
+                    continue
+            elif char == state:
+                state = "code"
+        index += 1
+    return "".join(masked)
+
+def has_tenant_predicate(source):
+    masked = mask_non_code(source)
+    for match in re.finditer(r"\.(?:eq|in)\s*\(", masked):
+        argument = source[match.end():]
+        if re.match(
+            r"\s*(['\"])(?:brand_id|organization_id)\1\s*,",
+            argument,
+        ):
+            return True
+    return bool(
+        re.search(
+            r"\.match\s*\(\s*\{[^}]*\b(?:brand_id|organization_id)\b",
+            masked,
+            re.DOTALL,
+        )
+    )
+
 for file_path, line_number, text in added:
     if not file_path.startswith("server/") or not file_path.endswith(".ts"):
         continue
     window = source_window(file_path, line_number)
+    masked_text = mask_non_code(text)
+    masked_window = mask_non_code(window)
     location = f"{file_path}:{line_number}"
+    is_test_file = ".test." in file_path or file_path.startswith("tests/")
+    is_native_boundary = bool(
+        re.search(r"(?:^|/)(?:mobile|native)(?:/|[-_.])", file_path)
+    )
 
-    if file_path.startswith("server/routes/") and re.search(r"\breq\.(?:body|params)\b", text):
-        if not re.search(r"(?:safeParse|\.parse)\s*\(", window):
+    if file_path.startswith("server/routes/") and re.search(r"\breq\.(?:body|params)\b", masked_text):
+        if not re.search(r"(?:safeParse|\.parse)\s*\(", masked_window):
             failures.append(("Rule 4", location, text))
 
-    inbound_auth = re.search(
-        r"\b(?:request|req)\.(?:get|header)\(\s*['\"]authorization['\"]",
-        text,
+    inbound_auth = False
+    for match in re.finditer(
+        r"\b(?:request|req)\.(?:get|header)\s*\(",
+        masked_text,
         re.IGNORECASE,
-    )
-    if inbound_auth and not re.search(r"\b(?:mobile|native)\b", window, re.IGNORECASE):
+    ):
+        if re.match(
+            r"\s*(['\"])authorization\1",
+            text[match.end():],
+            re.IGNORECASE,
+        ):
+            inbound_auth = True
+            break
+    if inbound_auth and not (is_test_file or is_native_boundary):
         failures.append(("Rule 5", location, text))
 
     if (
         (file_path.startswith("server/services/") or file_path.startswith("server/integrations/"))
-        and re.search(r"\b(?:easypost|resend|stripe)\.", text, re.IGNORECASE)
-        and not re.search(r"\b(?:isActive|isEnabled|activation)\b", window)
+        and not is_test_file
+        and re.search(r"\b(?:easypost|resend|stripe)\.", masked_text, re.IGNORECASE)
+        and not re.search(r"\b(?:isActive|isEnabled|activation)\b", masked_window)
     ):
         failures.append(("Rule 6", location, text))
 
-    if re.search(r"(?:paymentIntents\.create|labels\.create|emails\.send)", text):
-        if not re.search(r"\bidempotency(?:Key)?\b", window, re.IGNORECASE):
+    if re.search(r"(?:paymentIntents\.create|labels\.create|emails\.send)", masked_text):
+        if not re.search(r"\bidempotency(?:Key)?\b", masked_window, re.IGNORECASE):
             failures.append(("Rule 7", location, text))
 
     if file_path.startswith("server/services/") and re.search(
-        r"\.(?:select|update|delete|insert)\s*\(", text
+        r"\.(?:select|update|delete|insert|upsert)\s*\(", masked_text
     ):
-        if not re.search(
-            r"\b(?:brand_id|organization_id|brandId|organizationId)\b", window
-        ):
+        if not has_tenant_predicate(window):
             failures.append(("Rule 8", location, text))
 
-    if re.search(r":[ \t]*any\b|\bas[ \t]+any\b", text):
+    if re.search(r":[ \t]*any\b|\bas[ \t]+any\b", masked_text):
         failures.append(("Rule 10", location, text))
 
-non_docs = sorted(
-    file_path
-    for file_path in changed_files
-    if not (file_path.startswith("docs/") or file_path.endswith(".md"))
-)
-if non_docs and "CHANGELOG.md" not in changed_files:
-    failures.append(("Rule 9", "CHANGELOG.md", ", ".join(non_docs)))
+for commit_diff in sorted(commit_diff_dir.glob("*.diff")):
+    commit_files = set()
+    for line in commit_diff.read_text(
+        encoding="utf-8", errors="replace"
+    ).splitlines():
+        if not line.startswith("diff --git "):
+            continue
+        parts = shlex.split(line)
+        if len(parts) >= 4 and parts[3].startswith("b/"):
+            commit_files.add(parts[3][2:])
+    if commit_files and "CHANGELOG.md" not in commit_files:
+        failures.append(
+            ("Rule 9", commit_diff.stem, ", ".join(sorted(commit_files)))
+        )
 
 if failures:
     for rule, location, text in failures:
@@ -273,9 +385,10 @@ PY
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
-                    source /tmp/octopus_pr_workdir 2>/dev/null || true
+                    STATE_FILE="/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
+                    source "$STATE_FILE" 2>/dev/null || true
                     [ -n "$WORK_DIR" ] && rm -rf "$WORK_DIR" && echo "Cleaned up $WORK_DIR"
-                    rm -f /tmp/octopus_pr_workdir
+                    rm -f "$STATE_FILE"
                     EOT
                 Octopus.Action.Script.ScriptSource = "Inline"
                 Octopus.Action.Script.Syntax = "Bash"

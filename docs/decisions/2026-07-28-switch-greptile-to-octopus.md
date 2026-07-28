@@ -87,11 +87,15 @@ header, and removes the remote before inspecting pull-request content. Rules
 4–10 consume GitHub's merge-base-aware PR diff and inspect bounded source
 windows around added calls, so the successful path includes tenant-isolation
 Rule 8 without turning target-branch advances, multiline safe calls, or
-grandfathered baseline findings into unrelated failures.
+grandfathered baseline findings into unrelated failures. Tenant checks require
+an actual `.eq`, `.in`, or `.match` predicate outside comments and string
+literals, and Rule 9 evaluates every commit independently.
 
 Queued and running quality-gate tasks are not canceled by later invocations.
-Each pull request owns an independent required result even when several review
-events overlap.
+Each task uses its own state file and checkout, so every pull request owns an
+independent required result even when several review events overlap. GitHub
+authentication is passed to curl over stdin and to Git through environment
+configuration, keeping the PAT out of process arguments.
 
 The former `PR Comment Bot` and `Auto-Fix Suggestions` failure runbooks are
 retired. Running `npm ci`, formatter binaries, or other pull-request-controlled
