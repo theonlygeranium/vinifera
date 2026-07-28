@@ -1,0 +1,32 @@
+name: Octopus Nightly Security Audit
+
+on:
+  # Run every night at 02:00 UTC
+  schedule:
+    - cron: "0 2 * * *"
+  # Allow manual trigger from Actions UI
+  workflow_dispatch:
+
+jobs:
+  security-audit:
+    name: Run Security Audit Runbook
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Run Security Audit Runbook in Octopus 🔐
+        uses: OctopusDeploy/run-runbook-action@v1
+        env:
+          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_SPACE: Default
+        with:
+          project: Vinifera
+          runbook: Security Audit
+          environments: Development
+          use_guided_failure: false
+          variables: |
+            GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
