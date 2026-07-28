@@ -61,6 +61,9 @@
 - `CONTINUITY_BRIEF.md`: Updated CodeRabbit state after adding automatic
   `dev`/`staging` reviews and retained explicit review requests plus exact
   completion-description enforcement as defense-in-depth.
+- `public/marketing.js` and `tests/e2e/phase1.spec.ts`: Closing the marketing
+  mobile menu with Escape now restores focus from a hidden menu link to the
+  hamburger control, with a 375px keyboard regression test.
 
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is

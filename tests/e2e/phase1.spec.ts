@@ -186,6 +186,24 @@ test.describe("Phase 1 public authentication surfaces", () => {
     }
   });
 
+  test("marketing mobile menu restores focus when Escape closes it", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/");
+    const menuButton = page.getByRole("button", { name: "Open menu" });
+    const mobileMenu = page.locator("#mobileMenu");
+    const featuresLink = mobileMenu.getByRole("link", { name: "Features" });
+
+    await menuButton.click();
+    await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+    await featuresLink.focus();
+    await expect(featuresLink).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    await expect(menuButton).toBeFocused();
+  });
+
   for (const viewport of [
     { name: "mobile", width: 375, height: 812 },
     { name: "tablet", width: 768, height: 1024 },

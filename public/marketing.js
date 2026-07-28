@@ -78,10 +78,13 @@ if (mobileButton && mobileMenu) {
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
+    if (event.key === "Escape" && mobileMenu.classList.contains("open")) {
       mobileMenu.classList.remove("open");
       mobileButton.classList.remove("open");
       mobileButton.setAttribute("aria-expanded", "false");
+      if (mobileMenu.contains(document.activeElement)) {
+        mobileButton.focus();
+      }
     }
   });
 }
