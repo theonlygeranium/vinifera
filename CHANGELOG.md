@@ -15,6 +15,9 @@
   jobs to `pull_request_target`, pinned checkout to the trusted default branch,
   disabled persisted credentials, removed unused write permissions, and added
   a regression test that rejects pull-request-head execution.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Added an unprivileged
+  source-validation job that rejects forks and shell-capable branch names
+  before any Octopus, GitHub, or Access secret can enter a job.
 - `.github/workflows/ci.yml`,
   `.github/workflows/stripe-test-catalog.yml`, and hosted activation
   documentation: Aligned staging mutations and Stripe test-catalog operations

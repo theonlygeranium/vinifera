@@ -54,6 +54,11 @@ The workflow uses `pull_request_target`, checks out only the trusted default
 branch with persisted credentials disabled, and passes the pull-request branch
 and number strictly as data. It never checks out or executes pull-request code
 in a job that receives repository, Octopus, or Cloudflare Access secrets.
+Before a secret-bearing job can start, an unprivileged validation job rejects
+fork pull requests and branch names outside
+`[A-Za-z0-9][A-Za-z0-9._/-]{0,199}` and Git's own branch-name contract. Only
+that validated output reaches the runbook prompt, preventing shell syntax from
+crossing into the self-hosted checkout script.
 
 The current self-hosted Octopus Server predates the Executions API required by
 `run-runbook-action` v3 and newer. Until the server is upgraded to at least

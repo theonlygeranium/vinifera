@@ -15,7 +15,9 @@ code must not advance through the environment chain.
 
 The privileged Octopus workflow runs from trusted default-branch code through
 `pull_request_target`. It must never check out or execute a pull-request head;
-the head branch and PR number are untrusted review inputs only.
+the head branch and PR number are untrusted review inputs only. Fork PRs are
+rejected by this privileged gate, and same-repository branch names must pass
+the documented restricted grammar before they are forwarded to Octopus.
 
 The credential-independent CI database contract runs the Phase 1-5 embedded
 PostgreSQL gates and `npm run qa:local-seed`. The latter replays every

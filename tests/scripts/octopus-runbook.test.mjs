@@ -263,8 +263,20 @@ describe("Octopus workflow trust boundary", () => {
     expect(workflow).not.toContain("github.event.pull_request.head.sha");
     expect(workflow).not.toContain("github.head_ref");
     expect(workflow).toContain(
-      "PR_BRANCH: ${{ github.event.pull_request.head.ref }}",
+      "HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}",
     );
+    expect(workflow).toContain(
+      "PR_BRANCH: ${{ needs.validate-source.outputs.branch }}",
+    );
+    expect(workflow).toContain("git check-ref-format --branch");
+    expect(workflow).toContain(
+      "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$",
+    );
+    expect(
+      workflow.match(
+        /PR_BRANCH: \$\{\{ github\.event\.pull_request\.head\.ref \}\}/g,
+      ),
+    ).toHaveLength(1);
     expect(workflow).not.toMatch(
       /uses:\s+actions\/checkout@(main|master|v[0-9]+)(\s|$)/,
     );
