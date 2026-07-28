@@ -30,10 +30,15 @@ partial local prerequisite evidence for Gates 1, 7, and 15
   processes so both Ctrl-C and startup-error paths remain fail-closed.
 - The frontend honors `VITE_API_BASE_URL` for credential-free HTTPS or
   loopback HTTP. Production remains same-origin when it is unset; Capacitor
-  builds still require a secure, port-free API origin.
+  builds still require a secure, port-free API origin. The integrated build
+  and Vite process are both pinned to the loopback Worker, so ambient shell or
+  contributor-file values cannot redirect local traffic.
 - Server-generated Auth callbacks and billing returns use canonical
   `APP_ORIGIN`, so requests from the Vite hot-reload origin still exchange
-  their Auth code through the Worker on port 8788.
+  their Auth code through the Worker on port 8788. Staging and production fail
+  closed if that canonical origin is absent or invalid; request-header fallback
+  requires an explicit `development` or `test` mode, so missing or unknown
+  environment modes also fail closed.
 - The local security and process-lifecycle decisions are recorded in
   [the local harness ADR](../decisions/2026-07-27-local-dev-harness-boundaries.md).
 
@@ -111,7 +116,7 @@ analytics idempotency fingerprints replay without noisy failed writes.
 | Toolchain | Node 22.22.3; npm 10.9.8; Supabase CLI 2.109.1; Wrangler 4.114.0; Docker client 29.6.2/server 29.5.2 on Colima 0.10.3 |
 | `npm ci` | Passed; 406 packages installed, 407 audited; 0 vulnerabilities |
 | Script syntax | `bash -n` and `node --check` passed |
-| Integrated tests | TypeScript passed; Vitest passed 43 files and 438/438 tests; the focused browser-origin, harness, foundation-origin, and retention set passed 64/64 |
+| Integrated tests | TypeScript passed; Vitest passed 43 files and 443/443 tests; the focused browser-origin, harness, foundation-origin, and retention set passed 69/69 |
 | Embedded phase gates | Phase 1–5 passed 92/92, 250/250, 199/199, 158/158, and 513/513 assertions |
 | Embedded replay | Passed all 22 migrations, two consecutive seed applications, fixture cardinality/state mix, tenant integrity, fixed brand IDs, and an independent clean-database identity comparison |
 | Native seed replay | The integrated 22-migration head passed `supabase db reset --local` with the configured seed and produced the exact default brand IDs `20000000-0000-4000-8000-000000000001` and `20000000-0000-4000-8000-000000000002`. |

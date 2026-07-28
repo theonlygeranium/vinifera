@@ -411,6 +411,7 @@ export async function apiRequest<T>(
     });
   } catch (error) {
     clearTimeout(timeoutId);
+    if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new ApiError(
         "The request timed out. Please try again.",
@@ -522,7 +523,8 @@ export async function downloadApiFile(
       credentials: "include",
       headers,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(
       "Vinifera could not reach the server. Check your connection and try again.",
       { status: 0, code: "NETWORK_ERROR" },

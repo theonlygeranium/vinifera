@@ -113,7 +113,7 @@ function httpOrigin(value: string): string | null {
 }
 
 export function resolveApplicationOrigin(
-  env: Pick<WorkerEnv, "APP_ORIGIN">,
+  env: Pick<WorkerEnv, "APP_ENV" | "APP_ORIGIN">,
   request: Pick<Request, "get" | "protocol">,
 ): string {
   const configuredOrigin = env.APP_ORIGIN?.trim();
@@ -128,6 +128,13 @@ export function resolveApplicationOrigin(
     }
     return origin;
   }
+  if (env.APP_ENV !== "development" && env.APP_ENV !== "test") {
+    throw new AppError(
+      500,
+      "configuration_error",
+      "APP_ORIGIN is required outside development and test.",
+    );
+  }
 
   const requestOrigin = request.get("origin");
   if (requestOrigin) {
@@ -141,7 +148,15 @@ export function resolveApplicationOrigin(
       .get("x-forwarded-proto")
       ?.split(",")[0]
       ?.trim();
-    return `${forwardedProtocol || request.protocol}://${host}`;
+    const origin = httpOrigin(
+      `${forwardedProtocol || request.protocol}://${host}`,
+    );
+    if (origin) return origin;
+    throw new AppError(
+      500,
+      "configuration_error",
+      "The request origin could not be derived safely.",
+    );
   }
   return "http://localhost:5173";
 }

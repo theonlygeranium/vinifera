@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, resolveApiUrl } from "../../src/client/api/client";
+import {
+  ApiError,
+  apiRequest,
+  downloadApiFile,
+  resolveApiUrl,
+} from "../../src/client/api/client";
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 function expectOriginError(
@@ -61,6 +67,25 @@ describe("browser API origin policy", () => {
       () => resolveApiUrl("/api/health"),
       "INVALID_API_ORIGIN",
     );
+  });
+
+  it.each([
+    ["API requests", () => apiRequest("/api/health")],
+    [
+      "file downloads",
+      () => downloadApiFile("/api/analytics/export.csv", "analytics.csv"),
+    ],
+  ])("preserves origin-policy errors for %s", async (_label, request) => {
+    vi.stubEnv("VITE_CAPACITOR_BUILD", "false");
+    vi.stubEnv("VITE_API_BASE_URL", "not a URL");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(request()).rejects.toMatchObject({
+      code: "INVALID_API_ORIGIN",
+      status: 0,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

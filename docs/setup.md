@@ -52,7 +52,12 @@ npm run dev:frontend
 
 The browser talks only to the Worker. `VITE_API_BASE_URL` may select a
 credential-free HTTPS origin or loopback HTTP; production defaults to the
-same origin. Do not put secrets in Vite-prefixed variables.
+same origin. `npm run dev` pins both its integrated build and Vite process to
+the loopback Worker regardless of ambient shell or contributor-file values.
+Do not put secrets in Vite-prefixed variables. Staging and production require
+`APP_ORIGIN`; only local development and tests may derive a fallback request
+origin. A missing or unknown `APP_ENV` also fails closed when `APP_ORIGIN` is
+absent.
 
 ## Local environment
 
@@ -545,7 +550,7 @@ then runs the remaining test and build gates. This keeps validation reproducible
 from a fresh checkout while leaving the generated artifact untracked.
 
 The current credential-independent architecture gate passes generated Worker
-types, TypeScript, 438/438 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+types, TypeScript, 443/443 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
 3 199/199, Phase 4 158/158, Phase 5 513/513 embedded PostgreSQL/pgTAP
 assertions, and the integrated 145/145 Playwright suite with zero axe
 violations.
