@@ -12,7 +12,7 @@ on:
           - bootstrap
           - verify
       git_sha:
-        description: Exact 40-character commit on canonical main
+        description: Exact 40-character commit on canonical staging
         required: true
         type: string
       confirmation:
@@ -42,7 +42,7 @@ jobs:
           CATALOG_GIT_SHA: ${{ inputs.git_sha }}
         run: |
           [[ "$GITHUB_REPOSITORY" == "theonlygeranium/vinifera" ]]
-          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_REF" == "refs/heads/staging" ]]
           [[ "$CATALOG_GIT_SHA" =~ ^[0-9a-f]{40}$ ]]
 
       - name: Check out immutable source
@@ -57,8 +57,8 @@ jobs:
           CATALOG_GIT_SHA: ${{ inputs.git_sha }}
         run: |
           [[ "$(git rev-parse HEAD)" == "$CATALOG_GIT_SHA" ]]
-          git fetch --no-tags origin main:refs/remotes/origin/main
-          [[ "$(git rev-parse origin/main)" == "$CATALOG_GIT_SHA" ]]
+          git fetch --no-tags origin staging:refs/remotes/origin/staging
+          [[ "$(git rev-parse origin/staging)" == "$CATALOG_GIT_SHA" ]]
 
       - name: Use Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7

@@ -1,78 +1,118 @@
 name: Octopus PR Quality Gates
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
+      - dev
+      - staging
       - main
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
 
 jobs:
-  quality-gates:
-    name: Run PR Quality Gates
+  validate-source:
+    name: Validate trusted PR source
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
-      pull-requests: write
+
+    outputs:
+      branch: ${{ steps.validate.outputs.branch }}
 
     steps:
-      - name: Run PR Quality Gates Runbook in Octopus 🐙
-        uses: OctopusDeploy/run-runbook-action@v1
+      - name: Reject forks and unsafe branch names
+        id: validate
+        shell: bash
         env:
+          EXPECTED_REPOSITORY: ${{ github.repository }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [[ "$HEAD_REPOSITORY" != "$EXPECTED_REPOSITORY" ]]; then
+            echo "::error::Privileged Octopus reviews accept same-repository pull requests only."
+            exit 1
+          fi
+          if [[ ! "$PR_BRANCH" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$ ]]; then
+            echo "::error::Pull-request branch name contains unsupported characters."
+            exit 1
+          fi
+          git check-ref-format --branch "$PR_BRANCH" >/dev/null
+          printf 'branch=%s\n' "$PR_BRANCH" >> "$GITHUB_OUTPUT"
+
+  quality-gates:
+    name: Run PR Quality Gates
+    runs-on: ubuntu-latest
+    needs: validate-source
+    if: always()
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Enforce trusted source validation
+        env:
+          VALIDATION_RESULT: ${{ needs.validate-source.result }}
+        run: |
+          if [[ "$VALIDATION_RESULT" != "success" ]]; then
+            echo "::error::Trusted PR source validation did not pass."
+            exit 1
+          fi
+
+      - name: Check out trusted default-branch bridge
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Run PR Quality Gates Runbook in Octopus 🐙
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
+          GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
-          OCTOPUS_SPACE: Default
-        with:
-          project: Vinifera
-          runbook: PR Quality Gates
-          environments: Development
-          use_guided_failure: false
-          variables: |
-            PRBranch: ${{ github.head_ref }}
-            PRNumber: ${{ github.event.pull_request.number }}
-            GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
+          PR_BRANCH: ${{ needs.validate-source.outputs.branch }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/octopus-runbook.mjs "PR Quality Gates"
 
   # Runs only when quality-gates fails — posts AI analysis + auto-fix diff as PR comments
   comment-and-fix:
     name: Post AI Analysis and Auto-Fix Suggestions
     runs-on: ubuntu-latest
-    needs: quality-gates
-    if: failure()
+    needs: [validate-source, quality-gates]
+    if: >-
+      always() &&
+      needs.validate-source.result == 'success' &&
+      needs.quality-gates.result == 'failure'
 
     permissions:
       contents: read
-      pull-requests: write
-      issues: write
 
     steps:
+      - name: Check out trusted default-branch bridge
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
       - name: Run PR Comment Bot Runbook 🤖
-        uses: OctopusDeploy/run-runbook-action@v1
         env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
+          GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
-          OCTOPUS_SPACE: Default
-        with:
-          project: Vinifera
-          runbook: PR Comment Bot
-          environments: Development
-          use_guided_failure: false
-          variables: |
-            PRBranch: ${{ github.head_ref }}
-            PRNumber: ${{ github.event.pull_request.number }}
-            GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
+          PR_BRANCH: ${{ needs.validate-source.outputs.branch }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/octopus-runbook.mjs "PR Comment Bot"
 
       - name: Run Auto-Fix Suggestions Runbook 🔧
-        uses: OctopusDeploy/run-runbook-action@v1
         env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
+          GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
-          OCTOPUS_SPACE: Default
-        with:
-          project: Vinifera
-          runbook: Auto-Fix Suggestions
-          environments: Development
-          use_guided_failure: false
-          variables: |
-            PRBranch: ${{ github.head_ref }}
-            PRNumber: ${{ github.event.pull_request.number }}
-            GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
+          PR_BRANCH: ${{ needs.validate-source.outputs.branch }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/octopus-runbook.mjs "Auto-Fix Suggestions"

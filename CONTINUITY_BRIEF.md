@@ -376,9 +376,10 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   maximum, and Playwright login/signup captures at 375, 768, and 1440 are
   explicitly retained for 90 days. Android setup is pinned to v4.0.1/Node 24
   in normal CI and the protected mobile-release workflow.
-- GitHub environments `staging`, `production`, and `mobile-release` are
-  restricted to `main` and require review by `theonlygeranium`; self-review is
-  currently allowed because no second human reviewer is configured.
+- The GitHub `staging` environment is restricted to the `staging` branch;
+  `production` and `mobile-release` remain restricted to `main`. All three
+  require review by `theonlygeranium`; self-review is currently allowed
+  because no second human reviewer is configured.
 - The current Phase 5 evidence and any remaining local checks belong in
   `docs/build-specs/phase-5-qa-report.md`; do not copy pending checks here as
   passes.

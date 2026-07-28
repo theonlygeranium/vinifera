@@ -1,5 +1,84 @@
 # Changelog
 
+## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
+
+### Fixed
+- `.github/scripts/octopus-runbook.mjs` and
+  `tests/scripts/octopus-runbook.test.mjs`: Corrected the run-creation field
+  to `RunbookSnapshotId` and ensured a failed timeout-cancellation request
+  cannot mask the actionable runbook timeout error.
+- `.github/scripts/octopus-runbook.mjs`: Added a fail-closed sensitive-control
+  check so `GitHubPAT` is never submitted to an Octopus prompt that the
+  preview identifies as plain text or leaves untyped.
+- `.github/workflows/octopus-pr-quality-gates.yml` and
+  `tests/scripts/octopus-runbook.test.mjs`: Moved the secret-bearing Octopus
+  jobs to `pull_request_target`, pinned checkout to the trusted default branch,
+  disabled persisted credentials, removed unused write permissions, and added
+  a regression test that rejects pull-request-head execution.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Added an unprivileged
+  source-validation job that rejects forks and shell-capable branch names
+  before any Octopus, GitHub, or Access secret can enter a job.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Made rejected source
+  validation produce an explicit failed quality-gate job rather than a skipped
+  reviewer state.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Added the `edited` PR
+  activity so base-branch retargeting always receives a fresh Octopus review.
+- `.github/workflows/ci.yml`: Retained post-merge quality validation on `main`
+  while explicitly restricting staging migration and Worker deployment jobs
+  to `refs/heads/staging`.
+- `.github/workflows/ci.yml`,
+  `.github/workflows/stripe-test-catalog.yml`, and hosted activation
+  documentation: Aligned staging mutations and Stripe test-catalog operations
+  with the three-tier promotion model. Staging now runs from the immutable
+  `staging` head instead of `main`, while production controls remain
+  `main`-bound.
+- `docs/runbooks/phase-1-hosted-activation.md`: Reconciled the remaining
+  environment-policy and Stripe bootstrap examples with the staging-only
+  control boundary.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Routed Octopus PR quality
+  gates to the `dev`, `staging`, and `main` PR bases and added
+  `ready_for_review` activity. The prior `main`-only filter prevented
+  agent-authored product PRs from invoking the required reviewer; retaining
+  all three bases ensures promotion PRs are reviewed too.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Replaced the nonexistent
+  `run-runbook-action@v1` reference with a tested REST bridge. The self-hosted
+  server predates the v4 Executions API and its legacy CLI is incompatible
+  with GitHub's Ubuntu 24 OpenSSL runtime, so the bridge implements the
+  documented prompted-runbook flow and bounded task polling without a legacy
+  binary.
+- `.github/scripts/octopus-runbook.mjs` and
+  `tests/scripts/octopus-runbook.test.mjs`: Added the HTTPS-only, fail-closed
+  bridge and focused coverage for URL normalization, prompt mapping, required
+  prompt enforcement, run creation, and successful task completion.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Added encrypted
+  `OCTOPUS_CF_ACCESS_CLIENT_ID` and `OCTOPUS_CF_ACCESS_CLIENT_SECRET` inputs
+  so the hosted runner can authenticate through the Octopus hostname's
+  Cloudflare Access Service Auth policy before using the Octopus API key.
+- `.github/pull_request_template.md` and `docs/agent-workflow.md`: Replaced
+  stale Greptile and direct-to-`main` instructions with the current
+  Octopus/CodeRabbit review loop and `dev` PR routing.
+- `docs/decisions/2026-07-28-switch-greptile-to-octopus.md`: Reconciled the
+  ADR with current repository governance and recorded the human-authorized,
+  one-time bootstrap exception for this workflow correction.
+
+### Deployment impact
+- No application, routing, database, provider, Pages, or Worker resource is
+  changed by this commit. Future and re-triggered PRs to `dev` invoke the
+  self-hosted Octopus `PR Quality Gates` runbook. After the matching GitHub
+  environment branch-policy update, pushes and explicit activation workflows
+  on `staging` are authorized to use staging-only credentials.
+
+### Verification
+- Validate workflow syntax, run the repository docs-only CI lane, confirm
+  CodeRabbit and zero unresolved review threads on the bootstrap PR, merge it
+  to `dev`, then reopen the pending product PRs and require successful Octopus
+  runs before merge.
+- Run the focused Octopus bridge tests and confirm the hosted workflow waits
+  for the self-hosted runbook result.
+- Promote an immutable `dev` head to `staging`, verify the quality workflow
+  triggers on the resulting `staging` push, and confirm the read-only readiness
+  and Stripe test-catalog workflows reject non-`staging` refs.
+
 ## [Unreleased] — 2026-07-28 (UI Testing Spec Formatting Fix)
 
 ### Fixed

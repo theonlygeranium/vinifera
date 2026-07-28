@@ -1,13 +1,23 @@
 # Agent Workflow Guide
 
 > Canonical instructions for AI coding agents (WRITER Agent, Codex, Claude Code) working on vinifera.
-> Every change to this repo must flow through a pull request — never commit directly to `main`.
+> Every change to this repo must flow through a pull request. Agent-authored work targets
+> `dev`; human-controlled promotion pull requests move `dev` to `staging` and `staging`
+> to `main`.
 
 ## Why PRs are required
 
-- **Greptile** runs an automated AI code review on every PR, flagging logic errors, security issues, type safety problems, and architectural concerns before code reaches production.
+- **Octopus** runs the self-hosted full-codebase review on every agent-authored PR to `dev`.
+- **CodeRabbit** performs line-level code quality and security review.
 - **CI checks** (type, test, build, Cloudflare Pages) must pass before merging.
-- Every merge to `main` triggers a live deploy. Unreviewed code = unreviewed production.
+- Promotion to `main` is human-controlled and triggers the live release path. Unreviewed
+code must not advance through the environment chain.
+
+The privileged Octopus workflow runs from trusted default-branch code through
+`pull_request_target`. It must never check out or execute a pull-request head;
+the head branch and PR number are untrusted review inputs only. Fork PRs are
+rejected by this privileged gate, and same-repository branch names must pass
+the documented restricted grammar before they are forwarded to Octopus.
 
 The credential-independent CI database contract runs the Phase 1-5 embedded
 PostgreSQL gates and `npm run qa:local-seed`. The latter replays every
@@ -36,10 +46,10 @@ entry.
 ## Mandatory PR ownership and completion loop
 
 > After opening a PR, remain responsible for it until completion. Wait for
-> Greptile and all required CI checks. Inspect every unresolved review thread;
+> Octopus, CodeRabbit, and all required CI checks. Inspect every unresolved review thread;
 > fix actionable findings, reply with an evidence-based disposition for
 > non-actionable or intentionally deferred findings, and resolve threads only
-> after verification. Rerun affected tests and wait for Greptile/CI after every
+> after verification. Rerun affected tests and wait for Octopus/CodeRabbit/CI after every
 > push. Repeat until all required checks pass and zero unresolved review
 > threads remain. Merge only when explicitly authorized; otherwise leave the
 > PR ready and report its status.
@@ -49,7 +59,7 @@ status update, or starting a review does not end the task. The owning agent must
 use an available wait or monitoring mechanism and continue until one of these
 terminal states is reached:
 
-1. every required check passes, the branch is current with `main`, zero
+1. every required check passes, the branch is current with its target base, zero
    unresolved review threads remain, and the PR has either been merged under
    explicit authority or left ready and unmerged; or
 2. a documented human-review boundary, repeated-failure limit, unavailable
@@ -60,11 +70,12 @@ terminal states is reached:
 1. Open the PR with an accurate description, verification evidence, and
    activation impact. Apply `codex-managed` when the recurring monitor should
    provide a safety net.
-2. Wait for Greptile, `Type, test, build, and package`,
-   `Block direct push to main`, and the relevant preview/deployment checks.
+2. Wait for Octopus, CodeRabbit, `Type, test, build, and package`, and the
+   relevant preview/deployment checks. `Block direct push to main` additionally
+   applies to the human-controlled production promotion.
    Do not repeatedly report unchanged pending state.
 3. Fetch thread-aware review state. Flat comment lists are insufficient; use
-   Greptile MCP when available or GitHub GraphQL review threads so
+   GitHub GraphQL review threads so
    `isResolved`, outdated state, file, and line anchors are visible.
 4. Classify every unresolved finding:
    - **Actionable:** implement the smallest correct in-scope fix, update
@@ -80,7 +91,7 @@ terminal states is reached:
    evidence-based reply is present. Never resolve merely to satisfy the merge
    gate.
 6. Rerun the affected tests, update `CHANGELOG.md` in every follow-up commit,
-   push, and wait for fresh Greptile and CI results on the new head.
+   push, and wait for fresh Octopus, CodeRabbit, and CI results on the new head.
 7. Repeat until the exact current head is green and zero unresolved review
    threads remain. Stop after three unsuccessful fix/review cycles or when the
    same finding reappears; apply `human-review-required` and report the
@@ -125,7 +136,7 @@ owner task that ended, crashed, or lost context. It follows this contract:
 
 1. List open PRs in `theonlygeranium/vinifera` labeled `codex-managed`.
 2. Inspect draft state, mergeability, whether the head is current with its
-   base, required checks, Greptile, blocking labels, and thread-aware
+   base, required checks, Octopus, CodeRabbit, blocking labels, and thread-aware
    unresolved review state.
 3. If `human-review-required` is already present, make no mutation, notify the
    human owner with the current evidence, and stop. If checks are pending, exit
@@ -161,7 +172,7 @@ Branching rules (mandatory):
   Example: feat/churn-model-v2, fix/null-member-id
 - Commit all changes to that branch using the mandatory commit contract above,
   including the `CHANGELOG.md` update.
-- Open a pull request targeting main with:
+- Open a pull request targeting `dev` with:
     Title: <type>: <concise description>
     Body: what changed, why, and any risks or assumptions
 - Follow the mandatory PR ownership and completion loop in
@@ -186,7 +197,7 @@ Branching rules (mandatory):
 - Create a branch: git checkout -b <type>/<short-description>
 - Commit changes to that branch only using the mandatory commit contract
   above, including the `CHANGELOG.md` update.
-- Push and open a PR with: gh pr create --base main --title "<type>: <description>" --body "<summary>"
+- Push and open a PR with: gh pr create --base dev --title "<type>: <description>" --body "<summary>"
 - Follow the mandatory PR ownership and completion loop in
   docs/agent-workflow.md. Opening the PR is not completion.
 - This template grants no merge authority. Leave the all-green,
@@ -199,7 +210,7 @@ Task:
 
 ---
 
-### Claude Code (with Greptile MCP + /greploop)
+### Claude Code
 
 ```
 Repository: theonlygeranium/vinifera
@@ -208,9 +219,9 @@ Branching rules (mandatory):
 - Never commit to main directly.
 - Create a branch: git checkout -b <type>/<short-description>
 - Commit using the mandatory commit contract above, including the
-  `CHANGELOG.md` update, then push and open a PR targeting main.
-- After the PR is open, run /greploop to let Greptile review,
-  fix all flagged issues, and iterate until the PR reaches 5/5 confidence.
+  `CHANGELOG.md` update, then push and open a PR targeting `dev`.
+- After the PR is open, follow the Octopus and CodeRabbit review loop,
+  fix all actionable findings, and iterate until both reviewers pass.
 - Follow the mandatory PR ownership and completion loop in
   docs/agent-workflow.md. Opening the PR is not completion.
 - This template grants no merge authority. Leave the all-green,
@@ -232,16 +243,15 @@ Task:
 | `chore/` | Maintenance, deps, config |
 | `refactor/` | Code restructuring without behavior change |
 | `docs/` | Documentation only |
-| `ci/` | GitHub Actions / workflow changes |
-| `greptile/` | Greptile-specific review triggers (reserved) |
+| `ci/` | CI and automated review workflow changes |
 
 ---
 
 ## Checklist before merging any PR
 
-- [ ] The PR is not a draft and its head is current with `main`
-- [ ] Greptile Review check is green on the current head
-- [ ] `Block direct push to main` check passes on the pull request
+- [ ] The PR is not a draft and its head is current with its target base
+- [ ] Octopus and CodeRabbit pass on the current head
+- [ ] `Block direct push to main` passes for a production promotion
 - [ ] `Type, test, build, and package` CI check passes
 - [ ] Cloudflare Pages preview deploy succeeded
 - [ ] Every review thread has an evidence-backed disposition
@@ -284,20 +294,19 @@ The push-side run is a fail-closed audit after Git has already updated the
 branch. Branch protection must require pull requests, require the
 `Block direct push to main` check, and disallow administrator bypass to prevent
 the update before it occurs. It must also use strict required checks so the PR
-head is current with `main`, require `Greptile Review` and
-`Type, test, build, and package`, and require conversation resolution. Do not
+head is current with `main`, require `Type, test, build, and package`, and
+require conversation resolution. Octopus and CodeRabbit remain repository-level
+merge gates even when they are not branch-protection contexts. Do not
 treat a green post-push workflow by itself as branch-protection evidence.
 
 ---
 
-## Greptile quick reference
+## Octopus and CodeRabbit quick reference
 
 | Action | How |
 |---|---|
-| Trigger a review on any PR | Comment `@greptileai` on the PR |
-| Ask a follow-up question | Reply `@greptileai <your question>` on any comment |
-| Request alternative fix | Reply `@greptileai suggest another approach` |
-| Train Greptile to ignore a pattern | 👎 react on a comment + brief explanation |
-| Reinforce a pattern | 👍 react on a comment |
-| Auto-fix all comments (Claude Code) | Run `/check-pr` in Claude Code terminal |
-| Iterate to 5/5 score (Claude Code) | Run `/greploop` in Claude Code terminal |
+| Trigger Octopus after workflow installation | Reopen the PR or push a documented head update |
+| Inspect reviewer state | Use GitHub checks, reviews, comments, and GraphQL review threads |
+| Handle an actionable finding | Patch, document, test, push, and wait for both reviewers again |
+| Handle a non-actionable finding | Reply with evidence, then resolve only after verification |
+| Handle reviewer outage | Stop merge; recover the service or document a human-approved one-time exception |

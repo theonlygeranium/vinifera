@@ -44,6 +44,43 @@ now requires only:
 
 CodeRabbit remains active and unchanged.
 
+Octopus is a mandatory workflow review gate for every pull request. The GitHub
+workflow listens to `opened`, `synchronize`, `reopened`, and `ready_for_review`
+activity, plus `edited` retargeting, on PRs targeting `dev`, `staging`, or
+`main` and invokes the self-hosted
+`PR Quality Gates` runbook in the `Development` environment. It is not a GitHub
+branch-protection status check because the self-hosted service can be unavailable;
+an unavailable or missing Octopus review still blocks merge under `AGENTS.md`.
+The workflow uses `pull_request_target`, checks out only the trusted default
+branch with persisted credentials disabled, and passes the pull-request branch
+and number strictly as data. It never checks out or executes pull-request code
+in a job that receives repository, Octopus, or Cloudflare Access secrets.
+Before a secret-bearing job can start, an unprivileged validation job rejects
+fork pull requests and branch names outside
+`[A-Za-z0-9][A-Za-z0-9._/-]{0,199}` and Git's own branch-name contract. Only
+that validated output reaches the runbook prompt, preventing shell syntax from
+crossing into the self-hosted checkout script.
+Rejected source validation produces an explicit failing `Run PR Quality Gates`
+job; it cannot turn the mandatory reviewer into a skipped-success state.
+
+The current self-hosted Octopus Server predates the Executions API required by
+`run-runbook-action` v3 and newer. Until the server is upgraded to at least
+2022.3.5512, the workflow uses a small Node bridge implementing Octopus's
+documented REST flow for prompted runbooks: resolve exact resources, map prompt
+names through the preview form, create the published run, poll its task, and
+cancel after 15 minutes. The bridge rejects non-HTTPS endpoints, fails closed
+on missing prompts/resources or unexpected API shapes, and never logs prompt
+values. Because the Octopus hostname is protected by Cloudflare Access, GitHub
+Actions also supplies a narrowly scoped Access service token through encrypted
+`OCTOPUS_CF_ACCESS_CLIENT_ID` and `OCTOPUS_CF_ACCESS_CLIENT_SECRET` secrets.
+The Access application must use a Service Auth policy restricted to that token.
+The bridge refuses to submit `GitHubPAT` unless the runbook preview explicitly
+identifies that prompt as sensitive. A future Octopus configuration change
+should move the PAT to a runbook-scoped sensitive project variable, after which
+the per-run prompt and GitHub secret input can be removed together.
+The server upgrade is an operational follow-up; switching to v4 must be
+validated in a PR before removing this bridge.
+
 ---
 
 ## Consequences
@@ -62,7 +99,24 @@ CodeRabbit remains active and unchanged.
 - Greptile's learning model (thumbs-up/down feedback) is not replicated in Octopus out of
   the box; custom rules in `.octopus/rules.md` carry this function instead.
 - If the AI server is unavailable, Octopus reviews will not fire. Octopus is not a
-  required CI gate, so PRs can still merge — this is intentional.
+  branch-protection context, but its missing review blocks merge under the repository
+  workflow until the service recovers or the human owner documents a one-time exception.
+
+### Bootstrap correction
+
+The initial workflow listened only for pull requests targeting `main`, while the
+three-tier governance model routes every agent-authored pull request to `dev`. The
+workflow itself therefore could not receive an Octopus review before correcting its
+base-branch filter. The human owner explicitly authorized this one-time bootstrap
+exception on 2026-07-28: the correction may merge after CI, CodeRabbit, manual diff
+review, and zero unresolved threads. After that merge, all open product pull requests
+must be re-triggered and pass Octopus before merging.
+
+`pull_request_target` workflows must exist on the default branch before GitHub
+will dispatch them. The same bootstrap exception therefore covers promotion of
+this reviewed workflow through `dev` and `staging` to `main`. No product PR may
+use the exception. Once the workflow is on `main`, every product and promotion
+PR must be re-triggered and pass the trusted Octopus gate.
 
 ### Rollback Path
 Greptile can be reinstated by:
