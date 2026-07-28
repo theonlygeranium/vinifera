@@ -7,13 +7,12 @@
 A web-based platform for wine club operations — member management, shipment processing, AI churn prediction, and a passwordless member portal — designed for small to mid-size wineries.
 
 [![Live Site](https://img.shields.io/badge/🌐_Live_Site-vinifera.edstratumlabs.ai-6B1E30?style=for-the-badge)](https://vinifera.edstratumlabs.ai/)
-[![Production Build](https://img.shields.io/badge/Production_Build-0.5.0_Phase_5-C9993A?style=for-the-badge)](./docs/build-specs/phase-5-scale-integrations.md)
+[![Production Build](https://img.shields.io/badge/Production_Build-0.6.0_v0.6-C9993A?style=for-the-badge)](./docs/architecture.md)
 [![Investor's Guide](https://img.shields.io/badge/📖_Investor's_Guide-Full_Story-3D0E1B?style=for-the-badge)](https://vinifera.edstratumlabs.ai/guide/)
 
 [![WCAG 2.1 AA](https://img.shields.io/badge/WCAG_2.1_AA-✓_0_Violations-success?style=flat-square)](https://vinifera.edstratumlabs.ai/)
 [![Cloudflare Workers](https://img.shields.io/badge/Runtime-Cloudflare_Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![Node](https://img.shields.io/badge/Node-22-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/theonlygeranium/vinifera?utm_source=oss&utm_medium=github&utm_campaign=theonlygeranium%2Fvinifera&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://github.com/theonlygeranium/vinifera/pulls?q=is%3Apr+reviewed-by%3Acoderabbitai%5Bbot%5D)
 
 </div>
 
@@ -38,24 +37,6 @@ custom domain continues to serve the verified static Cloudflare Pages rollback
 baseline; it is not evidence that the Worker application is live.
 
 The name comes from *Vitis vinifera*, the Latin species name for the primary wine grape vine. It signals domain knowledge to winery operators and reads as a premium brand word — without the overused "wine" prefix that defines most platform names in this market.
-
-## Project status
-
-v0.5.0: architecturally complete and operationally dormant while all 20
-activation gates remain `pending`. BS-05 records partial local prerequisites
-for Gates 1, 7, and 15 without promoting their composite statuses. See
-[`CONTINUITY_BRIEF.md`](./CONTINUITY_BRIEF.md).
-
-## Agent workflow
-
-All agent changes use pull requests, CI, and Greptile review as documented in
-[`docs/agent-workflow.md`](./docs/agent-workflow.md).
-
-## Architecture
-
-The current Pages rollback baseline, Worker/Supabase topology, tenant model,
-provider guards, and 20 activation gates are documented in
-[`docs/architecture.md`](./docs/architecture.md).
 
 ## Current live baseline
 
@@ -94,42 +75,14 @@ The prototype demonstrates thirteen functional areas across an administration po
 | **Interface** | React + Tailwind CSS | Industry standard for fast, responsive web apps |
 | **Database** | Supabase (PostgreSQL) | Row-Level Security enforces tenant isolation at the database layer |
 | **Payments** | Stripe | Handles decline logic, card updates, fraud detection — Vinifera stores no card data |
-| **Email** | Resend | DKKM/SPF-authenticated transactional delivery |
+| **Email** | Resend | DKIM/SPF-authenticated transactional delivery |
 | **Runtime** | Cloudflare Workers + Static Assets | Same-origin React application and Express API |
 | **Shipping** | EasyPost adapter | Address verification, rates, adult-signature labels, and tracking; test credentials activate it later |
 | **Compliance** | ShipCompliant OAuth adapter | Every label requires an exact compliant decision; missing credentials and unknown responses fail closed |
 | **Scale integrations** | Server-side provider adapters + encrypted credential envelopes | Winery credentials never enter browser-readable configuration |
 | **Mobile** | Capacitor 8 | One React source with native secure storage, push, camera, network, and deep-link adapters |
-| **Observability** | Structured Worker logs + optional Sentry | Correlated safe errors are logged locally; Sentry capture activates only when its server-side DSN secret is configured |
+| **Observability** | Cloudflare Worker logs | Runtime failures are visible at the hosting layer; external APM remains a later activation decision |
 | **Auth** | Supabase Auth | JWT sessions, magic-link for members, password/OAuth for staff |
-
-## Local Development
-
-The local workflow is designed to start Supabase, reset and seed PostgreSQL,
-create loopback-only Auth users, build the application, start the Worker and
-Vite, and run authenticated tenant-isolation smoke checks:
-
-```bash
-npm ci
-npm run dev
-```
-
-Docker Desktop or another reachable Docker-compatible runtime is required.
-The integrated application uses `http://127.0.0.1:8788/app/`; Vite hot reload
-uses `http://127.0.0.1:5173/app/`. The command derives ephemeral Supabase keys
-from the local CLI and removes its temporary Worker environment file on exit.
-It never reads hosted or provider credentials, and it fails closed rather than
-selecting another Vite port when 5173 is occupied.
-
-BS-05 verified the complete integrated workflow with a native 22-migration
-Supabase reset and seed, local Auth, authenticated Worker requests, populated
-React member views, desktop and 375px axe-core checks, and a 375px touch-target
-audit. The same chain passes the credential-independent double-seed verifier.
-The clean-replay corrections are documented in
-[the local development notes](./docs/build-specs/local-dev-notes.md); the
-[quickstart](./docs/local-dev-quickstart.md) lists the synthetic test users and
-local-only cautions. Use `npm run dev:frontend` only for frontend work that
-does not need the API.
 
 ## Build & Deploy
 
@@ -139,6 +92,12 @@ npm ci
 
 # Build for production (outputs to dist/)
 npm run build
+
+# Visual development server
+npm run dev
+
+# Full Worker + API development server
+npm run dev:worker
 
 # Full local verification
 npm run check
@@ -197,7 +156,6 @@ serve the React application instead.
 | Phase 3 retention | Lease-owned activation-safe email, rules scoring, immutable cancel-flow, tenant-scoped commands, snapshot-keyset loyalty, brand-local jobs, and 199 database assertions pass locally |
 | Phase 4 intelligence | Current-stack architecture passes 158 database assertions: brand-local real-fact analytics, source-qualified and actor-audited ML lifecycle, all-brand benchmark authorization, and fail-closed compliance/label binding; hosted real-data, model, cohort, and provider evidence remain gated |
 | Phase 5 scale | Version 0.5.0 source architecture is complete for connectors, multi-brand isolation, white label, and native shells; the Phase 5 QA report records architecture evidence and deferred hosted checks |
-| API resilience | Centralized safe error capture and native per-route/per-tenant rate limiting pass focused, unit, Worker dry-run, and browser/axe regression gates; Sentry remains secret-gated |
 | Release controls | Read-only readiness, Stripe test-catalog bootstrap, staging target guards, native hosted pgTAP, production Worker/Pages rollback control, and signed internal-store workflows are source-complete; credential-bound execution remains gated |
 | Provider activation | Pending hosted Supabase, Stripe/provider test and live accounts, custom-domain DNS/certificates, APNs/FCM, signing, physical devices, and store tracks |
 | Public deployment | Pages continues serving the verified prototype until the Worker activation runbooks pass |
@@ -233,7 +191,7 @@ vinifera/
 │   ├── generate-mobile-assets.mjs # Deterministic iOS/Android branded asset generator
 │   └── prepare-capacitor.mjs # Native entrypoint and restrictive CSP preparation
 ├── docs/                    # Architecture, setup, ADRs, runbooks
-├─  .github/workflows/       # CI/CD pipeline
+├── .github/workflows/       # CI/CD pipeline
 ├── AGENTS.md                # AI agent collaboration guide
 ├── CONTINUITY_BRIEF.md      # Drop-in context for new agent sessions
 ├── CHANGELOG.md             # Versioned change log
