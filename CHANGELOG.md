@@ -3,6 +3,9 @@
 ## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
 
 ### Fixed
+- Branch history: Reconciled the existing `staging` ancestry into `dev` before
+  promotion so the three-tier branches can advance through reviewable merge
+  commits without force-pushes or discarded governance history.
 - `.github/scripts/octopus-runbook.mjs` and
   `tests/scripts/octopus-runbook.test.mjs`: Corrected the run-creation field
   to `RunbookSnapshotId` and ensured a failed timeout-cancellation request
