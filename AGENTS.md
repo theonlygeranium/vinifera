@@ -41,9 +41,9 @@ The public custom domain continues to serve the verified static Cloudflare Pages
 5. **Update CHANGELOG.md on every commit.** No exceptions.
 6. **Preserve WCAG compliance.** All pages must pass axe-core with 0 WCAG 2.1 AA violations. Run the full QA suite before pushing.
 7. **Test on mobile.** Every visual change must be verified at 375px viewport width. Touch targets must meet 44×44px (WCAG 2.5.5).
-8. **Own every PR through completion.** Opening a PR is not completion. Use an available wait or monitoring mechanism until required CI, Greptile, and CodeRabbit pass and zero unresolved review threads remain; disposition every finding, retest and re-review after each push, and merge only with explicit human authorization. Follow the complete loop in `docs/agent-workflow.md`.
+8. **Own every PR through completion.** Opening a PR is not completion. Use an available wait or monitoring mechanism until required CI, Octopus, and CodeRabbit pass and zero unresolved review threads remain; disposition every finding, retest and re-review after each push, and merge only with explicit human authorization. Follow the complete loop in `docs/agent-workflow.md`.
 9. **Never activate a hosted gate without human authorization.** The platform is credential-gated by design. Do not attempt to connect real Supabase, Stripe, EasyPost, Resend, or DNS credentials, or to flip any activation gate to `complete`, without an explicit human instruction to do so.
-10. **Respect tenant isolation.** Every database query that touches member, shipment, billing, or integration data must be scoped to `brand_id`. Missing `brand_id` predicates are a critical defect. Greptile is trained to flag these — always resolve them before merging.
+10. **Respect tenant isolation.** Every database query that touches member, shipment, billing, or integration data must be scoped to `brand_id`. Missing `brand_id` predicates are a critical defect. Octopus is configured to flag these — always resolve them before merging.
 
 ---
 
@@ -78,7 +78,7 @@ vinifera/
 │   ├── build-specs/        # BS-01 through BS-06 specs and dispatch guide
 │   └── agent-workflow.md   # Branching, PR, and review loop rules
 ├── .github/workflows/      # 8 CI/CD workflows (see Section 5)
-├── .greptile/              # Greptile architectural boundary rules
+├── .octopus/               # Octopus architectural boundary rules
 ├── AGENTS.md               # YOU ARE HERE — agent collaboration guide
 ├── CONTINUITY_BRIEF.md     # Drop-in context for new agent sessions
 ├── README.md               # Project overview
@@ -100,7 +100,7 @@ vinifera/
 | `.env.example` | Any agent | Real secrets NEVER go here |
 | `docs/` | Any agent | Must stay in sync with actual architecture |
 | `docs/decisions/` | Any agent | Add an ADR for every architectural or security decision |
-| `.greptile/` | Any agent via PR | Changes to architectural rules require human review before merge |
+| `.octopus/` | Any agent via PR | Changes to architectural rules require human review before merge |
 | `src/client/` | Any agent | Verify WCAG + mobile after any visual change |
 | `server/routes/` | Any agent | Extraction-only unless a new domain is being added — no logic changes during refactors |
 | `server/services/` | Any agent | `brand_id` scoping is mandatory on every data-access function |
@@ -255,15 +255,15 @@ When a release is verified stable:
 
 ---
 
-## 8. Greptile and CodeRabbit Review Protocol
+## 8. Octopus and CodeRabbit Review Protocol
 
-Every PR is reviewed by both **Greptile** (architectural boundary enforcement) and **CodeRabbit** (code quality and security). Both must reach a passing state before merge.
+Every PR is reviewed by both **Octopus** (full-codebase RAG review with architectural boundary enforcement) and **CodeRabbit** (code quality and security). Both must reach a passing state before merge.
 
-### Greptile training guidance
+### Octopus configuration guidance
 
-Greptile is in its active learning period. Consistent feedback shapes its signal quality:
+Octopus is self-hosted on the AI server. Configuration lives in `.octopus/`. When Octopus flags a finding:
 
-| Greptile flags | Your response | Reason |
+| Octopus flags | Your response | Reason |
 |----------------|--------------|--------|
 | Missing `brand_id` scoping on a data function | 👍 | Correct — fix before merge |
 | HTTP-only cookie auth as "insecure" | 👎 | Intentional architecture — see `docs/decisions/` |
@@ -284,7 +284,7 @@ CodeRabbit performs line-level code review. All findings must be dispositioned (
 |-------|----------|-------------|
 | **Writer Agent** | Writer.com | Architecture, planning, documentation, repo operations, analysis, PR composition |
 | **Codex** | OpenAI Codex CLI | Code implementation, test execution, file manipulation, local verification |
-| **Greptile** | greptile.com | Automated architectural boundary review on every PR |
+| **Octopus** | self-hosted (octopus-review.ai) | Full-codebase RAG-powered PR review on every PR |
 | **CodeRabbit** | coderabbit.ai | Automated code quality and security review on every PR |
 
 **Coordination model:** Writer Agent plans and documents → Codex implements and tests → both automated reviewers gate merge → human owner merges. One agent per logical unit of work. No agent merges its own PRs without explicit human authorization.
