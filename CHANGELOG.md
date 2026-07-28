@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **Governance amendment (Options 1+2+4):** `dev → staging` promotion is now
+  automated via `promote-dev-to-staging.yml`. The workflow fires on every push
+  to `dev`, runs a double Schubert health probe (pre-flight + pre-merge), waits
+  for all CI checks to pass, then squash-merges. All gate failures leave the PR
+  open for human inspection.
+- `staging → main` promotion remains exclusively human-initiated.
+- `AGENTS.md` Sections 7 and 9 updated to reflect amended promotion rules.
+- New ADR: `docs/decisions/2026-07-28-automated-dev-staging-promotion.md`.
+
 ## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
 
 ### Fixed
