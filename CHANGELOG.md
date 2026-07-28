@@ -204,6 +204,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- **What changed:** Made the restored dark outer keyboard-focus ring override
+  component-specific button shadows, with a source regression protecting that
+  cascade behavior. **Why:** Otherwise the white inner outline could remain
+  while the contrasting dark ring was overridden on primary navigation and
+  pricing buttons, making focus unreliable on white surfaces. **Deployment
+  impact:** Static focus styling and its regression test only. **Verification:**
+  Run the focused focus-indicator test, `npm run check`, and keyboard-tab
+  through the landing-page primary controls.
 - **What changed:** Restored the marketing landing page's three-pixel
   `:focus-visible` indicator and desktop navigation's 44px minimum target
   heights after the canonical-pricing integration replaced `index.html` with
