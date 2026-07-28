@@ -140,8 +140,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   responsive two-column desktop grid and adding end-to-end tier coverage.
   **Why:** Marketing omitted Cellar and
   Reserve while advertising non-canonical Pro and Estate prices, contradicting
-  signup and billing; the existing trial-versus-sales CTA behavior remains
-  unchanged. **Deployment impact:** Static marketing content and pricing-card
+  signup and billing; the original entry-tier trial and high-touch sales CTA
+  behavior remains unchanged. **Deployment impact:** Static marketing content and pricing-card
   layout only; billing catalog, checkout behavior, authentication,
   provider activation, routing, and headers are unchanged. **Verification:**
   Run the focused Phase 1 pricing test, `npm run check`, `npm run qa:e2e`, and
