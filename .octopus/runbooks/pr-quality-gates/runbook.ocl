@@ -100,6 +100,7 @@ print(data["base"]["sha"])
                         echo "WORK_DIR=$WORK_DIR"
                         echo "HEAD_SHA=$HEAD_SHA"
                         echo "BASE_SHA=$BASE_SHA"
+                        echo "MERGE_BASE_SHA=$MERGE_BASE_SHA"
                     } > "$STATE_FILE"
                     echo "Checkout complete: $WORK_DIR"
                     EOT

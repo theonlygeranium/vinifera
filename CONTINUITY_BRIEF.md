@@ -107,11 +107,14 @@ store activation checks in the phase QA reports pass.
 
 ## 2026-07-28 comprehensive UI testing mission
 
-The complete handoff is in
-`docs/build-specs/ui-test-report-2026-07-28.md`. The mission opened manifest PR
-#27, fifteen isolated defect PRs #28–#42, and report PR #43, all against `dev`.
-PRs #27–#28, #31–#34, and #36–#43 were squash-merged. PRs #30 and #35 were
-closed after direct resolution commits.
+The original UI evidence is in
+`docs/build-specs/ui-test-report-2026-07-28.md`. The authoritative cross-agent
+attribution, merge audit, repair chronology, verification, waiver, blockers,
+and next-step handoff is
+`docs/build-specs/merge-cleanup-regression-audit-2026-07-28.md`. The mission
+opened manifest PR #27, fifteen isolated defect PRs #28–#42, and report PR #43,
+all against `dev`. PRs #27–#28, #31–#34, and #36–#43 were squash-merged. PRs
+#30 and #35 were closed after direct resolution commits.
 
 - Baseline `dev` at `4d0ba11` passed 448/448 checks and 145/145 Playwright
   tests.
@@ -159,6 +162,9 @@ closed after direct resolution commits.
   `staging`. Promotion automation additionally requests an explicit review and
   accepts only the exact `Review completed` status description, because
   skipped and rate-limited reviews otherwise publish misleading success states.
+  The human owner waived another final CodeRabbit review for PR #51 only
+  because the account was rate-limited. The waiver does not alter future policy
+  or waive CI, Codex, Octopus, staging, or production gates.
 - Remote branch cleanup was initially incomplete: the merged governance and
   WCAG branches remained after the report claimed only `main`, `dev`, and
   `staging`. The audit verified PRs #49/#50 were merged and then deleted both
@@ -167,6 +173,12 @@ closed after direct resolution commits.
 - Automated `dev → staging` promotion remains fail-closed because the isolated
   staging Supabase target and `STAGING_SUPABASE_URL` /
   `STAGING_SUPABASE_ANON_KEY` Actions secrets do not yet exist.
+- GitHub Actions run `30402814978` passed the full and Android lanes plus the
+  required aggregate for PR #51 head `97ceed6`. The subsequent exact-head Codex
+  review found that checkout did not persist `MERGE_BASE_SHA` for the isolated
+  Rules 4–10 Octopus action; the follow-up repair persists it in task-scoped
+  state. Fresh exact-head CI and Codex review are required. Octopus has not run,
+  so PR #51 is not yet merge-ready.
 - Open product/API decisions include the retention attempt list, a staff
   loyalty Redeem action, Team roster data, the Owner invitation security
   contract, the single-brand switcher, mobile dashboard spacing, CSV browser

@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Fixed
+- `.octopus/runbooks/pr-quality-gates/runbook.ocl` and its contract test:
+  Persist the resolved merge-base SHA in task-scoped state before the separate
+  Rules 4–10 action sources it. Without this transfer, strict shell mode
+  stopped the mandatory change-aware Octopus gate before any rule executed.
 - `index.html` and `tests/e2e/phase1.spec.ts`: Restored all six marketing
   free-trial links to `/app/signup` while retaining the four canonical pricing
   tiers, and restored the staff skip-link regression assertion. The prior
@@ -100,6 +104,11 @@
   readiness before marketing trial CTAs expose staff signup.
 
 ### Changed
+- `docs/build-specs/merge-cleanup-regression-audit-2026-07-28.md`,
+  `docs/build-specs/README.md`, and `CONTINUITY_BRIEF.md`: Added an
+  authoritative cross-agent handoff identifying each actor, authority,
+  strategist-report correction, repair group, evidence boundary, one-PR
+  CodeRabbit waiver, active blockers, and recommended release sequence.
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is
   automated via `promote-dev-to-staging.yml`. The workflow opens or updates a
   promotion PR, probes authenticated staging Supabase REST availability twice,

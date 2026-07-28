@@ -1320,6 +1320,9 @@ describe("Octopus workflow trust boundary", () => {
       'git diff --no-ext-diff "$MERGE_BASE_SHA" "$HEAD_SHA"',
     );
     expect(qualityRunbook).toContain(
+      'echo "MERGE_BASE_SHA=$MERGE_BASE_SHA"',
+    );
+    expect(qualityRunbook).toContain(
       'git rev-list --reverse "$MERGE_BASE_SHA..$HEAD_SHA"',
     );
     expect(qualityRunbook).toContain(
