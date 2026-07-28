@@ -7,7 +7,7 @@
 A web-based platform for wine club operations — member management, shipment processing, AI churn prediction, and a passwordless member portal — designed for small to mid-size wineries.
 
 [![Live Site](https://img.shields.io/badge/🌐_Live_Site-vinifera.edstratumlabs.ai-6B1E30?style=for-the-badge)](https://vinifera.edstratumlabs.ai/)
-[![Production Build](https://img.shields.io/badge/Production_Build-0.6.0_v0.6-C9993A?style=for-the-badge)](./docs/architecture.md)
+[![Production Build](https://img.shields.io/badge/Production_Build-0.5.0_v0.5-C9993A?style=for-the-badge)](./docs/architecture.md)
 [![Investor's Guide](https://img.shields.io/badge/📖_Investor's_Guide-Full_Story-3D0E1B?style=for-the-badge)](https://vinifera.edstratumlabs.ai/guide/)
 
 [![WCAG 2.1 AA](https://img.shields.io/badge/WCAG_2.1_AA-✓_0_Violations-success?style=flat-square)](https://vinifera.edstratumlabs.ai/)
@@ -81,7 +81,7 @@ The prototype demonstrates thirteen functional areas across an administration po
 | **Compliance** | ShipCompliant OAuth adapter | Every label requires an exact compliant decision; missing credentials and unknown responses fail closed |
 | **Scale integrations** | Server-side provider adapters + encrypted credential envelopes | Winery credentials never enter browser-readable configuration |
 | **Mobile** | Capacitor 8 | One React source with native secure storage, push, camera, network, and deep-link adapters |
-| **Observability** | Cloudflare Worker logs | Runtime failures are visible at the hosting layer; external APM remains a later activation decision |
+| **Observability** | Sentry (integrated, secret-gated) + Cloudflare Worker logs | Sentry captures Worker errors when `SENTRY_DSN` is configured; PII, request bodies, and query data are excluded |
 | **Auth** | Supabase Auth | JWT sessions, magic-link for members, password/OAuth for staff |
 
 ## Build & Deploy
@@ -93,11 +93,11 @@ npm ci
 # Build for production (outputs to dist/)
 npm run build
 
-# Visual development server
+# Full local stack (Supabase + Worker + Vite; requires Docker)
 npm run dev
 
-# Full Worker + API development server
-npm run dev:worker
+# Frontend-only visual iteration (no Docker required)
+npm run dev:frontend
 
 # Full local verification
 npm run check
@@ -152,7 +152,7 @@ serve the React application instead.
 |--------|--------|
 | Static marketing/guide baseline | Previously verified for accessibility and responsive layout; rerun as a regression gate |
 | Phase 1 foundation | Architecture, API, browser, Worker, and embedded PostgreSQL gates pass |
-| Phase 2 core club | 231 database assertions plus service and browser regression gates pass locally |
+| Phase 2 core club | 250 database assertions plus service and browser regression gates pass locally |
 | Phase 3 retention | Lease-owned activation-safe email, rules scoring, immutable cancel-flow, tenant-scoped commands, snapshot-keyset loyalty, brand-local jobs, and 199 database assertions pass locally |
 | Phase 4 intelligence | Current-stack architecture passes 158 database assertions: brand-local real-fact analytics, source-qualified and actor-audited ML lifecycle, all-brand benchmark authorization, and fail-closed compliance/label binding; hosted real-data, model, cohort, and provider evidence remain gated |
 | Phase 5 scale | Version 0.5.0 source architecture is complete for connectors, multi-brand isolation, white label, and native shells; the Phase 5 QA report records architecture evidence and deferred hosted checks |
