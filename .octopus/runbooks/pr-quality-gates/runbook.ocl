@@ -401,10 +401,16 @@ def query_models(source):
                     prefix,
                 )
             variable = variable_match.group(1) if variable_match else None
-            model_parts = [segment]
-            model_end = end
-            tracked_variables = {variable} if variable else set()
+            candidates = []
             if variable:
+                paths = {
+                    variable: {
+                        "parts": [segment],
+                        "end": end,
+                        "has_child": False,
+                    }
+                }
+                terminals = []
                 base_depth = brace_depth(masked, from_call.start())
                 block_end = enclosing_block_end(masked, from_call.start())
                 for later_start, later_end in spans:
@@ -418,7 +424,7 @@ def query_models(source):
                     later_masked = masked[later_start:later_end]
                     direct_use = None
                     receiver = None
-                    for tracked in tracked_variables:
+                    for tracked in list(paths):
                         candidate = re.search(
                             r"^\s*(?:(?:const|let|var)\s+"
                             r"([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*"
@@ -436,22 +442,58 @@ def query_models(source):
                             break
                     if direct_use is None or receiver is None:
                         continue
-                    model_parts.append(source[later_start:later_end])
-                    model_end = later_end
+                    parent = paths[receiver]
+                    statement = source[later_start:later_end]
                     assignment = direct_use.group(1) or direct_use.group(2)
                     if assignment:
-                        tracked_variables.add(assignment)
-            model = "\n".join(model_parts)
-            if not re.search(
-                r"\.(?:select|update|delete|insert|upsert)\s*\(",
-                mask_non_code(model),
-            ):
-                continue
-            start_line = source.count("\n", 0, segment_start) + 1
-            end_line = source.count("\n", 0, model_end) + 1
-            models.append(
-                (start_line, end_line, model, receiver_match is not None)
-            )
+                        if assignment == receiver:
+                            parent["parts"].append(statement)
+                            parent["end"] = later_end
+                        else:
+                            parent["has_child"] = True
+                            paths[assignment] = {
+                                "parts": [*parent["parts"], statement],
+                                "end": later_end,
+                                "has_child": False,
+                            }
+                    else:
+                        parent["has_child"] = True
+                        terminals.append(
+                            {
+                                "parts": [*parent["parts"], statement],
+                                "end": later_end,
+                                "has_child": False,
+                            }
+                        )
+                candidates = [
+                    *terminals,
+                    *(
+                        path
+                        for path in paths.values()
+                        if not path["has_child"]
+                    ),
+                ]
+            else:
+                candidates = [
+                    {"parts": [segment], "end": end, "has_child": False}
+                ]
+            for candidate in candidates:
+                model = "\n".join(candidate["parts"])
+                if not re.search(
+                    r"\.(?:select|update|delete|insert|upsert)\s*\(",
+                    mask_non_code(model),
+                ):
+                    continue
+                start_line = source.count("\n", 0, segment_start) + 1
+                end_line = source.count("\n", 0, candidate["end"]) + 1
+                models.append(
+                    (
+                        start_line,
+                        end_line,
+                        model,
+                        receiver_match is not None,
+                    )
+                )
     return models
 
 def query_fingerprint(model):

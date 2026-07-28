@@ -751,6 +751,41 @@ describe("Octopus runbook bridge", () => {
     expect(result.status, result.stdout + result.stderr).toBe(0);
   });
 
+  it("evaluates forked builder descendants as independent query chains", () => {
+    const headSource = [
+      "export async function mixed(admin, brandId) {",
+      '  const table = admin.from("members");',
+      '  const scoped = table.select("*").eq("brand_id", brandId);',
+      "  const unsafe = table.delete();",
+      "  return { scoped, unsafe };",
+      "}",
+      "",
+    ].join("\n");
+    const result = runRule8BaseHeadFixture({
+      baseSource: null,
+      headSource,
+      diff: [
+        "diff --git a/server/services/members.ts b/server/services/members.ts",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/server/services/members.ts",
+        "@@ -0,0 +1,6 @@",
+        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+        "--- a/CHANGELOG.md",
+        "+++ b/CHANGELOG.md",
+        "@@ -1 +1,2 @@",
+        "+security regression fixture",
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      "FAIL Rule 8: server/services/members.ts:2",
+    );
+    expect(result.stdout).toContain("table.delete()");
+  });
+
   it("does not borrow a tenant predicate from an adjacent function", () => {
     const headSource = [
       "export async function unsafe(admin) {",
