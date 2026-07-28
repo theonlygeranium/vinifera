@@ -255,6 +255,9 @@ describe("Octopus workflow trust boundary", () => {
     );
 
     expect(workflow).toContain("pull_request_target:");
+    expect(workflow).toContain(
+      "types: [opened, synchronize, reopened, ready_for_review, edited]",
+    );
     expect(workflow).not.toContain("\n  pull_request:");
     expect(workflow).toContain(
       "ref: ${{ github.event.repository.default_branch }}",

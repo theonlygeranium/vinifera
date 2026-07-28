@@ -21,6 +21,8 @@
 - `.github/workflows/octopus-pr-quality-gates.yml`: Made rejected source
   validation produce an explicit failed quality-gate job rather than a skipped
   reviewer state.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Added the `edited` PR
+  activity so base-branch retargeting always receives a fresh Octopus review.
 - `.github/workflows/ci.yml`: Retained post-merge quality validation on `main`
   while explicitly restricting staging migration and Worker deployment jobs
   to `refs/heads/staging`.

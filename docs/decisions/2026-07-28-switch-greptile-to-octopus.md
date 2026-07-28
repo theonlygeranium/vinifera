@@ -46,7 +46,8 @@ CodeRabbit remains active and unchanged.
 
 Octopus is a mandatory workflow review gate for every pull request. The GitHub
 workflow listens to `opened`, `synchronize`, `reopened`, and `ready_for_review`
-activity on PRs targeting `dev`, `staging`, or `main` and invokes the self-hosted
+activity, plus `edited` retargeting, on PRs targeting `dev`, `staging`, or
+`main` and invokes the self-hosted
 `PR Quality Gates` runbook in the `Development` environment. It is not a GitHub
 branch-protection status check because the self-hosted service can be unavailable;
 an unavailable or missing Octopus review still blocks merge under `AGENTS.md`.
