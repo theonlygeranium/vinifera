@@ -59,7 +59,9 @@ describe("Octopus runbook bridge", () => {
     expect(qualityRunbook).toContain(
       "Rules 4-10: Change-Aware Security and Tenancy Guards",
     );
-    expect(qualityRunbook).toContain('failures.append(("Rule 8", location');
+    expect(qualityRunbook).toContain(
+      'failures.append(("Rule 8", f"{file_path}:{start_line}"',
+    );
     expect(qualityRunbook).toContain("application/vnd.github.diff");
     expect(qualityRunbook).toContain(
       'file_path.startswith("server/services/")',
@@ -177,6 +179,161 @@ describe("Octopus runbook bridge", () => {
       expect(result.status).toBe(1);
       expect(result.stdout).toContain(
         "FAIL Rule 8: server/services/members.ts:2",
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a query whose tenant predicate is deleted", () => {
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const embeddedChecker = qualityRunbook.match(
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+    )?.[1];
+    expect(embeddedChecker).toBeTruthy();
+    const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+    const checker = embeddedChecker
+      .split("\n")
+      .map((line) => line.slice(Math.min(indentation, line.length)))
+      .join("\n");
+
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-delete-"));
+    try {
+      const serviceDirectory = join(fixture, "server", "services");
+      const commitDiffDirectory = join(fixture, "commit-diffs");
+      mkdirSync(serviceDirectory, { recursive: true });
+      mkdirSync(commitDiffDirectory);
+      writeFileSync(
+        join(serviceDirectory, "members.ts"),
+        [
+          "export async function unsafe(admin) {",
+          '  return admin.from("members")',
+          '    .select("*");',
+          "}",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "--- a/server/services/members.ts",
+          "+++ b/server/services/members.ts",
+          "@@ -1,5 +1,4 @@",
+          " export async function unsafe(admin) {",
+          '   return admin.from("members")',
+          '     .select("*");',
+          '-    .eq("brand_id", brandId);',
+          " }",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "--- a/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "@@ -1 +1,2 @@",
+          "+security regression fixture",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(commitDiffDirectory, "fixture.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync(
+        "python3",
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain(
+        "FAIL Rule 8: server/services/members.ts:2",
+      );
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("binds tenant predicates to the individual changed query", () => {
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const embeddedChecker = qualityRunbook.match(
+      /python3 - "\$WORK_DIR" "\$WORK_DIR\/pr\.diff" "\$WORK_DIR\/commit-diffs" <<'PY'\n([\s\S]*?)\n\s*PY/,
+    )?.[1];
+    expect(embeddedChecker).toBeTruthy();
+    const indentation = embeddedChecker.match(/^(\s*)\S/m)?.[1].length ?? 0;
+    const checker = embeddedChecker
+      .split("\n")
+      .map((line) => line.slice(Math.min(indentation, line.length)))
+      .join("\n");
+
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-bind-"));
+    try {
+      const serviceDirectory = join(fixture, "server", "services");
+      const commitDiffDirectory = join(fixture, "commit-diffs");
+      mkdirSync(serviceDirectory, { recursive: true });
+      mkdirSync(commitDiffDirectory);
+      writeFileSync(
+        join(serviceDirectory, "members.ts"),
+        [
+          "export async function mixed(admin, brandId) {",
+          '  const scoped = await admin.from("members").select("*").eq("brand_id", brandId);',
+          '  const unsafe = await admin.from("shipments").select("*");',
+          "  return { scoped, unsafe };",
+          "}",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "--- a/server/services/members.ts",
+          "+++ b/server/services/members.ts",
+          "@@ -1,3 +1,5 @@",
+          " export async function mixed(admin, brandId) {",
+          '   const scoped = await admin.from("members").select("*").eq("brand_id", brandId);',
+          '+  const unsafe = await admin.from("shipments").select("*");',
+          "+  return { scoped, unsafe };",
+          "+}",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "--- a/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "@@ -1 +1,2 @@",
+          "+security regression fixture",
+          "",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(commitDiffDirectory, "fixture.diff"),
+        [
+          "diff --git a/server/services/members.ts b/server/services/members.ts",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync(
+        "python3",
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain(
+        "FAIL Rule 8: server/services/members.ts:3",
       );
     } finally {
       rmSync(fixture, { recursive: true, force: true });

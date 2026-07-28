@@ -196,6 +196,7 @@ diff_lines = pathlib.Path(sys.argv[2]).read_text(
 ).splitlines()
 commit_diff_dir = pathlib.Path(sys.argv[3]).resolve()
 added = []
+affected_new_lines = {}
 changed_files = set()
 path = None
 new_line = None
@@ -216,8 +217,10 @@ for line in diff_lines:
         continue
     if line.startswith("+") and not line.startswith("+++"):
         added.append((path, new_line, line[1:]))
+        affected_new_lines.setdefault(path, set()).add(new_line)
         new_line += 1
     elif line.startswith("-") and not line.startswith("---"):
+        affected_new_lines.setdefault(path, set()).add(max(1, new_line))
         continue
     elif not line.startswith("\\"):
         new_line += 1
@@ -295,6 +298,54 @@ def has_tenant_predicate(source):
         )
     )
 
+def tenant_query_segments(file_path):
+    candidate = (work_dir / file_path).resolve()
+    if work_dir not in candidate.parents or not candidate.is_file():
+        return []
+    source = candidate.read_text(encoding="utf-8", errors="replace")
+    masked = mask_non_code(source)
+    from_calls = list(re.finditer(r"\.from\s*\(", masked))
+    segments = []
+    for index, from_call in enumerate(from_calls):
+        next_from = (
+            from_calls[index + 1].start()
+            if index + 1 < len(from_calls)
+            else len(source)
+        )
+        semicolon = masked.find(";", from_call.end(), next_from)
+        end = semicolon + 1 if semicolon >= 0 else next_from
+        segment = source[from_call.start():end]
+        masked_segment = masked[from_call.start():end]
+        if not re.search(
+            r"\.(?:select|update|delete|insert|upsert)\s*\(",
+            masked_segment,
+        ):
+            continue
+        start_line = source.count("\n", 0, from_call.start()) + 1
+        end_line = source.count("\n", 0, end) + 1
+        segments.append((start_line, end_line, segment))
+    return segments
+
+for file_path, affected_lines in affected_new_lines.items():
+    if not file_path.startswith("server/services/") or not file_path.endswith(".ts"):
+        continue
+    for start_line, end_line, segment in tenant_query_segments(file_path):
+        if not any(start_line - 2 <= line <= end_line + 2 for line in affected_lines):
+            continue
+        if not has_tenant_predicate(segment):
+            excerpt = next(
+                (
+                    line.strip()
+                    for line in segment.splitlines()
+                    if re.search(
+                        r"\.(?:select|update|delete|insert|upsert)\s*\(",
+                        mask_non_code(line),
+                    )
+                ),
+                segment.strip(),
+            )
+            failures.append(("Rule 8", f"{file_path}:{start_line}", excerpt))
+
 for file_path, line_number, text in added:
     if not file_path.startswith("server/") or not file_path.endswith(".ts"):
         continue
@@ -338,12 +389,6 @@ for file_path, line_number, text in added:
     if re.search(r"(?:paymentIntents\.create|labels\.create|emails\.send)", masked_text):
         if not re.search(r"\bidempotency(?:Key)?\b", masked_window, re.IGNORECASE):
             failures.append(("Rule 7", location, text))
-
-    if file_path.startswith("server/services/") and re.search(
-        r"\.(?:select|update|delete|insert|upsert)\s*\(", masked_text
-    ):
-        if not has_tenant_predicate(window):
-            failures.append(("Rule 8", location, text))
 
     if re.search(r":[ \t]*any\b|\bas[ \t]+any\b", masked_text):
         failures.append(("Rule 10", location, text))

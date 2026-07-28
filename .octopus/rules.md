@@ -90,7 +90,9 @@ argument or with a newly generated value on each retry.
 ## 8. Tenant isolation on every service function
 
 **Enforces:** Every service function that queries the database must constrain
-the operation by `brand_id` or `organization_id`.
+the operation by `brand_id` or `organization_id`. The PR gate re-evaluates
+query chains touched by additions or deletions and requires the predicate on
+the same individual chain as the selected or mutated operation.
 
 **Why it matters:** The server uses privileged database credentials in some
 paths, so explicit service-layer scoping is required as defense in depth for

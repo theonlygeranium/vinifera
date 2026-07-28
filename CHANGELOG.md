@@ -155,6 +155,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **What changed:** Octopus Rule 8 now re-evaluates tenant query chains touched
+  by additions or deletions and binds each `brand_id`/`organization_id`
+  predicate to its individual database chain. The Rule 8 documentation now
+  states those change-aware and per-chain semantics, and regression fixtures
+  cover deleted tenant predicates and adjacent scoped/unscoped queries.
+  **Why:** A deleted predicate was invisible to the added-line scanner, and a
+  nearby scoped query could incorrectly satisfy a separate unscoped operation.
+  **Deployment impact:** PR security analysis only; application runtime,
+  routing, providers, and environment activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, the embedded Bash
+  syntax test, `npm run typecheck`, `npm run build`, and `git diff --check`.
+
 ### Changed
 - Replaced Greptile with Octopus as the AI code review tool (self-hosted). Greptile removed
   as a required GitHub branch protection check. Branch protection now requires only
