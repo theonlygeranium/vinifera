@@ -7,44 +7,52 @@
 
 ### What changed
 
-BS-06 adds repository-wide ownership routing in `.github/CODEOWNERS`, expands
-`.github/pull_request_template.md` to name the required verification evidence,
-and records the current branch-protection and deployment-environment controls
-below. It does not change those external GitHub settings.
+The owner-authorized PR governance update makes end-to-end review ownership a
+terminal condition for implementation agents, adds a label-scoped recurring
+Codex monitor, expands `.github/pull_request_template.md`, and updates Codex
+dispatch prompts to reference one canonical completion loop.
+
+The external rollout adds five governance labels and enables required
+conversation resolution on `main` while preserving strict required checks,
+administrator enforcement, pull-request-only updates, and force-push/deletion
+prohibitions.
 
 ### Why
 
-The repository needs an honest distinction between assigning an owner and
-requiring an independent approval. Recording the current controls prevents
-CODEOWNERS or self-reviewable protected environments from being mistaken for a
-two-person security boundary.
+Opening a PR was previously treated as the end of an agent task. That could
+strand CI failures or unresolved review feedback after the agent with the
+strongest implementation context exited. A recurring monitor is a useful
+safety net, but it must not receive implicit authority over every PR or replace
+independent GitHub enforcement.
 
 ### Deployment impact
 
-None. These repository governance files do not change application runtime,
-routes, build output, hosted database state, provider activation, Worker
-deployment, Pages deployment, or protected-environment configuration.
+No application deployment impact. These changes affect repository process,
+GitHub branch protection and labels, and a local Codex automation. They do not
+change runtime routes, build output, hosted database state, provider
+activation, Worker deployment, Pages content, or activation gates.
 
 ### Verification
 
-Read-only GitHub API inspection on 2026-07-27 confirmed that `main` uses strict
-required checks for `Type, test, build, and package`, `Greptile Review`, and
-`Block direct push to main`; applies protection to administrators; requires
-zero approvals; does not require CODEOWNERS review; and does not dismiss stale
-approvals. The same inspection confirmed that `staging`, `production`, and
-`mobile-release` each have only `@theonlygeranium` as reviewer with
-`prevent_self_review=false`. Repository inspection cross-checked these results
-against `.github/CODEOWNERS`, `.github/pull_request_template.md`,
-`docs/agent-workflow.md`, and this note.
+GitHub API inspection on 2026-07-27 confirmed that `main` uses strict required
+checks for `Type, test, build, and package`, `Greptile Review`, and
+`Block direct push to main`; requires conversation resolution; applies
+protection to administrators; and prohibits force pushes and deletion. The
+rule still requires zero approvals, does not require CODEOWNERS review, and
+does not dismiss stale approvals. The five automation labels were read back
+with their descriptions. The Codex automation definition, canonical workflow,
+prompt references, and PR template are checked separately because they are not
+part of GitHub's branch-protection response.
 
 ## Current controls
 
 GitHub API inspection confirms that `main` is protected, administrators are
 subject to the protection rule, and strict required-status checking is enabled.
 The required checks are `Type, test, build, and package`, `Greptile Review`,
-and `Block direct push to main`. The rule currently requires zero approving
-reviews, does not require a CODEOWNERS review, and does not dismiss stale
-approvals.
+and `Block direct push to main`. Pull requests must be current with `main` and
+all review conversations must be resolved. The rule currently requires zero
+approving reviews, does not require a CODEOWNERS review, and does not dismiss
+stale approvals.
 
 The `staging`, `production`, and `mobile-release` GitHub environments each name
 `@theonlygeranium` as the only required reviewer. GitHub's
@@ -52,17 +60,40 @@ The `staging`, `production`, and `mobile-release` GitHub environments each name
 run initiated by the repository owner can therefore be approved by the same
 account.
 
-The repository now declares `@theonlygeranium` as the owner of every path in
+The repository declares `@theonlygeranium` as the owner of every path in
 `.github/CODEOWNERS`. This provides durable ownership routing, but CODEOWNERS
 cannot provide independent approval while the owner is the only collaborator
 and branch protection does not require code-owner review.
+
+## Automation authority model
+
+The recurring Codex monitor checks every 15 minutes but selects only open PRs
+with `codex-managed`. It may inspect state and write an evidence-based
+disposition for a verified non-actionable finding. It may change code only when
+`codex-auto-fix` is also present, and then only for localized low-risk work on
+the existing branch. It may merge only when `codex-auto-merge` is present and
+every documented gate passes.
+
+`do-not-merge` is absolute. `human-review-required` blocks every automated
+mutation, including replies and thread resolution; the monitor may only
+inspect, notify the human owner, and stop. Automation may add
+`human-review-required` when it encounters a sensitive boundary or repeated
+failure, but it may not remove either blocking label or grant itself
+`codex-auto-fix` or `codex-auto-merge`.
+
+Architecture, authentication, authorization, database migrations, billing,
+production configuration, provider activation, security tradeoffs, destructive
+actions, and materially expanded scope require human review regardless of
+labels. The monitor also stops after three unsuccessful review/fix cycles or
+when the same finding reappears.
 
 ## Risk
 
 One compromised or mistaken owner account can author, approve, and release a
 change without independent human review. CI and Greptile remain valuable
 technical gates, but neither is a substitute for a second authorized reviewer
-on credential-bearing deployment environments.
+on credential-bearing deployment environments. Label-gated automation narrows
+authority but does not create an independent human approval boundary.
 
 ## Recommended human configuration
 

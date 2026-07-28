@@ -10,6 +10,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **What changed:** Established mandatory end-to-end PR ownership for agents,
+  a label-scoped 15-minute Codex safety monitor, explicit human-escalation and
+  merge-authority rules, required review-thread disposition, and GitHub
+  enforcement for current branches, required checks, direct-push prevention,
+  and zero unresolved conversations. Canonical workflow references replace
+  duplicated completion instructions in Codex dispatch prompts. **Why:** PR
+  creation alone left review comments, CI failures, and post-merge state
+  vulnerable to abandonment or inconsistent handling. **Deployment impact:**
+  Repository governance and external GitHub/Codex automation only; application
+  code, build output, routes, providers, hosted data, and activation gates are
+  unchanged. **Verification:** Inspect the five governance labels, branch
+  protection, automation definition, prompt references, PR template, review
+  threads, required checks, and post-merge `main` run; run `git diff --check`.
 - **What changed:** Added the CodeRabbit pull-request review badge to the
   README's repository status badges and linked it to this repository's
   CodeRabbit-reviewed pull requests. **Why:** Make the repository's automated

@@ -15,8 +15,16 @@
 - [ ] E2E tests pass (`npm run qa:e2e`)
 - [ ] Typecheck passes (`npm run typecheck`)
 - [ ] Static/Pages/Worker packages build (`npm run build`, `npm run build:pages`, `npm run build:worker`)
-- [ ] Greptile review addressed
+- [ ] Required checks pass: `Type, test, build, and package`, `Greptile Review`, and `Block direct push to main`
+- [ ] Branch is current with `main`
 <!-- Explain any intentionally inapplicable gate under Risks and assumptions. -->
+
+## Review completion
+- [ ] Every unresolved review thread was inspected
+- [ ] Actionable findings were fixed, affected tests were rerun, and fresh Greptile/CI results passed
+- [ ] Non-actionable or intentionally deferred findings have an evidence-based reply
+- [ ] Zero unresolved review threads remain
+- [ ] Merge is explicitly authorized; otherwise this PR will remain ready and unmerged
 
 ## Activation gates affected
 <!-- List any of the 20 activation gates this PR touches or unblocks -->

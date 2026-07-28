@@ -33,6 +33,118 @@ entry.
 
 ---
 
+## Mandatory PR ownership and completion loop
+
+> After opening a PR, remain responsible for it until completion. Wait for
+> Greptile and all required CI checks. Inspect every unresolved review thread;
+> fix actionable findings, reply with an evidence-based disposition for
+> non-actionable or intentionally deferred findings, and resolve threads only
+> after verification. Rerun affected tests and wait for Greptile/CI after every
+> push. Repeat until all required checks pass and zero unresolved review
+> threads remain. Merge only when explicitly authorized; otherwise leave the
+> PR ready and report its status.
+
+**“Remain responsible” is a terminal condition.** Opening a PR, posting a
+status update, or starting a review does not end the task. The owning agent must
+use an available wait or monitoring mechanism and continue until one of these
+terminal states is reached:
+
+1. every required check passes, the branch is current with `main`, zero
+   unresolved review threads remain, and the PR has either been merged under
+   explicit authority or left ready and unmerged; or
+2. a documented human-review boundary, repeated-failure limit, unavailable
+   external dependency, or missing authority prevents safe progress.
+
+### Operational loop
+
+1. Open the PR with an accurate description, verification evidence, and
+   activation impact. Apply `codex-managed` when the recurring monitor should
+   provide a safety net.
+2. Wait for Greptile, `Type, test, build, and package`,
+   `Block direct push to main`, and the relevant preview/deployment checks.
+   Do not repeatedly report unchanged pending state.
+3. Fetch thread-aware review state. Flat comment lists are insufficient; use
+   Greptile MCP when available or GitHub GraphQL review threads so
+   `isResolved`, outdated state, file, and line anchors are visible.
+4. Classify every unresolved finding:
+   - **Actionable:** implement the smallest correct in-scope fix, update
+     required documentation and tests, and record verification.
+   - **Non-actionable:** reply with concrete code, test, specification, or
+     runtime evidence explaining why no change is required.
+   - **Intentionally deferred:** reply with the reason, owner or prerequisite,
+     and durable tracking location. Deferral cannot be used to conceal a
+     required acceptance criterion.
+   - **Human review required:** stop mutation and escalate under the boundaries
+     below.
+5. Resolve a thread only after the fix or disposition is verified and the
+   evidence-based reply is present. Never resolve merely to satisfy the merge
+   gate.
+6. Rerun the affected tests, update `CHANGELOG.md` in every follow-up commit,
+   push, and wait for fresh Greptile and CI results on the new head.
+7. Repeat until the exact current head is green and zero unresolved review
+   threads remain. Stop after three unsuccessful fix/review cycles or when the
+   same finding reappears; apply `human-review-required` and report the
+   evidence.
+8. Merge only under explicit task-specific human authority or the
+   `codex-auto-merge` label. If merging, verify the resulting `main` commit,
+   post-merge required workflows, Pages/deployment state, and branch cleanup.
+   Otherwise leave the PR ready and report its exact status.
+
+## Human supervision and automation authority
+
+Only the human owner or an authorized maintainer may apply
+`codex-auto-fix` or `codex-auto-merge`. Automation must never grant itself
+either label. Label precedence is fail-closed:
+
+| Label | Authority |
+|---|---|
+| `codex-managed` | Include the PR in recurring monitoring. When `human-review-required` is absent, authorizes read-only inspection plus evidence-based replies and resolution of verified non-actionable or intentionally deferred threads. |
+| `codex-auto-fix` | With `codex-managed`, authorizes localized low-risk fixes on the existing branch, required documentation/tests, commits, and pushes. |
+| `codex-auto-merge` | With `codex-managed`, provides explicit merge authority only after every merge gate passes. |
+| `human-review-required` | Stop all automated mutation, preserve evidence, and notify the human owner. Automation may apply but must not remove this label. |
+| `do-not-merge` | Absolute merge prohibition. Automation must not remove or override it. |
+
+`do-not-merge` overrides all merge authority but does not prevent authorized
+review dispositions or low-risk fixes. `human-review-required` overrides
+`codex-managed` and both auto labels: the monitor may perform read-only
+inspection and notify the human owner, but it must not reply, resolve, fix,
+push, or merge. Missing `codex-auto-fix` means the recurring monitor may
+inspect and report but must not change code. Missing `codex-auto-merge` means a
+ready PR remains unmerged.
+
+The recurring monitor must stop and request human review for architecture,
+authentication, authorization, database migrations, billing, production
+configuration, provider activation, security tradeoffs, destructive actions,
+or materially expanded scope. These boundaries apply even when
+`codex-auto-fix` is present.
+
+### Recurring repository monitor
+
+The external Codex automation runs every 15 minutes as a safety net for an
+owner task that ended, crashed, or lost context. It follows this contract:
+
+1. List open PRs in `theonlygeranium/vinifera` labeled `codex-managed`.
+2. Inspect draft state, mergeability, whether the head is current with its
+   base, required checks, Greptile, blocking labels, and thread-aware
+   unresolved review state.
+3. If `human-review-required` is already present, make no mutation, notify the
+   human owner with the current evidence, and stop. If checks are pending, exit
+   without reporting unchanged state.
+4. If a low-risk actionable finding exists and `codex-auto-fix` is present,
+   use an isolated worktree for the existing branch, implement and document the
+   fix, run affected tests, commit, push, and restart the review loop.
+5. For verified non-actionable or intentionally deferred feedback, post the
+   evidence-based disposition and resolve only after verification.
+6. Apply `human-review-required` and stop on a human-review boundary, the third
+   unsuccessful cycle, or a repeated finding.
+7. Merge only when `codex-auto-merge` is present, the PR is not a draft, its
+   head is current with the base, every required check passes, zero unresolved
+   threads remain, and neither blocking label exists.
+8. After merge, verify the post-merge `main` workflows and report the final
+   commit and deployment state.
+
+---
+
 ## Agent prompt templates
 
 Copy and paste the appropriate template when starting a coding task.
@@ -52,7 +164,11 @@ Branching rules (mandatory):
 - Open a pull request targeting main with:
     Title: <type>: <concise description>
     Body: what changed, why, and any risks or assumptions
-- Do NOT merge the PR. Leave it open for Greptile review and CI.
+- Follow the mandatory PR ownership and completion loop in
+  docs/agent-workflow.md. Opening the PR is not completion.
+- This template grants no merge authority. Leave the all-green,
+  zero-unresolved-thread PR ready and unmerged unless the task explicitly
+  authorizes merge.
 
 Task:
 [DESCRIBE YOUR TASK HERE]
@@ -71,7 +187,11 @@ Branching rules (mandatory):
 - Commit changes to that branch only using the mandatory commit contract
   above, including the `CHANGELOG.md` update.
 - Push and open a PR with: gh pr create --base main --title "<type>: <description>" --body "<summary>"
-- Do not merge. Leave open for Greptile + CI review.
+- Follow the mandatory PR ownership and completion loop in
+  docs/agent-workflow.md. Opening the PR is not completion.
+- This template grants no merge authority. Leave the all-green,
+  zero-unresolved-thread PR ready and unmerged unless the task explicitly
+  authorizes merge.
 
 Task:
 [DESCRIBE YOUR TASK HERE]
@@ -91,7 +211,11 @@ Branching rules (mandatory):
   `CHANGELOG.md` update, then push and open a PR targeting main.
 - After the PR is open, run /greploop to let Greptile review,
   fix all flagged issues, and iterate until the PR reaches 5/5 confidence.
-- Do not merge until CI and Greptile are both green.
+- Follow the mandatory PR ownership and completion loop in
+  docs/agent-workflow.md. Opening the PR is not completion.
+- This template grants no merge authority. Leave the all-green,
+  zero-unresolved-thread PR ready and unmerged unless the task explicitly
+  authorizes merge.
 
 Task:
 [DESCRIBE YOUR TASK HERE]
@@ -115,13 +239,19 @@ Task:
 
 ## Checklist before merging any PR
 
-- [ ] Greptile Review check is green (or all comments addressed)
+- [ ] The PR is not a draft and its head is current with `main`
+- [ ] Greptile Review check is green on the current head
 - [ ] `Block direct push to main` check passes on the pull request
 - [ ] `Type, test, build, and package` CI check passes
 - [ ] Cloudflare Pages preview deploy succeeded
+- [ ] Every review thread has an evidence-backed disposition
+- [ ] Zero unresolved review threads remain
+- [ ] Affected tests were rerun after the final push
 - [ ] PR description explains what changed and why
 - [ ] Commits include a body, `Verification:` section, and `CHANGELOG.md`
 - [ ] No secrets, API keys, or credentials in the diff
+- [ ] Merge authority is explicit and neither `human-review-required` nor
+      `do-not-merge` is present
 
 ---
 
@@ -153,8 +283,10 @@ exhaustion, exact backoff counts, and fail-closed behavior (12/12).
 The push-side run is a fail-closed audit after Git has already updated the
 branch. Branch protection must require pull requests, require the
 `Block direct push to main` check, and disallow administrator bypass to prevent
-the update before it occurs. Do not treat a green post-push workflow by itself
-as branch-protection evidence.
+the update before it occurs. It must also use strict required checks so the PR
+head is current with `main`, require `Greptile Review` and
+`Type, test, build, and package`, and require conversation resolution. Do not
+treat a green post-push workflow by itself as branch-protection evidence.
 
 ---
 

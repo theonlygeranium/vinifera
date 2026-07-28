@@ -10,6 +10,20 @@
 
 This guide tells you exactly how many Codex sessions to open, what prompt to paste into each one, and in what order. Read the wave structure first — it determines which sessions block on which.
 
+## Canonical PR lifecycle
+
+Every session in this guide must follow the mandatory PR ownership and
+completion loop in `docs/agent-workflow.md`. The repeated session blocks below
+define only task-specific branch, title, sequencing, and review questions; they
+do not replace the canonical workflow.
+
+Opening a PR is not completion. Each owning agent must wait for the current
+head's Greptile and required CI results, disposition every unresolved thread,
+retest after every push, and repeat until all gates pass with zero unresolved
+threads. This dispatch grants no merge authority. Leave each completed PR ready
+and report its status unless explicit human authority or an authorized
+`codex-auto-merge` label permits merge.
+
 ---
 
 ## Wave structure and parallelism
@@ -32,8 +46,8 @@ Timeline (approximate):
                          │                                        │
 9.5h                     └──────────────┬───────────────────────┘
                                         ▼
-                                   All PRs open
-                                Human review + merge
+                                  All PRs ready
+                              Authorized review + merge
 ```
 
 **Session count:** 6 Codex sessions minimum. BS-03 benefits from up to 8 subagents — those are spawned by the BS-03 primary agent, not opened manually.
@@ -47,12 +61,12 @@ Timeline (approximate):
 ```
 Repository: theonlygeranium/vinifera
 
-Branching rules (mandatory):
-- Do not push to main directly.
-- Create a branch: git checkout -b chore/greptile-config-and-repo-hygiene
-- Commit changes to that branch only.
-- Push and open a PR with: gh pr create --base main --title "chore: greptile config upgrade and repo hygiene" --body "<summary>"
-- Do not merge. Leave open for Greptile + CI review.
+PR metadata:
+- Branch: chore/greptile-config-and-repo-hygiene
+- Target: main
+- Title: chore: greptile config upgrade and repo hygiene
+- Lifecycle and merge authority: follow docs/agent-workflow.md and the
+  canonical PR lifecycle above.
 
 Pre-task reading (read ALL before writing any code):
 1. AGENTS.md
@@ -72,7 +86,7 @@ Read the build spec in full before starting any task. Execute all four tasks in 
 6. Update CHANGELOG.md
 
 After opening the PR, comment "@greptileai review this draft" on it.
-Do not merge the PR. Signal when the PR is open.
+Complete the canonical PR loop and report when the PR is ready, not merely open.
 ```
 
 ---
@@ -82,12 +96,12 @@ Do not merge the PR. Signal when the PR is open.
 ```
 Repository: theonlygeranium/vinifera
 
-Branching rules (mandatory):
-- Do not push to main directly.
-- Create a branch: git checkout -b refactor/route-layer-decomposition
-- Commit changes to that branch only.
-- Push and open a PR with: gh pr create --base main --title "refactor: extract route handlers from app.ts into server/routes/" --body "<summary>"
-- Do not merge. Leave open for Greptile + CI review.
+PR metadata:
+- Branch: refactor/route-layer-decomposition
+- Target: main
+- Title: refactor: extract route handlers from app.ts into server/routes/
+- Lifecycle and merge authority: follow docs/agent-workflow.md and the
+  canonical PR lifecycle above.
 
 Pre-task reading (read ALL before writing any code):
 1. AGENTS.md
@@ -102,7 +116,7 @@ Read the build spec in full before starting. This spec allows you to spawn subag
 Key constraint: do NOT refactor logic during this task. Copy route handlers as-is. If a handler has inline business logic, add a TODO comment and continue. Logic refactoring belongs to BS-03.
 
 After opening the PR, comment "@greptileai review only the route layer changes" on it.
-Do not merge. Signal when the PR is open.
+Complete the canonical PR loop and report when the PR is ready, not merely open.
 ```
 
 ---
@@ -114,12 +128,12 @@ Do not merge. Signal when the PR is open.
 ```
 Repository: theonlygeranium/vinifera
 
-Branching rules (mandatory):
-- Do not push to main directly.
-- Primary branch: git checkout -b refactor/service-layer-decomposition
+PR metadata:
+- Primary branch: refactor/service-layer-decomposition
 - Subagents each create their own branch (see build spec subagent table)
 - All subagent PRs target main. Primary integration PR also targets main.
-- Do not merge any PR. Leave all open for Greptile + CI review.
+- Lifecycle and merge authority: follow docs/agent-workflow.md and the
+  canonical PR lifecycle above for every PR.
 
 Pre-task reading (read ALL before writing any code):
 1. AGENTS.md
@@ -144,7 +158,8 @@ CRITICAL: extraction is the only goal. No logic changes. No refactoring. No "whi
 After opening the integration PR, comment:
 "@greptileai check for any business logic remaining in core-club.ts or integrations.ts"
 "@greptileai verify no circular imports were introduced between the new service files"
-Do not merge. Signal when all PRs are open.
+Complete the canonical PR loop and report when all PRs are ready, not merely
+open.
 ```
 
 ---
@@ -154,12 +169,12 @@ Do not merge. Signal when all PRs are open.
 ```
 Repository: theonlygeranium/vinifera
 
-Branching rules (mandatory):
-- Do not push to main directly.
-- Create a branch: git checkout -b feat/observability-and-rate-limiting
-- Commit changes to that branch only.
-- Push and open a PR with: gh pr create --base main --title "feat: add Sentry error tracking and API rate limiting" --body "<summary>"
-- Do not merge. Leave open for Greptile + CI review.
+PR metadata:
+- Branch: feat/observability-and-rate-limiting
+- Target: main
+- Title: feat: add Sentry error tracking and API rate limiting
+- Lifecycle and merge authority: follow docs/agent-workflow.md and the
+  canonical PR lifecycle above.
 
 Pre-task reading (read ALL before writing any code):
 1. AGENTS.md
@@ -180,7 +195,7 @@ Read the build spec in full. Key constraints:
 After opening the PR, comment:
 "@greptileai check that no real credentials appear in any file in this diff"
 "@greptileai verify the error handler is registered last in app.ts"
-Do not merge. Signal when the PR is open.
+Complete the canonical PR loop and report when the PR is ready, not merely open.
 ```
 
 ---
@@ -192,12 +207,12 @@ Do not merge. Signal when the PR is open.
 ```
 Repository: theonlygeranium/vinifera
 
-Branching rules (mandatory):
-- Do not push to main directly.
-- Create a branch: git checkout -b feat/local-dev-and-ui-readiness
-- Commit changes to that branch only.
-- Push and open a PR with: gh pr create --base main --title "feat: local dev stack, seed data, and UI smoke test verification" --body "<summary>"
-- Do not merge. Leave open for Greptile + CI review.
+PR metadata:
+- Branch: feat/local-dev-and-ui-readiness
+- Target: main
+- Title: feat: local dev stack, seed data, and UI smoke test verification
+- Lifecycle and merge authority: follow docs/agent-workflow.md and the
+  canonical PR lifecycle above.
 
 Pre-task reading (read ALL before writing any code):
 1. AGENTS.md
@@ -223,7 +238,7 @@ Key tests to pass:
 
 After opening the PR, comment:
 "@greptileai verify tenant isolation is enforced in all seeded queries and smoke test assertions"
-Do not merge. Signal when the PR is open.
+Complete the canonical PR loop and report when the PR is ready, not merely open.
 ```
 
 ---
@@ -233,12 +248,12 @@ Do not merge. Signal when the PR is open.
 ```
 Repository: theonlygeranium/vinifera
 
-Branching rules (mandatory):
-- Do not push to main directly.
-- Create a branch: git checkout -b chore/architecture-hardening-and-docs
-- Commit changes to that branch only.
-- Push and open a PR with: gh pr create --base main --title "chore: tenancy audit, architecture docs, and governance hardening" --body "<summary>"
-- Do not merge. Leave open for Greptile + CI review.
+PR metadata:
+- Branch: chore/architecture-hardening-and-docs
+- Target: main
+- Title: chore: tenancy audit, architecture docs, and governance hardening
+- Lifecycle and merge authority: follow docs/agent-workflow.md and the
+  canonical PR lifecycle above.
 
 Pre-task reading (read ALL before writing any code):
 1. AGENTS.md
@@ -259,7 +274,7 @@ After opening the PR, comment:
 "@greptileai verify all database queries in server/services/ have brand_id scoping"
 "@greptileai check architecture.md accurately reflects the current codebase structure"
 Use 👍 on Greptile comments that correctly identify additional unscoped queries.
-Do not merge. Signal when the PR is open.
+Complete the canonical PR loop and report when the PR is ready, not merely open.
 ```
 
 ---
@@ -270,9 +285,11 @@ BS-03 dispatches its own subagents (up to 8). Do not create separate Codex sessi
 
 ---
 
-## Merge order (human action required after sessions complete)
+## Merge order (explicit authority required after sessions complete)
 
-When all 6 sessions have signaled completion and all PRs are open, merge in this order:
+When all six sessions have completed the canonical PR loop and all PRs are
+ready, merge in this order only under explicit human authority or the
+`codex-auto-merge` label:
 
 1. **BS-01** first — always. It establishes Greptile rules that all others benefit from.
 2. **BS-04** before BS-02/BS-03 — error handling should be live before route/service work merges.
@@ -280,7 +297,9 @@ When all 6 sessions have signaled completion and all PRs are open, merge in this
 4. **BS-03** integration PR — after BS-02 is merged (import path updates require BS-02 route files to exist).
 5. **BS-05** last — local dev verification against the finalized service and route structure.
 
-Between each merge: wait for Greptile to post its review (~3 minutes), address any flagged issues, then proceed 【kg-wwwgre-3f7f77aa】.
+After each integration push, rerun the canonical PR loop before merging the next
+PR. After every merge, verify the resulting `main` checks before proceeding
+【kg-wwwgre-3f7f77aa】.
 
 ---
 
