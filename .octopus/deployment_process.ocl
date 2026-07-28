@@ -1,13 +1,12 @@
 step "pull-and-build" {
     name = "Pull Latest Code and Build"
 
-    target_roles = ["vinifera-app"]
-
     action {
         action_type = "Octopus.Script"
         notes = "SSH to schubert-v2, pull the release commit, install dependencies, and build."
         properties = {
             Octopus.Action.RunOnServer = "false"
+            Octopus.Action.TargetRoles = "vinifera-app"
             Octopus.Action.Script.ScriptBody = <<-EOT
                 set -e
                 APP_DIR="/opt/vinifera"
@@ -46,13 +45,12 @@ step "pull-and-build" {
 step "restart-application" {
     name = "Restart Application with PM2"
 
-    target_roles = ["vinifera-app"]
-
     action {
         action_type = "Octopus.Script"
         notes = "Restart or start the Vinifera application using PM2. Creates PM2 config on first deploy."
         properties = {
             Octopus.Action.RunOnServer = "false"
+            Octopus.Action.TargetRoles = "vinifera-app"
             Octopus.Action.Script.ScriptBody = <<-EOT
                 set -e
                 APP_DIR="/opt/vinifera"
