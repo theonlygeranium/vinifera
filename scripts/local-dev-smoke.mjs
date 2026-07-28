@@ -322,10 +322,11 @@ expectStatus(cookieSession, 200, "member cookie session");
 if (
   cookieSession.body?.data?.authenticated !== true ||
   cookieSession.body?.data?.user?.id !==
-    "40000000-0000-4000-8000-000000000001"
+    "40000000-0000-4000-8000-000000000001" ||
+  cookieSession.body?.data?.brand?.id !== sunriseBrand
 ) {
   throw new Error(
-    `Member cookie did not resolve the seeded profile: ${JSON.stringify(cookieSession.body)}`,
+    `Member cookie did not resolve the seeded tenant: ${JSON.stringify(cookieSession.body)}`,
   );
 }
 const memberShipments = await request("/api/member/shipments", {

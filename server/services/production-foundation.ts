@@ -93,6 +93,59 @@ function normalizedRequestHost(request: Request): string | null {
   return host && /^[a-z0-9.-]+$/.test(host) ? host : null;
 }
 
+function httpOrigin(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (
+      !["http:", "https:"].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.pathname !== "/" ||
+      url.search ||
+      url.hash
+    ) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveApplicationOrigin(
+  env: Pick<WorkerEnv, "APP_ORIGIN">,
+  request: Pick<Request, "get" | "protocol">,
+): string {
+  const configuredOrigin = env.APP_ORIGIN?.trim();
+  if (configuredOrigin) {
+    const origin = httpOrigin(configuredOrigin);
+    if (!origin) {
+      throw new AppError(
+        500,
+        "configuration_error",
+        "APP_ORIGIN must be a credential-free HTTP or HTTPS origin.",
+      );
+    }
+    return origin;
+  }
+
+  const requestOrigin = request.get("origin");
+  if (requestOrigin) {
+    const origin = httpOrigin(requestOrigin);
+    if (origin) return origin;
+  }
+
+  const host = request.get("host");
+  if (host) {
+    const forwardedProtocol = request
+      .get("x-forwarded-proto")
+      ?.split(",")[0]
+      ?.trim();
+    return `${forwardedProtocol || request.protocol}://${host}`;
+  }
+  return "http://localhost:5173";
+}
+
 function getPublicKey(env: WorkerEnv): string {
   return requireConfigured(
     env.SUPABASE_PUBLISHABLE_KEY ?? env.SUPABASE_ANON_KEY,
@@ -247,24 +300,7 @@ export class ProductionFoundationService
   }
 
   private applicationOrigin(): string {
-    const requestOrigin = this.request.get("origin");
-    if (requestOrigin) {
-      try {
-        return new URL(requestOrigin).origin;
-      } catch {
-        // The origin middleware rejects malformed values before state changes.
-      }
-    }
-
-    const host = this.request.get("host");
-    if (host) {
-      const forwardedProtocol = this.request
-        .get("x-forwarded-proto")
-        ?.split(",")[0]
-        ?.trim();
-      return `${forwardedProtocol || this.request.protocol}://${host}`;
-    }
-    return this.env.APP_ORIGIN ?? "http://localhost:5173";
+    return resolveApplicationOrigin(this.env, this.request);
   }
 
   private requireAuthEmail(): void {

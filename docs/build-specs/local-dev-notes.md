@@ -31,6 +31,9 @@ partial local prerequisite evidence for Gates 1, 7, and 15
 - The frontend honors `VITE_API_BASE_URL` for credential-free HTTPS or
   loopback HTTP. Production remains same-origin when it is unset; Capacitor
   builds still require a secure, port-free API origin.
+- Server-generated Auth callbacks and billing returns use canonical
+  `APP_ORIGIN`, so requests from the Vite hot-reload origin still exchange
+  their Auth code through the Worker on port 8788.
 - The local security and process-lifecycle decisions are recorded in
   [the local harness ADR](../decisions/2026-07-27-local-dev-harness-boundaries.md).
 
@@ -108,13 +111,13 @@ analytics idempotency fingerprints replay without noisy failed writes.
 | Toolchain | Node 22.22.3; npm 10.9.8; Supabase CLI 2.109.1; Wrangler 4.114.0; Docker client 29.6.2/server 29.5.2 on Colima 0.10.3 |
 | `npm ci` | Passed; 406 packages installed, 407 audited; 0 vulnerabilities |
 | Script syntax | `bash -n` and `node --check` passed |
-| Integrated tests | TypeScript passed; Vitest passed 42 files and 436/436 tests; the focused browser-origin, harness, and retention set passed 62/62 |
+| Integrated tests | TypeScript passed; Vitest passed 43 files and 438/438 tests; the focused browser-origin, harness, foundation-origin, and retention set passed 64/64 |
 | Embedded phase gates | Phase 1–5 passed 92/92, 250/250, 199/199, 158/158, and 513/513 assertions |
 | Embedded replay | Passed all 22 migrations, two consecutive seed applications, fixture cardinality/state mix, tenant integrity, fixed brand IDs, and an independent clean-database identity comparison |
 | Native seed replay | The integrated 22-migration head passed `supabase db reset --local` with the configured seed and produced the exact default brand IDs `20000000-0000-4000-8000-000000000001` and `20000000-0000-4000-8000-000000000002`. |
 | Auth bootstrap | Passed four loopback-only staff/member identities |
 | Worker smoke | Health 200; unauthenticated members 401; both staff logins 200; Sunrise roster exactly 9; Pacific request for Sunrise brand 403 |
-| Member flow | Seeded bearer session resolved the correct member/brand; Mailpit link completed the PKCE callback, issued an HTTP-only member cookie, and returned populated portal shipment data |
+| Member flow | Seeded bearer and primary cookie sessions both resolved the correct member/brand; Mailpit completed the Worker-routed PKCE callback, issued an HTTP-only member cookie, and returned populated portal shipment data |
 | Shutdown safety | Normal Ctrl-C and occupied-port startup failure both removed the temporary env file and the complete Worker/Vite process trees; ports 8788/5173 and `.dev.vars.local` were absent afterward |
 | Rendered UI | Real staff login opened Sunrise workspace and populated 9-row member roster on desktop and 375x812 |
 | Accessibility/mobile | axe-core returned zero WCAG 2.1 A/AA violations at desktop and 375px; no visible interactive target was below 44x44px at 375px |

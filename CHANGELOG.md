@@ -10,6 +10,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+- **What changed:** Review follow-up now binds local staff Auth callback and
+  billing return URLs to canonical `APP_ORIGIN` instead of a cross-origin Vite
+  request header, asserts the seeded brand on the primary cookie-based member
+  session, and scopes final seed shipment transitions by organization as well
+  as deterministic ID. **Why:** Hosted Codex and Greptile reviews identified
+  callback routing and tenant-proof gaps that could hide a broken hot-reload
+  Auth flow or weaken fixture isolation checks. **Deployment impact:** Local
+  callbacks now route through the Worker on port 8788; production keeps its
+  configured canonical origin. No hosted migration, provider, secret, Pages,
+  DNS, or production-data change is performed. **Verification:** Run the
+  application-origin regressions, local seed replay, native authenticated
+  smoke, full TypeScript/Vitest/build checks, and `git diff --check`.
 - **What changed:** Review follow-up made the staging guard-order test require
   both workflow markers before comparing them, centralized the configuration
   test on the isolated security fixture, and added a recursive source-policy
@@ -286,8 +298,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   browser-origin policy drift. **Deployment impact:** CI gains a Docker-free
   22-migration seed gate; no hosted database, provider, Worker, Pages, secret,
   DNS, or activation mutation occurs. **Verification:** `npm ci`, dependency
-  audit, script syntax checks, TypeScript, Vitest 436/436, focused BS-05 tests
-  62/62, and `npm run qa:local-seed`.
+  audit, script syntax checks, TypeScript, Vitest 438/438, focused BS-05 tests
+  64/64, and `npm run qa:local-seed`.
 - **What changed:** Added the domain-service decomposition ADR and linked
   architecture/service-manifest guidance, documenting extracted ownership,
   import direction, neutral shared primitives, compatibility barrels, and the
@@ -469,8 +481,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   loopback validation, and member-count copy are corrected, but no hosted
   schema/provider state is changed. **Verification:** Native and embedded
   22-migration seed replay, independent clean-database brand identity,
-  authenticated two-tenant Worker/Auth smoke, TypeScript, Vitest 436/436,
-  focused BS-05 tests 62/62, Playwright 145/145, real desktop/375px axe-core
+  authenticated two-tenant Worker/Auth smoke, TypeScript, Vitest 438/438,
+  focused BS-05 tests 64/64, Playwright 145/145, real desktop/375px axe-core
   with zero violations, 375px touch targets, and fail-closed shutdown cleanup.
 - BS-06 review follow-up clarifies that CODEOWNERS routes review but is not
   currently branch-protection enforced, expands the pull-request checklist to

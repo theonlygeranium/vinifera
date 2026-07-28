@@ -254,7 +254,7 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   schema-valid synthetic two-tenant fixtures, loopback-only Auth bootstrap,
   authenticated isolation smoke checks, and the 20-gate readiness ledger.
   The integrated 22-migration chain and deterministic seed replay twice, the
-  full Vitest suite passes 436/436, and TypeScript passes. The same integrated
+  full Vitest suite passes 438/438, and TypeScript passes. The same integrated
   head also passes the native Supabase CLI 2.109.1 reset/seed and real
   Worker/Auth flow with a populated nine-member Sunrise roster,
   Pacific-to-Sunrise 403, member session, local magic-link callback with an
