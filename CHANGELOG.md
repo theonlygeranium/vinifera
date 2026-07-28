@@ -238,6 +238,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Routed all six marketing free-trial calls to action to the
+  staff workspace signup page and added an exact six-link end-to-end inventory
+  check for every link.
+  **Why:** The visible trial buttons previously jumped to pricing or used empty
+  placeholder links, preventing prospective winery teams from starting
+  signup. **Deployment impact:** Marketing navigation only; authentication,
+  billing, application data, provider activation, routing rules, and headers
+  are unchanged. **Verification:** Run the focused Phase 1 CTA test,
+  `npm run check`, `npm run qa:e2e`, and confirm the links at desktop and
+  375px widths open `/app/signup`.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,
