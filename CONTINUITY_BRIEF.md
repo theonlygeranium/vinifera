@@ -177,7 +177,8 @@ all against `dev`. PRs #27–#28, #31–#34, and #36–#43 were squash-merged. P
   `STAGING_SUPABASE_ANON_KEY` Actions secrets do not yet exist. Exact-head
   review also proved GitHub's merge API cannot atomically bind an expected base
   SHA, so the workflow now leaves every validated promotion PR open for a human
-  merge.
+  merge. Normal and dry-run readiness both refresh the complete head/base,
+  CI/status, review, and thread evidence after the second provider probe.
 - GitHub Actions run `30402814978` passed the full and Android lanes plus the
   required aggregate for PR #51 head `97ceed6`. The subsequent exact-head Codex
   review found that checkout did not persist `MERGE_BASE_SHA` for the isolated

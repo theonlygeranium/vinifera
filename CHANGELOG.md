@@ -15,6 +15,11 @@
   merge API has no atomic expected-base guard. Automation now captures and
   validates both revisions, runs every readiness gate, and leaves the PR open
   for a human to re-check and merge.
+- `.github/workflows/promote-dev-to-staging.yml` and its contract test:
+  Revalidate the captured head/base, exact CI and status set, CodeRabbit review,
+  Octopus attestation, and unresolved threads after the second provider probe
+  for both normal and dry-run readiness. Dry-run now skips only mutation, not
+  evidence validation.
 - `.octopus/runbooks/pr-quality-gates/runbook.ocl` and its contract test:
   Persist the resolved merge-base SHA in task-scoped state before the separate
   Rules 4–10 action sources it. Without this transfer, strict shell mode

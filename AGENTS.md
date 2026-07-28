@@ -266,9 +266,11 @@ feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
   3. Probes the configured staging Supabase REST endpoint — fails closed if it is unavailable.
   4. Waits for aggregate CI, Octopus, CodeRabbit, all registered checks/statuses, and zero unresolved review threads on that exact comparison.
   5. Re-probes staging Supabase REST immediately before reporting readiness.
-  6. Revalidates the captured head and staging base, then leaves the PR open for
-     a human merge. GitHub's merge API can atomically require the head SHA but
-     exposes no expected-base guard, so automated merging is prohibited.
+  6. Revalidates the captured head/base and complete CI, status, review, and
+     thread evidence after the second probe, then leaves the PR open for a
+     human merge. Dry-run follows the same validation path. GitHub's merge API
+     can atomically require the head SHA but exposes no expected-base guard, so
+     automated merging is prohibited.
 - `staging → main` promotion requires **explicit human authorization**. It is the final gate before production and is **never automated**.
 - Agents MUST NOT commit or push directly to `staging`. Staging is updated only
   by a human merging the gate-validated promotion PR.

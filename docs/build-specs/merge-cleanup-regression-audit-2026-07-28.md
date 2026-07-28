@@ -84,6 +84,9 @@ left race windows between gate evaluation and merge.
   that GitHub's merge API exposes an atomic expected-head guard but no
   expected-base guard, so the prior automatic merge could not close its final
   read-to-merge race.
+- Revalidates the captured comparison, exact checks/statuses, PR-specific
+  reviews, and unresolved threads after the second provider probe. Dry-run uses
+  the same evidence path and changes only the readiness label.
 
 ### Octopus trust boundary
 

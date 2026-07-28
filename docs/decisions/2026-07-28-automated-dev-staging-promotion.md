@@ -44,8 +44,8 @@ A new GitHub Actions workflow (`promote-dev-to-staging.yml`) is introduced. It f
 | 1. Staging REST pre-flight | HTTP probe to `STAGING_SUPABASE_URL/rest/v1/` | Fail closed — PR remains open |
 | 2. PR quality gates | Require aggregate CI, Octopus, CodeRabbit, all registered statuses, and zero unresolved threads on the captured head | Fail closed — PR remains open for human inspection |
 | 3. Staging REST readiness re-check | Same probe immediately before readiness reporting | Fail closed — guards against mid-run provider degradation |
-| 4. Readiness report | Revalidate the captured head and base | PR remains open for a human merge |
-| 5. Dry-run override | `workflow_dispatch` input `dry_run=true` | Records dry-run readiness; PR remains open |
+| 4. Readiness report | Revalidate the captured head/base, CI, statuses, reviews, and threads after the second probe | PR remains open for a human merge |
+| 5. Dry-run override | `workflow_dispatch` input `dry_run=true` | Runs the same evidence validation, records dry-run readiness, and leaves the PR open |
 
 On success or failure, the PR remains **open**. Before merging, the human must
 confirm that the current head and base still match the successful readiness
@@ -100,7 +100,9 @@ Check runs and commit statuses are fully paginated before evaluation. The
 required aggregate must conclude `success`; non-required jobs that GitHub
 intentionally concludes `skipped` or `neutral` do not block readiness. The
 workflow intentionally contains no merge command because GitHub documents only
-an expected-head merge guard and no expected-base guard.
+an expected-head merge guard and no expected-base guard. Normal and dry-run
+paths share the same final evidence revalidation after the second provider
+probe.
 
 ---
 

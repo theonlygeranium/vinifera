@@ -91,7 +91,7 @@ describe("dev to staging promotion contract", () => {
       "select(.submittedAt >= $pr_created_at)",
     );
     expect(workflow).toContain("coderabbit_reviews > 0");
-    expect(workflow.match(/gh api --paginate --slurp/g)).toHaveLength(2);
+    expect(workflow.match(/gh api --paginate --slurp/g)).toHaveLength(4);
     expect(workflow).toContain(
       '"repos/$REPO/commits/$PR_SHA/statuses?per_page=100"',
     );
@@ -124,6 +124,16 @@ describe("dev to staging promotion contract", () => {
 
   it("reports readiness without an unsafe automatic merge", () => {
     expect(workflow).toContain("name: Report promotion readiness");
+    expect(workflow).toContain("name: Revalidate complete promotion readiness");
+    expect(workflow).toContain(
+      "Promotion gates changed after polling; readiness is no longer valid.",
+    );
+    expect(workflow).toContain(
+      "DRY_RUN: ${{ github.event.inputs.dry_run }}",
+    );
+    expect(workflow).not.toContain(
+      "if: github.event.inputs.dry_run != 'true'",
+    );
     expect(workflow).toContain(
       "GitHub exposes an atomic expected-head merge guard but no expected-base guard",
     );

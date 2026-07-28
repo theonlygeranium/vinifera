@@ -352,20 +352,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      checks: read
       pull-requests: read
+      statuses: read
 
     steps:
-      - name: Report dry run
-        if: github.event.inputs.dry_run == 'true'
-        run: |
-          echo "::notice::Dry run — PR #${{ needs.open-pr.outputs.pr_number }} remains open."
-          echo "### Dry run: readiness recorded; PR remains open" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Verify captured promotion head and base
-        if: github.event.inputs.dry_run != 'true'
+      - name: Revalidate complete promotion readiness
         env:
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_BASE_SHA: ${{ needs.open-pr.outputs.pr_base_sha }}
+          PR_CREATED_AT: ${{ needs.open-pr.outputs.pr_created_at }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ needs.open-pr.outputs.pr_number }}
           PR_SHA: ${{ needs.open-pr.outputs.pr_sha }}
@@ -386,8 +383,80 @@ jobs:
             exit 1
           fi
 
+          promotion_checks='[
+            "Open or update dev→staging PR",
+            "Staging Supabase REST pre-flight",
+            "Wait for promotion PR gates",
+            "Staging Supabase REST pre-merge re-check",
+            "Report promotion readiness"
+          ]'
+          checks=$(gh api --paginate --slurp \
+            "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
+            --jq '[.[].check_runs[]]' \
+            | jq --argjson promotion_checks "$promotion_checks" \
+              --argjson pr_number "$PR_NUMBER" \
+              '[.[] |
+                select(any(.pull_requests[]?; .number == $pr_number)) |
+                select(.name as $name | $promotion_checks | index($name) | not)]
+               | group_by(.name)
+               | map(sort_by(.started_at // .created_at) | last)')
+          statuses=$(gh api --paginate --slurp \
+            "repos/$REPO/commits/$PR_SHA/statuses?per_page=100" \
+            --jq 'add' \
+            | jq --arg pr_created_at "$PR_CREATED_AT" \
+              '[.[] | select(.created_at >= $pr_created_at)]
+               | group_by(.context)
+               | map(sort_by(.created_at) | last)')
+          review_state=$(gh api graphql \
+            -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved} pageInfo{hasNextPage}} reviews(first:100){nodes{author{login} commit{oid} submittedAt} pageInfo{hasNextPage}}}}}' \
+            -f owner="${REPO%%/*}" \
+            -f name="${REPO#*/}" \
+            -F number="$PR_NUMBER")
+          if [[ "$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$review_state")" == "true" ]] \
+            || [[ "$(jq -r '.data.repository.pullRequest.reviews.pageInfo.hasNextPage' <<<"$review_state")" == "true" ]]; then
+            echo "::error::Review state exceeds the validated 100-item pages."
+            exit 1
+          fi
+
+          required_success=$(jq \
+            '[.[] | select(.name == "Type, test, build, and package" and .status == "completed" and .conclusion == "success")] | length' \
+            <<<"$checks")
+          invalid_checks=$(jq \
+            '[.[] | select(.status != "completed" or (.conclusion | IN("success","skipped","neutral") | not))] | length' \
+            <<<"$checks")
+          octopus_success=$(jq --arg expected "Runbook completed for PR #$PR_NUMBER base $PR_BASE_SHA" \
+            '[.[] | select(.context == "Octopus PR Quality Gates" and .state == "success" and .description == $expected)] | length' \
+            <<<"$statuses")
+          coderabbit_success=$(jq \
+            '[.[] | select(.context == "CodeRabbit" and .state == "success" and .description == "Review completed")] | length' \
+            <<<"$statuses")
+          invalid_statuses=$(jq \
+            '[.[] | select(.state != "success")] | length' <<<"$statuses")
+          unresolved=$(jq \
+            '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length' \
+            <<<"$review_state")
+          coderabbit_reviews=$(jq \
+            --arg pr_sha "$PR_SHA" \
+            --arg pr_created_at "$PR_CREATED_AT" \
+            '[.data.repository.pullRequest.reviews.nodes[] |
+              select(.author.login == "coderabbitai") |
+              select(.commit.oid == $pr_sha) |
+              select(.submittedAt >= $pr_created_at)] | length' \
+            <<<"$review_state")
+          if (( required_success == 0 || invalid_checks > 0 \
+            || octopus_success == 0 || coderabbit_success == 0 \
+            || invalid_statuses > 0 || unresolved > 0 \
+            || coderabbit_reviews == 0 )); then
+            echo "::error::Promotion gates changed after polling; readiness is no longer valid."
+            exit 1
+          fi
+
           echo "::notice::PR #$PR_NUMBER passed automated readiness at head ${PR_SHA:0:12} and base ${PR_BASE_SHA:0:12}; a human must re-check the current base and merge."
-          echo "### Ready for human merge: PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "### Dry-run readiness passed: PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Ready for human merge: PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "- Captured head: \`${PR_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Captured staging base: \`${PR_BASE_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "> GitHub exposes an atomic expected-head merge guard but no expected-base guard; automation intentionally leaves the PR open." >> "$GITHUB_STEP_SUMMARY"
