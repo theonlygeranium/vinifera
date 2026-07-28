@@ -34,6 +34,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `theonlygeranium/vinifera`, run `npm run check`, `npm run qa:e2e`, and
   `git diff --check`.
 
+### Changed
+
+- **What changed:** Corrected `AGENTS.md` to use `.nvmrc` as the documented
+  Node version pin (`22.22.0`) and to retain `package.json`'s compatible
+  minimum (`>=22.12.0`). **Why:** The agent guide still named Node 20 even
+  though the repository pin, CI workflows, package engine, and README all use
+  Node 22. **Deployment impact:** Documentation and governance only; no
+  workflow, build, runtime, route, provider, hosted-data, or activation
+  behavior changes. **Verification:** Compare `AGENTS.md`, `.nvmrc`,
+  `package.json`, the README, and workflow Node settings; run
+  `npm audit --audit-level=moderate`, `npm run check`, `npm run qa:e2e`, and
+  `git diff --check`.
+
 ### Fixed
 
 - **What changed:** Daily portal-login recording now stores the real occurrence

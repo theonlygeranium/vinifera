@@ -124,7 +124,8 @@ This repo deploys to **Cloudflare Pages** via GitHub App webhook:
 - **Trigger:** Push to `main` → Cloudflare Pages GitHub App detects push → auto-build + deploy
 - **Build command:** `npm run build` (non-negotiable)
 - **Output directory:** `dist/`
-- **Node version:** 20
+- **Node version:** Use the version pinned in `.nvmrc` (currently `22.22.0`);
+  `package.json` requires Node `>=22.12.0`.
 - **Webhook verification:** Check deployment `trigger_type: "github:push"` (the GitHub `/repos/{owner}/{repo}/hooks` endpoint returns 0 even when the webhook is active)
 
 ### Cloudflare Pages Conventions
