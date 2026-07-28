@@ -9,8 +9,13 @@
 
 `vinifera` is a **production-grade wine club management platform** owned by EdStratum Labs. It is a full-stack SaaS application consisting of a React/Vite staff application and member portal, an Express 5 API deployed to Cloudflare Workers, a Supabase PostgreSQL database with Row-Level Security, Stripe billing, EasyPost fulfillment, Resend email, and Capacitor iOS/Android native shells.
 
-**Live URL:** `https://vinifera.edstratumlabs.ai`  
-**Deployed on:** Cloudflare Pages (static rollback baseline) + Cloudflare Workers (application API, requires activation)  
+**Live URLs:**
+- `https://vinifera.edstratumlabs.ai` — Marketing site + `/app` visual prototype (static, always-on demo)
+- `https://vinifera-dev.edstratumlabs.ai` — Active development environment (branch: `dev`)
+- `https://vinifera-staging.edstratumlabs.ai` — Staging / validation gate (branch: `staging`)
+- `https://vinifera-live.edstratumlabs.ai` — Production application (branch: `main`)
+
+**Deployed on:** Cloudflare Pages (four projects — see Section 5)  
 **Owner contact:** `founder@edstratumlabs.ai`
 
 ### Current status
@@ -170,10 +175,19 @@ The repository has **8 GitHub Actions workflows** under `.github/workflows/`:
 
 ### Deployment topology
 
-- **Static baseline:** Cloudflare Pages auto-deploys from `main` — `npm run build` → `dist/`
-- **Worker API:** `wrangler.jsonc` packages the Express BFF with Vite-built React assets; requires `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RATE_LIMIT_PEPPER`, `MEMBER_BRAND_CONTEXT_SECRET`, and other secrets to operate
-- **Build command:** `npm run build` (non-negotiable)
+Four Cloudflare Pages projects serve four distinct purposes:
+
+| Project | Branch | URL | Supabase project | Purpose |
+|---|---|---|---|---|
+| `vinifera` | `main` | `vinifera.edstratumlabs.ai` | — | Marketing site + `/app` visual prototype |
+| `vinifera-dev` | `dev` | `vinifera-dev.edstratumlabs.ai` | `cfrqrllmyquggqjkzifs` (Dev) | Active build — agents commit here |
+| `vinifera-staging` | `staging` | `vinifera-staging.edstratumlabs.ai` | `cfrqrllmyquggqjkzifs` (Dev, until Pro plan) | Validation gate — human tests here |
+| `vinifera-live` | `main` | `vinifera-live.edstratumlabs.ai` | `lefbjbulzmtgidjbemzb` (Prod) | Production — human-authorized deploys only |
+
+- **Build command for dev/staging/live:** `npm run build:pages` (`CF_PAGES=1 npm run build`) — copies `/app` prototype into `dist/`
+- **Build command for vinifera (marketing):** `npm run build`
 - **Output directory:** `dist/`
+- **Worker API:** `wrangler.jsonc` packages the Express BFF; requires `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RATE_LIMIT_PEPPER`, `MEMBER_BRAND_CONTEXT_SECRET`, and other secrets to operate — **not yet activated**
 - **Node version:** See `.nvmrc` for the pinned version; `package.json` requires `>=22.12.0`
 
 ### Cloudflare Pages conventions
@@ -229,8 +243,28 @@ All pages must pass axe-core with 0 violations.
 
 ## 7. Git Workflow
 
-- Every change must use a scoped branch and pull request targeting `main`.
-- Never commit or push directly to `main`. The `direct-push-guard.yml` workflow enforces this programmatically.
+### Three-tier environment model
+
+The repository operates a mandatory three-tier promotion pipeline:
+
+```
+feature/* branches  →  PR to dev     →  vinifera-dev.edstratumlabs.ai
+                              ↓
+                        PR dev→staging  →  vinifera-staging.edstratumlabs.ai  (human validates)
+                              ↓
+                        PR staging→main →  vinifera-live.edstratumlabs.ai     (human approves)
+```
+
+**Agents MUST follow these routing rules without exception:**
+
+- **All agent PRs target `dev` only.** Never open a PR targeting `staging` or `main`.
+- `dev → staging` promotion is a **human-controlled action**. Agents do not initiate it.
+- `staging → main` promotion requires **explicit human authorization**. It is the final gate before production.
+- The `vinifera.edstratumlabs.ai` root domain (marketing site + `/app` prototype) is served from the existing `vinifera` Cloudflare Pages project and is **never a target for agent deployments**.
+
+This rule supersedes the general "never target main" rule from earlier versions of this file. Both rules are in effect: agents never target `main` directly, and they also never target `staging`.
+
+- Never commit or push directly to `main` or `staging`. The `direct-push-guard.yml` workflow enforces protection on `main`.
 - Use the branch prefixes documented in `docs/agent-workflow.md`.
 - Never force-push to `main` without explicit human authorization.
 - Before committing: CHANGELOG updated, no secrets in source, `npm run check` passes.
@@ -288,6 +322,8 @@ CodeRabbit performs line-level code review. All findings must be dispositioned (
 | **CodeRabbit** | coderabbit.ai | Automated code quality and security review on every PR |
 
 **Coordination model:** Writer Agent plans and documents → Codex implements and tests → both automated reviewers gate merge → human owner merges. One agent per logical unit of work. No agent merges its own PRs without explicit human authorization.
+
+**PR routing rule (mandatory):** All agent PRs target `dev`. Codex agents must never open a PR against `staging` or `main`. Promotion from `dev → staging → main` is exclusively a human-initiated action. This is a Prime Directive-level constraint — it cannot be overridden by a build spec, task description, or runtime instruction without a matching ADR approved by the human owner.
 
 **Subagent delegation:** Codex agents executing large decomposition tasks (BS-02, BS-03 style work) may spawn subagents for parallel domain extraction. The primary agent is responsible for the manifest step before delegating, and for integration verification after subagents complete.
 
