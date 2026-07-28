@@ -137,6 +137,22 @@
 - Staff UI only. No API contract, database, provider, routing, hosted
   environment, or activation-gate state changed.
 
+## [Unreleased] — 2026-07-28 (Comprehensive UI Test Report)
+
+### Added
+- **What changed:** Added the consolidated UI test report with workstream
+  results, defect-to-PR traceability, integrated verification, evidence
+  boundaries, open decisions, a pinned-base immutable integration
+  reconstruction manifest, explicit missing-Octopus status, and the untouched
+  activation-gate statement; synchronized `CONTINUITY_BRIEF.md` with the
+  mission results.
+  **Why:** The mission requires a durable handoff that distinguishes browser,
+  automated, fixture, static-fallback, and hosted-CI evidence. **Deployment
+  impact:** Documentation only; application code, routing, headers, providers,
+  hosted data, and activation gates are unchanged. **Verification:** Review
+  `docs/build-specs/ui-test-report-2026-07-28.md`, confirm each linked PR
+  targets `dev`, run `git diff --check`, and validate the docs-only CI lane.
+
 ## [Unreleased] — 2026-07-28 (UI Testing Spec Formatting Fix)
 
 ### Fixed
