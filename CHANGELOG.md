@@ -450,8 +450,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `npm run qa:e2e`, and inspect empty/error/success states in Jeff - Pro Chrome.
 
 - **What changed:** Exposed the visible `LoadingScreen` label as a polite
-  `role="status"` while retaining the busy main landmark, with focused
-  component coverage. **Why:** The loading label was visible but lacked a
+  `role="status"` and moved the busy state to its sibling progress mark so the
+  busy subtree cannot defer the announcement, with focused component coverage.
+  **Why:** The loading label was visible but lacked a
   status semantic, so assistive technology could miss the initial application
   state. **Deployment impact:** Shared loading-screen semantics only; session
   checks, APIs, provider activation, routing, and headers are unchanged.

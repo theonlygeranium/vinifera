@@ -10,7 +10,13 @@ describe("LoadingScreen", () => {
   it("announces its visible label as a polite status", () => {
     render(<LoadingScreen label="Loading member portal" />);
 
-    expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
+    const main = screen.getByRole("main");
+    expect(main).not.toHaveAttribute("aria-live");
+    expect(main).not.toHaveAttribute("aria-busy");
+    expect(screen.getByLabelText("Loading member portal in progress")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
     expect(screen.getByRole("status")).toHaveTextContent(
       "Loading member portal…",
     );
