@@ -1,0 +1,32 @@
+name: Octopus PR Quality Gates
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+jobs:
+  quality-gates:
+    name: Run PR Quality Gates
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Run PR Quality Gates Runbook in Octopus 🐙
+        uses: OctopusDeploy/run-runbook-action@v1
+        env:
+          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_SPACE: Default
+        with:
+          project: Vinifera
+          runbook: PR Quality Gates
+          environments: Development
+          use_guided_failure: false
+          variables: |
+            PRBranch: ${{ github.head_ref }}
+            GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
