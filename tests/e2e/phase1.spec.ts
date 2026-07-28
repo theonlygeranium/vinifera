@@ -412,6 +412,12 @@ test.describe("Phase 1 authenticated shells", () => {
 
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/app");
+    const skipLink = page.getByRole("link", { name: "Skip to main content" });
+    await expect(skipLink).toHaveAttribute("href", "#main");
+    await skipLink.focus();
+    await expect(skipLink).toBeVisible();
+    await skipLink.press("Enter");
+    await expect(page.locator("main#main")).toBeFocused();
     await expect(page.getByRole("heading", { name: "Welcome to QA Winery" })).toBeVisible();
     await page.getByRole("button", { name: "Open menu" }).click();
     await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
