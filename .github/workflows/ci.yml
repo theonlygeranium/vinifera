@@ -24,14 +24,13 @@ jobs:
       reason: ${{ steps.classify.outputs.reason }}
       base_sha: ${{ steps.classify.outputs.base_sha }}
       head_sha: ${{ steps.classify.outputs.head_sha }}
-      changed_paths: ${{ steps.classify.outputs.changed_paths }}
     steps:
       - name: Check out exact validation head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Classify exact base and head diff
         id: classify
@@ -58,6 +57,14 @@ jobs:
               echo "::error::$label SHA is missing or is not an exact commit SHA."
               exit 1
             fi
+          done
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "$base_sha"
+          fi
+
+          for pair in "base:$base_sha" "head:$head_sha"; do
+            sha="${pair#*:}"
             git cat-file -e "${sha}^{commit}"
           done
 
@@ -147,9 +154,10 @@ jobs:
             }
           }
 
-          const displayPaths = records.length
+          const displayPaths = (records.length
             ? records.map(({ status, paths }) => `${status} ${paths.join(" -> ")}`)
-            : ["(not applicable or unavailable)"];
+            : ["(not applicable or unavailable)"])
+            .map((line) => line.replaceAll(/[\r\n]+/g, " "));
           appendFileSync(
             output,
             [
@@ -158,9 +166,6 @@ jobs:
               `reason=${reason.replaceAll("\n", " ")}`,
               `base_sha=${baseSha}`,
               `head_sha=${headSha}`,
-              "changed_paths<<VINIFERA_PATHS",
-              ...displayPaths,
-              "VINIFERA_PATHS",
               "",
             ].join("\n"),
           );
@@ -196,7 +201,12 @@ jobs:
         with:
           ref: ${{ needs.classify.outputs.head_sha }}
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
+
+      - name: Fetch exact pull request base
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
 
       - name: Use repository Node.js pin
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -208,7 +218,7 @@ jobs:
         run: npm ci
 
       - name: Audit dependencies
-        run: npm audit --audit-level=moderate
+        run: npm audit --omit=dev --audit-level=moderate
 
       - name: Check patch whitespace
         env:
@@ -249,7 +259,7 @@ jobs:
               "- Selected lane: `docs`",
               `- Checks executed: ${[
                 "npm ci",
-                "npm audit",
+                "npm audit --omit=dev",
                 "git diff --check",
                 ...result.checks,
                 "credential-pattern scan",

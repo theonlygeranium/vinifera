@@ -349,3 +349,11 @@ test("credential-pattern scan rejects GitHub and Stripe key formats", () => {
     }
   });
 });
+
+test("workflow fetches the exact base and exposes no attacker-controlled path output", () => {
+  const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+  assert.match(workflow, /git fetch --no-tags --depth=1 origin "\$base_sha"/);
+  assert.match(workflow, /git fetch --no-tags --depth=1 origin "\$BASE_SHA"/);
+  assert.doesNotMatch(workflow, /changed_paths/);
+  assert.match(workflow, /npm audit --omit=dev --audit-level=moderate/);
+});
