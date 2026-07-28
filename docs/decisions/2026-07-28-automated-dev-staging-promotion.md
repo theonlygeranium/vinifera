@@ -75,7 +75,10 @@ commit-status results must be no older than the PR creation timestamp. Closing
 and recreating a promotion PR at the same `dev` SHA therefore cannot inherit
 the prior PR's CI or review results. CodeRabbit must also have submitted a
 review on the current PR at the captured head SHA; its commit status alone is
-not accepted as proof of PR-specific review. Check runs and commit statuses are
+not accepted as proof of PR-specific review. The bridge passes the event head
+as the required `ExpectedHeadSHA` prompted runbook value, and the runbook
+refuses to check out or inspect the PR unless GitHub's live head matches it.
+Check runs and commit statuses are
 fully paginated before evaluation. After the second provider probe, the merge
 job re-queries exact-head CI, Octopus, CodeRabbit, PR-specific review, and
 unresolved-thread state immediately before invoking the exact-head merge. A

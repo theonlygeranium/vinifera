@@ -141,7 +141,9 @@ closed after direct resolution commits.
   PR, status timestamps no older than PR creation, and an Octopus description
   naming that PR. CodeRabbit must also have an exact-head review attached to
   the current PR; its commit status alone is insufficient. These bindings
-  prevent a recreated PR at the same SHA from inheriting stale results.
+  prevent a recreated PR at the same SHA from inheriting stale results. The
+  runbook receives the event head as a required `ExpectedHeadSHA` prompt and
+  refuses checkout if GitHub's live PR head differs.
   Octopus Deploy's authenticated `main` project view also shows no published
   runbook.
 - Cloudflare Access now has one scoped `Vinifera GitHub Actions — Octopus`

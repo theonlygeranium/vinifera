@@ -75,6 +75,7 @@ jobs:
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
           PR_BRANCH: ${{ needs.validate-source.outputs.branch }}
+          PR_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: node .github/scripts/octopus-runbook.mjs "PR Quality Gates"
 

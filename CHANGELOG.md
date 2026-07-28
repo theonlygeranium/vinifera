@@ -85,6 +85,11 @@
   that changes after the polling job now fails closed instead of racing the
   exact-head merge. The required aggregate must succeed, while intentionally
   skipped or neutral non-required GitHub job checks remain valid.
+- `.github/workflows/octopus-pr-quality-gates.yml`,
+  `.github/scripts/octopus-runbook.mjs`, and the PR quality-gates runbook:
+  Pass the event head as a required `ExpectedHeadSHA` prompt and reject live PR
+  metadata that names another commit before Octopus checks out or reviews code.
+  The published status can no longer claim success for a different revision.
 - `public/marketing.js`, `tests/e2e/phase1.spec.ts`, and
   `tests/scripts/landing-static.test.mjs`: Require the application capability,
   including `APP_ORIGIN`, in addition to database and authentication-email

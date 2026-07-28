@@ -1118,6 +1118,10 @@ describe("Octopus runbook bridge", () => {
                   Type: "Sensitive",
                 },
               },
+              {
+                Name: "V-4",
+                Control: { Name: "ExpectedHeadSHA", Required: true },
+              },
             ],
           },
         });
@@ -1142,6 +1146,7 @@ describe("Octopus runbook bridge", () => {
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
           PR_BRANCH: "fix/example",
+          PR_EXPECTED_SHA: "a".repeat(40),
           PR_NUMBER: "44",
         },
         fetchImpl,
@@ -1164,6 +1169,7 @@ describe("Octopus runbook bridge", () => {
       "V-1": "fix/example",
       "V-2": "44",
       "V-3": "secret-pat",
+      "V-4": "a".repeat(40),
     });
     expect(
       calls.every(
@@ -1217,6 +1223,10 @@ describe("Octopus runbook bridge", () => {
                   Sensitive: true,
                 },
               },
+              {
+                Name: "V-4",
+                Control: { Name: "ExpectedHeadSHA", Required: true },
+              },
             ],
           },
         });
@@ -1241,6 +1251,7 @@ describe("Octopus runbook bridge", () => {
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
           PR_BRANCH: "fix/example",
+          PR_EXPECTED_SHA: "a".repeat(40),
           PR_NUMBER: "44",
         },
         fetchImpl,
@@ -1263,6 +1274,13 @@ describe("Octopus workflow trust boundary", () => {
       ),
       "utf8",
     );
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        import.meta.url,
+      ),
+      "utf8",
+    );
 
     expect(workflow).toContain("pull_request_target:");
     expect(workflow).toContain(
@@ -1275,7 +1293,7 @@ describe("Octopus workflow trust boundary", () => {
     expect(workflow.match(/persist-credentials: false/g)).toHaveLength(1);
     expect(
       workflow.match(/github\.event\.pull_request\.head\.sha/g),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
     expect(workflow).toContain(
       "PR_SHA: ${{ github.event.pull_request.head.sha }}",
     );
@@ -1288,6 +1306,15 @@ describe("Octopus workflow trust boundary", () => {
     );
     expect(workflow).toContain(
       "PR_BRANCH: ${{ needs.validate-source.outputs.branch }}",
+    );
+    expect(workflow).toContain(
+      "PR_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}",
+    );
+    expect(qualityRunbook).toContain(
+      'EXPECTED_HEAD_SHA="#{ExpectedHeadSHA}"',
+    );
+    expect(qualityRunbook).toContain(
+      '[ "$HEAD_SHA" = "$EXPECTED_HEAD_SHA" ]',
     );
     expect(workflow).toContain("git check-ref-format --branch");
     expect(workflow).toContain(

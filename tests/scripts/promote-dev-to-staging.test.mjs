@@ -98,6 +98,9 @@ describe("dev to staging promotion contract", () => {
       "PR_SHA: ${{ github.event.pull_request.head.sha }}",
     );
     expect(octopusWorkflow).toContain(
+      "PR_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}",
+    );
+    expect(octopusWorkflow).toContain(
       '"repos/$REPO/statuses/$PR_SHA"',
     );
     expect(octopusWorkflow).toContain(

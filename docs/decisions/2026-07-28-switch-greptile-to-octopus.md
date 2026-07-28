@@ -62,6 +62,10 @@ that validated output reaches the runbook prompt, preventing shell syntax from
 crossing into the self-hosted checkout script.
 Rejected source validation produces an explicit failing `Run PR Quality Gates`
 job; it cannot turn the mandatory reviewer into a skipped-success state.
+The event's immutable head is also passed as the required `ExpectedHeadSHA`
+prompt. The runbook compares it with the live GitHub PR metadata before
+checkout and fails if the branch advanced, preventing a result from being
+published against a revision the runbook did not inspect.
 
 The current self-hosted Octopus Server predates the Executions API required by
 `run-runbook-action` v3 and newer. Until the server is upgraded to at least

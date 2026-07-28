@@ -24,6 +24,7 @@ process {
                 Octopus.Action.Script.ScriptBody = <<-EOT
                     set -euo pipefail
                     BRANCH="#{PRBranch}"
+                    EXPECTED_HEAD_SHA="#{ExpectedHeadSHA}"
                     WORK_DIR="/tmp/vinifera-pr-$$"
                     STATE_FILE="/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
                     github_curl() {
@@ -55,6 +56,14 @@ print(data["commits"])
                     }
                     [ "$HEAD_REF" = "$BRANCH" ] || {
                         echo "FAIL: prompted branch does not match pull request metadata"
+                        exit 1
+                    }
+                    [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+                        echo "FAIL: expected head is not an exact commit SHA"
+                        exit 1
+                    }
+                    [ "$HEAD_SHA" = "$EXPECTED_HEAD_SHA" ] || {
+                        echo "FAIL: pull request head changed before Octopus checkout"
                         exit 1
                     }
 
