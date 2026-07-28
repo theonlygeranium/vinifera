@@ -148,6 +148,11 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
+- Agent CI/CD guidance now treats `.nvmrc` as the documented Node version pin
+  (currently `22.22.0`) while preserving `package.json`'s `>=22.12.0`
+  compatibility minimum. This matches the existing CI workflows and README
+  without changing build, runtime, deployment, provider, or activation
+  behavior.
 - Owner-authorized PR governance now makes PR ownership a terminal agent
   condition: the implementation agent monitors Greptile, required CI, and
   every review thread until the PR is ready or explicitly blocked. GitHub
