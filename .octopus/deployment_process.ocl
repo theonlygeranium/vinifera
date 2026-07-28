@@ -1,8 +1,3 @@
-// Vinifera Deployment Process
-// Stored at .octopus/deployment_process.ocl
-// Deploys the Vinifera application to the schubert-v2 SSH target.
-// Triggered on release creation — auto-promotes to Development.
-
 step "pull-and-build" {
     name = "Pull Latest Code and Build"
 
