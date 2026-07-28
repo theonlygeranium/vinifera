@@ -26,9 +26,12 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).not.toContain('--label "automated-promotion"');
   });
 
-  it("cannot deadlock while waiting on its own push workflow", () => {
-    expect(workflow).toContain("CURRENT_RUN_ID: ${{ github.run_id }}");
-    expect(workflow).toContain('contains($run_url)) | not');
+  it("can read gates and excludes every promotion attempt on the same SHA", () => {
+    expect(workflow).toMatch(/permissions:\n  checks: read/);
+    expect(workflow).toContain("statuses: read");
+    expect(workflow).toContain("promotion_checks='[");
+    expect(workflow).toContain('$promotion_checks | index($name) | not');
+    expect(workflow).not.toContain("CURRENT_RUN_ID");
   });
 
   it("requires exact-head CI, automated review, and resolved threads", () => {

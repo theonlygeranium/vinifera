@@ -23,6 +23,10 @@
 - `tests/scripts/promote-dev-to-staging.test.mjs`: Added source-contract coverage
   for PR ordering, event triggering, self-run exclusion, review gates,
   credential documentation, and exact-head merge confirmation.
+- `.github/workflows/promote-dev-to-staging.yml`: Granted the polling token
+  explicit check/status read permissions and excluded every promotion job name,
+  including prior attempts on the same commit, so credential repair or a
+  transient-provider retry cannot be poisoned by an older failed run.
 
 ### Changed
 - **Governance amendment (Options 1+2+4):** `dev → staging` promotion is
