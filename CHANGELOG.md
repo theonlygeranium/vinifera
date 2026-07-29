@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Fixed
+- `promote-dev-to-staging.yml` (staging REST pre-flight and re-check probes):
+  Changed probe endpoint from `/rest/v1/` to `/health`. Supabase restricts
+  `/rest/v1/` to `service_role` credentials; the anon key returns HTTP 401,
+  causing the pre-flight job to fail closed on every run. The `/health`
+  endpoint returns HTTP 200 without credentials and accurately confirms that
+  the Supabase project is reachable. No functional change to any gate logic.
 - `promote-dev-to-staging.yml` (both readiness-attempt sites): Fetch each
   check-run's parent check-suite via `gh api repos/$REPO/check-suites/$sid`
   to obtain the real `created_at` timestamp. The GitHub check-runs API does
