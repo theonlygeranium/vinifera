@@ -473,8 +473,10 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   available secrets atomically, and requires the core configuration report.
 - Production Worker bootstrap/version/deploy/Worker rollback is wired as a
   protected manual workflow. The standard dispatch no longer exposes legacy
-  domain cutover or Pages restoration. Account and Worker-origin hashes remain
-  empty, so no production mutation can run yet.
+  domain cutover or Pages restoration. Rollback keeps current `main` as the
+  control authorization and independently verifies a prior reviewed release
+  SHA plus a previously sole-active Worker version. Account and Worker-origin
+  hashes remain empty, so no production mutation can run yet.
 - Signed Android/iOS build and Play internal/TestFlight delivery are wired as a
   protected manual workflow. Normal CI remains explicitly compile-only.
 - Commit `5cc1bda` passed the complete GitHub quality and Android run

@@ -187,7 +187,7 @@ workflows under `.github/workflows/`:
 | `octopus-main-deploy.yml` | Push to main, manual | Reconcile trusted Octopus configuration after the default-branch bootstrap |
 | `octopus-pr-quality-gates.yml` | Promotion PRs and explicit high-risk review requests | Validate same-repository PR source and publish the trusted Octopus result for the exact PR/head/base/attempt |
 | `octopus-security-audit.yml` | Scheduled, manual | Run the trusted Octopus security audit |
-| `production-worker-release.yml` | Manual, protected | Deploy production Worker, domain move, Pages rollback (credential-gated) |
+| `production-worker-release.yml` | Manual, protected | Bootstrap, upload, deploy, or roll back the production Worker without domain/Pages mutation (credential-gated) |
 | `promote-dev-to-staging.yml` | Manual/owner-authorized | Open/update and validate a consolidated `dev` to `staging` promotion; never starts after every `dev` push |
 | `stripe-test-catalog.yml` | Manual, protected | Stripe test Price catalog bootstrap and reconciliation |
 | `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
@@ -314,7 +314,8 @@ feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
 - `staging → main` and production remain protected operations. They require
   explicit task authority or an owner-approved protected workflow, the full
   release gate, staging soak/health evidence, an identical reviewed artifact
-  or content digest, and a known rollback target.
+  or content digest, and a known rollback target bound to a prior reviewed
+  release SHA and a previously sole-active Worker version.
 - Agents MUST NOT commit or push directly to `staging` or `main`; those
   branches advance only through their promotion PRs.
 - The `vinifera.edstratumlabs.ai` root domain (marketing site + `/app` prototype) is served from the existing `vinifera` Cloudflare Pages project and is **never a target for agent deployments**.

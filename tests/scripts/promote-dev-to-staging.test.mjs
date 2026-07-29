@@ -35,6 +35,13 @@ describe("dev to staging promotion contract", () => {
   });
 
   it("requires fresh exact-comparison aggregate and Octopus evidence", () => {
+    for (const job of ["wait-for-gates", "ready"]) {
+      expect(workflow).toMatch(
+        new RegExp(
+          `${job}:[\\s\\S]*?permissions:\\n\\s+actions: read\\n\\s+checks: read\\n\\s+pull-requests: read\\n\\s+statuses: read`,
+        ),
+      );
+    }
     expect(workflow).toContain('"Type, test, build, and package"');
     expect(workflow).toContain('.context == "Octopus PR Quality Gates"');
     expect(workflow).toContain(

@@ -4,6 +4,7 @@ import {
   assertActiveDeployment,
   assertHealthPayload,
   assertProductionConfirmation,
+  assertRollbackDeploymentHistory,
   assertVersionMatchesGitSha,
   buildProductionSecretBundle,
   hashProductionTarget,
@@ -444,6 +445,43 @@ describe("production release guards", () => {
     ).toBe(versionId);
   });
 
+  it("permits only a retained, previously sole-active rollback version", () => {
+    const otherVersionId = "22222222-2222-4222-8222-222222222222";
+    const history = [
+      {
+        versions: [{ percentage: 100, version_id: versionId }],
+      },
+      {
+        versions: [{ percentage: 100, version_id: otherVersionId }],
+      },
+    ];
+    expect(() =>
+      assertRollbackDeploymentHistory(
+        history,
+        { versions: [{ percentage: 100, version_id: otherVersionId }] },
+        versionId,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertRollbackDeploymentHistory(
+        history,
+        { versions: [{ percentage: 100, version_id: versionId }] },
+        versionId,
+      ),
+    ).toThrow(/already the sole active/);
+    expect(() =>
+      assertRollbackDeploymentHistory(
+        [
+          {
+            versions: [{ percentage: 50, version_id: versionId }],
+          },
+        ],
+        { versions: [{ percentage: 100, version_id: otherVersionId }] },
+        versionId,
+      ),
+    ).toThrow(/not a sole 100% deployment/);
+  });
+
   it("requires both API identity and profile-specific configuration health gates", () => {
     expect(() =>
       assertHealthPayload(
@@ -492,6 +530,14 @@ describe("production release workflow", () => {
     expect(workflow).not.toMatch(/^\s+(push|schedule):/m);
     expect(workflow).toContain("name: production");
     expect(workflow).toContain("contents: read");
+    expect(workflow).toContain("actions: read");
+    expect(workflow).toContain("pull-requests: read");
+    expect(workflow).toContain(
+      '[[ "$GITHUB_REF" != "refs/heads/main" ]]',
+    );
+    expect(workflow).toContain(
+      '[[ "$GITHUB_SHA" != "$PRODUCTION_GIT_SHA" ]]',
+    );
     expect(workflow).toContain(
       "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     );
@@ -509,6 +555,19 @@ describe("production release workflow", () => {
     expect(workflow).toContain("wrangler rollback");
     expect(workflow).toContain('LIVE_BILLING_ENABLED: "false"');
     expect(workflow).toContain("verify-bootstrap-absent");
+    expect(workflow).toContain("rollback_git_sha:");
+    expect(workflow).toContain(
+      "PRODUCTION_ARTIFACT_GIT_SHA: ${{ inputs.operation == 'rollback-worker' && inputs.rollback_git_sha || inputs.git_sha }}",
+    );
+    expect(workflow).toContain(
+      'git merge-base --is-ancestor \\\n              "$PRODUCTION_ROLLBACK_GIT_SHA" "$PRODUCTION_GIT_SHA"',
+    );
+    expect(workflow).toContain(
+      "node scripts/production-release.mjs verify-rollback-history",
+    );
+    expect(workflow).toContain(
+      "control_git_sha=$PRODUCTION_GIT_SHA artifact_git_sha=$PRODUCTION_ARTIFACT_GIT_SHA",
+    );
     expect(workflow).not.toContain("restore-pages");
     expect(workflow).not.toContain("cutover-domain");
     expect(workflow).not.toContain("pages project delete");

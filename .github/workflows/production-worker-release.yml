@@ -13,8 +13,12 @@ on:
           - deploy-version
           - rollback-worker
       git_sha:
-        description: Full immutable commit SHA already contained in main
+        description: Full immutable current main SHA that authorizes this dispatch
         required: true
+        type: string
+      rollback_git_sha:
+        description: Prior reviewed production release SHA (rollback-worker only)
+        required: false
         type: string
       worker_version_id:
         description: Worker Version ID for deploy or rollback
@@ -30,6 +34,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
   pull-requests: read
 
@@ -55,11 +60,13 @@ jobs:
       PRODUCTION_CLOUDFLARE_ZONE_ID: ${{ secrets.PRODUCTION_CLOUDFLARE_ZONE_ID }}
       PRODUCTION_CONFIRMATION: ${{ inputs.confirmation }}
       PRODUCTION_CUSTOM_HOSTNAME: ${{ vars.PRODUCTION_CUSTOM_HOSTNAME }}
+      PRODUCTION_ARTIFACT_GIT_SHA: ${{ inputs.operation == 'rollback-worker' && inputs.rollback_git_sha || inputs.git_sha }}
       PRODUCTION_GIT_SHA: ${{ inputs.git_sha }}
       PRODUCTION_PAGES_PROJECT_NAME: ${{ vars.PRODUCTION_PAGES_PROJECT_NAME }}
       PRODUCTION_VERSION_ID: ${{ inputs.worker_version_id }}
       PRODUCTION_WORKER_ORIGIN: ${{ vars.PRODUCTION_WORKER_ORIGIN }}
       PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS: ${{ vars.PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS }}
+      PRODUCTION_ROLLBACK_GIT_SHA: ${{ inputs.rollback_git_sha }}
       STAGING_EVIDENCE_RUN_ID: ${{ inputs.staging_evidence_run_id }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -160,6 +167,11 @@ jobs:
             echo "This workflow is restricted to the canonical Vinifera repository." >&2
             exit 1
           fi
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]] \
+            || [[ "$GITHUB_SHA" != "$PRODUCTION_GIT_SHA" ]]; then
+            echo "Production control must execute from the exact current main workflow revision." >&2
+            exit 1
+          fi
           if [[ "$PRODUCTION_GIT_SHA" != "$(git rev-parse HEAD)" ]] ||
              [[ ! "$PRODUCTION_GIT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "The requested release target is not the exact checked-out immutable SHA." >&2
@@ -170,10 +182,10 @@ jobs:
             echo "The requested immutable SHA is not the current origin/main revision." >&2
             exit 1
           fi
-          release_prs=$(gh api \
+          authorization_prs=$(gh api \
             -H "Accept: application/vnd.github+json" \
             "repos/$GITHUB_REPOSITORY/commits/$PRODUCTION_GIT_SHA/pulls")
-          release_pr=$(jq -c \
+          authorization_pr=$(jq -c \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg release_sha "$PRODUCTION_GIT_SHA" \
             '[.[] |
@@ -182,15 +194,54 @@ jobs:
               select(.head.ref == "staging") |
               select(.merge_commit_sha == $release_sha) |
               select(.head.repo.full_name == $repository)] |
-             sort_by(.merged_at) | last // empty' <<<"$release_prs")
-          if [[ -z "$release_pr" ]]; then
+             sort_by(.merged_at) | last // empty' <<<"$authorization_prs")
+          if [[ -z "$authorization_pr" ]]; then
             echo "The current main revision is not associated with a merged staging-to-main promotion PR." >&2
             exit 1
           fi
           if jq -e \
             'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-            <<<"$release_pr" >/dev/null; then
+            <<<"$authorization_pr" >/dev/null; then
             echo "The production promotion is paused by an emergency label." >&2
+            exit 1
+          fi
+          if [[ "$OPERATION" == "rollback-worker" ]]; then
+            if [[ ! "$PRODUCTION_ROLLBACK_GIT_SHA" =~ ^[0-9a-f]{40}$ ]] \
+              || [[ "$PRODUCTION_ROLLBACK_GIT_SHA" == "$PRODUCTION_GIT_SHA" ]]; then
+              echo "Rollback requires a distinct prior immutable release SHA." >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$PRODUCTION_ROLLBACK_GIT_SHA"
+            if ! git merge-base --is-ancestor \
+              "$PRODUCTION_ROLLBACK_GIT_SHA" "$PRODUCTION_GIT_SHA"; then
+              echo "The rollback release SHA is not an ancestor of current main." >&2
+              exit 1
+            fi
+          elif [[ -n "$PRODUCTION_ROLLBACK_GIT_SHA" ]]; then
+            echo "rollback_git_sha is valid only for rollback-worker." >&2
+            exit 1
+          fi
+          artifact_prs=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$GITHUB_REPOSITORY/commits/$PRODUCTION_ARTIFACT_GIT_SHA/pulls")
+          artifact_pr=$(jq -c \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg artifact_sha "$PRODUCTION_ARTIFACT_GIT_SHA" \
+            '[.[] |
+              select(.merged_at != null) |
+              select(.base.ref == "main") |
+              select(.head.ref == "staging") |
+              select(.merge_commit_sha == $artifact_sha) |
+              select(.head.repo.full_name == $repository)] |
+             sort_by(.merged_at) | last // empty' <<<"$artifact_prs")
+          if [[ -z "$artifact_pr" ]]; then
+            echo "The selected artifact SHA is not an exact merged staging-to-main release." >&2
+            exit 1
+          fi
+          if jq -e \
+            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+            <<<"$artifact_pr" >/dev/null; then
+            echo "The selected artifact release is paused by an emergency label." >&2
             exit 1
           fi
           if [[ ! "$STAGING_EVIDENCE_RUN_ID" =~ ^[0-9]+$ ]]; then
@@ -202,11 +253,11 @@ jobs:
             echo "Production requires a configured staging soak of at least 300 seconds." >&2
             exit 1
           fi
-          staging_head_sha=$(jq -r '.head.sha' <<<"$release_pr")
+          staging_head_sha=$(jq -r '.head.sha' <<<"$artifact_pr")
           git fetch --no-tags --depth=1 origin "$staging_head_sha"
           if [[ "$(git rev-parse "$staging_head_sha^{tree}")" \
-            != "$(git rev-parse "$PRODUCTION_GIT_SHA^{tree}")" ]]; then
-            echo "The production commit tree is not identical to the reviewed staging tree." >&2
+            != "$(git rev-parse "$PRODUCTION_ARTIFACT_GIT_SHA^{tree}")" ]]; then
+            echo "The selected artifact tree is not identical to the reviewed staging tree." >&2
             exit 1
           fi
           staging_run=$(gh api \
@@ -234,7 +285,8 @@ jobs:
             echo "The configured staging soak period has not completed." >&2
             exit 1
           fi
-          echo "RELEASE_PR_NUMBER=$(jq -r '.number' <<<"$release_pr")" >> "$GITHUB_ENV"
+          echo "AUTHORIZATION_PR_NUMBER=$(jq -r '.number' <<<"$authorization_pr")" >> "$GITHUB_ENV"
+          echo "ARTIFACT_PR_NUMBER=$(jq -r '.number' <<<"$artifact_pr")" >> "$GITHUB_ENV"
           echo "STAGING_HEAD_SHA=$staging_head_sha" >> "$GITHUB_ENV"
           node -e '
             const fs = require("fs");
@@ -242,6 +294,7 @@ jobs:
               process.env.EVIDENCE_DIR + "/request.json",
               JSON.stringify({
                 gitSha: process.env.PRODUCTION_GIT_SHA,
+                artifactGitSha: process.env.PRODUCTION_ARTIFACT_GIT_SHA,
                 operation: process.env.OPERATION,
                 repository: process.env.GITHUB_REPOSITORY,
                 runAttempt: process.env.GITHUB_RUN_ATTEMPT,
@@ -304,6 +357,8 @@ jobs:
           else
             npx wrangler deployments status --env production --json \
               > "$EVIDENCE_DIR/prior-deployment.json"
+            npx wrangler deployments list --env production --json \
+              > "$EVIDENCE_DIR/prior-deployments.json"
             npx wrangler versions list --env production --json \
               > "$EVIDENCE_DIR/prior-versions.json"
           fi
@@ -321,7 +376,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          authorization=$(gh pr view "$RELEASE_PR_NUMBER" \
+          git fetch --no-tags origin main
+          if [[ "$(git rev-parse origin/main)" != "$PRODUCTION_GIT_SHA" ]]; then
+            echo "Current main changed after production authorization." >&2
+            exit 1
+          fi
+          authorization=$(gh pr view "$AUTHORIZATION_PR_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
             --json baseRefName,headRefName,labels,mergeCommit,state)
           if [[ "$(jq -r '.state' <<<"$authorization")" != "MERGED" \
@@ -333,6 +393,37 @@ jobs:
               <<<"$authorization" >/dev/null; then
             echo "Production authorization changed or is paused immediately before mutation." >&2
             exit 1
+          fi
+          artifact_authorization=$(gh pr view "$ARTIFACT_PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json baseRefName,headRefName,labels,mergeCommit,state)
+          if [[ "$(jq -r '.state' <<<"$artifact_authorization")" != "MERGED" \
+            || "$(jq -r '.baseRefName' <<<"$artifact_authorization")" != "main" \
+            || "$(jq -r '.headRefName' <<<"$artifact_authorization")" != "staging" \
+            || "$(jq -r '.mergeCommit.oid' <<<"$artifact_authorization")" != "$PRODUCTION_ARTIFACT_GIT_SHA" ]] \
+            || jq -e \
+              'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+              <<<"$artifact_authorization" >/dev/null; then
+            echo "Artifact authorization changed or is paused immediately before mutation." >&2
+            exit 1
+          fi
+          if [[ "$OPERATION" == "rollback-worker" ]]; then
+            if ! git merge-base --is-ancestor \
+              "$PRODUCTION_ARTIFACT_GIT_SHA" "$PRODUCTION_GIT_SHA"; then
+              echo "The rollback release is no longer an ancestor of current main." >&2
+              exit 1
+            fi
+            npx wrangler versions view "$PRODUCTION_VERSION_ID" --env production --json \
+              > "$EVIDENCE_DIR/pre-mutation-version.json"
+            npx wrangler deployments list --env production --json \
+              > "$EVIDENCE_DIR/pre-mutation-deployments.json"
+            npx wrangler deployments status --env production --json \
+              > "$EVIDENCE_DIR/pre-mutation-deployment.json"
+            node scripts/production-release.mjs verify-version \
+              "$EVIDENCE_DIR/pre-mutation-version.json"
+            node scripts/production-release.mjs verify-rollback-history \
+              "$EVIDENCE_DIR/pre-mutation-deployments.json" \
+              "$EVIDENCE_DIR/pre-mutation-deployment.json"
           fi
 
       - name: Bootstrap Worker on workers.dev
@@ -385,6 +476,11 @@ jobs:
           npx wrangler versions view "$PRODUCTION_VERSION_ID" --env production --json \
             > "$EVIDENCE_DIR/version.json"
           node scripts/production-release.mjs verify-version "$EVIDENCE_DIR/version.json"
+          if [[ "$OPERATION" == "rollback-worker" ]]; then
+            node scripts/production-release.mjs verify-rollback-history \
+              "$EVIDENCE_DIR/prior-deployments.json" \
+              "$EVIDENCE_DIR/prior-deployment.json"
+          fi
 
       - name: Promote approved Worker version
         if: inputs.operation == 'deploy-version'
@@ -405,7 +501,7 @@ jobs:
         run: |
           set -euo pipefail
           npx wrangler rollback "$PRODUCTION_VERSION_ID" --env production -y \
-            --message "vinifera production rollback git_sha=$PRODUCTION_GIT_SHA" \
+            --message "vinifera production rollback control_git_sha=$PRODUCTION_GIT_SHA artifact_git_sha=$PRODUCTION_ARTIFACT_GIT_SHA" \
             | tee "$EVIDENCE_DIR/rollback-output.txt"
           npx wrangler deployments status --env production --json \
             > "$EVIDENCE_DIR/after-deployment.json"

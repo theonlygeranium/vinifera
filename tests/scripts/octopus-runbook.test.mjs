@@ -1437,6 +1437,9 @@ describe("Octopus workflow trust boundary", () => {
     );
 
     expect(workflow).toContain("pull_request_target:");
+    expect(workflow).toMatch(
+      /quality-gates:[\s\S]*?permissions:\n\s+contents: read\n\s+pull-requests: read\n\s+statuses: write/,
+    );
     for (const event of ["opened", "labeled", "unlabeled", "closed"]) {
       expect(workflow).toMatch(new RegExp(`\\b${event},?`));
     }

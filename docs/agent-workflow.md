@@ -127,8 +127,11 @@ owner-authorized workflow.
    API/browser/accessibility smoke, and critical error state at
    `https://vinifera-staging.edstratumlabs.ai`.
 8. Production promotion remains protected and owner-authorized. Require the
-   configured soak, identical reviewed artifact or content digest, known
-   rollback target, and protected release confirmations.
+   configured soak, identical reviewed artifact or content digest, and
+   protected release confirmations. A known rollback target means a separately
+   verified prior reviewed release SHA plus a matching previously sole-active
+   Worker version; the current `main` SHA remains the workflow-control
+   authorization.
 9. After production deploys, verify the live marker/SHA, API health, primary
    journey, authentication boundary, accessibility smoke, and critical
    console/server state. Use the automatic rollback path if a critical check
@@ -147,6 +150,11 @@ Pull-request branch names, SHAs, and diffs are untrusted data. PR head code must
 never be checked out or executed in a job that can read repository, GitHub,
 Octopus, Cloudflare, provider, or deployment credentials. Forks and invalid
 branch names fail before any secret-bearing job starts.
+
+The Octopus publisher has read-only PR metadata plus status-write permission.
+Promotion evidence jobs have read-only Actions, checks, PR, and status
+permissions so they can bind results to the exact trusted run and job without
+granting repository-content mutation.
 
 To request Octopus for a high-risk feature PR, an owner or trusted automation
 applies `octopus-review-required`. Removing that label or closing the PR

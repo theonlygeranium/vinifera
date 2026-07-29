@@ -69,6 +69,16 @@ expected build SHA, API/browser/accessibility health, an identical reviewed
 artifact or verified content digest, and a known rollback target. Direct
 pushes to `staging` and `main` remain prohibited.
 
+Every production dispatch executes the current `main` workflow and uses the
+current `main` SHA plus its merged same-repository `staging → main` PR as the
+control authorization. Forward operations bind the Worker artifact to that
+same SHA. A rollback keeps the current-main control identity but supplies a
+separate prior artifact SHA; that SHA must be a reviewed release ancestor with
+matching staging tree, deployment run, and soak evidence, and the selected
+Worker version must match its annotations and appear as a prior sole-active
+Cloudflare deployment. Both identities and emergency-label states are
+revalidated immediately before rollback.
+
 Standing owner authorization may allow trusted automation to merge, promote,
 deploy, verify, or roll back only through these protected controls.
 `human-review-required` pauses all mutation, merge, promotion, and deployment;

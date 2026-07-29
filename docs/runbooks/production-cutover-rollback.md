@@ -13,9 +13,9 @@ marketing/static hostname.
 - `main` is the protected result of a `staging → main` promotion, and its full
   40-character Git SHA is bound to the reviewed staging artifact or an
   identical verified content digest.
-- The release workflow accepts only the current `origin/main` SHA and requires
-  GitHub to associate it with a merged same-repository `staging → main` PR.
-  It rejects that release when the associated promotion retains
+- The release workflow executes only the current `origin/main` control SHA and
+  requires GitHub to associate it with a merged same-repository
+  `staging → main` PR. It rejects the dispatch when that authorization retains
   `human-review-required` or `do-not-merge`.
 - `Type, test, build, and package`, exact-comparison Octopus, source QA, hosted
   Supabase pgTAP/RLS, hosted two-tenant proof, provider
@@ -29,6 +29,9 @@ marketing/static hostname.
   commit tree is identical to that reviewed staging tree and enforces
   `PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS` (minimum 300 seconds) from the
   staging run completion time.
+- The workflow's read-only GitHub token must include `actions: read`,
+  `contents: read`, and `pull-requests: read` so it can resolve that staging run
+  and both release identities without granting repository mutation.
 - The protected `production` GitHub environment exists and enforces the
   owner-authorized release contract.
 - Every production target hash is populated in
@@ -87,7 +90,7 @@ SHA. Success requires that version to become the sole version at 100% traffic
 and pass Worker-origin health. It must report the production environment marker
 and reviewed build SHA/artifact digest. No custom domain is moved.
 
-### Domain cutover
+### Deferred legacy domain cutover
 
 Immediately before mutation, capture:
 
@@ -97,7 +100,9 @@ Immediately before mutation, capture:
 - the expected account, zone, Pages project, hostname, Worker, and Worker
   origin through hash authorization.
 
-Cutover refuses a missing or non-active Pages hostname. It removes only that
+This section documents the separately authorized legacy control and is not
+executable from the standard production workflow. Cutover refuses a missing or
+non-active Pages hostname. It removes only that
 custom-domain attachment from Pages, attaches it to the production Worker, and
 polls the public health/configuration endpoints. It never deletes the Pages
 project or deployment.
@@ -127,11 +132,26 @@ static root and `/app/` prototype are independently reverified.
 
 ## Rollback
 
-For an application regression with a healthy Worker control plane, deploy the
-previous recorded Worker version using the rollback operation. Verify the sole
-100% active version and public health.
+For an application regression with a healthy Worker control plane, dispatch the
+current `main` workflow with its exact current control SHA, the prior reviewed
+release SHA in `rollback_git_sha`, the prior release's successful staging run
+ID, and the matching Worker version. The workflow requires the prior SHA to be
+a reviewed `staging → main` ancestor with an identical staging tree, completed
+soak evidence, and no emergency label. It verifies that the version annotations
+match that prior SHA, that retained Cloudflare history shows it was previously
+the sole 100% deployment, and that it is not already active. Immediately before
+rollback it repeats the mutable current-main/PR/emergency-label, ancestry,
+version-annotation, deployment-history, and current-state checks, then verifies
+sole-active state and health.
 
-For a domain/runtime incident, use **Restore domain to Pages**. The workflow:
+Cloudflare and Wrangler expose only the ten most recent deployments through
+this retained-history check. A legitimate older version therefore fails closed
+and requires a separately reviewed recovery procedure rather than bypassing
+the history proof.
+
+For a domain/runtime incident, the standard workflow has no
+**Restore domain to Pages** operation. The separately authorized legacy
+procedure:
 
 1. captures current Worker and retained Pages state;
 2. removes only the allowlisted Worker domain attachment;
@@ -171,7 +191,9 @@ Retain workflow summaries and sanitized artifacts for:
 - exact promotion PR, head SHA, base SHA, and Octopus attempt;
 - reviewed artifact digest and staging soak result;
 - target-policy pass;
-- immutable Git SHA and Worker version;
+- current-main control SHA/PR plus artifact SHA/PR and Worker version;
+- retained Cloudflare deployment-history proof that a rollback target was
+  previously sole-active;
 - pre-mutation control-plane snapshot;
 - Worker-origin health;
 - public cutover or Pages-restore health;

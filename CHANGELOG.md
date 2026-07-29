@@ -33,6 +33,16 @@
   production resource change.
 
 ### Fixed
+- Review-gate permissions and Worker rollback authorization now fail closed
+  without becoming unusable: Octopus can read PR metadata, promotion and
+  production gates can read exact Actions run/job evidence, and rollback keeps
+  current `main` as the trusted control SHA while independently verifying a
+  prior reviewed release SHA, matching staging tree/run/soak, version
+  annotations, and previously sole-active Cloudflare deployment history.
+  Current and prior release identities are revalidated immediately before
+  mutation. **Deployment impact:** Tightens protected review/promotion/release
+  authorization only; no merge, promotion, deployment, DNS, database, provider,
+  or production mutation occurs.
 - Cloudflare preview evidence now prefers the `vinifera-dev` project check when
   present and falls back to the actual `vinifera` feature-preview check. Live
   PR evidence showed that feature heads receive `Cloudflare Pages: vinifera`,

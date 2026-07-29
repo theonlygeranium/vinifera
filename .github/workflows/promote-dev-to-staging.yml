@@ -204,6 +204,7 @@ jobs:
     timeout-minutes: 45
     environment: promotion-control
     permissions:
+      actions: read
       checks: read
       pull-requests: read
       statuses: read
@@ -475,6 +476,7 @@ jobs:
     timeout-minutes: 5
     environment: promotion-control
     permissions:
+      actions: read
       checks: read
       pull-requests: read
       statuses: read
