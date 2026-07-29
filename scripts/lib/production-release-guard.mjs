@@ -277,6 +277,41 @@ export function assertActiveDeployment(deployment, versionId) {
   }
 }
 
+export function assertRollbackDeploymentHistory(
+  deployments,
+  currentDeployment,
+  versionId,
+) {
+  const expectedVersionId = validateWorkerVersionId(versionId);
+  if (!Array.isArray(deployments)) {
+    throw new Error("Worker deployment history is missing or invalid.");
+  }
+  if (
+    currentDeployment?.versions?.length === 1 &&
+    Number(currentDeployment.versions[0]?.percentage) === 100 &&
+    validateWorkerVersionId(currentDeployment.versions[0]?.version_id) ===
+      expectedVersionId
+  ) {
+    throw new Error(
+      "The rollback Worker version is already the sole active deployment.",
+    );
+  }
+  const wasActive = deployments.some(
+    (deployment) =>
+      Array.isArray(deployment?.versions) &&
+      deployment.versions.length === 1 &&
+      Number(deployment.versions[0]?.percentage) === 100 &&
+      validateWorkerVersionId(deployment.versions[0]?.version_id) ===
+        expectedVersionId,
+  );
+  if (!wasActive) {
+    throw new Error(
+      "The rollback Worker version was not a sole 100% deployment in retained Cloudflare history.",
+    );
+  }
+  return true;
+}
+
 export function soleActiveVersionId(deployment) {
   if (
     !deployment ||

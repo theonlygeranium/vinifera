@@ -1,21 +1,46 @@
-# Production Worker cutover and Pages rollback
+# Production Worker release and Pages rollback
 
-The public `vinifera.edstratumlabs.ai` hostname remains on Cloudflare Pages
-until this runbook passes. Production Worker creation, version deployment,
-domain cutover, and Pages restoration are separate operations.
+The stable production application address is
+`https://vinifera-live.edstratumlabs.ai`. The public
+`https://vinifera.edstratumlabs.ai` hostname remains the marketing/static
+rollback baseline. Production Worker creation, version deployment, live-host
+attachment, application rollback, and verification are separate operations.
+Routine standing delivery authority does not permit moving or deleting the
+marketing/static hostname.
 
 ## Preconditions
 
-- `main` is clean, pushed, and its full 40-character Git SHA is approved.
-- CI, source QA, hosted Supabase pgTAP/RLS, hosted two-tenant proof, provider
+- `main` is the protected result of a `staging → main` promotion, and its full
+  40-character Git SHA is bound to the reviewed staging artifact or an
+  identical verified content digest.
+- The release workflow executes only the current `origin/main` control SHA and
+  requires GitHub to associate it with a merged same-repository
+  `staging → main` PR. It rejects the dispatch when that authorization retains
+  `human-review-required` or `do-not-merge`.
+- `Type, test, build, and package`, exact-comparison Octopus, source QA, hosted
+  Supabase pgTAP/RLS, hosted two-tenant proof, provider
   sandboxes, physical-device QA, and store-track checks required by the Phase 5
   report have passed.
-- The protected `production` GitHub environment exists and requires review.
+- The configured staging soak completed without critical health failure.
+- Provide the successful staging deployment Actions run ID. The release
+  workflow requires that run to be a completed successful `ci.yml` push on the
+  reviewed staging head, with both `Type, test, build, and package` and
+  `Deploy Worker when activated` successful. It verifies the production
+  commit tree is identical to that reviewed staging tree and enforces
+  `PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS` (minimum 300 seconds) from the
+  staging run completion time.
+- The workflow's read-only GitHub token must include `actions: read`,
+  `contents: read`, and `pull-requests: read` so it can resolve that staging run
+  and both release identities without granting repository mutation.
+- The protected `production` GitHub environment exists and enforces the
+  owner-authorized release contract.
 - Every production target hash is populated in
   `config/production-release-policy.json`.
 - The Pages project `vinifera` still has an active
   `vinifera.edstratumlabs.ai` custom domain and a restorable production
   deployment.
+- The known production rollback target is healthy and retained.
+- Neither `human-review-required` nor `do-not-merge` is present.
 - The production Worker uses Stripe test mode and
   `LIVE_BILLING_ENABLED=false`.
 - `config/stripe-live-billing-policy.json` remains disabled; production Worker
@@ -37,6 +62,16 @@ Select only one operation at a time and enter its exact phrase:
 | Move domain to Worker | `CUT OVER VINIFERA DOMAIN TO WORKER` |
 | Restore domain to Pages | `RESTORE VINIFERA DOMAIN TO PAGES` |
 
+The domain-move operations are legacy, high-risk controls for the marketing
+hostname. They are outside ordinary autonomous delivery and must not be used to
+replace `vinifera.edstratumlabs.ai` with the application. A future DNS/domain
+ownership change requires `human-review-required` resolution and explicit
+owner direction. Normal application release targets
+`vinifera-live.edstratumlabs.ai` and leaves the marketing/rollback hostname
+attached to Pages. The standard `Production Worker release` dispatch no longer
+offers or accepts `cutover-domain` or `restore-pages`; re-enabling either
+requires a separately reviewed workflow change and explicit owner direction.
+
 ### Bootstrap
 
 Bootstrap first proves that the allowlisted Worker does not exist, then uses
@@ -52,9 +87,10 @@ health/configuration contract, and retains sanitized evidence.
 
 Deploy accepts only a validated version ID that belongs to the approved Git
 SHA. Success requires that version to become the sole version at 100% traffic
-and pass Worker-origin health. No custom domain is moved.
+and pass Worker-origin health. It must report the production environment marker
+and reviewed build SHA/artifact digest. No custom domain is moved.
 
-### Domain cutover
+### Deferred legacy domain cutover
 
 Immediately before mutation, capture:
 
@@ -64,7 +100,9 @@ Immediately before mutation, capture:
 - the expected account, zone, Pages project, hostname, Worker, and Worker
   origin through hash authorization.
 
-Cutover refuses a missing or non-active Pages hostname. It removes only that
+This section documents the separately authorized legacy control and is not
+executable from the standard production workflow. Cutover refuses a missing or
+non-active Pages hostname. It removes only that
 custom-domain attachment from Pages, attaches it to the production Worker, and
 polls the public health/configuration endpoints. It never deletes the Pages
 project or deployment.
@@ -94,11 +132,26 @@ static root and `/app/` prototype are independently reverified.
 
 ## Rollback
 
-For an application regression with a healthy Worker control plane, deploy the
-previous recorded Worker version using the rollback operation. Verify the sole
-100% active version and public health.
+For an application regression with a healthy Worker control plane, dispatch the
+current `main` workflow with its exact current control SHA, the prior reviewed
+release SHA in `rollback_git_sha`, the prior release's successful staging run
+ID, and the matching Worker version. The workflow requires the prior SHA to be
+a reviewed `staging → main` ancestor with an identical staging tree, completed
+soak evidence, and no emergency label. It verifies that the version annotations
+match that prior SHA, that retained Cloudflare history shows it was previously
+the sole 100% deployment, and that it is not already active. Immediately before
+rollback it repeats the mutable current-main/PR/emergency-label, ancestry,
+version-annotation, deployment-history, and current-state checks, then verifies
+sole-active state and health.
 
-For a domain/runtime incident, use **Restore domain to Pages**. The workflow:
+Cloudflare and Wrangler expose only the ten most recent deployments through
+this retained-history check. A legitimate older version therefore fails closed
+and requires a separately reviewed recovery procedure rather than bypassing
+the history proof.
+
+For a domain/runtime incident, the standard workflow has no
+**Restore domain to Pages** operation. The separately authorized legacy
+procedure:
 
 1. captures current Worker and retained Pages state;
 2. removes only the allowlisted Worker domain attachment;
@@ -116,6 +169,13 @@ curl --fail --silent --show-error https://vinifera.edstratumlabs.ai/app/
 curl --fail --silent --show-error https://vinifera.edstratumlabs.ai/guide/
 ```
 
+For the stable application surface, also verify the expected post-release or
+rolled-back marker, SHA/digest, and API health at:
+
+```bash
+curl --fail --silent --show-error https://vinifera-live.edstratumlabs.ai/api/health
+```
+
 Do not force-push Git and do not delete the Pages project. A domain rollback
 does not revert Supabase migrations, Stripe dashboard settings, provider
 tokens, DNS outside Cloudflare, or already distributed mobile builds.
@@ -128,13 +188,25 @@ allowed 90-day maximum. Individual workflows may request a shorter 7-, 14-, or
 
 Retain workflow summaries and sanitized artifacts for:
 
+- exact promotion PR, head SHA, base SHA, and Octopus attempt;
+- reviewed artifact digest and staging soak result;
 - target-policy pass;
-- immutable Git SHA and Worker version;
+- current-main control SHA/PR plus artifact SHA/PR and Worker version;
+- retained Cloudflare deployment-history proof that a rollback target was
+  previously sole-active;
 - pre-mutation control-plane snapshot;
 - Worker-origin health;
 - public cutover or Pages-restore health;
 - exact operation and actor from GitHub's audit trail; and
 - any automatic restoration attempt.
+
+After deployment, verify the production build SHA/artifact digest, environment
+marker, API health contract, primary user journey, authentication boundary,
+basic accessibility, and absence of critical console/server errors. An HTTP
+200 or the healthy marketing surface is not application evidence. If a
+critical verification fails, automatically deploy the known prior Worker
+version; use the retained Pages restoration only for the separately authorized
+domain path.
 
 Record the run URL and outcome in the current phase QA report and
 `CONTINUITY_BRIEF.md`. Only then may the deployment state be described as
@@ -159,3 +231,8 @@ after:
 The revert operation restores the reviewed test bindings and disables live
 billing. Neither operation is authorized while services are deferred, and a
 credential's presence alone is never sufficient.
+
+`human-review-required` pauses release and rollback mutation until the owner or
+an explicitly trusted owner workflow removes it. `do-not-merge` remains an
+absolute promotion prohibition. Neither label may be bypassed by standing
+authorization.

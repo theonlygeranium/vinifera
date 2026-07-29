@@ -1,14 +1,23 @@
-name: Quality and staging deployment
+name: Full promotion validation
 
 on:
   pull_request:
+    branches: [staging, main]
     types: [opened, synchronize, reopened, ready_for_review, edited]
   push:
     branches: [staging, main]
   workflow_dispatch:
+    inputs:
+      full_mobile:
+        description: "Run Android lint and debug/release assembly"
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "37 8 * * *"
 
 concurrency:
-  group: vinifera-${{ github.workflow }}-${{ github.ref }}
+  group: vinifera-full-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -16,7 +25,7 @@ permissions:
 
 jobs:
   classify:
-    name: Classify validation lane
+    name: Classify full validation scope
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -25,30 +34,36 @@ jobs:
       reason: ${{ steps.classify.outputs.reason }}
       base_sha: ${{ steps.classify.outputs.base_sha }}
       head_sha: ${{ steps.classify.outputs.head_sha }}
+      mobile_required: ${{ steps.classify.outputs.mobile_required }}
     steps:
       - name: Check out exact validation head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Classify exact base and head diff
         id: classify
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           EVENT_SHA: ${{ github.sha }}
+          FULL_MOBILE: ${{ inputs.full_mobile || false }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             base_sha="$PR_BASE_SHA"
             head_sha="$PR_HEAD_SHA"
-          else
-            base_sha="$EVENT_SHA"
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            base_sha="$EVENT_BEFORE"
             head_sha="$EVENT_SHA"
+          else
+            head_sha="$EVENT_SHA"
+            base_sha=$(git rev-parse "${head_sha}^")
           fi
 
           for pair in "base:$base_sha" "head:$head_sha"; do
@@ -60,131 +75,62 @@ jobs:
             fi
           done
 
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            git fetch --no-tags --depth=1 origin "$base_sha"
-          fi
+          git fetch --no-tags --depth=1 origin "$base_sha"
 
           for pair in "base:$base_sha" "head:$head_sha"; do
             sha="${pair#*:}"
             git cat-file -e "${sha}^{commit}"
           done
 
-          EVENT_NAME="$EVENT_NAME" BASE_SHA="$base_sha" HEAD_SHA="$head_sha" \
+          EVENT_NAME="$EVENT_NAME" BASE_SHA="$base_sha" HEAD_SHA="$head_sha" FULL_MOBILE="$FULL_MOBILE" \
             node --input-type=module <<'NODE'
-          import { appendFileSync, writeFileSync } from "node:fs";
-          import { execFileSync } from "node:child_process";
+          import { appendFileSync } from "node:fs";
+          import {
+            classifyDeliveryChange,
+            readChangedRecords,
+          } from "./.github/scripts/delivery-policy.mjs";
 
-          const output = process.env.GITHUB_OUTPUT;
-          const summary = process.env.GITHUB_STEP_SUMMARY;
-          const eventName = process.env.EVENT_NAME;
-          const baseSha = process.env.BASE_SHA;
-          const headSha = process.env.HEAD_SHA;
-          const allowedRoots = new Set([
-            "AGENTS.md",
-            "CHANGELOG.md",
-            "CONTINUITY_BRIEF.md",
-            "README.md",
-            "REVERT.md",
-          ]);
-          const allowed = (path) =>
-            allowedRoots.has(path) ||
-            (path.startsWith("docs/") &&
-              path.endsWith(".md") &&
-              !path.split("/").includes(".."));
-
-          let lane = "full";
-          let reason = `${eventName || "unknown"}_event`;
-          let classificationSucceeded = true;
-          let records = [];
-
-          if (eventName === "pull_request") {
-            const diff = execFileSync(
-              "git",
-              ["diff", "--name-status", "-z", "-M", "-C", baseSha, headSha],
-              { encoding: "buffer", stdio: ["ignore", "pipe", "pipe"] },
-            );
-            const fields = diff.toString("utf8").split("\0");
-            if (fields.at(-1) === "") fields.pop();
-
-            try {
-              for (let index = 0; index < fields.length;) {
-                const status = fields[index++];
-                if (!status) throw new Error("empty status");
-                const count = status.startsWith("R") || status.startsWith("C") ? 2 : 1;
-                if (index + count > fields.length) throw new Error(`missing path for ${status}`);
-                records.push({ status, paths: fields.slice(index, index + count) });
-                index += count;
-              }
-            } catch (error) {
-              classificationSucceeded = false;
-              reason = `diff_parse_failure: ${error.message}`;
-            }
-
-            if (classificationSucceeded && records.length === 0) {
-              classificationSucceeded = false;
-              reason = "empty_diff";
-            } else if (classificationSucceeded) {
-              lane = "docs";
-              reason = "explicit_allowlist_match";
-              for (const record of records) {
-                if (record.status.startsWith("C")) {
-                  lane = "full";
-                  reason = "copy_detected";
-                  break;
-                }
-                if (record.status === "D") {
-                  lane = "full";
-                  reason = "deletion_detected";
-                  break;
-                }
-                const supported =
-                  ((record.status === "A" || record.status === "M") &&
-                    record.paths.length === 1) ||
-                  (/^R\d{1,3}$/.test(record.status) && record.paths.length === 2);
-                if (!supported) {
-                  lane = "full";
-                  reason = `unsupported_status_${record.status}`;
-                  break;
-                }
-                if (record.paths.some((path) => !allowed(path))) {
-                  lane = "full";
-                  reason = "non_documentation_path";
-                  break;
-                }
-              }
-            }
+          let classification;
+          try {
+            classification = classifyDeliveryChange(readChangedRecords(
+              process.env.BASE_SHA,
+              process.env.HEAD_SHA,
+            ));
+          } catch (error) {
+            classification = {
+              classificationSucceeded: false,
+              reason: `classifier_exception: ${error.message}`,
+              paths: [],
+              mobileRequired: false,
+            };
           }
-
-          const displayPaths = (records.length
-            ? records.map(({ status, paths }) => `${status} ${paths.join(" -> ")}`)
-            : ["(not applicable or unavailable)"])
-            .map((line) => line.replaceAll(/[\r\n]+/g, " "));
+          const mobileRequired =
+            process.env.EVENT_NAME === "schedule" ||
+            process.env.FULL_MOBILE === "true" ||
+            classification.mobileRequired === true;
           appendFileSync(
-            output,
+            process.env.GITHUB_OUTPUT,
             [
-              `classification_succeeded=${classificationSucceeded}`,
-              `lane=${lane}`,
-              `reason=${reason.replaceAll("\n", " ")}`,
-              `base_sha=${baseSha}`,
-              `head_sha=${headSha}`,
+              `classification_succeeded=${classification.classificationSucceeded}`,
+              "lane=full",
+              `reason=full_promotion_${classification.reason.replaceAll(/[\r\n]+/g, " ")}`,
+              `base_sha=${process.env.BASE_SHA}`,
+              `head_sha=${process.env.HEAD_SHA}`,
+              `mobile_required=${mobileRequired}`,
               "",
             ].join("\n"),
           );
-          writeFileSync(
-            summary,
+          appendFileSync(
+            process.env.GITHUB_STEP_SUMMARY,
             [
-              "## Validation lane classification",
+              "## Full validation scope",
               "",
-              `- Exact base SHA: \`${baseSha}\``,
-              `- Exact head SHA: \`${headSha}\``,
-              `- Classification succeeded: \`${classificationSucceeded}\``,
-              `- Selected lane: \`${lane}\``,
-              `- Reason: \`${reason}\``,
-              "- Classified changed paths:",
-              "",
-              "```text",
-              ...displayPaths,
-              "```",
+              `- Exact base SHA: \`${process.env.BASE_SHA}\``,
+              `- Exact head SHA: \`${process.env.HEAD_SHA}\``,
+              `- Classification succeeded: \`${classification.classificationSucceeded}\``,
+              "- Selected lane: `full`",
+              `- Android required: \`${mobileRequired}\``,
+              `- Changed paths: ${classification.paths.map((path) => `\`${path}\``).join(", ") || "(none)"}`,
               "",
             ].join("\n"),
           );
@@ -202,7 +148,7 @@ jobs:
         with:
           ref: ${{ needs.classify.outputs.head_sha }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Fetch exact pull request base
         env:
@@ -301,12 +247,22 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch exact validation base
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
 
       - name: Use Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 22.22.0
+          node-version-file: .nvmrc
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install locked dependencies
         run: npm ci
@@ -315,7 +271,23 @@ jobs:
         run: npm audit --omit=dev --audit-level=moderate
 
       - name: Validate CI lane policy
-        run: node --test .github/scripts/docs-ci-policy.policy.mjs
+        run: |
+          node --test .github/scripts/docs-ci-policy.policy.mjs
+          node --test .github/scripts/delivery-policy.policy.mjs
+
+      - name: Check exact diff whitespace and credential patterns
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+        run: |
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          node --input-type=module <<'NODE'
+          import { scanDiffForSecrets } from "./.github/scripts/docs-ci-policy.mjs";
+          scanDiffForSecrets({
+            baseSha: process.env.BASE_SHA,
+            headSha: process.env.HEAD_SHA,
+          });
+          NODE
 
       - name: Generate Worker types
         run: npm run cf-typegen
@@ -367,21 +339,61 @@ jobs:
           test -f dist/app
           grep -q "Fall 2026 Club Release" dist/app
 
+  mobile_web:
+    name: Validate shared mobile web bundle
+    needs: classify
+    if: >-
+      needs.classify.outputs.classification_succeeded == 'true' &&
+      needs.classify.outputs.lane == 'full' &&
+      needs.classify.outputs.mobile_required != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          persist-credentials: false
+
+      - name: Use repository Node.js pin and lockfile cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate shared mobile web output
+        env:
+          MOBILE_BUILD_PROFILE: compile-only
+          MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "false"
+          VITE_MOBILE_API_ORIGIN: https://unconfigured.invalid
+        run: npm run build:mobile:web
+
   mobile_android:
     name: Build and lint Android shell
     needs: classify
-    if: needs.classify.outputs.classification_succeeded == 'true' && needs.classify.outputs.lane == 'full'
+    if: >-
+      needs.classify.outputs.classification_succeeded == 'true' &&
+      needs.classify.outputs.lane == 'full' &&
+      needs.classify.outputs.mobile_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          persist-credentials: false
 
       - name: Use Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 22.22.0
+          node-version-file: .nvmrc
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Use Java
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
@@ -434,7 +446,7 @@ jobs:
   quality:
     name: Type, test, build, and package
     if: always()
-    needs: [classify, docs_validation, full_quality, mobile_android]
+    needs: [classify, docs_validation, full_quality, mobile_web, mobile_android]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -446,6 +458,8 @@ jobs:
           CLASSIFIER_RESULT: ${{ needs.classify.result }}
           DOCS_RESULT: ${{ needs.docs_validation.result }}
           FULL_RESULT: ${{ needs.full_quality.result }}
+          MOBILE_REQUIRED: ${{ needs.classify.outputs.mobile_required }}
+          MOBILE_WEB_RESULT: ${{ needs.mobile_web.result }}
           MOBILE_RESULT: ${{ needs.mobile_android.result }}
           BASE_SHA: ${{ needs.classify.outputs.base_sha }}
           HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
@@ -461,6 +475,8 @@ jobs:
             echo "- Selected lane: \`${LANE:-missing}\`"
             echo "- Documentation job: \`${DOCS_RESULT}\`"
             echo "- Full quality job: \`${FULL_RESULT}\`"
+            echo "- Android required: \`${MOBILE_REQUIRED:-missing}\`"
+            echo "- Shared mobile web job: \`${MOBILE_WEB_RESULT}\`"
             echo "- Android job: \`${MOBILE_RESULT}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -481,9 +497,24 @@ jobs:
               ;;
             full)
               if [[ "$DOCS_RESULT" != "skipped" ||
-                    "$FULL_RESULT" != "success" ||
-                    "$MOBILE_RESULT" != "success" ]]; then
-                echo "::error::Full quality and Android lanes did not run exclusively and pass."
+                    "$FULL_RESULT" != "success" ]]; then
+                echo "::error::Full quality lane did not run exclusively and pass."
+                exit 1
+              fi
+              if [[ "$MOBILE_REQUIRED" == "true" ]]; then
+                if [[ "$MOBILE_WEB_RESULT" != "skipped" ||
+                      "$MOBILE_RESULT" != "success" ]]; then
+                  echo "::error::Required Android validation did not run exclusively and pass."
+                  exit 1
+                fi
+              elif [[ "$MOBILE_REQUIRED" == "false" ]]; then
+                if [[ "$MOBILE_WEB_RESULT" != "success" ||
+                      "$MOBILE_RESULT" != "skipped" ]]; then
+                  echo "::error::Required shared mobile web validation did not run exclusively and pass."
+                  exit 1
+                fi
+              else
+                echo "::error::Android selection is missing or ambiguous."
                 exit 1
               fi
               ;;
