@@ -214,7 +214,7 @@ jobs:
               [[ -z "$sid" ]] && continue
               ts=$(gh api "repos/$REPO/check-suites/$sid" --jq '.created_at // ""')
               suite_map=$(jq --arg id "$sid" --arg ts "$ts" '. + {($id): $ts}' <<<"$suite_map")
-            done < <(jq -r '[.[].check_suite.id | select(. != null)] | unique | []' <<<"$raw_runs")
+            done < <(jq -r '[.[].check_suite.id | select(. != null)] | unique | .[]' <<<"$raw_runs")
             checks=$(jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
               --arg pr_base_sha "$PR_BASE_SHA" \
               --arg pr_sha "$PR_SHA" \
@@ -414,7 +414,7 @@ jobs:
             [[ -z "$sid" ]] && continue
             ts=$(gh api "repos/$REPO/check-suites/$sid" --jq '.created_at // ""')
             suite_map=$(jq --arg id "$sid" --arg ts "$ts" '. + {($id): $ts}' <<<"$suite_map")
-          done < <(jq -r '[.[].check_suite.id | select(. != null)] | unique | []' <<<"$raw_runs")
+          done < <(jq -r '[.[].check_suite.id | select(. != null)] | unique | .[]' <<<"$raw_runs")
           checks=$(jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
             --arg pr_base_sha "$PR_BASE_SHA" \
             --arg pr_sha "$PR_SHA" \
