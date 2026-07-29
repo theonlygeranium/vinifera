@@ -2,8 +2,8 @@
 
 **Status:** Accepted, safety-amended 2026-07-28
 
-**Date:** 2026-07-28  
-**Author:** Writer Agent (authorized by human owner in session thread `7784a4df-eb35-4347-8335-297aa8d85a26`)  
+**Date:** 2026-07-28
+**Author:** Writer Agent (authorized by human owner in session thread `7784a4df-eb35-4347-8335-297aa8d85a26`)
 **Supersedes:** Sections 7 and 9 of `AGENTS.md` (prior dev→staging human-gate rule)
 
 ---
