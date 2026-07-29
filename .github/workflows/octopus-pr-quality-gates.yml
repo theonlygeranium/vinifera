@@ -6,18 +6,44 @@ on:
       - dev
       - staging
       - main
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    types:
+      [
+        opened,
+        synchronize,
+        reopened,
+        ready_for_review,
+        edited,
+        labeled,
+        unlabeled,
+        closed,
+      ]
+
+concurrency:
+  group: octopus-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   validate-source:
     name: Validate trusted PR source
+    if: >-
+      ((github.event.pull_request.base.ref == 'staging' &&
+       github.event.pull_request.head.ref == 'dev') ||
+      (github.event.pull_request.base.ref == 'main' &&
+       github.event.pull_request.head.ref == 'staging') ||
+       (github.event.pull_request.base.ref == 'dev' &&
+        contains(github.event.pull_request.labels.*.name, 'octopus-review-required'))) &&
+       github.event.action != 'closed' &&
+       !contains(github.event.pull_request.labels.*.name, 'human-review-required') &&
+       !contains(github.event.pull_request.labels.*.name, 'do-not-merge')
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
 
     outputs:
+      attempt_marker_required: ${{ steps.validate.outputs.attempt_marker_required }}
       branch: ${{ steps.validate.outputs.branch }}
+      review_attempt: ${{ steps.validate.outputs.review_attempt }}
 
     steps:
       - name: Reject forks and unsafe branch names
@@ -26,8 +52,13 @@ jobs:
         env:
           EXPECTED_REPOSITORY: ${{ github.repository }}
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          EVENT_ATTEMPT: ${{ github.event.pull_request.updated_at }}
         run: |
+          set -euo pipefail
+
           if [[ "$HEAD_REPOSITORY" != "$EXPECTED_REPOSITORY" ]]; then
             echo "::error::Privileged Octopus reviews accept same-repository pull requests only."
             exit 1
@@ -37,16 +68,29 @@ jobs:
             exit 1
           fi
           git check-ref-format --branch "$PR_BRANCH" >/dev/null
+          review_attempt="$EVENT_ATTEMPT"
+          attempt_marker_required="false"
+          if [[ "$PR_BASE_REF" == "staging" && "$PR_BRANCH" == "dev" ]]; then
+            review_attempt=$(sed -nE 's/^Review attempt: ([0-9]+\.[0-9]+)$/\1/p' <<<"$PR_BODY" | tail -1)
+            attempt_marker_required="true"
+          fi
+          if [[ ! "$review_attempt" =~ ^([0-9]+\.[0-9]+|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)$ ]]; then
+            echo "::error::Pull-request review attempt is not a supported exact identifier."
+            exit 1
+          fi
+          printf 'attempt_marker_required=%s\n' "$attempt_marker_required" >> "$GITHUB_OUTPUT"
           printf 'branch=%s\n' "$PR_BRANCH" >> "$GITHUB_OUTPUT"
+          printf 'review_attempt=%s\n' "$review_attempt" >> "$GITHUB_OUTPUT"
 
   quality-gates:
     name: Run PR Quality Gates
     runs-on: ubuntu-latest
     needs: validate-source
-    if: always()
+    if: always() && needs.validate-source.result != 'skipped'
 
     permissions:
       contents: read
+      pull-requests: read
       statuses: write
 
     steps:
@@ -79,15 +123,19 @@ jobs:
           PR_EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_ATTEMPT: ${{ needs.validate-source.outputs.review_attempt }}
         run: node .github/scripts/octopus-runbook.mjs "PR Quality Gates"
 
       - name: Publish the trusted result on the PR head
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          ATTEMPT_MARKER_REQUIRED: ${{ needs.validate-source.outputs.attempt_marker_required }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEW_ATTEMPT: ${{ needs.validate-source.outputs.review_attempt }}
           REPO: ${{ github.repository }}
           RUNBOOK_OUTCOME: ${{ steps.runbook.outcome }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -103,12 +151,44 @@ jobs:
             echo "::error::Pull-request base is not an exact commit SHA."
             exit 1
           fi
+          if [[ ! "$REVIEW_ATTEMPT" =~ ^([0-9]+\.[0-9]+|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)$ ]]; then
+            echo "::error::Review attempt is not a supported exact identifier."
+            exit 1
+          fi
+
+          current=$(gh api "repos/$REPO/pulls/$PR_NUMBER")
+          if [[ "$(jq -r '.head.sha' <<<"$current")" != "$PR_SHA" \
+            || "$(jq -r '.base.ref' <<<"$current")" != "$PR_BASE_REF" \
+            || "$(jq -r '.base.sha' <<<"$current")" != "$PR_BASE_SHA" \
+            || "$(jq -r '.state' <<<"$current")" != "open" ]]; then
+            echo "::error::PR closed or its head/base changed before Octopus publication."
+            exit 1
+          fi
+          if [[ "$PR_BASE_REF" == "dev" ]] \
+            && ! jq -e \
+              'any(.labels[]?; .name == "octopus-review-required")' \
+              <<<"$current" >/dev/null; then
+            echo "::error::The explicit Octopus review label was removed before publication."
+            exit 1
+          fi
+          if jq -e \
+            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+            <<<"$current" >/dev/null; then
+            echo "::error::The PR was paused by an emergency label before publication."
+            exit 1
+          fi
+          if [[ "$ATTEMPT_MARKER_REQUIRED" == "true" ]] \
+            && ! jq -er --arg marker "Review attempt: $REVIEW_ATTEMPT" \
+              '.body | split("\n") | index($marker) != null' <<<"$current" >/dev/null; then
+            echo "::error::Promotion review attempt changed before Octopus publication."
+            exit 1
+          fi
 
           state="failure"
-          description="Runbook failed for PR #$PR_NUMBER base $PR_BASE_SHA"
+          description="Runbook failed PR #$PR_NUMBER $PR_BASE_REF@$PR_BASE_SHA attempt $REVIEW_ATTEMPT"
           if [[ "$VALIDATION_RESULT" == "success" && "$RUNBOOK_OUTCOME" == "success" ]]; then
             state="success"
-            description="Runbook completed for PR #$PR_NUMBER base $PR_BASE_SHA"
+            description="Runbook completed PR #$PR_NUMBER $PR_BASE_REF@$PR_BASE_SHA attempt $REVIEW_ATTEMPT"
           fi
 
           gh api --method POST "repos/$REPO/statuses/$PR_SHA" \
