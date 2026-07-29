@@ -217,6 +217,8 @@ test("development workflow keeps preview evidence independent and unprivileged",
   assert.match(workflow, /persist-credentials: false/);
   assert.match(preview, /cloudflare-workers-and-pages/);
   assert.match(preview, /Cloudflare Pages: vinifera-dev/);
+  assert.match(preview, /Cloudflare Pages: vinifera/);
+  assert.match(preview, /\| last\) \/\//);
   assert.match(preview, /check-runs\?per_page=100/);
   assert.match(preview, /Immutable deployment URL/);
   assert.match(preview, /Branch alias/);

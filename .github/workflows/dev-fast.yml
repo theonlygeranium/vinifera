@@ -271,8 +271,8 @@ jobs:
           set -euo pipefail
           branch_slug=$(tr '[:upper:]' '[:lower:]' <<<"$HEAD_REF" \
             | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-          branch_alias="https://${branch_slug}.vinifera-dev.pages.dev"
           deadline=$(( $(date +%s) + 150 ))
+          check_name="missing"
           summary=""
           conclusion="missing"
           while (( $(date +%s) <= deadline )); do
@@ -280,29 +280,36 @@ jobs:
               -H "Authorization: Bearer $GH_TOKEN" \
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/$REPOSITORY/commits/$HEAD_SHA/check-runs?per_page=100")
-            conclusion=$(jq -r \
-              '[.check_runs[] |
-                select(.app.slug == "cloudflare-workers-and-pages") |
-                select(.name == "Cloudflare Pages: vinifera-dev")] |
-               sort_by(.started_at) | last | .conclusion // "missing"' \
+            matched_check=$(jq -c \
+              '([.check_runs[] |
+                 select(.app.slug == "cloudflare-workers-and-pages") |
+                 select(.name == "Cloudflare Pages: vinifera-dev")] |
+                sort_by(.started_at) | last) //
+               ([.check_runs[] |
+                 select(.app.slug == "cloudflare-workers-and-pages") |
+                 select(.name == "Cloudflare Pages: vinifera")] |
+                sort_by(.started_at) | last) // {}' \
               <<<"$checks")
-            summary=$(jq -r \
-              '[.check_runs[] |
-                select(.app.slug == "cloudflare-workers-and-pages") |
-                select(.name == "Cloudflare Pages: vinifera-dev")] |
-               sort_by(.started_at) | last | .output.summary // ""' \
-              <<<"$checks")
+            check_name=$(jq -r '.name // "missing"' <<<"$matched_check")
+            conclusion=$(jq -r '.conclusion // "missing"' <<<"$matched_check")
+            summary=$(jq -r '.output.summary // ""' <<<"$matched_check")
             if [[ "$conclusion" != "missing" && "$conclusion" != "null" ]]; then
               break
             fi
             sleep 10
           done
+          project_name=${check_name#Cloudflare Pages: }
+          if [[ "$project_name" == "missing" ]]; then
+            project_name="vinifera"
+          fi
+          branch_alias="https://${branch_slug}.${project_name}.pages.dev"
           urls=$(grep -Eo "https://[^'\\\"<[:space:]]+\\.pages\\.dev" <<<"$summary" \
             | sort -u || true)
           {
             echo "## Cloudflare Pages preview evidence"
             echo
             echo "- Exact head: \`$HEAD_SHA\`"
+            echo "- Cloudflare check: \`$check_name\`"
             echo "- Cloudflare check conclusion: \`$conclusion\`"
             if [[ -n "$urls" ]]; then
               while read -r url; do

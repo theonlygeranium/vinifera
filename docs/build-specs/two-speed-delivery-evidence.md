@@ -80,7 +80,9 @@ workflow plus the independent Cloudflare preview.
 
 After the default-branch bootstrap:
 
-1. require `Dev fast checks` and `Cloudflare Pages: vinifera-dev` on `dev`;
+1. require `Dev fast checks` and the exact-head feature-preview check
+   (`Cloudflare Pages: vinifera` in the current project configuration) on
+   `dev` PRs;
 2. run one representative routine frontend PR with an empty Actions cache;
 3. rerun the same exact head with the lockfile/Node cache warm;
 4. record aggregate start/end timestamps and the immutable/branch preview URLs;

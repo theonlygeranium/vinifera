@@ -37,10 +37,11 @@ smoke.
 The Cloudflare Pages branch preview runs independently and records both its
 branch alias and immutable deployment URL. Preview evidence does not imply
 stable-dev, staging, production, database, or provider readiness.
-Branch protection requires the independent
-`Cloudflare Pages: vinifera-dev` result alongside `Dev fast checks`; the
-informational preview-discovery job is not a substitute for Cloudflare's own
-exact-head check.
+Branch protection requires the independent exact-head feature-preview result
+(`Cloudflare Pages: vinifera` in the current project configuration) alongside
+`Dev fast checks`; the informational preview-discovery job is not a substitute
+for Cloudflare's own check. The `dev` branch deployment separately emits
+`Cloudflare Pages: vinifera-dev`.
 
 Promotion and release comparisons retain the exact required
 `Type, test, build, and package` aggregate. The full lane validates the exact

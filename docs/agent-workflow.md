@@ -86,11 +86,13 @@ state.
 4. Push the feature branch and open a PR targeting `dev`.
 5. Confirm the classifier reports the exact base/head and selects the expected
    documentation, routine, or high-risk path.
-6. Wait for `Dev fast checks` and the independent
-   `Cloudflare Pages: vinifera-dev` check on the exact head. Record the branch
-   alias and immutable URL from the Cloudflare check. The informational
-   `Cloudflare preview evidence` job discovers those URLs without delaying the
-   fast aggregate; it does not replace the Cloudflare check.
+6. Wait for `Dev fast checks` and the independent exact-head feature-preview
+   check (`Cloudflare Pages: vinifera` in the current project configuration).
+   Record the branch alias and immutable URL from the Cloudflare check. The
+   informational `Cloudflare preview evidence` job discovers those URLs without
+   delaying the fast aggregate; it does not replace the Cloudflare check. The
+   post-merge `dev` deployment separately emits
+   `Cloudflare Pages: vinifera-dev`.
 7. Inspect every available review thread. Fix substantive findings, test the
    repair, and push a consolidated update. CodeRabbit absence or rate limiting
    is non-blocking.
