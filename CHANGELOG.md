@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Fixed
+- `tests/scripts/promote-dev-to-staging.test.mjs`: Updated the pagination
+  contract assertion to recognize the corrected `gh api --paginate | jq
+  --slurp` pipeline already present on `dev`, restoring the promotion policy
+  suite after the invalid combined `gh --slurp --jq` flags were removed.
+  **Deployment impact:** Test-only; no promotion, environment, provider, or
+  activation behavior changes.
 - - `promote-dev-to-staging.yml` (jq suite iterator typo | [] vs | .[]): Fixed `| []` (empty array constructor, always emits literal string `[]`) to `| .[]` (array iterator) in the check-suite ID extraction jq expression. The typo caused `gh api repos/.../check-suites/[]` to be called on every iteration, returning HTTP 404 under `set -e` and crashing both the `wait-for-gates` and `ready` jobs within 1 second of startup.
 - - `promote-dev-to-staging.yml` (null check_suite id → HTTP 404): Added `| select(. != null)` to the jq filter that collects check-suite IDs before fetching their `created_at` timestamps. When a check-run has no associated suite, `.check_suite.id` is null; jq emitted the literal string 'null', which bypassed the empty-string guard and caused `gh api repos/.../check-suites/null` to return HTTP 404 under `set -e`, immediately crashing both the `wait-for-gates` and `ready` jobs on the first poll iteration.
 - - `promote-dev-to-staging.yml` (gh CLI --slurp/--jq incompatibility): Replaced four `gh api --paginate --slurp ... --jq` call-sites with `gh api --paginate ... | jq --slurp '...'`. The `--slurp` and `--jq` flags are mutually exclusive in the current gh CLI version; the combination caused an immediate exit-1 on the first poll iteration of both the `wait-for-gates` and `ready` jobs, preventing the promotion workflow from ever completing.

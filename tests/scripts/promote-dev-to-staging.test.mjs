@@ -106,7 +106,11 @@ describe("dev to staging promotion contract", () => {
       "select(.submittedAt >= $gate_requested_at)",
     );
     expect(workflow).toContain("coderabbit_reviews > 0");
-    expect(workflow.match(/gh api --paginate --slurp/g)).toHaveLength(4);
+    expect(
+      workflow.match(
+        /gh api --paginate[\s\S]*?\| jq --slurp/g,
+      ),
+    ).toHaveLength(4);
     expect(workflow).toContain(
       '"repos/$REPO/commits/$PR_SHA/statuses?per_page=100"',
     );
