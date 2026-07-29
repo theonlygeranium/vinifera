@@ -90,13 +90,13 @@ describe("dev to staging promotion contract", () => {
     );
     expect(
       workflow.match(
-        /select\(\.created_at >= \$gate_requested_at\) \|\n\s+select\(\.started_at >= \$gate_requested_at\)/g,
+        /select\(\(\$suite_map\[\(\.check_suite\.id \| tostring\)\] \/\/ ""\) >= \$gate_requested_at\) \|\n\s+select\(\.started_at >= \$gate_requested_at\)/g,
       ),
     ).toHaveLength(2);
     expect(workflow).toContain(".base.sha == $pr_base_sha");
     expect(workflow).toContain(".head.sha == $pr_sha");
     expect(workflow).toContain(
-      "select(.created_at >= $gate_requested_at)",
+      '($suite_map[(.check_suite.id | tostring)] // "")',
     );
     expect(workflow).toContain(
       "select(.author.login == \"coderabbitai\")",

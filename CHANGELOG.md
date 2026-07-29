@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### Fixed
+- `promote-dev-to-staging.yml` (both readiness-attempt sites): Fetch each
+  check-run's parent check-suite via `gh api repos/$REPO/check-suites/$sid`
+  to obtain the real `created_at` timestamp. The GitHub check-runs API does
+  not return `created_at` on run objects; filtering by the missing field
+  silently discarded every check-run, making all promotion gates
+  un-passable. The fix builds an in-memory `suite_map` indexed by suite id,
+  substitutes `$suite_map[(.check_suite.id | tostring)]` for the direct
+  field access, and removes the now-redundant `.created_at` fallback from
+  `sort_by`. Updated `promote-dev-to-staging.test.mjs` to assert the new
+  suite-map pattern instead of the removed `select(.created_at …)` guard.
+  **Deployment impact:** Promotion readiness gates can now evaluate
+  attempt-bound check runs; no environment or provider activation occurs.
 - Final owner-approved PR #51 correction: make Octopus tracked-source scans
   distinguish “no matches” from operational failures; resolve relative
   cross-layer imports against their tracked source paths; require promotion

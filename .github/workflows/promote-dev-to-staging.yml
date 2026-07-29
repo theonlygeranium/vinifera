@@ -206,24 +206,31 @@ jobs:
               exit 1
             fi
 
-            checks=$(gh api --paginate --slurp \
+            raw_runs=$(gh api --paginate --slurp \
               "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
-              --jq '[.[].check_runs[]]' \
-              | jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
-                --arg pr_base_sha "$PR_BASE_SHA" \
-                --arg pr_sha "$PR_SHA" \
-                --argjson promotion_checks "$promotion_checks" \
-                --argjson pr_number "$PR_NUMBER" \
-                '[.[] |
-                  select(.created_at >= $gate_requested_at) |
-                  select(.started_at >= $gate_requested_at) |
-                  select(any(.pull_requests[]?;
-                    .number == $pr_number and
-                    .base.sha == $pr_base_sha and
-                    .head.sha == $pr_sha)) |
-                  select(.name as $name | $promotion_checks | index($name) | not)]
-                 | group_by(.name)
-                 | map(sort_by(.started_at // .created_at) | last)')
+              --jq '[.[].check_runs[]]')
+            suite_map="{}"
+            while IFS= read -r sid; do
+              [[ -z "$sid" ]] && continue
+              ts=$(gh api "repos/$REPO/check-suites/$sid" --jq '.created_at // ""')
+              suite_map=$(jq --arg id "$sid" --arg ts "$ts" '. + {($id): $ts}' <<<"$suite_map")
+            done < <(jq -r '[.[].check_suite.id] | unique | []' <<<"$raw_runs")
+            checks=$(jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
+              --arg pr_base_sha "$PR_BASE_SHA" \
+              --arg pr_sha "$PR_SHA" \
+              --argjson promotion_checks "$promotion_checks" \
+              --argjson pr_number "$PR_NUMBER" \
+              --argjson suite_map "$suite_map" \
+              '[.[] |
+                select(($suite_map[(.check_suite.id | tostring)] // "") >= $gate_requested_at) |
+                select(.started_at >= $gate_requested_at) |
+                select(any(.pull_requests[]?;
+                  .number == $pr_number and
+                  .base.sha == $pr_base_sha and
+                  .head.sha == $pr_sha)) |
+                select(.name as $name | $promotion_checks | index($name) | not)]
+               | group_by(.name)
+               | map(sort_by(.started_at) | last)' <<<"$raw_runs")
             statuses=$(gh api --paginate --slurp \
               "repos/$REPO/commits/$PR_SHA/statuses?per_page=100" \
               --jq 'add' \
@@ -399,24 +406,31 @@ jobs:
             "Staging Supabase REST pre-merge re-check",
             "Report promotion readiness"
           ]'
-          checks=$(gh api --paginate --slurp \
+          raw_runs=$(gh api --paginate --slurp \
             "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
-            --jq '[.[].check_runs[]]' \
-            | jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
-              --arg pr_base_sha "$PR_BASE_SHA" \
-              --arg pr_sha "$PR_SHA" \
-              --argjson promotion_checks "$promotion_checks" \
-              --argjson pr_number "$PR_NUMBER" \
-              '[.[] |
-                select(.created_at >= $gate_requested_at) |
-                select(.started_at >= $gate_requested_at) |
-                select(any(.pull_requests[]?;
-                  .number == $pr_number and
-                  .base.sha == $pr_base_sha and
-                  .head.sha == $pr_sha)) |
-                select(.name as $name | $promotion_checks | index($name) | not)]
-               | group_by(.name)
-               | map(sort_by(.started_at // .created_at) | last)')
+            --jq '[.[].check_runs[]]')
+          suite_map="{}"
+          while IFS= read -r sid; do
+            [[ -z "$sid" ]] && continue
+            ts=$(gh api "repos/$REPO/check-suites/$sid" --jq '.created_at // ""')
+            suite_map=$(jq --arg id "$sid" --arg ts "$ts" '. + {($id): $ts}' <<<"$suite_map")
+          done < <(jq -r '[.[].check_suite.id] | unique | []' <<<"$raw_runs")
+          checks=$(jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
+            --arg pr_base_sha "$PR_BASE_SHA" \
+            --arg pr_sha "$PR_SHA" \
+            --argjson promotion_checks "$promotion_checks" \
+            --argjson pr_number "$PR_NUMBER" \
+            --argjson suite_map "$suite_map" \
+            '[.[] |
+              select(($suite_map[(.check_suite.id | tostring)] // "") >= $gate_requested_at) |
+              select(.started_at >= $gate_requested_at) |
+              select(any(.pull_requests[]?;
+                .number == $pr_number and
+                .base.sha == $pr_base_sha and
+                .head.sha == $pr_sha)) |
+              select(.name as $name | $promotion_checks | index($name) | not)]
+             | group_by(.name)
+             | map(sort_by(.started_at) | last)' <<<"$raw_runs")
           statuses=$(gh api --paginate --slurp \
             "repos/$REPO/commits/$PR_SHA/statuses?per_page=100" \
             --jq 'add' \
