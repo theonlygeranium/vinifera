@@ -55,7 +55,13 @@ function policy() {
       "restore-pages": "RESTORE VINIFERA DOMAIN TO PAGES",
       upload: "UPLOAD VINIFERA PRODUCTION VERSION",
     },
-    coreHealthCapabilities: ["app", "database", "billing", "security", "webhook"],
+    coreHealthCapabilities: [
+      "app",
+      "database",
+      "billing",
+      "security",
+      "webhook",
+    ],
     cutoverHealthCapabilities: cutoverCapabilities,
     liveBilling: {
       activationPath: "separate-human-approved-live-billing-cutover",
@@ -90,16 +96,12 @@ function policy() {
       cloudflareZoneIdSha256: [
         hashProductionTarget("cloudflareZoneId", zoneId),
       ],
-      customHostnameSha256: [
-        hashProductionTarget("customHostname", hostname),
-      ],
+      customHostnameSha256: [hashProductionTarget("customHostname", hostname)],
       pagesProjectNameSha256: [
         hashProductionTarget("pagesProjectName", pagesProjectName),
       ],
       workerNameSha256: [hashProductionTarget("workerName", workerName)],
-      workerOriginSha256: [
-        hashProductionTarget("workerOrigin", workerOrigin),
-      ],
+      workerOriginSha256: [hashProductionTarget("workerOrigin", workerOrigin)],
     },
     version: 1,
     workerName,
@@ -121,8 +123,7 @@ function secrets(overrides = {}) {
   return {
     MEMBER_BRAND_CONTEXT_SECRET:
       "test-member-context-secret-43f3b070-4f50-4a6b",
-    RATE_LIMIT_PEPPER:
-      "test-rate-limit-pepper-7b15a76f-9f4e-49f6",
+    RATE_LIMIT_PEPPER: "test-rate-limit-pepper-7b15a76f-9f4e-49f6",
     STRIPE_PRICE_CELLAR: "price_cellar",
     STRIPE_PRICE_ESTATE: "price_estate",
     STRIPE_PRICE_RESERVE: "price_reserve",
@@ -136,7 +137,10 @@ function secrets(overrides = {}) {
   };
 }
 
-function configurationPayload(configured = true, capabilities = cutoverCapabilities) {
+function configurationPayload(
+  configured = true,
+  capabilities = cutoverCapabilities,
+) {
   return {
     data: Object.fromEntries(
       capabilities.map((capability) => [
@@ -160,10 +164,18 @@ function cloudflareMock({
     workerDomain,
   };
   const json = (result, status = 200) =>
-    new Response(JSON.stringify({ errors: [], messages: [], result, success: status < 400 }), {
-      headers: { "Content-Type": "application/json" },
-      status,
-    });
+    new Response(
+      JSON.stringify({
+        errors: [],
+        messages: [],
+        result,
+        success: status < 400,
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+        status,
+      },
+    );
   const fetcher = vi.fn(async (input, init = {}) => {
     const url = new URL(input);
     const method = init.method ?? "GET";
@@ -450,7 +462,13 @@ describe("production release guards", () => {
     expect(() =>
       assertHealthPayload(
         { data: { service: "vinifera-api", status: "ok" } },
-        configurationPayload(true, ["app", "database", "billing", "security", "webhook"]),
+        configurationPayload(true, [
+          "app",
+          "database",
+          "billing",
+          "security",
+          "webhook",
+        ]),
         policy(),
         "cutover",
       ),
@@ -462,7 +480,7 @@ describe("production release guards", () => {
 });
 
 describe("production release workflow", () => {
-  it("is manual, pinned, reversible, test-mode only, and cannot delete Pages", async () => {
+  it("is manual, pinned, reversible, test-mode only, and cannot mutate Pages or domains", async () => {
     const workflow = await readFile(
       new URL(
         "../../.github/workflows/production-worker-release.yml",
@@ -484,12 +502,15 @@ describe("production release workflow", () => {
       "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
     );
     expect(workflow).toContain("wrangler deploy --env production --strict");
-    expect(workflow).toContain("wrangler versions upload --env production --strict");
+    expect(workflow).toContain(
+      "wrangler versions upload --env production --strict",
+    );
     expect(workflow).toContain("wrangler versions deploy");
     expect(workflow).toContain("wrangler rollback");
-    expect(workflow).toContain("LIVE_BILLING_ENABLED: \"false\"");
+    expect(workflow).toContain('LIVE_BILLING_ENABLED: "false"');
     expect(workflow).toContain("verify-bootstrap-absent");
-    expect(workflow).toContain("restore-pages");
+    expect(workflow).not.toContain("restore-pages");
+    expect(workflow).not.toContain("cutover-domain");
     expect(workflow).not.toContain("pages project delete");
     expect(workflow).not.toMatch(/wrangler\s+pages\s+project\s+delete/);
     expect(workflow).not.toMatch(/--(?:route|routes|domain|domains)\b/);
@@ -524,9 +545,7 @@ describe("Cloudflare production control plane", () => {
     await expect(
       workerResourceExists(controlOptions(existing.fetcher)),
     ).resolves.toBe(true);
-    expect(
-      absent.calls.every((call) => call.method === "GET"),
-    ).toBe(true);
+    expect(absent.calls.every((call) => call.method === "GET")).toBe(true);
   });
 
   it("captures sanitized Worker and restorable Pages state", async () => {
@@ -573,17 +592,17 @@ describe("Cloudflare production control plane", () => {
 
   it("restores Pages automatically when post-cutover Worker health fails", async () => {
     const mock = cloudflareMock({ healthOk: false });
-    await expect(
-      cutoverToWorker(controlOptions(mock.fetcher)),
-    ).rejects.toThrow(/Pages restoration was attempted/);
+    await expect(cutoverToWorker(controlOptions(mock.fetcher))).rejects.toThrow(
+      /Pages restoration was attempted/,
+    );
     expect(mock.state).toEqual({ pagesDomain: true, workerDomain: false });
   });
 
   it("refuses cutover unless the retained Pages hostname is active", async () => {
     const mock = cloudflareMock({ pagesStatus: "pending" });
-    await expect(
-      cutoverToWorker(controlOptions(mock.fetcher)),
-    ).rejects.toThrow(/Pages hostname must be active/);
+    await expect(cutoverToWorker(controlOptions(mock.fetcher))).rejects.toThrow(
+      /Pages hostname must be active/,
+    );
     expect(mock.state).toEqual({ pagesDomain: true, workerDomain: false });
   });
 
@@ -597,9 +616,7 @@ describe("Cloudflare production control plane", () => {
       mock.calls.some(
         (call) =>
           call.method === "DELETE" &&
-          call.pathname.endsWith(
-            `/pages/projects/${pagesProjectName}`,
-          ),
+          call.pathname.endsWith(`/pages/projects/${pagesProjectName}`),
       ),
     ).toBe(false);
   });

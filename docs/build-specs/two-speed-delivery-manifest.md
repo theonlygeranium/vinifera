@@ -25,6 +25,7 @@ release evidence.
 | Contract tests | `.github/scripts/delivery-policy.policy.mjs`, `tests/scripts/promote-dev-to-staging.test.mjs`, focused workflow tests | Prove lane selection, concurrency, skipped-job aggregation, high-risk coverage, promotion triggers, Android selection, exact evidence, optional CodeRabbit, and secret isolation. |
 | Browser smoke | `tests/e2e/smoke.spec.ts`, Playwright/package configuration only if required | Cover application boot, primary navigation, and a basic axe accessibility pass without replacing the complete promotion suite. |
 | Governance and operations | `AGENTS.md`, `docs/agent-workflow.md`, `CONTINUITY_BRIEF.md`, `.github/pull_request_template.md`, relevant runbooks, new ADR, `CHANGELOG.md` | Establish one changelog entry per logical PR/promotion, isolated-branch WIP commits, squash merge into `dev`, narrowed ADR requirements, Octopus-first review policy, optional CodeRabbit, evidence-level terminology, stable URLs, and activation boundaries. |
+| Performance evidence | `docs/build-specs/two-speed-delivery-evidence.md` | Record the measured prior GitHub baseline, local cold/warm proxy timings, removed routine jobs, execution-reduction model, and the exact post-bootstrap GitHub timing follow-up without presenting local evidence as hosted proof. |
 
 `CHANGELOG.md` remains owned by the primary agent during integration so the
 logical PR receives one consolidated delivery entry after this manifest entry.

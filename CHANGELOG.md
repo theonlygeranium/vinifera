@@ -3,19 +3,36 @@
 ## [Unreleased]
 
 ### Added
-- `docs/build-specs/two-speed-delivery-manifest.md`: Recorded the owner-authorized
-  implementation boundaries, file-level workstreams, security invariants, and
-  integration verification plan for the two-speed development and promotion
-  workflow. **Deployment impact:** Documentation only; no workflow, preview,
-  environment, provider, or activation behavior changes in this commit.
+- Two-speed development and release delivery: added the exact-diff
+  `Dev fast checks` lane with focused tests, TypeScript/Worker validation,
+  production builds, credential and whitespace checks, a mobile accessibility
+  browser smoke, cancellable branch concurrency, and independent Cloudflare
+  preview evidence; retained the exact `Type, test, build, and package`
+  promotion aggregate with complete Vitest, Phase 1–5 database,
+  Playwright/axe, Pages, Worker, selective Android, and nightly native drift
+  validation. Promotion is now deliberate instead of running after every
+  `dev` push; Octopus is required for exact-comparison promotions and
+  explicitly requested high-risk feature review, while CodeRabbit is
+  non-blocking while rate-limited. Promotion secrets are isolated behind a
+  main-only `promotion-control` environment, emergency labels fail closed
+  throughout readiness, and production release now requires the current
+  `main` SHA from a merged `staging → main` PR without either emergency label.
+  Production also requires a successful exact-staging deployment run, an
+  identical staging/production Git tree, and the configured staging soak
+  before revalidating authorization immediately ahead of Worker mutation.
+  The standard production dispatch no longer accepts legacy marketing-domain
+  cutover or Pages-restore operations, preserving the static rollback hostname.
+  Updated the delivery governance, continuity
+  brief, PR template, runbooks, contract tests, implementation manifest, and
+  ADR for one changelog entry per logical PR, isolated-branch WIP commits, and
+  squash merge into `dev`. **Deployment impact:** Changes CI, review,
+  promotion-readiness, and production-release authorization behavior, including
+  staging evidence/soak/tree-equality enforcement and the available standard
+  release operations. This PR itself performs no branch merge, environment
+  promotion, provider activation, deployment, DNS change, database mutation, or
+  production resource change.
 
 ### Fixed
-- `tests/scripts/promote-dev-to-staging.test.mjs`: Updated the pagination
-  contract assertion to recognize the corrected `gh api --paginate | jq
-  --slurp` pipeline already present on `dev`, restoring the promotion policy
-  suite after the invalid combined `gh --slurp --jq` flags were removed.
-  **Deployment impact:** Test-only; no promotion, environment, provider, or
-  activation behavior changes.
 - - `promote-dev-to-staging.yml` (jq suite iterator typo | [] vs | .[]): Fixed `| []` (empty array constructor, always emits literal string `[]`) to `| .[]` (array iterator) in the check-suite ID extraction jq expression. The typo caused `gh api repos/.../check-suites/[]` to be called on every iteration, returning HTTP 404 under `set -e` and crashing both the `wait-for-gates` and `ready` jobs within 1 second of startup.
 - - `promote-dev-to-staging.yml` (null check_suite id → HTTP 404): Added `| select(. != null)` to the jq filter that collects check-suite IDs before fetching their `created_at` timestamps. When a check-run has no associated suite, `.check_suite.id` is null; jq emitted the literal string 'null', which bypassed the empty-string guard and caused `gh api repos/.../check-suites/null` to return HTTP 404 under `set -e`, immediately crashing both the `wait-for-gates` and `ready` jobs on the first poll iteration.
 - - `promote-dev-to-staging.yml` (gh CLI --slurp/--jq incompatibility): Replaced four `gh api --paginate --slurp ... --jq` call-sites with `gh api --paginate ... | jq --slurp '...'`. The `--slurp` and `--jq` flags are mutually exclusive in the current gh CLI version; the combination caused an immediate exit-1 on the first poll iteration of both the `wait-for-gates` and `ready` jobs, preventing the promotion workflow from ever completing.

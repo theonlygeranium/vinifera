@@ -11,16 +11,18 @@ on:
           - bootstrap
           - upload-version
           - deploy-version
-          - cutover-domain
           - rollback-worker
-          - restore-pages
       git_sha:
         description: Full immutable commit SHA already contained in main
         required: true
         type: string
       worker_version_id:
-        description: Worker Version ID for deploy, cutover, or rollback
+        description: Worker Version ID for deploy or rollback
         required: false
+        type: string
+      staging_evidence_run_id:
+        description: Successful staging deployment workflow run ID for the reviewed staging head
+        required: true
         type: string
       confirmation:
         description: Exact operation-specific confirmation phrase from the checked-in policy
@@ -29,6 +31,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: vinifera-production-worker-control
@@ -56,6 +59,9 @@ jobs:
       PRODUCTION_PAGES_PROJECT_NAME: ${{ vars.PRODUCTION_PAGES_PROJECT_NAME }}
       PRODUCTION_VERSION_ID: ${{ inputs.worker_version_id }}
       PRODUCTION_WORKER_ORIGIN: ${{ vars.PRODUCTION_WORKER_ORIGIN }}
+      PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS: ${{ vars.PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS }}
+      STAGING_EVIDENCE_RUN_ID: ${{ inputs.staging_evidence_run_id }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       APNS_BUNDLE_ID: ${{ secrets.PRODUCTION_APNS_BUNDLE_ID }}
       APNS_ENVIRONMENT: ${{ secrets.PRODUCTION_APNS_ENVIRONMENT }}
@@ -160,10 +166,76 @@ jobs:
             exit 1
           fi
           git fetch --no-tags origin main
-          if ! git merge-base --is-ancestor "$PRODUCTION_GIT_SHA" origin/main; then
-            echo "The requested immutable SHA is not contained in origin/main." >&2
+          if [[ "$PRODUCTION_GIT_SHA" != "$(git rev-parse origin/main)" ]]; then
+            echo "The requested immutable SHA is not the current origin/main revision." >&2
             exit 1
           fi
+          release_prs=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$GITHUB_REPOSITORY/commits/$PRODUCTION_GIT_SHA/pulls")
+          release_pr=$(jq -c \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg release_sha "$PRODUCTION_GIT_SHA" \
+            '[.[] |
+              select(.merged_at != null) |
+              select(.base.ref == "main") |
+              select(.head.ref == "staging") |
+              select(.merge_commit_sha == $release_sha) |
+              select(.head.repo.full_name == $repository)] |
+             sort_by(.merged_at) | last // empty' <<<"$release_prs")
+          if [[ -z "$release_pr" ]]; then
+            echo "The current main revision is not associated with a merged staging-to-main promotion PR." >&2
+            exit 1
+          fi
+          if jq -e \
+            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+            <<<"$release_pr" >/dev/null; then
+            echo "The production promotion is paused by an emergency label." >&2
+            exit 1
+          fi
+          if [[ ! "$STAGING_EVIDENCE_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "A numeric staging deployment evidence run ID is required." >&2
+            exit 1
+          fi
+          if [[ ! "$PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS" =~ ^[0-9]+$ ]] \
+            || (( PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS < 300 )); then
+            echo "Production requires a configured staging soak of at least 300 seconds." >&2
+            exit 1
+          fi
+          staging_head_sha=$(jq -r '.head.sha' <<<"$release_pr")
+          git fetch --no-tags --depth=1 origin "$staging_head_sha"
+          if [[ "$(git rev-parse "$staging_head_sha^{tree}")" \
+            != "$(git rev-parse "$PRODUCTION_GIT_SHA^{tree}")" ]]; then
+            echo "The production commit tree is not identical to the reviewed staging tree." >&2
+            exit 1
+          fi
+          staging_run=$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_EVIDENCE_RUN_ID")
+          staging_jobs=$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_EVIDENCE_RUN_ID/jobs?per_page=100" \
+            | jq --slurp '[.[].jobs[]]')
+          if [[ "$(jq -r '.path' <<<"$staging_run")" != ".github/workflows/ci.yml" \
+            || "$(jq -r '.event' <<<"$staging_run")" != "push" \
+            || "$(jq -r '.head_branch' <<<"$staging_run")" != "staging" \
+            || "$(jq -r '.head_sha' <<<"$staging_run")" != "$staging_head_sha" \
+            || "$(jq -r '.status' <<<"$staging_run")" != "completed" \
+            || "$(jq -r '.conclusion' <<<"$staging_run")" != "success" ]] \
+            || ! jq -e \
+              'any(.[]; .name == "Type, test, build, and package" and .conclusion == "success")' \
+              <<<"$staging_jobs" >/dev/null \
+            || ! jq -e \
+              'any(.[]; .name == "Deploy Worker when activated" and .conclusion == "success")' \
+              <<<"$staging_jobs" >/dev/null; then
+            echo "Staging evidence is not a successful exact-head full validation and deployment." >&2
+            exit 1
+          fi
+          staging_completed_epoch=$(date -d "$(jq -r '.updated_at' <<<"$staging_run")" +%s)
+          if (( $(date +%s) - staging_completed_epoch < PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS )); then
+            echo "The configured staging soak period has not completed." >&2
+            exit 1
+          fi
+          echo "RELEASE_PR_NUMBER=$(jq -r '.number' <<<"$release_pr")" >> "$GITHUB_ENV"
+          echo "STAGING_HEAD_SHA=$staging_head_sha" >> "$GITHUB_ENV"
           node -e '
             const fs = require("fs");
             fs.writeFileSync(
@@ -204,19 +276,10 @@ jobs:
               node scripts/production-release.mjs verify-confirmation deploy
               node scripts/production-release.mjs verify-version-id
               ;;
-            cutover-domain)
-              node scripts/production-release.mjs verify-targets domain
-              node scripts/production-release.mjs verify-confirmation cutover
-              node scripts/production-release.mjs verify-version-id
-              ;;
             rollback-worker)
               node scripts/production-release.mjs verify-targets worker
               node scripts/production-release.mjs verify-confirmation rollback
               node scripts/production-release.mjs verify-version-id
-              ;;
-            restore-pages)
-              node scripts/production-release.mjs verify-targets domain
-              node scripts/production-release.mjs verify-confirmation restore-pages
               ;;
             *)
               echo "Unsupported production operation." >&2
@@ -244,11 +307,6 @@ jobs:
             npx wrangler versions list --env production --json \
               > "$EVIDENCE_DIR/prior-versions.json"
           fi
-          if [[ "$OPERATION" == "cutover-domain" ||
-                "$OPERATION" == "restore-pages" ]]; then
-            node scripts/production-release.mjs snapshot \
-              "$EVIDENCE_DIR/prior-control-plane.json"
-          fi
 
       - name: Prepare ephemeral test-mode Worker secret bundle
         if: inputs.operation == 'bootstrap' || inputs.operation == 'upload-version'
@@ -258,6 +316,24 @@ jobs:
           secret_file="$RUNNER_TEMP/vinifera-production-secrets-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
           node scripts/production-release.mjs prepare-secrets "$secret_file"
           echo "PRODUCTION_SECRET_FILE=$secret_file" >> "$GITHUB_ENV"
+
+      - name: Revalidate production authorization immediately before mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          authorization=$(gh pr view "$RELEASE_PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json baseRefName,headRefName,labels,mergeCommit,state)
+          if [[ "$(jq -r '.state' <<<"$authorization")" != "MERGED" \
+            || "$(jq -r '.baseRefName' <<<"$authorization")" != "main" \
+            || "$(jq -r '.headRefName' <<<"$authorization")" != "staging" \
+            || "$(jq -r '.mergeCommit.oid' <<<"$authorization")" != "$PRODUCTION_GIT_SHA" ]] \
+            || jq -e \
+              'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+              <<<"$authorization" >/dev/null; then
+            echo "Production authorization changed or is paused immediately before mutation." >&2
+            exit 1
+          fi
 
       - name: Bootstrap Worker on workers.dev
         if: inputs.operation == 'bootstrap'
@@ -302,7 +378,7 @@ jobs:
           node scripts/production-release.mjs verify-version "$EVIDENCE_DIR/version.json"
 
       - name: Verify approved version metadata
-        if: inputs.operation == 'deploy-version' || inputs.operation == 'cutover-domain' || inputs.operation == 'rollback-worker'
+        if: inputs.operation == 'deploy-version' || inputs.operation == 'rollback-worker'
         shell: bash
         run: |
           set -euo pipefail
@@ -323,13 +399,6 @@ jobs:
           node scripts/production-release.mjs verify-deployment \
             "$EVIDENCE_DIR/after-deployment.json"
 
-      - name: Verify cutover version is already active
-        if: inputs.operation == 'cutover-domain'
-        run: |
-          set -euo pipefail
-          node scripts/production-release.mjs verify-deployment \
-            "$EVIDENCE_DIR/prior-deployment.json"
-
       - name: Roll back to approved Worker version
         if: inputs.operation == 'rollback-worker'
         shell: bash
@@ -344,7 +413,7 @@ jobs:
             "$EVIDENCE_DIR/after-deployment.json"
 
       - name: Smoke-test Worker version
-        if: inputs.operation == 'bootstrap' || inputs.operation == 'upload-version' || inputs.operation == 'deploy-version' || inputs.operation == 'rollback-worker' || inputs.operation == 'cutover-domain'
+        if: inputs.operation == 'bootstrap' || inputs.operation == 'upload-version' || inputs.operation == 'deploy-version' || inputs.operation == 'rollback-worker'
         shell: bash
         run: |
           set -euo pipefail
@@ -381,28 +450,8 @@ jobs:
           node scripts/production-release.mjs verify-health \
             "$EVIDENCE_DIR/health.json" "$EVIDENCE_DIR/configuration.json" core
 
-      - name: Cut over retained Pages hostname to Worker
-        if: inputs.operation == 'cutover-domain'
-        run: |
-          set -euo pipefail
-          node scripts/production-release.mjs cutover "$EVIDENCE_DIR/cutover.json"
-
-      - name: Restore retained Pages hostname
-        if: inputs.operation == 'restore-pages'
-        run: |
-          set -euo pipefail
-          node scripts/production-release.mjs restore-pages \
-            "$EVIDENCE_DIR/restore-pages.json"
-
-      - name: Capture final Worker and Pages control-plane state
-        if: inputs.operation == 'cutover-domain' || inputs.operation == 'restore-pages'
-        run: |
-          set -euo pipefail
-          node scripts/production-release.mjs snapshot \
-            "$EVIDENCE_DIR/final-control-plane.json"
-
       - name: Capture final Worker state
-        if: always() && inputs.operation != 'restore-pages'
+        if: always()
         shell: bash
         run: |
           set +e

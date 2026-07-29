@@ -369,7 +369,7 @@ Manual protected workflows add three non-overlapping control planes:
 
 ```text
 read-only readiness ──> credential/permission/table classifications only
-production release ──> Worker bootstrap/version/deploy/domain/Pages restore
+production release ──> Worker bootstrap/version/deploy/Worker rollback
 mobile release ──────> immutable signed AAB/IPA ──> optional internal tracks
 ```
 
@@ -394,11 +394,11 @@ Worker/account/webhook target hashes, the canonical four-Price contract, an
 immutable commit, exact confirmation, and post-change health checks.
 
 Production Worker bootstrap contains no route or custom-domain declaration.
-Public cutover requires all Phase 1–5 configuration capabilities and retains
-the active Pages project for automatic/manual restoration. The release
-controller enforces Stripe test mode and cannot enable live billing. The
-separate live-billing controller is also disabled by default and is not an
-automatic phase or deployment step.
+The standard release controller intentionally has no domain cutover or Pages
+restoration operation; those legacy controls remain deferred to a separately
+authorized governance change. The release controller enforces Stripe test mode
+and cannot enable live billing. The separate live-billing controller is also
+disabled by default and is not an automatic phase or deployment step.
 
 ---
 
@@ -558,7 +558,7 @@ ownership boundary.
 | `AGENTS.md` | Human owner only | Requires explicit authorization to change |
 | `CONTINUITY_BRIEF.md` | Any agent | Must reflect current reality — update after every session |
 | `README.md` | Any agent | Must reflect reality — no aspirational content |
-| `CHANGELOG.md` | Any agent | Required on every commit |
+| `CHANGELOG.md` | Any agent | One consolidated entry per logical PR or promotion |
 | `REVERT.md` | Any agent | Update whenever a new stable tag is created |
 | `.env.example` | Any agent | Real secrets NEVER go here |
 | `docs/` | Any agent | Must stay in sync with actual architecture |

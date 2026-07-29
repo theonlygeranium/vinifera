@@ -61,9 +61,9 @@ function embeddedRunbookStep(stepId) {
   const indentation = body.match(/^(\s*)\S/m)?.[1].length ?? 0;
   return body
     .split("\n")
-    .map((line) => (line.startsWith(" ".repeat(indentation))
-      ? line.slice(indentation)
-      : line))
+    .map((line) =>
+      line.startsWith(" ".repeat(indentation)) ? line.slice(indentation) : line,
+    )
     .join("\n");
 }
 
@@ -87,10 +87,10 @@ function runEmbeddedStep(stepId, fixture) {
   try {
     return spawnSync(
       "bash",
-      ["-c", embeddedRunbookStep(stepId).replaceAll(
-        "#{Octopus.Task.Id}",
-        taskId,
-      )],
+      [
+        "-c",
+        embeddedRunbookStep(stepId).replaceAll("#{Octopus.Task.Id}", taskId),
+      ],
       { encoding: "utf8" },
     );
   } finally {
@@ -168,16 +168,14 @@ describe("Octopus runbook bridge", () => {
     expect(workflow).not.toContain("PR Comment Bot");
     expect(qualityRunbook).toContain("cancel_queued_tasks = false");
     expect(qualityRunbook).toContain("cancel_running_tasks = false");
-    expect(qualityRunbook).not.toMatch(
-      /https:\/\/#\{GitHubPAT\}@github\.com/,
-    );
-    expect(qualityRunbook).not.toContain("-H \"$AUTH_HEADER\"");
+    expect(qualityRunbook).not.toMatch(/https:\/\/#\{GitHubPAT\}@github\.com/);
+    expect(qualityRunbook).not.toContain('-H "$AUTH_HEADER"');
     expect(qualityRunbook).not.toContain("git -c http.extraHeader");
     expect(qualityRunbook).toContain("GIT_CONFIG_KEY_0=http.extraHeader");
     expect(qualityRunbook).toContain("curl -fsS --config -");
     expect(qualityRunbook).toContain("git remote remove origin");
     expect(qualityRunbook).toContain(
-      '/tmp/octopus_pr_workdir_#{Octopus.Task.Id}',
+      "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}",
     );
     expect(qualityRunbook).toContain(
       "Rules 4-10: Change-Aware Security and Tenancy Guards",
@@ -192,9 +190,7 @@ describe("Octopus runbook bridge", () => {
     expect(qualityRunbook).toContain(
       're.search(r"\\bidempotency(?:Key)?\\b", masked_window',
     );
-    expect(qualityRunbook).toContain(
-      "parts[3][2:] if len(parts) >= 4",
-    );
+    expect(qualityRunbook).toContain("parts[3][2:] if len(parts) >= 4");
   });
 
   it("keeps every embedded Octopus Bash action syntactically valid", () => {
@@ -217,7 +213,9 @@ describe("Octopus runbook bridge", () => {
       const prefix = " ".repeat(indentation);
       const script = body
         .split("\n")
-        .map((line) => (line.startsWith(prefix) ? line.slice(indentation) : line))
+        .map((line) =>
+          line.startsWith(prefix) ? line.slice(indentation) : line,
+        )
         .join("\n")
         .replaceAll(/#\{[^}]+\}/g, "fixture");
       const result = spawnSync("bash", ["-n"], {
@@ -291,12 +289,7 @@ describe("Octopus runbook bridge", () => {
 
       const result = spawnSync(
         "python3",
-        [
-          "-",
-          fixture,
-          join(fixture, "pr.diff"),
-          commitDiffDirectory,
-        ],
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
         { input: checker, encoding: "utf8" },
       );
       expect(result.status).toBe(1);
@@ -326,7 +319,9 @@ describe("Octopus runbook bridge", () => {
       .map((line) => line.slice(Math.min(indentation, line.length)))
       .join("\n");
 
-    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-delete-"));
+    const fixture = mkdtempSync(
+      join(tmpdir(), "vinifera-octopus-rule8-delete-"),
+    );
     try {
       const serviceDirectory = join(fixture, "server", "services");
       const commitDiffDirectory = join(fixture, "commit-diffs");
@@ -481,7 +476,9 @@ describe("Octopus runbook bridge", () => {
       .map((line) => line.slice(Math.min(indentation, line.length)))
       .join("\n");
 
-    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-builder-"));
+    const fixture = mkdtempSync(
+      join(tmpdir(), "vinifera-octopus-rule8-builder-"),
+    );
     try {
       const serviceDirectory = join(fixture, "server", "services");
       const commitDiffDirectory = join(fixture, "commit-diffs");
@@ -566,7 +563,9 @@ describe("Octopus runbook bridge", () => {
       .map((line) => line.slice(Math.min(indentation, line.length)))
       .join("\n");
 
-    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-array-"));
+    const fixture = mkdtempSync(
+      join(tmpdir(), "vinifera-octopus-rule8-array-"),
+    );
     try {
       const serviceDirectory = join(fixture, "server", "services");
       const commitDiffDirectory = join(fixture, "commit-diffs");
@@ -639,7 +638,10 @@ describe("Octopus runbook bridge", () => {
         "--- /dev/null",
         "+++ b/server/services/members.ts",
         "@@ -0,0 +1,6 @@",
-        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        ...headSource
+          .trimEnd()
+          .split("\n")
+          .map((line) => `+${line}`),
         "diff --git a/CHANGELOG.md b/CHANGELOG.md",
         "--- a/CHANGELOG.md",
         "+++ b/CHANGELOG.md",
@@ -794,7 +796,10 @@ describe("Octopus runbook bridge", () => {
         "--- /dev/null",
         "+++ b/server/services/members.ts",
         "@@ -0,0 +1,6 @@",
-        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        ...headSource
+          .trimEnd()
+          .split("\n")
+          .map((line) => `+${line}`),
         "diff --git a/CHANGELOG.md b/CHANGELOG.md",
         "--- a/CHANGELOG.md",
         "+++ b/CHANGELOG.md",
@@ -825,7 +830,10 @@ describe("Octopus runbook bridge", () => {
         "--- /dev/null",
         "+++ b/server/services/members.ts",
         "@@ -0,0 +1,6 @@",
-        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        ...headSource
+          .trimEnd()
+          .split("\n")
+          .map((line) => `+${line}`),
         "diff --git a/CHANGELOG.md b/CHANGELOG.md",
         "--- a/CHANGELOG.md",
         "+++ b/CHANGELOG.md",
@@ -866,7 +874,10 @@ describe("Octopus runbook bridge", () => {
         "--- /dev/null",
         "+++ b/server/services/members.ts",
         "@@ -0,0 +1,12 @@",
-        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        ...headSource
+          .trimEnd()
+          .split("\n")
+          .map((line) => `+${line}`),
         "diff --git a/CHANGELOG.md b/CHANGELOG.md",
         "--- a/CHANGELOG.md",
         "+++ b/CHANGELOG.md",
@@ -901,7 +912,10 @@ describe("Octopus runbook bridge", () => {
         "--- /dev/null",
         "+++ b/server/services/members.ts",
         "@@ -0,0 +1,7 @@",
-        ...headSource.trimEnd().split("\n").map((line) => `+${line}`),
+        ...headSource
+          .trimEnd()
+          .split("\n")
+          .map((line) => `+${line}`),
         "diff --git a/CHANGELOG.md b/CHANGELOG.md",
         "--- a/CHANGELOG.md",
         "+++ b/CHANGELOG.md",
@@ -1064,12 +1078,7 @@ describe("Octopus runbook bridge", () => {
 
       const result = spawnSync(
         "python3",
-        [
-          "-",
-          fixture,
-          join(fixture, "pr.diff"),
-          commitDiffDirectory,
-        ],
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
         { input: checker, encoding: "utf8" },
       );
       expect(result.status).toBe(1);
@@ -1100,8 +1109,14 @@ describe("Octopus runbook bridge", () => {
     const preview = {
       Form: {
         Elements: [
-          { Name: "Variables-1", Control: { Name: "PRBranch", Required: true } },
-          { Name: "Variables-2", Control: { Name: "PRNumber", Required: true } },
+          {
+            Name: "Variables-1",
+            Control: { Name: "PRBranch", Required: true },
+          },
+          {
+            Name: "Variables-2",
+            Control: { Name: "PRNumber", Required: true },
+          },
         ],
       },
     };
@@ -1146,7 +1161,9 @@ describe("Octopus runbook bridge", () => {
         });
       }
       if (String(url).includes("/projects?")) {
-        return jsonResponse({ Items: [{ Id: "Projects-1", Name: "Vinifera" }] });
+        return jsonResponse({
+          Items: [{ Id: "Projects-1", Name: "Vinifera" }],
+        });
       }
       if (String(url).includes("/projects/Projects-1/runbooks?")) {
         return jsonResponse({
@@ -1224,9 +1241,7 @@ describe("Octopus runbook bridge", () => {
       state: "Success",
     });
 
-    const post = calls.find(({ url }) =>
-      url.endsWith("/Spaces-1/runbookRuns"),
-    );
+    const post = calls.find(({ url }) => url.endsWith("/Spaces-1/runbookRuns"));
     const runRequest = JSON.parse(post.options.body);
     expect(runRequest.RunbookSnapshotId).toBe("RunbookSnapshots-1");
     expect(runRequest).not.toHaveProperty("RunbookSnapShotId");
@@ -1242,7 +1257,8 @@ describe("Octopus runbook bridge", () => {
       calls.every(
         ({ options }) =>
           options.headers["CF-Access-Client-Id"] === "access-client-id" &&
-          options.headers["CF-Access-Client-Secret"] === "access-client-secret" &&
+          options.headers["CF-Access-Client-Secret"] ===
+            "access-client-secret" &&
           options.headers["X-Octopus-ApiKey"] === "secret-api-key",
       ),
     ).toBe(true);
@@ -1263,7 +1279,9 @@ describe("Octopus runbook bridge", () => {
         });
       }
       if (requestUrl.includes("/projects?")) {
-        return jsonResponse({ Items: [{ Id: "Projects-1", Name: "Vinifera" }] });
+        return jsonResponse({
+          Items: [{ Id: "Projects-1", Name: "Vinifera" }],
+        });
       }
       if (requestUrl.includes("/projects/Projects-1/runbooks?")) {
         return jsonResponse({
@@ -1370,12 +1388,7 @@ describe("Octopus workflow trust boundary", () => {
   it("resolves relative imports before enforcing layer boundaries", () => {
     const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-imports-"));
     try {
-      const serviceDirectory = join(
-        fixture,
-        "server",
-        "services",
-        "nested",
-      );
+      const serviceDirectory = join(fixture, "server", "services", "nested");
       const routeDirectory = join(fixture, "server", "routes", "nested");
       mkdirSync(serviceDirectory, { recursive: true });
       mkdirSync(routeDirectory, { recursive: true });
@@ -1424,9 +1437,9 @@ describe("Octopus workflow trust boundary", () => {
     );
 
     expect(workflow).toContain("pull_request_target:");
-    expect(workflow).toContain(
-      "types: [opened, synchronize, reopened, ready_for_review, edited]",
-    );
+    for (const event of ["opened", "labeled", "unlabeled", "closed"]) {
+      expect(workflow).toMatch(new RegExp(`\\b${event},?`));
+    }
     expect(workflow).not.toContain("\n  pull_request:");
     expect(workflow).toContain(
       "ref: ${{ github.event.repository.default_branch }}",
@@ -1457,30 +1470,16 @@ describe("Octopus workflow trust boundary", () => {
     expect(workflow).toContain(
       "PR_EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}",
     );
-    expect(qualityRunbook).toContain(
-      'EXPECTED_BASE_REF="#{ExpectedBaseRef}"',
-    );
-    expect(qualityRunbook).toContain(
-      'EXPECTED_BASE_SHA="#{ExpectedBaseSHA}"',
-    );
-    expect(qualityRunbook).toContain(
-      'EXPECTED_HEAD_SHA="#{ExpectedHeadSHA}"',
-    );
-    expect(qualityRunbook).toContain(
-      '[ "$BASE_REF" = "$EXPECTED_BASE_REF" ]',
-    );
-    expect(qualityRunbook).toContain(
-      '[ "$BASE_SHA" = "$EXPECTED_BASE_SHA" ]',
-    );
-    expect(qualityRunbook).toContain(
-      '[ "$HEAD_SHA" = "$EXPECTED_HEAD_SHA" ]',
-    );
+    expect(qualityRunbook).toContain('EXPECTED_BASE_REF="#{ExpectedBaseRef}"');
+    expect(qualityRunbook).toContain('EXPECTED_BASE_SHA="#{ExpectedBaseSHA}"');
+    expect(qualityRunbook).toContain('EXPECTED_HEAD_SHA="#{ExpectedHeadSHA}"');
+    expect(qualityRunbook).toContain('[ "$BASE_REF" = "$EXPECTED_BASE_REF" ]');
+    expect(qualityRunbook).toContain('[ "$BASE_SHA" = "$EXPECTED_BASE_SHA" ]');
+    expect(qualityRunbook).toContain('[ "$HEAD_SHA" = "$EXPECTED_HEAD_SHA" ]');
     expect(qualityRunbook).toContain(
       'git diff --no-ext-diff "$MERGE_BASE_SHA" "$HEAD_SHA"',
     );
-    expect(qualityRunbook).toContain(
-      'echo "MERGE_BASE_SHA=$MERGE_BASE_SHA"',
-    );
+    expect(qualityRunbook).toContain('echo "MERGE_BASE_SHA=$MERGE_BASE_SHA"');
     expect(qualityRunbook).toContain(
       'git rev-list --reverse "$MERGE_BASE_SHA..$HEAD_SHA"',
     );
@@ -1491,18 +1490,14 @@ describe("Octopus workflow trust boundary", () => {
     expect(qualityRunbook).not.toContain("/commits?per_page=");
     expect(qualityRunbook).not.toContain('WORK_DIR="/tmp/vinifera-pr"');
     expect(qualityRunbook).not.toContain("grep -rn");
-    expect(qualityRunbook).not.toContain("git grep \"$@\" || true");
+    expect(qualityRunbook).not.toContain('git grep "$@" || true');
     expect(qualityRunbook.match(/set -euo pipefail/g)).toHaveLength(5);
     expect(qualityRunbook.match(/tracked_grep\(\)/g)).toHaveLength(2);
     expect(qualityRunbook.match(/git grep "\$@"/g)).toHaveLength(2);
+    expect(qualityRunbook).toContain("if (( status > 1 )); then");
+    expect(qualityRunbook).toContain('"git", "show", f"HEAD:{source_path}"');
     expect(qualityRunbook).toContain(
-      'if (( status > 1 )); then',
-    );
-    expect(qualityRunbook).toContain(
-      '"git", "show", f"HEAD:{source_path}"',
-    );
-    expect(qualityRunbook).toContain(
-      'posixpath.join(posixpath.dirname(source_path), specifier)',
+      "posixpath.join(posixpath.dirname(source_path), specifier)",
     );
     expect(
       qualityRunbook.match(
@@ -1510,9 +1505,7 @@ describe("Octopus workflow trust boundary", () => {
       ),
     ).toHaveLength(4);
     expect(workflow).toContain("git check-ref-format --branch");
-    expect(workflow).toContain(
-      "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$",
-    );
+    expect(workflow).toContain("^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$");
     expect(
       workflow.match(
         /PR_BRANCH: \$\{\{ github\.event\.pull_request\.head\.ref \}\}/g,
@@ -1520,7 +1513,7 @@ describe("Octopus workflow trust boundary", () => {
     ).toHaveLength(1);
     expect(workflow).toContain("needs: validate-source\n    if: always()");
     expect(workflow).toContain(
-      'VALIDATION_RESULT: ${{ needs.validate-source.result }}',
+      "VALIDATION_RESULT: ${{ needs.validate-source.result }}",
     );
     expect(workflow).toContain(
       'if [[ "$VALIDATION_RESULT" != "success" ]]; then',
