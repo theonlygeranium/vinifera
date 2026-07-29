@@ -1,4 +1,4 @@
-id = Runbooks-22
+id = "Runbooks-22"
 name = "Auto-Fix Suggestions"
 cancel_queued_tasks = true
 cancel_running_tasks = false

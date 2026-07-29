@@ -1,4 +1,4 @@
-id = Runbooks-23
+id = "Runbooks-23"
 name = "Security Audit"
 cancel_queued_tasks = true
 cancel_running_tasks = false

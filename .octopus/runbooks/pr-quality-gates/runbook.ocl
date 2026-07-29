@@ -1,4 +1,4 @@
-id = Runbooks-24
+id = "Runbooks-24"
 name = "PR Quality Gates"
 cancel_queued_tasks = true
 cancel_running_tasks = true
