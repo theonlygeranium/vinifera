@@ -1,7 +1,7 @@
 # Session Continuity Report
-**Date:** 2026-07-29 | **Time range:** ~03:30 UTC → 07:09 UTC  
-**Branches touched:** `dev`, `staging`, `main` (read-only)  
-**PRs involved:** #56 (merged dev→staging), #57 (open, gates in progress)  
+**Date:** 2026-07-29 | **Time range:** ~03:30 UTC → 07:09 UTC
+**Branches touched:** `dev`, `staging`, `main` (read-only)
+**PRs involved:** #56 (merged dev→staging), #57 (open, gates in progress)
 **Agent consuming this report:** assume full familiarity with vinifera repo docs, AGENTS.md, CODEX-PROMPT.md, architecture.md, and the prior checkpoint context embedded at thread open.
 
 ---
@@ -101,7 +101,7 @@ The user provided `https://octopus.schubert.life/` as the resolved public endpoi
 
 **What:** User reported `octopus-security-audit.yml` had a failed run. Pulled logs for run `30423709247`.
 
-**Root cause:** 
+**Root cause:**
 ```
 Unable to resolve action `octopusdeploy/run-runbook-action@v1`, unable to find version `v1`
 ```
@@ -197,7 +197,7 @@ done < <(jq -r '[.[].check_suite.id] | unique | []' <<<"$raw_runs")
 
 The correct expression is `| .[]` (array iterator that emits each element).
 
-**Fix:** `[.[].check_suite.id | select(. != null)] | unique | .[]`  
+**Fix:** `[.[].check_suite.id | select(. != null)] | unique | .[]`
 The `select(. != null)` was also added as a defensive guard against check-runs with no associated suite.
 
 **Applied at:** 2 call-sites (one per job). **Commit:** `2a260efff2d6`
@@ -214,12 +214,12 @@ Added `select(. != null)` in the same change as Bug 2 to handle check-runs that 
 
 **`dev` HEAD:** `6dc8ea3697af` — all fixes committed, CHANGELOG updated.
 
-**Active promotion run:** `30425454370` on PR #57 (`dev → staging`)  
-- `Open or update dev→staging PR`: ✅ success  
-- `Staging Supabase REST pre-flight`: ✅ success  
-- `Wait for promotion PR gates`: ⏳ in_progress (poll loop is live)  
-- `Staging Supabase REST pre-merge re-check`: pending  
-- `Report promotion readiness`: pending  
+**Active promotion run:** `30425454370` on PR #57 (`dev → staging`)
+- `Open or update dev→staging PR`: ✅ success
+- `Staging Supabase REST pre-flight`: ✅ success
+- `Wait for promotion PR gates`: ⏳ in_progress (poll loop is live)
+- `Staging Supabase REST pre-merge re-check`: pending
+- `Report promotion readiness`: pending
 
 **PR #57** is waiting for:
 1. GitHub CI (`Type, test, build, and package`) to pass on the new `dev` HEAD
