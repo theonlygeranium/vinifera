@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Fixed
+- `promote-dev-to-staging.yml` (staging REST probe endpoint): Changed from
+  `/health` to `/auth/v1/health`. The self-hosted Kong gateway on Schubert
+  requires auth credentials on the `/health` route (returns 401) but serves
+  `/auth/v1/health` openly (returns 200). No gate logic affected.
 - `promote-dev-to-staging.yml` (staging REST pre-flight and re-check probes):
   Changed probe endpoint from `/rest/v1/` to `/health`. Supabase restricts
   `/rest/v1/` to `service_role` credentials; the anon key returns HTTP 401,
