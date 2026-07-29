@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- - `ci/octopus-pr-quality-gates.yml` (Cloudflare Access service token): Created service token `vinifera-github-actions-octopus` (expires 2027-07-29) for the `Octopus Deploy — Schubert` Access application. Installed four GitHub repository secrets — `OCTOPUS_URL`, `OCTOPUS_API_KEY`, `OCTOPUS_CF_ACCESS_CLIENT_ID`, `OCTOPUS_CF_ACCESS_CLIENT_SECRET` — required by `octopus-runbook.mjs` to authenticate through the Cloudflare Access proxy to the self-hosted Octopus Deploy instance on Schubert V2. Previously the quality gate workflow failed because the secrets were absent; the runbook now has all credentials to connect via HTTPS.
 - `promote-dev-to-staging.yml` (staging REST probe endpoint): Changed from
   `/health` to `/auth/v1/health`. The self-hosted Kong gateway on Schubert
   requires auth credentials on the `/health` route (returns 401) but serves
