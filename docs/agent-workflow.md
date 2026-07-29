@@ -2,8 +2,8 @@
 
 > Canonical instructions for AI coding agents (WRITER Agent, Codex, Claude Code) working on vinifera.
 > Every change to this repo must flow through a pull request. Agent-authored work targets
-> `dev`; human-controlled promotion pull requests move `dev` to `staging` and `staging`
-> to `main`.
+> `dev`; gate-controlled automation prepares and validates the `dev` to
+> `staging` PR, while humans perform both environment-branch merges.
 
 ## Why PRs are required
 
@@ -97,9 +97,10 @@ terminal states is reached:
    same finding reappears; apply `human-review-required` and report the
    evidence.
 8. Merge only under explicit task-specific human authority or the
-   `codex-auto-merge` label. If merging, verify the resulting `main` commit,
-   post-merge required workflows, Pages/deployment state, and branch cleanup.
-   Otherwise leave the PR ready and report its exact status.
+   `codex-auto-merge` label. If merging, verify the resulting target-branch
+   commit and the post-merge workflows, preview/deployment state, and branch
+   cleanup applicable to that environment. Otherwise leave the PR ready and
+   report its exact status.
 
 ## Human supervision and automation authority
 
@@ -302,6 +303,11 @@ treat a green post-push workflow by itself as branch-protection evidence.
 ---
 
 ## Octopus and CodeRabbit quick reference
+
+The repository-root `.coderabbit.yaml` must retain `dev` and `staging` under
+`reviews.auto_review.base_branches`; CodeRabbit otherwise skips automatic
+reviews whose base is not the default branch. See the
+[CodeRabbit automatic review controls](https://docs.coderabbit.ai/configuration/auto-review).
 
 | Action | How |
 |---|---|

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="The Vinifera Investor&#39;s Guide — a plain-language overview of the platform, its technology, phased build plan, and business case for owners, investors, and stakeholders.">
 <title>Investor&#39;s Guide — Vinifera Wine Club Platform</title>
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="/lucide.min.js"></script>
 <style>
 /* ── Reset & tokens ─────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

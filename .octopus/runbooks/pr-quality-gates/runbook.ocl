@@ -24,6 +24,9 @@ process {
                 Octopus.Action.Script.ScriptBody = <<-EOT
                     set -euo pipefail
                     BRANCH="#{PRBranch}"
+                    EXPECTED_BASE_REF="#{ExpectedBaseRef}"
+                    EXPECTED_BASE_SHA="#{ExpectedBaseSHA}"
+                    EXPECTED_HEAD_SHA="#{ExpectedHeadSHA}"
                     WORK_DIR="/tmp/vinifera-pr-$$"
                     STATE_FILE="/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
                     github_curl() {
@@ -41,20 +44,40 @@ data = json.load(sys.stdin)
 print(data["head"]["repo"]["full_name"])
 print(data["head"]["ref"])
 print(data["head"]["sha"])
+print(data["base"]["ref"])
 print(data["base"]["sha"])
-print(data["commits"])
 ')
                     HEAD_REPOSITORY=$(printf '%s\n' "$PR_METADATA" | sed -n '1p')
                     HEAD_REF=$(printf '%s\n' "$PR_METADATA" | sed -n '2p')
                     HEAD_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '3p')
-                    BASE_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '4p')
-                    COMMIT_COUNT=$(printf '%s\n' "$PR_METADATA" | sed -n '5p')
+                    BASE_REF=$(printf '%s\n' "$PR_METADATA" | sed -n '4p')
+                    BASE_SHA=$(printf '%s\n' "$PR_METADATA" | sed -n '5p')
                     [ "$HEAD_REPOSITORY" = "theonlygeranium/vinifera" ] || {
                         echo "FAIL: pull request head repository is not trusted"
                         exit 1
                     }
                     [ "$HEAD_REF" = "$BRANCH" ] || {
                         echo "FAIL: prompted branch does not match pull request metadata"
+                        exit 1
+                    }
+                    [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+                        echo "FAIL: expected head is not an exact commit SHA"
+                        exit 1
+                    }
+                    [ "$HEAD_SHA" = "$EXPECTED_HEAD_SHA" ] || {
+                        echo "FAIL: pull request head changed before Octopus checkout"
+                        exit 1
+                    }
+                    [[ "$EXPECTED_BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+                        echo "FAIL: expected base is not an exact commit SHA"
+                        exit 1
+                    }
+                    [ "$BASE_REF" = "$EXPECTED_BASE_REF" ] || {
+                        echo "FAIL: pull request base ref changed before Octopus checkout"
+                        exit 1
+                    }
+                    [ "$BASE_SHA" = "$EXPECTED_BASE_SHA" ] || {
+                        echo "FAIL: pull request base SHA changed before Octopus checkout"
                         exit 1
                     }
 
@@ -72,38 +95,28 @@ print(data["commits"])
                     }
                     git checkout --quiet --detach "$HEAD_SHA"
                     git remote remove origin
-                    github_curl "application/vnd.github.diff" \
-                        "https://api.github.com/repos/theonlygeranium/vinifera/pulls/#{PRNumber}" \
+                    git diff --no-ext-diff "$MERGE_BASE_SHA" "$HEAD_SHA" \
                         > "$WORK_DIR/pr.diff"
 
-                    [ "$COMMIT_COUNT" -le 100 ] || {
+                    mapfile -t COMMIT_SHAS < <(
+                        git rev-list --reverse "$MERGE_BASE_SHA..$HEAD_SHA"
+                    )
+                    [ "${#COMMIT_SHAS[@]}" -le 100 ] || {
                         echo "FAIL: pull request has more than 100 commits"
                         exit 1
                     }
-                    COMMITS_JSON=$(github_curl "application/vnd.github+json" \
-                        "https://api.github.com/repos/theonlygeranium/vinifera/pulls/#{PRNumber}/commits?per_page=100")
-                    printf '%s' "$COMMITS_JSON" > "$WORK_DIR/pr-commits.json"
                     mkdir -p "$WORK_DIR/commit-diffs"
-                    COMMIT_SHAS=$(printf '%s' "$COMMITS_JSON" | python3 -c '
-import json, sys
-data = json.load(sys.stdin)
-expected = int(sys.argv[1])
-if len(data) != expected:
-    raise SystemExit(f"FAIL: expected {expected} PR commits, received {len(data)}")
-for commit in data:
-    print(commit["sha"])
-' "$COMMIT_COUNT")
-                    while IFS= read -r commit_sha; do
-                        github_curl "application/vnd.github.diff" \
-                            "https://api.github.com/repos/theonlygeranium/vinifera/commits/$commit_sha" \
+                    for commit_sha in "${COMMIT_SHAS[@]}"; do
+                        git show --format= --no-ext-diff --first-parent "$commit_sha" \
                             > "$WORK_DIR/commit-diffs/$commit_sha.diff"
-                    done <<< "$COMMIT_SHAS"
-                    unset PR_JSON PR_METADATA COMMITS_JSON COMMIT_SHAS
+                    done
+                    unset PR_JSON PR_METADATA COMMIT_SHAS
 
                     {
                         echo "WORK_DIR=$WORK_DIR"
                         echo "HEAD_SHA=$HEAD_SHA"
                         echo "BASE_SHA=$BASE_SHA"
+                        echo "MERGE_BASE_SHA=$MERGE_BASE_SHA"
                     } > "$STATE_FILE"
                     echo "Checkout complete: $WORK_DIR"
                     EOT
@@ -122,9 +135,26 @@ for commit in data:
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
-                    source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}" 2>/dev/null || WORK_DIR="/tmp/vinifera-pr"
+                    set -euo pipefail
+                    source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
                     cd "$WORK_DIR"
-                    grep -rn --include="*.ts" -E "createClient\s*\(|from [\"']@supabase/supabase-js[\"']" server/routes/ 2>/dev/null && echo "FAIL: Direct DB access in routes" && exit 1 || echo "PASS: Rule 1"
+                    tracked_grep() {
+                        local output status
+                        set +e
+                        output=$(git grep "$@")
+                        status=$?
+                        set -e
+                        if (( status > 1 )); then
+                            echo "FAIL: tracked-source scan exited with status $status" >&2
+                            return "$status"
+                        fi
+                        printf '%s' "$output"
+                    }
+                    VIOLATIONS=$(tracked_grep -n -E \
+                        "createClient\s*\(|from [\"']@supabase/supabase-js[\"']" \
+                        -- ":(glob)server/routes/**/*.ts")
+                    [ -n "$VIOLATIONS" ] && echo "FAIL: Direct DB access in routes: $VIOLATIONS" && exit 1
+                    echo "PASS: Rule 1"
                     EOT
                 Octopus.Action.Script.ScriptSource = "Inline"
                 Octopus.Action.Script.Syntax = "Bash"
@@ -141,13 +171,68 @@ for commit in data:
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
-                    source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}" 2>/dev/null || WORK_DIR="/tmp/vinifera-pr"
+                    set -euo pipefail
+                    source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
                     cd "$WORK_DIR"
-                    V1=$(grep -rn --include="*.ts" "from.*server/routes" server/services/ 2>/dev/null||true)
-                    V2=$(grep -rn --include="*.ts" "from.*server/integrations" server/routes/ 2>/dev/null||true)
-                    [ -n "$V1" ] && echo "FAIL services->routes: $V1" && exit 1
-                    [ -n "$V2" ] && echo "FAIL routes->integrations: $V2" && exit 1
-                    echo "PASS: Rule 2"
+                    python3 - <<'PY'
+                    import posixpath
+                    import re
+                    import subprocess
+                    import sys
+
+                    tracked = subprocess.run(
+                        [
+                            "git",
+                            "ls-files",
+                            "-z",
+                            "--",
+                            ":(glob)server/services/**/*.ts",
+                            ":(glob)server/routes/**/*.ts",
+                        ],
+                        check=True,
+                        stdout=subprocess.PIPE,
+                    ).stdout.decode().split("\0")
+                    import_pattern = re.compile(
+                        r"""(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s*)["']([^"']+)["']"""
+                    )
+
+                    def resolves_to(source_path, specifier, forbidden_root):
+                        if specifier.startswith("."):
+                            target = posixpath.normpath(
+                                posixpath.join(posixpath.dirname(source_path), specifier)
+                            )
+                        else:
+                            target = posixpath.normpath(specifier.lstrip("/"))
+                        return target == forbidden_root or target.startswith(
+                            forbidden_root + "/"
+                        )
+
+                    violations = []
+                    for source_path in filter(None, tracked):
+                        source = subprocess.run(
+                            ["git", "show", f"HEAD:{source_path}"],
+                            check=True,
+                            stdout=subprocess.PIPE,
+                            text=True,
+                        ).stdout
+                        forbidden_root = (
+                            "server/routes"
+                            if source_path.startswith("server/services/")
+                            else "server/integrations"
+                        )
+                        for line_number, line in enumerate(source.splitlines(), 1):
+                            for specifier in import_pattern.findall(line):
+                                if resolves_to(source_path, specifier, forbidden_root):
+                                    violations.append(
+                                        f"{source_path}:{line_number}:{specifier}"
+                                    )
+
+                    if violations:
+                        print("FAIL: forbidden cross-layer imports")
+                        print("\n".join(violations))
+                        sys.exit(1)
+                    print("PASS: Rule 2")
+                    PY
                     EOT
                 Octopus.Action.Script.ScriptSource = "Inline"
                 Octopus.Action.Script.Syntax = "Bash"
@@ -164,9 +249,24 @@ for commit in data:
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
-                    source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}" 2>/dev/null || WORK_DIR="/tmp/vinifera-pr"
+                    set -euo pipefail
+                    source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
                     cd "$WORK_DIR"
-                    VIOLATIONS=$(grep -rn --include="*.ts" -E "(sk_live_|sk_test_|rk_live_|ep_test_|re_)[A-Za-z0-9_]+" server/ src/ 2>/dev/null||true)
+                    tracked_grep() {
+                        local output status
+                        set +e
+                        output=$(git grep "$@")
+                        status=$?
+                        set -e
+                        if (( status > 1 )); then
+                            echo "FAIL: tracked-source scan exited with status $status" >&2
+                            return "$status"
+                        fi
+                        printf '%s' "$output"
+                    }
+                    VIOLATIONS=$(tracked_grep -n -E \
+                        "(sk_live_|sk_test_|rk_live_|ep_test_|re_)[A-Za-z0-9_]+" \
+                        -- ":(glob)server/**/*.ts" ":(glob)src/**/*.ts")
                     [ -n "$VIOLATIONS" ] && echo "FAIL: $VIOLATIONS" && exit 1
                     echo "PASS: Rule 3"
                     EOT

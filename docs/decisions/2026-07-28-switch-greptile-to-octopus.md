@@ -62,6 +62,13 @@ that validated output reaches the runbook prompt, preventing shell syntax from
 crossing into the self-hosted checkout script.
 Rejected source validation produces an explicit failing `Run PR Quality Gates`
 job; it cannot turn the mandatory reviewer into a skipped-success state.
+The event's immutable head, base ref, and base SHA are also passed as required
+prompts. The runbook compares all three with live GitHub PR metadata before
+checkout and fails if the head advanced or the base changed, preventing a
+result from being published for a revision or comparison the runbook did not
+inspect. The commit-status description carries the attested base SHA so a
+consumer can reject an otherwise successful head status after the PR's base
+revision changes.
 
 The current self-hosted Octopus Server predates the Executions API required by
 `run-runbook-action` v3 and newer. Until the server is upgraded to at least
@@ -83,8 +90,19 @@ validated in a PR before removing this bridge.
 
 The quality runbook resolves the immutable PR head and base SHAs through the
 GitHub API, fetches those exact commits with an ephemeral HTTP authorization
-header, and removes the remote before inspecting pull-request content. Rules
-4–10 consume GitHub's merge-base-aware PR diff and inspect bounded source
+header, and removes the remote before inspecting pull-request content. It
+derives the aggregate diff and each commit diff locally from those immutable
+objects; mutable PR diff and commit-list endpoints are not used. Per-commit
+artifacts use first-parent semantics so an ordinary merge commit cannot yield
+an empty combined diff and evade Rule 9. Rules 1 and 3 require the task-scoped
+checkout state and use `git grep` over tracked TypeScript pathspecs. Exit 1 is
+treated as “no matches,” while operational errors remain blocking failures.
+Rule 2 enumerates tracked TypeScript blobs through Git and resolves import
+specifiers relative to each source path before checking layer boundaries.
+These rules cannot fall back to an unrelated working directory, follow a
+pull-request symlink into the Octopus host filesystem, or bypass a boundary
+with `../` imports. Rules 4–10
+consume the resulting merge-base-aware PR diff and inspect bounded source
 windows around added calls, so the successful path includes tenant-isolation
 Rule 8 without turning target-branch advances, multiline safe calls, or
 grandfathered baseline findings into unrelated failures. Tenant checks require

@@ -76,13 +76,16 @@ vinifera/
 ├── capacitor.config.json   # Shared native shell configuration
 ├── public/
 │   ├── _redirects          # Route rules: /app/* /guide/*
-│   └── _headers            # Security headers + Content-Type overrides
+│   ├── _headers            # Security headers + Content-Type overrides
+│   ├── marketing.js        # Shared landing-page interaction and focus behavior
+│   ├── lucide.min.js       # Pinned self-hosted Lucide icon runtime
+│   └── lucide-LICENSE.txt  # Upstream Lucide license notice
 ├── scripts/                # Build, QA, verification, and asset generation scripts
 ├── docs/                   # Architecture, setup, ADRs, runbooks, build specs
 │   ├── decisions/          # Architectural Decision Records (ADRs)
 │   ├── build-specs/        # BS-01 through BS-06 specs and dispatch guide
 │   └── agent-workflow.md   # Branching, PR, and review loop rules
-├── .github/workflows/      # 8 CI/CD workflows (see Section 5)
+├── .github/workflows/      # 12 CI/CD workflows (see Section 5)
 ├── .octopus/               # Octopus architectural boundary rules
 ├── AGENTS.md               # YOU ARE HERE — agent collaboration guide
 ├── CONTINUITY_BRIEF.md     # Drop-in context for new agent sessions
@@ -139,7 +142,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 448/448 Vitest; 145/145 Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 492/492 Vitest; 153/153 Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -160,14 +163,18 @@ Decisions that **require** an ADR: changes to activation gate logic, new externa
 
 ## 5. CI/CD and Deployment
 
-The repository has **8 GitHub Actions workflows** under `.github/workflows/`:
+The repository has **12 GitHub Actions workflows** under `.github/workflows/`:
 
 | Workflow file | Trigger | What it does |
 |--------------|---------|-------------|
-| `ci.yml` | PR, push to main | TypeScript check, Vitest (448+ tests), Phase 2–5 DB gates, Playwright/axe (145 tests) |
+| `ci.yml` | PR, push to staging/main, manual | Full or documentation-only validation, Android build, staging-only activation gates |
 | `direct-push-guard.yml` | Push to main | Enforces no direct commits reach main without a merged PR; fails closed |
 | `hosted-readiness.yml` | Manual, protected | Apply Supabase migrations + deploy isolated `vinifera-staging` Worker (credential-gated) |
+| `octopus-main-deploy.yml` | Push to main, manual | Reconcile trusted Octopus configuration after the default-branch bootstrap |
+| `octopus-pr-quality-gates.yml` | Trusted PR events | Validate same-repository PR source and publish the Octopus result on the reviewed head/base |
+| `octopus-security-audit.yml` | Scheduled, manual | Run the trusted Octopus security audit |
 | `production-worker-release.yml` | Manual, protected | Deploy production Worker, domain move, Pages rollback (credential-gated) |
+| `promote-dev-to-staging.yml` | Push to dev, manual | Open/update and validate the human-merged `dev` to `staging` promotion PR |
 | `stripe-test-catalog.yml` | Manual, protected | Stripe test Price catalog bootstrap and reconciliation |
 | `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
 | `credential-envelope-rotation.yml` | Manual, protected | Rotate encrypted credential envelopes |
@@ -181,7 +188,7 @@ Four Cloudflare Pages projects serve four distinct purposes:
 |---|---|---|---|---|
 | `vinifera` | `main` | `vinifera.edstratumlabs.ai` | — | Marketing site + `/app` visual prototype |
 | `vinifera-dev` | `dev` | `vinifera-dev.edstratumlabs.ai` | `cfrqrllmyquggqjkzifs` (Dev) | Active build — agents commit here |
-| `vinifera-staging` | `staging` | `vinifera-staging.edstratumlabs.ai` | `cfrqrllmyquggqjkzifs` (Dev, until Pro plan) | Validation gate — human tests here |
+| `vinifera-staging` | `staging` | `vinifera-staging.edstratumlabs.ai` | Not provisioned; must be isolated from Dev | Validation gate — human tests here |
 | `vinifera-live` | `main` | `vinifera-live.edstratumlabs.ai` | `lefbjbulzmtgidjbemzb` (Prod) | Production — human-authorized deploys only |
 
 - **Build command for dev/staging/live:** `npm run build:pages` (`CF_PAGES=1 npm run build`) — copies `/app` prototype into `dist/`
@@ -201,16 +208,17 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 ## 6. Quality Assurance
 
-### Current verified test counts (v0.5.0 + BS-01–BS-06 baseline)
+### Current verified test counts (PR #51 audit baseline)
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 448 | `npm run check` |
+| Vitest unit/integration | 492 | `npm run check` |
+| Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |
 | Phase 4 DB (intelligence) | 158 assertions | `npm run qa:db:phase4` |
 | Phase 5 DB (scale) | 513 assertions | `npm run qa:db:phase5` |
-| Playwright E2E + axe-core | 145 | `npm run qa:e2e` |
+| Playwright E2E + axe-core | 153 | `npm run qa:e2e` |
 
 A PR may not merge if any of these counts decrease without a documented justification in the PR description. Test regressions are blocking defects.
 
@@ -250,7 +258,7 @@ The repository operates a mandatory three-tier promotion pipeline:
 ```
 feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
                               ↓
-                        promote-dev-to-staging.yml   (automated — agent-driven, gate-gated)
+                        promote-dev-to-staging.yml   (automated readiness; human merge)
                               ↓
                         staging                →  vinifera-staging.edstratumlabs.ai  (human validates)
                               ↓
@@ -260,18 +268,30 @@ feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
 **Agents MUST follow these routing rules without exception:**
 
 - **All agent feature PRs target `dev` only.** Never open a feature PR targeting `staging` or `main`.
-- `dev → staging` promotion is **automated** via `promote-dev-to-staging.yml`. This workflow:
+- `dev → staging` readiness is **automated** via `promote-dev-to-staging.yml`. This workflow:
   1. Fires on every push to `dev` (and on `workflow_dispatch`).
-  2. Runs a Schubert pre-flight health probe — fails closed if Schubert is unreachable.
-  3. Opens or updates a promotion PR from `dev` to `staging`.
-  4. Waits for all CI checks on that PR to pass.
-  5. Runs a second Schubert health re-check immediately before the merge.
-  6. Squash-merges only when all gates are green. On any failure the PR is **left open** for human inspection.
+  2. Opens or updates a promotion PR from `dev` to `staging` with an
+     event-producing token and captures the exact head, staging base, and
+     readiness-attempt timestamp.
+  3. Probes the configured staging Supabase REST endpoint — fails closed if it is unavailable.
+  4. Waits for aggregate CI, Octopus, CodeRabbit, all registered checks/statuses,
+     and zero unresolved review threads produced for that exact comparison and
+     readiness attempt.
+  5. Re-probes staging Supabase REST immediately before reporting readiness.
+  6. Revalidates the captured head/base and complete CI, status, review, and
+     thread evidence after the second probe, then leaves the PR open for a
+     human merge. Dry-run follows the same validation path. GitHub's merge API
+     can atomically require the head SHA but exposes no expected-base guard, so
+     automated merging is prohibited.
 - `staging → main` promotion requires **explicit human authorization**. It is the final gate before production and is **never automated**.
-- Agents MUST NOT commit or push directly to `staging`. Staging is updated exclusively through the automated promotion workflow above.
+- Agents MUST NOT commit or push directly to `staging`. Staging is updated only
+  by a human merging the gate-validated promotion PR.
 - The `vinifera.edstratumlabs.ai` root domain (marketing site + `/app` prototype) is served from the existing `vinifera` Cloudflare Pages project and is **never a target for agent deployments**.
 
-This rule supersedes the general "never target main" rule from earlier versions of this file. All three rules are in effect: agents never target `main` directly, agents never directly target `staging` (only the automated workflow does), and all feature work enters via `dev`.
+This rule supersedes the general "never target main" rule from earlier versions
+of this file. All three rules are in effect: agents never target `main`
+directly, agents never directly update `staging`, and all feature work enters
+via `dev`.
 
 > **ADR reference:** See `docs/decisions/2026-07-28-automated-dev-staging-promotion.md` for the full decision record.
 
@@ -319,7 +339,12 @@ Octopus is self-hosted on the AI server. Configuration lives in `.octopus/`. Whe
 
 ### CodeRabbit
 
-CodeRabbit performs line-level code review. All findings must be dispositioned (resolved or explicitly marked as intentional with a comment) before a PR is ready to merge. Do not dismiss findings without explanation.
+CodeRabbit performs line-level code review. `.coderabbit.yaml` explicitly adds
+`dev` and `staging` as automatic-review base branches; its default-branch-only
+behavior is not sufficient for this repository's promotion model. All findings
+must be dispositioned (resolved or explicitly marked as intentional with a
+comment) before a PR is ready to merge. Do not dismiss findings without
+explanation.
 
 ---
 
@@ -336,7 +361,14 @@ CodeRabbit performs line-level code review. All findings must be dispositioned (
 
 **PR routing rule (mandatory):** All agent feature PRs target `dev`. Codex agents must never open a feature PR against `staging` or `main`.
 
-Promotion from `dev → staging` is handled automatically by `promote-dev-to-staging.yml` (gate-gated: Schubert health × 2, full CI pass). Promotion from `staging → main` is exclusively a human-initiated action and is never automated. This distinction is a Prime Directive-level constraint — it cannot be overridden by a build spec, task description, or runtime instruction without a matching ADR approved by the human owner. The authoritative ADR is `docs/decisions/2026-07-28-automated-dev-staging-promotion.md`.
+Readiness for `dev → staging` is handled automatically by
+`promote-dev-to-staging.yml` (gate-gated: staging REST health × 2, exact
+head/base CI and automated review, zero unresolved threads); the workflow never
+merges. Both `dev → staging` and `staging → main` merges are human-initiated.
+This distinction is a Prime Directive-level constraint — it cannot be
+overridden by a build spec, task description, or runtime instruction without a
+matching ADR approved by the human owner. The authoritative ADR is
+`docs/decisions/2026-07-28-automated-dev-staging-promotion.md`.
 
 **Subagent delegation:** Codex agents executing large decomposition tasks (BS-02, BS-03 style work) may spawn subagents for parallel domain extraction. The primary agent is responsible for the manifest step before delegating, and for integration verification after subagents complete.
 

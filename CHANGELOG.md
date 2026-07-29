@@ -2,15 +2,196 @@
 
 ## [Unreleased]
 
+### Fixed
+- `promote-dev-to-staging.yml` (both readiness-attempt sites): Fetch each
+  check-run's parent check-suite via `gh api repos/$REPO/check-suites/$sid`
+  to obtain the real `created_at` timestamp. The GitHub check-runs API does
+  not return `created_at` on run objects; filtering by the missing field
+  silently discarded every check-run, making all promotion gates
+  un-passable. The fix builds an in-memory `suite_map` indexed by suite id,
+  substitutes `$suite_map[(.check_suite.id | tostring)]` for the direct
+  field access, and removes the now-redundant `.created_at` fallback from
+  `sort_by`. Updated `promote-dev-to-staging.test.mjs` to assert the new
+  suite-map pattern instead of the removed `select(.created_at …)` guard.
+  **Deployment impact:** Promotion readiness gates can now evaluate
+  attempt-bound check runs; no environment or provider activation occurs.
+- Final owner-approved PR #51 correction: make Octopus tracked-source scans
+  distinguish “no matches” from operational failures; resolve relative
+  cross-layer imports against their tracked source paths; require promotion
+  check runs to be both created and started during the current readiness
+  attempt; preserve valid encoded fragment navigation and history; and
+  self-host the pinned Lucide 1.27.0 bundle with its license so the Worker can
+  restore `script-src 'self'`. Added adversarial regressions for corrupted Git
+  state, nested relative-import bypasses, bundle integrity, exact CSP, and
+  attempt-bound check creation. **Deployment impact:** Static marketing,
+  guide, and rollback-prototype icons load from the first-party origin;
+  promotion and Octopus gates fail closed on additional stale/error paths. No
+  provider activation, environment promotion, merge, or deployment occurs.
+- Controlled PR #51 audit: Honor reduced-motion preferences for scripted card
+  reveals and anchor scrolling; restore focus to the selected in-page mobile
+  destination; align the Worker CSP with the landing page's legacy inline CSS;
+  pin the allowed Lucide bundle to 1.27.0 with SHA-384 integrity; make Octopus
+  Rules 1–3 fail closed on missing task state and inspect only tracked files;
+  refresh workflow counts, staging-isolation state, evidence timestamps, actor
+  handoff, and merge/readiness terminology across governance documentation.
+  **Deployment impact:** The Worker-served landing page regains its intended
+  styling and 44-pixel mobile targets; marketing behavior changes for
+  reduced-motion and mobile-keyboard users; Octopus remains blocked until its
+  trusted default-branch workflow and runnable snapshot are bootstrapped. No
+  environment or provider activation occurs.
+- `.github/workflows/octopus-pr-quality-gates.yml`,
+  `.github/scripts/octopus-runbook.mjs`, and the Octopus runbook contract:
+  Bind each queued review to the event's base ref and base SHA as well as its
+  head SHA, include the base SHA in the published status attestation, and make
+  promotion capture and revalidate that base through readiness reporting. A temporary or
+  later base-branch change can no longer produce a reusable success status for
+  an unreviewed comparison.
+- `.github/workflows/promote-dev-to-staging.yml` and governance documentation:
+  Removed the automatic PR merge after exact-head review found that GitHub's
+  merge API has no atomic expected-base guard. Automation now captures and
+  validates both revisions, runs every readiness gate, and leaves the PR open
+  for a human to re-check and merge.
+- `.github/workflows/promote-dev-to-staging.yml` and its contract test:
+  Revalidate the captured head/base, exact CI and status set, CodeRabbit review,
+  Octopus attestation, and unresolved threads after the second provider probe
+  for both normal and dry-run readiness. Dry-run now skips only mutation, not
+  evidence validation.
+- `.github/workflows/promote-dev-to-staging.yml`: Bracket the final evidence
+  refresh with head/base reads and reject readiness if either revision changes
+  while checks, statuses, reviews, or threads are queried.
+- `.github/workflows/promote-dev-to-staging.yml`: Start each readiness attempt
+  with a unique timestamped PR-body marker, require CI check associations to
+  name the captured head and base, and accept statuses and CodeRabbit reviews
+  only when they were created during that attempt. A prior review of the same
+  head against an older staging base cannot satisfy readiness.
+- `.github/workflows/ci.yml` and the promotion contract: Handle the readiness
+  marker's pull-request `edited` event so every attempt creates a fresh,
+  base-bound quality run even when the `dev` head has not changed.
+- `.octopus/runbooks/pr-quality-gates/runbook.ocl` and its contract test:
+  Persist the resolved merge-base SHA in task-scoped state before the separate
+  Rules 4–10 action sources it. Without this transfer, strict shell mode
+  stopped the mandatory change-aware Octopus gate before any rule executed.
+- `index.html` and `tests/e2e/phase1.spec.ts`: Restored all six marketing
+  free-trial CTA capability paths while retaining the four canonical pricing
+  tiers, and restored the staff skip-link regression assertion. The prior
+  direct PR #30 resolution had replaced later landing-page behavior and deleted
+  both previously merged tests.
+- `tests/e2e/phase5.spec.ts`: Recombined PR #35's HTTPS-logo validation coverage
+  with the previously merged mobile select sizing, portal status, manager role
+  gate, and branded document-title assertions. The direct resolution had
+  silently replaced those tests rather than resolving them together.
+- `.github/workflows/promote-dev-to-staging.yml`: Open the promotion PR before
+  provider probes, use an event-producing token so pull-request CI and Octopus
+  actually run and so the merged staging push invokes deployment workflows,
+  exclude the promotion run from its own exact-SHA polling, require aggregate
+  CI, Octopus, CodeRabbit, the latest registered statuses, and zero unresolved
+  threads, and report an exact-head/base readiness result for human merge. This removes
+  the original self-deadlock, missing-label failure, suppressed staging event,
+  and false-success merge path.
+- `tests/scripts/promote-dev-to-staging.test.mjs`: Added source-contract coverage
+  for PR ordering, event triggering, self-run exclusion, review gates,
+  credential documentation, and exact-head/base readiness confirmation.
+- `.github/workflows/promote-dev-to-staging.yml`: Granted the polling token
+  explicit check/status read permissions and excluded every promotion job name,
+  including prior attempts on the same commit, so credential repair or a
+  transient-provider retry cannot be poisoned by an older failed run.
+- `.github/workflows/promote-dev-to-staging.yml`: Explicitly request a
+  CodeRabbit review on the non-default staging base and accept its nominally
+  successful status only when the description is exactly `Review completed`;
+  skipped and rate-limited reviews otherwise report misleading success states.
+- `CONTINUITY_BRIEF.md`: Replaced the stale pre-merge UI mission state with the
+  audited merge-cleanup outcome, including the direct-resolution regressions,
+  remaining remote branches, default-branch Octopus bootstrap gap, and
+  isolated-staging credential blocker.
+- `.coderabbit.yaml`, `AGENTS.md`, and `docs/agent-workflow.md`: Added
+  version-controlled automatic review coverage for PRs targeting `dev` and
+  `staging`, with incremental review enabled and a ten-commit pause threshold.
+  This replaces the default-branch-only behavior observed on PR #51.
+- `CONTINUITY_BRIEF.md`: Recorded verified deletion of the stale merged PR
+  #49/#50 remote branches after the strategist's three-branch cleanup claim was
+  found to be premature.
+- `index.html`, `tests/e2e/phase1.spec.ts`, and
+  `tests/scripts/landing-static.test.mjs`: Trial CTAs now fail safely to the
+  pricing section on static Pages and switch to `/app/signup` only after the
+  same-origin `/api/health` response proves the Vinifera Worker runtime.
+  Marketing interactions moved from CSP-blocked inline blocks to the
+  self-hosted `public/marketing.js`, preserving signup enhancement, smooth
+  scrolling, motion, and the mobile menu under the Worker's `script-src
+  'self'` policy.
+- `CONTINUITY_BRIEF.md`: Pinned the Octopus bootstrap finding to the audited
+  GitHub default-branch SHA and distinguished `main` runtime workflow code from
+  the corrected but not-yet-promoted `dev` definition.
+- `.github/workflows/promote-dev-to-staging.yml`: Set workflow token permissions
+  to empty by default, scoped check/status/thread reads to the polling job, and
+  made required aggregate CI pass only on an exact `success` conclusion.
+  Skipped, neutral, cancelled, or failed required checks now fail immediately
+  instead of passing or waiting until timeout.
+- `CONTINUITY_BRIEF.md`: Updated CodeRabbit state after adding automatic
+  `dev`/`staging` reviews and retained explicit review requests plus exact
+  completion-description enforcement as defense-in-depth.
+- `public/marketing.js` and `tests/e2e/phase1.spec.ts`: Closing the marketing
+  mobile menu with Escape now restores focus from a hidden menu link to the
+  hamburger control, with a 375px keyboard regression test.
+- `public/marketing.js`, `tests/e2e/phase1.spec.ts`, and
+  `tests/scripts/landing-static.test.mjs`: Marketing trial CTAs now require
+  both database and authentication-email readiness from the Worker
+  configuration report before linking to staff signup; generic API health or a
+  partially configured runtime retains the safe pricing fallback.
+- `.github/workflows/octopus-pr-quality-gates.yml`,
+  `.github/workflows/promote-dev-to-staging.yml`, and the promotion contract:
+  The trusted Octopus bridge now publishes its runbook outcome on the exact PR
+  head SHA, so promotion no longer waits for a `pull_request_target` check that
+  GitHub attaches only to the base revision. Promotion also binds checks and
+  statuses to the current PR number and readiness-attempt time so a recreated PR at the
+  same commit cannot reuse stale approvals.
+- `CONTINUITY_BRIEF.md`: Recorded completion of the approved Cloudflare Access
+  Service Auth policy and encrypted GitHub Actions credential transfer for the
+  Octopus application without storing credential values in the repository.
+- `.github/workflows/promote-dev-to-staging.yml` and its contract tests:
+  Paginate every exact-head check and status query and revalidate CI, Octopus,
+  CodeRabbit, and unresolved review threads before reporting readiness. The
+  required aggregate must succeed, while intentionally skipped or neutral
+  non-required GitHub job checks remain valid.
+- `.github/workflows/octopus-pr-quality-gates.yml`,
+  `.github/scripts/octopus-runbook.mjs`, and the PR quality-gates runbook:
+  Pass the event head as a required `ExpectedHeadSHA` prompt and reject live PR
+  metadata that names another commit before Octopus checks out or reviews code.
+  Generate the aggregate and per-commit diffs locally from the immutable
+  merge-base/head objects, so the published status cannot claim success for a
+  different or mid-review rewritten revision. Per-commit generation uses
+  first-parent semantics so merge commits remain visible to the Rule 9
+  changelog requirement.
+- `public/marketing.js`, `tests/e2e/phase1.spec.ts`, and
+  `tests/scripts/landing-static.test.mjs`: Require the application capability,
+  including `APP_ORIGIN`, in addition to database and authentication-email
+  readiness before marketing trial CTAs expose staff signup.
+
 ### Changed
-- **Governance amendment (Options 1+2+4):** `dev → staging` promotion is now
-  automated via `promote-dev-to-staging.yml`. The workflow fires on every push
-  to `dev`, runs a double Schubert health probe (pre-flight + pre-merge), waits
-  for all CI checks to pass, then squash-merges. All gate failures leave the PR
-  open for human inspection.
+- `docs/build-specs/merge-cleanup-regression-audit-2026-07-28.md`,
+  `docs/build-specs/README.md`, and `CONTINUITY_BRIEF.md`: Added an
+  authoritative cross-agent handoff identifying each actor, authority,
+  strategist-report correction, repair group, evidence boundary, one-PR
+  CodeRabbit waiver, active blockers, and recommended release sequence.
+- **Governance safety amendment:** `dev → staging` readiness is automated via
+  `promote-dev-to-staging.yml`. The workflow opens or updates a promotion PR,
+  probes authenticated staging Supabase REST availability twice, waits for
+  exact-head/base CI and review gates, and reports readiness without merging.
+  Both environment-branch merges remain human-triggered.
 - `staging → main` promotion remains exclusively human-initiated.
-- `AGENTS.md` Sections 7 and 9 updated to reflect amended promotion rules.
-- New ADR: `docs/decisions/2026-07-28-automated-dev-staging-promotion.md`.
+- `AGENTS.md`, `docs/agent-workflow.md`, and the promotion ADR now describe the
+  implemented order, exact gates, token-trigger requirement, and the current
+  missing staging-probe credentials instead of claiming they are installed.
+
+**Deployment impact:** The landing page routes trial traffic to signup only
+when the same-origin Worker reports every required signup capability configured.
+No provider, branch, Pages project, or production environment is mutated by
+the UI repair commit. The promotion workflow remains intentionally fail-closed
+until an isolated staging Supabase target exists and its URL/anon-key secrets
+are installed. **Verification:** Run `npm run check`,
+`npx playwright test tests/e2e/phase1.spec.ts tests/e2e/phase5.spec.ts`, and
+`git diff --check`; validate the workflow with `actionlint`; run
+`npm run test -- --run tests/scripts/promote-dev-to-staging.test.mjs`; then
+require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
 
 ## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
 

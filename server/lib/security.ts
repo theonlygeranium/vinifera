@@ -17,7 +17,7 @@ export const CONTENT_SECURITY_POLICY = [
   "img-src 'self' data: https:",
   "object-src 'none'",
   "script-src 'self'",
-  "style-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
   "upgrade-insecure-requests",
 ].join("; ");
 

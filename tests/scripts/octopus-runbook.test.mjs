@@ -43,6 +43,61 @@ function embeddedQualityChecker() {
     .join("\n");
 }
 
+function embeddedRunbookStep(stepId) {
+  const qualityRunbook = readFileSync(
+    new URL(
+      "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const escapedStepId = stepId.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const body = qualityRunbook.match(
+    new RegExp(
+      `step "${escapedStepId}"[\\s\\S]*?Octopus\\.Action\\.Script\\.ScriptBody = <<-EOT\\n([\\s\\S]*?)\\n\\s*EOT`,
+    ),
+  )?.[1];
+  expect(body).toBeTruthy();
+  const indentation = body.match(/^(\s*)\S/m)?.[1].length ?? 0;
+  return body
+    .split("\n")
+    .map((line) => (line.startsWith(" ".repeat(indentation))
+      ? line.slice(indentation)
+      : line))
+    .join("\n");
+}
+
+function initializeGitFixture(fixture) {
+  for (const args of [
+    ["init", "--quiet"],
+    ["config", "user.email", "fixture@example.test"],
+    ["config", "user.name", "Fixture"],
+    ["add", "."],
+    ["commit", "--quiet", "-m", "fixture"],
+  ]) {
+    const result = spawnSync("git", args, { cwd: fixture, encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+  }
+}
+
+function runEmbeddedStep(stepId, fixture) {
+  const taskId = `fixture-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const stateFile = `/tmp/octopus_pr_workdir_${taskId}`;
+  writeFileSync(stateFile, `WORK_DIR=${fixture}\n`);
+  try {
+    return spawnSync(
+      "bash",
+      ["-c", embeddedRunbookStep(stepId).replaceAll(
+        "#{Octopus.Task.Id}",
+        taskId,
+      )],
+      { encoding: "utf8" },
+    );
+  } finally {
+    rmSync(stateFile, { force: true });
+  }
+}
+
 function runRule8BaseHeadFixture({ baseSource, headSource, diff }) {
   const checker = embeddedQualityChecker();
   const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-base-"));
@@ -130,7 +185,7 @@ describe("Octopus runbook bridge", () => {
     expect(qualityRunbook).toContain(
       'failures.append(("Rule 8", f"{file_path}:{start_line}"',
     );
-    expect(qualityRunbook).toContain("application/vnd.github.diff");
+    expect(qualityRunbook).not.toContain("application/vnd.github.diff");
     expect(qualityRunbook).toContain(
       'file_path.startswith("server/services/")',
     );
@@ -1118,6 +1173,18 @@ describe("Octopus runbook bridge", () => {
                   Type: "Sensitive",
                 },
               },
+              {
+                Name: "V-4",
+                Control: { Name: "ExpectedHeadSHA", Required: true },
+              },
+              {
+                Name: "V-5",
+                Control: { Name: "ExpectedBaseRef", Required: true },
+              },
+              {
+                Name: "V-6",
+                Control: { Name: "ExpectedBaseSHA", Required: true },
+              },
             ],
           },
         });
@@ -1142,6 +1209,9 @@ describe("Octopus runbook bridge", () => {
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
           PR_BRANCH: "fix/example",
+          PR_EXPECTED_BASE_REF: "dev",
+          PR_EXPECTED_BASE_SHA: "b".repeat(40),
+          PR_EXPECTED_SHA: "a".repeat(40),
           PR_NUMBER: "44",
         },
         fetchImpl,
@@ -1164,6 +1234,9 @@ describe("Octopus runbook bridge", () => {
       "V-1": "fix/example",
       "V-2": "44",
       "V-3": "secret-pat",
+      "V-4": "a".repeat(40),
+      "V-5": "dev",
+      "V-6": "b".repeat(40),
     });
     expect(
       calls.every(
@@ -1217,6 +1290,18 @@ describe("Octopus runbook bridge", () => {
                   Sensitive: true,
                 },
               },
+              {
+                Name: "V-4",
+                Control: { Name: "ExpectedHeadSHA", Required: true },
+              },
+              {
+                Name: "V-5",
+                Control: { Name: "ExpectedBaseRef", Required: true },
+              },
+              {
+                Name: "V-6",
+                Control: { Name: "ExpectedBaseSHA", Required: true },
+              },
             ],
           },
         });
@@ -1241,6 +1326,9 @@ describe("Octopus runbook bridge", () => {
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
           PR_BRANCH: "fix/example",
+          PR_EXPECTED_BASE_REF: "dev",
+          PR_EXPECTED_BASE_SHA: "b".repeat(40),
+          PR_EXPECTED_SHA: "a".repeat(40),
           PR_NUMBER: "44",
         },
         fetchImpl,
@@ -1255,10 +1343,81 @@ describe("Octopus runbook bridge", () => {
 });
 
 describe("Octopus workflow trust boundary", () => {
+  it("fails closed when a tracked-source grep encounters an operational error", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-grep-error-"));
+    try {
+      const routeDirectory = join(fixture, "server", "routes");
+      mkdirSync(routeDirectory, { recursive: true });
+      writeFileSync(
+        join(routeDirectory, "health.ts"),
+        "export const healthy = true;\n",
+      );
+      initializeGitFixture(fixture);
+      writeFileSync(join(fixture, ".git", "index"), "corrupt-index");
+
+      const result = runEmbeddedStep(
+        "rule-1-no-direct-route-to-database-access",
+        fixture,
+      );
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain("tracked-source scan exited with status");
+      expect(result.stdout).not.toContain("PASS: Rule 1");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves relative imports before enforcing layer boundaries", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-imports-"));
+    try {
+      const serviceDirectory = join(
+        fixture,
+        "server",
+        "services",
+        "nested",
+      );
+      const routeDirectory = join(fixture, "server", "routes", "nested");
+      mkdirSync(serviceDirectory, { recursive: true });
+      mkdirSync(routeDirectory, { recursive: true });
+      writeFileSync(
+        join(serviceDirectory, "unsafe.ts"),
+        'import { route } from "../../routes/admin";\n',
+      );
+      writeFileSync(
+        join(routeDirectory, "unsafe.ts"),
+        'export { provider } from "../../integrations/provider";\n',
+      );
+      initializeGitFixture(fixture);
+
+      const result = runEmbeddedStep(
+        "rule-2-no-circular-imports-between-layers",
+        fixture,
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain("FAIL: forbidden cross-layer imports");
+      expect(result.stdout).toContain(
+        "server/services/nested/unsafe.ts:1:../../routes/admin",
+      );
+      expect(result.stdout).toContain(
+        "server/routes/nested/unsafe.ts:1:../../integrations/provider",
+      );
+      expect(result.stdout).not.toContain("PASS: Rule 2");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
   it("executes only the trusted default-branch bridge with secrets", () => {
     const workflow = readFileSync(
       new URL(
         "../../.github/workflows/octopus-pr-quality-gates.yml",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const qualityRunbook = readFileSync(
+      new URL(
+        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -1273,7 +1432,15 @@ describe("Octopus workflow trust boundary", () => {
       "ref: ${{ github.event.repository.default_branch }}",
     );
     expect(workflow.match(/persist-credentials: false/g)).toHaveLength(1);
-    expect(workflow).not.toContain("github.event.pull_request.head.sha");
+    expect(
+      workflow.match(/github\.event\.pull_request\.head\.sha/g),
+    ).toHaveLength(2);
+    expect(workflow).toContain(
+      "PR_SHA: ${{ github.event.pull_request.head.sha }}",
+    );
+    expect(workflow).not.toContain(
+      "ref: ${{ github.event.pull_request.head.sha }}",
+    );
     expect(workflow).not.toContain("github.head_ref");
     expect(workflow).toContain(
       "HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}",
@@ -1281,6 +1448,67 @@ describe("Octopus workflow trust boundary", () => {
     expect(workflow).toContain(
       "PR_BRANCH: ${{ needs.validate-source.outputs.branch }}",
     );
+    expect(workflow).toContain(
+      "PR_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}",
+    );
+    expect(workflow).toContain(
+      "PR_EXPECTED_BASE_REF: ${{ github.event.pull_request.base.ref }}",
+    );
+    expect(workflow).toContain(
+      "PR_EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}",
+    );
+    expect(qualityRunbook).toContain(
+      'EXPECTED_BASE_REF="#{ExpectedBaseRef}"',
+    );
+    expect(qualityRunbook).toContain(
+      'EXPECTED_BASE_SHA="#{ExpectedBaseSHA}"',
+    );
+    expect(qualityRunbook).toContain(
+      'EXPECTED_HEAD_SHA="#{ExpectedHeadSHA}"',
+    );
+    expect(qualityRunbook).toContain(
+      '[ "$BASE_REF" = "$EXPECTED_BASE_REF" ]',
+    );
+    expect(qualityRunbook).toContain(
+      '[ "$BASE_SHA" = "$EXPECTED_BASE_SHA" ]',
+    );
+    expect(qualityRunbook).toContain(
+      '[ "$HEAD_SHA" = "$EXPECTED_HEAD_SHA" ]',
+    );
+    expect(qualityRunbook).toContain(
+      'git diff --no-ext-diff "$MERGE_BASE_SHA" "$HEAD_SHA"',
+    );
+    expect(qualityRunbook).toContain(
+      'echo "MERGE_BASE_SHA=$MERGE_BASE_SHA"',
+    );
+    expect(qualityRunbook).toContain(
+      'git rev-list --reverse "$MERGE_BASE_SHA..$HEAD_SHA"',
+    );
+    expect(qualityRunbook).toContain(
+      'git show --format= --no-ext-diff --first-parent "$commit_sha"',
+    );
+    expect(qualityRunbook).not.toContain("application/vnd.github.diff");
+    expect(qualityRunbook).not.toContain("/commits?per_page=");
+    expect(qualityRunbook).not.toContain('WORK_DIR="/tmp/vinifera-pr"');
+    expect(qualityRunbook).not.toContain("grep -rn");
+    expect(qualityRunbook).not.toContain("git grep \"$@\" || true");
+    expect(qualityRunbook.match(/set -euo pipefail/g)).toHaveLength(5);
+    expect(qualityRunbook.match(/tracked_grep\(\)/g)).toHaveLength(2);
+    expect(qualityRunbook.match(/git grep "\$@"/g)).toHaveLength(2);
+    expect(qualityRunbook).toContain(
+      'if (( status > 1 )); then',
+    );
+    expect(qualityRunbook).toContain(
+      '"git", "show", f"HEAD:{source_path}"',
+    );
+    expect(qualityRunbook).toContain(
+      'posixpath.join(posixpath.dirname(source_path), specifier)',
+    );
+    expect(
+      qualityRunbook.match(
+        /source "\/tmp\/octopus_pr_workdir_#\{Octopus\.Task\.Id\}"/g,
+      ),
+    ).toHaveLength(4);
     expect(workflow).toContain("git check-ref-format --branch");
     expect(workflow).toContain(
       "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$",

@@ -133,12 +133,28 @@ export async function runRunbook({
     "OCTOPUS_API_KEY",
     "OCTOPUS_URL",
     "PR_BRANCH",
+    "PR_EXPECTED_BASE_REF",
+    "PR_EXPECTED_BASE_SHA",
+    "PR_EXPECTED_SHA",
     "PR_NUMBER",
   ];
   for (const name of requiredEnvironment) {
     if (!environment[name]) {
       throw new Error(`Missing required environment variable: ${name}`);
     }
+  }
+  if (!/^[0-9a-f]{40}$/.test(environment.PR_EXPECTED_SHA)) {
+    throw new Error("PR_EXPECTED_SHA must be an exact lowercase commit SHA");
+  }
+  if (!/^[0-9a-f]{40}$/.test(environment.PR_EXPECTED_BASE_SHA)) {
+    throw new Error(
+      "PR_EXPECTED_BASE_SHA must be an exact lowercase commit SHA",
+    );
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(
+    environment.PR_EXPECTED_BASE_REF,
+  )) {
+    throw new Error("PR_EXPECTED_BASE_REF contains unsupported characters");
   }
   if (!runbookName) throw new Error("Runbook name is required");
 
@@ -188,6 +204,9 @@ export async function runRunbook({
   );
   const formValues = resolveFormValues(preview, {
     PRBranch: environment.PR_BRANCH,
+    ExpectedBaseRef: environment.PR_EXPECTED_BASE_REF,
+    ExpectedBaseSHA: environment.PR_EXPECTED_BASE_SHA,
+    ExpectedHeadSHA: environment.PR_EXPECTED_SHA,
     PRNumber: environment.PR_NUMBER,
     GitHubPAT: environment.GH_PAT_FOR_OCTOPUS,
   });
