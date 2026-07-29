@@ -206,9 +206,9 @@ jobs:
               exit 1
             fi
 
-            raw_runs=$(gh api --paginate --slurp \
+            raw_runs=$(gh api --paginate \
               "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
-              --jq '[.[].check_runs[]]')
+              | jq --slurp '[.[].check_runs[]]')
             suite_map="{}"
             while IFS= read -r sid; do
               [[ -z "$sid" ]] && continue
@@ -231,9 +231,9 @@ jobs:
                 select(.name as $name | $promotion_checks | index($name) | not)]
                | group_by(.name)
                | map(sort_by(.started_at) | last)' <<<"$raw_runs")
-            statuses=$(gh api --paginate --slurp \
+            statuses=$(gh api --paginate \
               "repos/$REPO/commits/$PR_SHA/statuses?per_page=100" \
-              --jq 'add' \
+              | jq --slurp 'add' \
               | jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
                 '[.[] | select(.created_at >= $gate_requested_at)]
                  | group_by(.context)
