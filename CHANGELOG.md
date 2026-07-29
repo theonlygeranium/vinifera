@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- `docs/build-specs/two-speed-delivery-manifest.md`: Recorded the owner-authorized
+  implementation boundaries, file-level workstreams, security invariants, and
+  integration verification plan for the two-speed development and promotion
+  workflow. **Deployment impact:** Documentation only; no workflow, preview,
+  environment, provider, or activation behavior changes in this commit.
+
 ### Fixed
 - `tests/scripts/promote-dev-to-staging.test.mjs`: Updated the pagination
   contract assertion to recognize the corrected `gh api --paginate | jq
