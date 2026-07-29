@@ -143,7 +143,7 @@ jobs:
             --retry-delay 5 \
             -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
-            "${STAGING_SUPABASE_URL%/}/health" || printf "000")
+            "${STAGING_SUPABASE_URL%/}/auth/v1/health" || printf "000")
 
           if [[ "$http_code" =~ ^2 ]]; then
             echo "### Staging REST pre-flight: ✅ HTTP $http_code" >> "$GITHUB_STEP_SUMMARY"
@@ -353,7 +353,7 @@ jobs:
             --retry-delay 5 \
             -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
-            "${STAGING_SUPABASE_URL%/}/health" || printf "000")
+            "${STAGING_SUPABASE_URL%/}/auth/v1/health" || printf "000")
 
           if [[ "$http_code" =~ ^2 ]]; then
             echo "### Staging REST pre-merge: ✅ HTTP $http_code" >> "$GITHUB_STEP_SUMMARY"
