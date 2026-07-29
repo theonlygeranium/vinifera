@@ -138,8 +138,21 @@ print(data["base"]["sha"])
                     set -euo pipefail
                     source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
                     cd "$WORK_DIR"
-                    VIOLATIONS=$(git grep -n -E "createClient\s*\(|from [\"']@supabase/supabase-js[\"']" \
-                        -- ":(glob)server/routes/**/*.ts" || true)
+                    tracked_grep() {
+                        local output status
+                        set +e
+                        output=$(git grep "$@")
+                        status=$?
+                        set -e
+                        if (( status > 1 )); then
+                            echo "FAIL: tracked-source scan exited with status $status" >&2
+                            return "$status"
+                        fi
+                        printf '%s' "$output"
+                    }
+                    VIOLATIONS=$(tracked_grep -n -E \
+                        "createClient\s*\(|from [\"']@supabase/supabase-js[\"']" \
+                        -- ":(glob)server/routes/**/*.ts")
                     [ -n "$VIOLATIONS" ] && echo "FAIL: Direct DB access in routes: $VIOLATIONS" && exit 1
                     echo "PASS: Rule 1"
                     EOT
@@ -161,13 +174,65 @@ print(data["base"]["sha"])
                     set -euo pipefail
                     source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
                     cd "$WORK_DIR"
-                    V1=$(git grep -n -E "from.*server/routes" \
-                        -- ":(glob)server/services/**/*.ts" || true)
-                    V2=$(git grep -n -E "from.*server/integrations" \
-                        -- ":(glob)server/routes/**/*.ts" || true)
-                    [ -n "$V1" ] && echo "FAIL services->routes: $V1" && exit 1
-                    [ -n "$V2" ] && echo "FAIL routes->integrations: $V2" && exit 1
-                    echo "PASS: Rule 2"
+                    python3 - <<'PY'
+                    import posixpath
+                    import re
+                    import subprocess
+                    import sys
+
+                    tracked = subprocess.run(
+                        [
+                            "git",
+                            "ls-files",
+                            "-z",
+                            "--",
+                            ":(glob)server/services/**/*.ts",
+                            ":(glob)server/routes/**/*.ts",
+                        ],
+                        check=True,
+                        stdout=subprocess.PIPE,
+                    ).stdout.decode().split("\0")
+                    import_pattern = re.compile(
+                        r"""(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s*)["']([^"']+)["']"""
+                    )
+
+                    def resolves_to(source_path, specifier, forbidden_root):
+                        if specifier.startswith("."):
+                            target = posixpath.normpath(
+                                posixpath.join(posixpath.dirname(source_path), specifier)
+                            )
+                        else:
+                            target = posixpath.normpath(specifier.lstrip("/"))
+                        return target == forbidden_root or target.startswith(
+                            forbidden_root + "/"
+                        )
+
+                    violations = []
+                    for source_path in filter(None, tracked):
+                        source = subprocess.run(
+                            ["git", "show", f"HEAD:{source_path}"],
+                            check=True,
+                            stdout=subprocess.PIPE,
+                            text=True,
+                        ).stdout
+                        forbidden_root = (
+                            "server/routes"
+                            if source_path.startswith("server/services/")
+                            else "server/integrations"
+                        )
+                        for line_number, line in enumerate(source.splitlines(), 1):
+                            for specifier in import_pattern.findall(line):
+                                if resolves_to(source_path, specifier, forbidden_root):
+                                    violations.append(
+                                        f"{source_path}:{line_number}:{specifier}"
+                                    )
+
+                    if violations:
+                        print("FAIL: forbidden cross-layer imports")
+                        print("\n".join(violations))
+                        sys.exit(1)
+                    print("PASS: Rule 2")
+                    PY
                     EOT
                 Octopus.Action.Script.ScriptSource = "Inline"
                 Octopus.Action.Script.Syntax = "Bash"
@@ -187,8 +252,21 @@ print(data["base"]["sha"])
                     set -euo pipefail
                     source "/tmp/octopus_pr_workdir_#{Octopus.Task.Id}"
                     cd "$WORK_DIR"
-                    VIOLATIONS=$(git grep -n -E "(sk_live_|sk_test_|rk_live_|ep_test_|re_)[A-Za-z0-9_]+" \
-                        -- ":(glob)server/**/*.ts" ":(glob)src/**/*.ts" || true)
+                    tracked_grep() {
+                        local output status
+                        set +e
+                        output=$(git grep "$@")
+                        status=$?
+                        set -e
+                        if (( status > 1 )); then
+                            echo "FAIL: tracked-source scan exited with status $status" >&2
+                            return "$status"
+                        fi
+                        printf '%s' "$output"
+                    }
+                    VIOLATIONS=$(tracked_grep -n -E \
+                        "(sk_live_|sk_test_|rk_live_|ep_test_|re_)[A-Za-z0-9_]+" \
+                        -- ":(glob)server/**/*.ts" ":(glob)src/**/*.ts")
                     [ -n "$VIOLATIONS" ] && echo "FAIL: $VIOLATIONS" && exit 1
                     echo "PASS: Rule 3"
                     EOT

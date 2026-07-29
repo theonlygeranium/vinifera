@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### Fixed
+- Final owner-approved PR #51 correction: make Octopus tracked-source scans
+  distinguish “no matches” from operational failures; resolve relative
+  cross-layer imports against their tracked source paths; require promotion
+  check runs to be both created and started during the current readiness
+  attempt; preserve valid encoded fragment navigation and history; and
+  self-host the pinned Lucide 1.27.0 bundle with its license so the Worker can
+  restore `script-src 'self'`. Added adversarial regressions for corrupted Git
+  state, nested relative-import bypasses, bundle integrity, exact CSP, and
+  attempt-bound check creation. **Deployment impact:** Static marketing,
+  guide, and rollback-prototype icons load from the first-party origin;
+  promotion and Octopus gates fail closed on additional stale/error paths. No
+  provider activation, environment promotion, merge, or deployment occurs.
 - Controlled PR #51 audit: Honor reduced-motion preferences for scripted card
   reveals and anchor scrolling; restore focus to the selected in-page mobile
   destination; align the Worker CSP with the landing page's legacy inline CSS;

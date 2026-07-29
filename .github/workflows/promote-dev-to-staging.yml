@@ -215,6 +215,7 @@ jobs:
                 --argjson promotion_checks "$promotion_checks" \
                 --argjson pr_number "$PR_NUMBER" \
                 '[.[] |
+                  select(.created_at >= $gate_requested_at) |
                   select(.started_at >= $gate_requested_at) |
                   select(any(.pull_requests[]?;
                     .number == $pr_number and
@@ -407,6 +408,7 @@ jobs:
               --argjson promotion_checks "$promotion_checks" \
               --argjson pr_number "$PR_NUMBER" \
               '[.[] |
+                select(.created_at >= $gate_requested_at) |
                 select(.started_at >= $gate_requested_at) |
                 select(any(.pull_requests[]?;
                   .number == $pr_number and

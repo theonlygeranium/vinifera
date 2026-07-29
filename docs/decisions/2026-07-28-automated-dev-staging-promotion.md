@@ -102,7 +102,10 @@ so an unchanged head receives a new base-bound CI run before attempt-fresh
 evidence is required. CI check associations must name both captured revisions,
 while statuses and CodeRabbit reviews must be created after that attempt began.
 An unchanged head cannot reuse evidence from an older staging base.
-Check runs and commit statuses are fully paginated before evaluation. The
+Check runs must have both `created_at` and `started_at` at or after the current
+readiness-attempt timestamp, preventing a check queued for an older attempt
+from becoming eligible merely because it starts late. Check runs and commit
+statuses are fully paginated before evaluation. The
 required aggregate must conclude `success`; non-required jobs that GitHub
 intentionally concludes `skipped` or `neutral` do not block readiness. The
 workflow intentionally contains no merge command because GitHub documents only

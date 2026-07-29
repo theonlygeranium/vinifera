@@ -43,6 +43,61 @@ function embeddedQualityChecker() {
     .join("\n");
 }
 
+function embeddedRunbookStep(stepId) {
+  const qualityRunbook = readFileSync(
+    new URL(
+      "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const escapedStepId = stepId.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const body = qualityRunbook.match(
+    new RegExp(
+      `step "${escapedStepId}"[\\s\\S]*?Octopus\\.Action\\.Script\\.ScriptBody = <<-EOT\\n([\\s\\S]*?)\\n\\s*EOT`,
+    ),
+  )?.[1];
+  expect(body).toBeTruthy();
+  const indentation = body.match(/^(\s*)\S/m)?.[1].length ?? 0;
+  return body
+    .split("\n")
+    .map((line) => (line.startsWith(" ".repeat(indentation))
+      ? line.slice(indentation)
+      : line))
+    .join("\n");
+}
+
+function initializeGitFixture(fixture) {
+  for (const args of [
+    ["init", "--quiet"],
+    ["config", "user.email", "fixture@example.test"],
+    ["config", "user.name", "Fixture"],
+    ["add", "."],
+    ["commit", "--quiet", "-m", "fixture"],
+  ]) {
+    const result = spawnSync("git", args, { cwd: fixture, encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
+  }
+}
+
+function runEmbeddedStep(stepId, fixture) {
+  const taskId = `fixture-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const stateFile = `/tmp/octopus_pr_workdir_${taskId}`;
+  writeFileSync(stateFile, `WORK_DIR=${fixture}\n`);
+  try {
+    return spawnSync(
+      "bash",
+      ["-c", embeddedRunbookStep(stepId).replaceAll(
+        "#{Octopus.Task.Id}",
+        taskId,
+      )],
+      { encoding: "utf8" },
+    );
+  } finally {
+    rmSync(stateFile, { force: true });
+  }
+}
+
 function runRule8BaseHeadFixture({ baseSource, headSource, diff }) {
   const checker = embeddedQualityChecker();
   const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule8-base-"));
@@ -1288,6 +1343,70 @@ describe("Octopus runbook bridge", () => {
 });
 
 describe("Octopus workflow trust boundary", () => {
+  it("fails closed when a tracked-source grep encounters an operational error", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-grep-error-"));
+    try {
+      const routeDirectory = join(fixture, "server", "routes");
+      mkdirSync(routeDirectory, { recursive: true });
+      writeFileSync(
+        join(routeDirectory, "health.ts"),
+        "export const healthy = true;\n",
+      );
+      initializeGitFixture(fixture);
+      writeFileSync(join(fixture, ".git", "index"), "corrupt-index");
+
+      const result = runEmbeddedStep(
+        "rule-1-no-direct-route-to-database-access",
+        fixture,
+      );
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain("tracked-source scan exited with status");
+      expect(result.stdout).not.toContain("PASS: Rule 1");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves relative imports before enforcing layer boundaries", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-imports-"));
+    try {
+      const serviceDirectory = join(
+        fixture,
+        "server",
+        "services",
+        "nested",
+      );
+      const routeDirectory = join(fixture, "server", "routes", "nested");
+      mkdirSync(serviceDirectory, { recursive: true });
+      mkdirSync(routeDirectory, { recursive: true });
+      writeFileSync(
+        join(serviceDirectory, "unsafe.ts"),
+        'import { route } from "../../routes/admin";\n',
+      );
+      writeFileSync(
+        join(routeDirectory, "unsafe.ts"),
+        'export { provider } from "../../integrations/provider";\n',
+      );
+      initializeGitFixture(fixture);
+
+      const result = runEmbeddedStep(
+        "rule-2-no-circular-imports-between-layers",
+        fixture,
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain("FAIL: forbidden cross-layer imports");
+      expect(result.stdout).toContain(
+        "server/services/nested/unsafe.ts:1:../../routes/admin",
+      );
+      expect(result.stdout).toContain(
+        "server/routes/nested/unsafe.ts:1:../../integrations/provider",
+      );
+      expect(result.stdout).not.toContain("PASS: Rule 2");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
   it("executes only the trusted default-branch bridge with secrets", () => {
     const workflow = readFileSync(
       new URL(
@@ -1372,8 +1491,19 @@ describe("Octopus workflow trust boundary", () => {
     expect(qualityRunbook).not.toContain("/commits?per_page=");
     expect(qualityRunbook).not.toContain('WORK_DIR="/tmp/vinifera-pr"');
     expect(qualityRunbook).not.toContain("grep -rn");
+    expect(qualityRunbook).not.toContain("git grep \"$@\" || true");
     expect(qualityRunbook.match(/set -euo pipefail/g)).toHaveLength(5);
-    expect(qualityRunbook.match(/git grep -n -E/g)).toHaveLength(4);
+    expect(qualityRunbook.match(/tracked_grep\(\)/g)).toHaveLength(2);
+    expect(qualityRunbook.match(/git grep "\$@"/g)).toHaveLength(2);
+    expect(qualityRunbook).toContain(
+      'if (( status > 1 )); then',
+    );
+    expect(qualityRunbook).toContain(
+      '"git", "show", f"HEAD:{source_path}"',
+    );
+    expect(qualityRunbook).toContain(
+      'posixpath.join(posixpath.dirname(source_path), specifier)',
+    );
     expect(
       qualityRunbook.match(
         /source "\/tmp\/octopus_pr_workdir_#\{Octopus\.Task\.Id\}"/g,

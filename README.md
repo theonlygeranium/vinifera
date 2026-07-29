@@ -179,7 +179,10 @@ vinifera/
 ├── capacitor.config.json   # Shared native shell configuration
 ├── public/
 │   ├── _redirects          # Route rules: /app/* /guide/*
-│   └── _headers             # Security headers + Content-Type overrides
+│   ├── _headers            # Security headers + Content-Type overrides
+│   ├── marketing.js        # Shared landing-page interaction and focus behavior
+│   ├── lucide.min.js       # Pinned self-hosted Lucide icon runtime
+│   └── lucide-LICENSE.txt  # Upstream Lucide license notice
 ├── scripts/
 │   ├── build.mjs            # Adds static public surfaces after Vite build
 │   ├── verify-phase2-db.mjs # Core-club embedded database and scale QA

@@ -76,13 +76,16 @@ vinifera/
 ├── capacitor.config.json   # Shared native shell configuration
 ├── public/
 │   ├── _redirects          # Route rules: /app/* /guide/*
-│   └── _headers            # Security headers + Content-Type overrides
+│   ├── _headers            # Security headers + Content-Type overrides
+│   ├── marketing.js        # Shared landing-page interaction and focus behavior
+│   ├── lucide.min.js       # Pinned self-hosted Lucide icon runtime
+│   └── lucide-LICENSE.txt  # Upstream Lucide license notice
 ├── scripts/                # Build, QA, verification, and asset generation scripts
 ├── docs/                   # Architecture, setup, ADRs, runbooks, build specs
 │   ├── decisions/          # Architectural Decision Records (ADRs)
 │   ├── build-specs/        # BS-01 through BS-06 specs and dispatch guide
 │   └── agent-workflow.md   # Branching, PR, and review loop rules
-├── .github/workflows/      # 8 CI/CD workflows (see Section 5)
+├── .github/workflows/      # 12 CI/CD workflows (see Section 5)
 ├── .octopus/               # Octopus architectural boundary rules
 ├── AGENTS.md               # YOU ARE HERE — agent collaboration guide
 ├── CONTINUITY_BRIEF.md     # Drop-in context for new agent sessions
@@ -139,7 +142,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 490/490 Vitest; 153/153 Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 492/492 Vitest; 153/153 Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -209,7 +212,7 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 490 | `npm run check` |
+| Vitest unit/integration | 492 | `npm run check` |
 | Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |

@@ -4,13 +4,24 @@ const reducedMotion = window.matchMedia(
   "(prefers-reduced-motion: reduce)",
 ).matches;
 
+const fragmentTarget = (href) => {
+  if (!href?.startsWith("#") || href === "#") return null;
+  try {
+    return document.getElementById(decodeURIComponent(href.slice(1)));
+  } catch {
+    return null;
+  }
+};
+
 document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
   anchor.addEventListener("click", (event) => {
     const href = anchor.getAttribute("href");
-    if (!href || !href.startsWith("#") || href === "#") return;
-    const target = document.querySelector(href);
+    const target = fragmentTarget(href);
     if (target) {
       event.preventDefault();
+      if (window.location.hash !== href) {
+        window.history.pushState(null, "", href);
+      }
       target.scrollIntoView({
         behavior: reducedMotion ? "auto" : "smooth",
         block: "start",
@@ -90,14 +101,12 @@ if (mobileButton && mobileMenu) {
     anchor.addEventListener("click", () => {
       closeMobileMenu();
       const href = anchor.getAttribute("href");
-      if (href?.startsWith("#") && href !== "#") {
-        const target = document.querySelector(href);
-        if (target instanceof HTMLElement) {
-          if (!target.hasAttribute("tabindex")) {
-            target.setAttribute("tabindex", "-1");
-          }
-          target.focus({ preventScroll: true });
+      const target = fragmentTarget(href);
+      if (target) {
+        if (!target.hasAttribute("tabindex")) {
+          target.setAttribute("tabindex", "-1");
         }
+        target.focus({ preventScroll: true });
       }
     });
   });

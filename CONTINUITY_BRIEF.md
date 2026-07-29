@@ -198,9 +198,20 @@ all against `dev`. PRs #27–#28, #31–#34, and #36–#43 were squash-merged. P
   their consolidated repair passed 490 Vitest tests, all five embedded
   database suites, 153 Playwright/axe tests, Worker and Pages builds, mobile
   identity, compile-only mobile-web preparation, actionlint 1.7.12, and a
-  manual 375-pixel check in the Jeff Pro Chrome profile. It still requires
-  fresh exact-head CI and Codex review. Octopus has not run, so PR #51 is not
-  yet merge-ready.
+  manual 375-pixel check in the Jeff Pro Chrome profile. Exact-head CI run
+  `30408522282` passed, but the final Codex review correctly
+  found that Rules 1 and 3 still converted operational `git grep` errors into
+  false passes. The owner authorized one bounded correction batch. That local
+  batch now preserves operational failures, resolves Rule 2 imports relative
+  to tracked source blobs, binds check creation as well as start time to the
+  readiness attempt, self-hosts Lucide under `script-src 'self'`, and hardens
+  fragment navigation. The final local matrix passed 492 Vitest tests, all
+  five embedded database suites, the independent clean-seed check, 153
+  Playwright/axe tests, both static and Worker builds, mobile identity,
+  Android synchronization, actionlint, and a fresh desktop/375-pixel Jeff Pro
+  Chrome inspection. One final exact-head CI/Codex review remains mandatory
+  after the single authorized push. Octopus has not run, so PR #51 is not yet
+  merge-ready.
 - Open product/API decisions include the retention attempt list, a staff
   loyalty Redeem action, Team roster data, the Owner invitation security
   contract, the single-brand switcher, mobile dashboard spacing, CSV browser

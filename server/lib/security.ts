@@ -16,7 +16,7 @@ export const CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'none'",
   "img-src 'self' data: https:",
   "object-src 'none'",
-  "script-src 'self' https://unpkg.com",
+  "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "upgrade-insecure-requests",
 ].join("; ");

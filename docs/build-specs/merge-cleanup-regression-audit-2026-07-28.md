@@ -32,6 +32,8 @@ checks before this consolidated repair began.
 | False positive | 1 prior thread | The claim that the Octopus default-branch blocker was false confused PR-head files with runtime code; remote `main` at `b019327b4d49` still contains the old main-only workflow |
 | Optional / nitpick | 2 prior threads plus CodeRabbit's top-level docstring warning | Probe-wait test hardening and wording/docstring preferences are non-blocking; the wording was already improved, and no cosmetic-only patch is required |
 | Confirmed defect, consolidated here | Reduced-motion card/scroll animation; hidden focus after in-page mobile-menu activation; Worker marketing CSP mismatch; Rules 1–3 missing-state and symlink traversal; current-documentation contradictions | Patched together with focused regressions and the required governance/continuity/changelog updates |
+| Confirmed defect, final correction | Operational `git grep` failures reported as passes; relative-import layer bypasses; pre-attempt queued checks accepted after a late start; overly broad CDN script trust; fragment selector/history edge cases | Owner authorized one additional bounded correction batch after exact-head review; all valid findings were consolidated before the final push |
+| False positive, final review | Mobile menu did not transfer focus to the fragment target | Current handler already closes the menu and focuses the target; the 375-pixel keyboard test passed before and after the audit |
 | Deferred follow-up | Review/review-thread pages above 100 items fail closed; very large PRs can exceed the shallow Octopus fetch bound | Safe operational limits, not false-success paths; revisit only with a dedicated design and tests |
 | External/bootstrap blocker | Trusted bridge absent from default branch; no published runnable Octopus snapshot; no isolated staging Supabase/secrets | Cannot be fixed by further PR #51 edits; requires the owner decision documented below |
 
@@ -83,14 +85,18 @@ left race windows between gate evaluation and merge.
   unless the Worker configuration report proves application-origin, database,
   and authentication-email readiness.
 - Kept marketing behavior in a self-hosted script, aligned the Worker style
-  policy with the existing inline-CSS artifact, and version-pinned the
-  CSP-allowed Lucide bundle with SHA-384 Subresource Integrity. This repairs
-  the raw, unstyled Worker response found during the 375-pixel audit without
-  permitting inline JavaScript.
+  policy with the existing inline-CSS artifact, and committed the pinned
+  Lucide 1.27.0 bundle and license as first-party assets. The Worker therefore
+  retains `script-src 'self'` instead of trusting the complete CDN origin. This
+  repairs the raw, unstyled Worker response found during the 375-pixel audit
+  without permitting inline JavaScript.
 - Restored focus to the visible mobile-menu trigger when Escape closes the
   menu and to the destination section when an in-page mobile link closes it.
 - Disabled scripted reveal and smooth-scroll motion when the visitor requests
   reduced motion, and retained axe plus 44-pixel mobile target coverage.
+- Resolves encoded fragment identifiers through `getElementById`, records
+  in-page navigation in session history, and retains the mobile destination
+  focus transfer.
 
 ### Promotion governance
 
@@ -115,6 +121,9 @@ left race windows between gate evaluation and merge.
   than the attempt, preventing unchanged-head evidence reuse after staging
   advances. Quality CI now listens for the marker's `edited` event so the
   attempt-fresh check requirement cannot deadlock on an unchanged head.
+- Requires check runs to have been created as well as started during the
+  current attempt, so a previously queued run cannot become fresh by starting
+  late.
 
 ### Octopus trust boundary
 
@@ -125,8 +134,11 @@ left race windows between gate evaluation and merge.
   base-branch switch. The status description attests the base SHA, and promotion
   captures and revalidates that base through the final readiness check.
 - Makes Rules 1–3 source task state under strict shell mode and inspect only
-  tracked TypeScript through `git grep`, preventing missing-state false success
-  and pull-request symlinks from traversing the Octopus host filesystem.
+  tracked TypeScript. Rules 1 and 3 distinguish `git grep` exit 1 from
+  operational failures; Rule 2 reads tracked blobs through Git and resolves
+  relative specifiers before enforcing layer boundaries. This prevents
+  missing-state/error false success, relative-import bypasses, and
+  pull-request symlinks from traversing the Octopus host filesystem.
 - Uses first-parent diffs so Rule 9 evaluates merge commits.
 - Persists `MERGE_BASE_SHA` with the other task-scoped checkout state before
   the separate Rules 4–10 action sources it. The exact-head Codex review found
@@ -170,11 +182,11 @@ Evidence completed during the controlled-review freeze before the one final
 push:
 
 - Local `npm run check`: TypeScript, Worker bindings, Vitest, Vite, Worker
-  dry-run, packaging, and related source gates passed; 49 test files and 490
+  dry-run, packaging, and related source gates passed; 49 test files and 492
   tests passed.
 - Embedded database suites passed 92/92, 250/250, 199/199, 158/158, and
   513/513; local seed verification passed against independent clean databases.
-- Focused promotion, Octopus, and landing-page contract suites passed 37/37.
+- Focused promotion, Octopus, and landing-page contract suites passed 39/39.
 - The complete browser suite passed 153/153, including axe-core, 360/375/412/
   430/768/1440 responsive checks, performance budgets, reduced motion, mobile
   focus, CSP response assertions, and 44-pixel marketing targets.
@@ -189,8 +201,10 @@ push:
   exact head `97ceed6`; the Cloudflare Pages preview check also passed.
 - The Jeff Pro authenticated Chrome profile was used for the final desktop and
   375-pixel Worker-served landing inspection. It reported no undersized visible
-  targets, horizontal overflow, warning/error console entries, or missing
-  Lucide icons; the desktop nav computed to a 44-pixel minimum height.
+  targets, horizontal overflow, warning/error console entries, third-party
+  Lucide loads, or missing icons; the desktop nav computed to a 44-pixel
+  minimum height. Keyboard activation closed the mobile menu, updated the URL
+  fragment, and focused the selected section.
 - The exact-head Codex review at `97ceed6` found the missing merge-base state
   transfer. That finding is repaired in the follow-up commit and must receive
   fresh exact-head CI and Codex review before merge.

@@ -88,6 +88,11 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).toContain(
       "select(.started_at >= $gate_requested_at)",
     );
+    expect(
+      workflow.match(
+        /select\(\.created_at >= \$gate_requested_at\) \|\n\s+select\(\.started_at >= \$gate_requested_at\)/g,
+      ),
+    ).toHaveLength(2);
     expect(workflow).toContain(".base.sha == $pr_base_sha");
     expect(workflow).toContain(".head.sha == $pr_sha");
     expect(workflow).toContain(

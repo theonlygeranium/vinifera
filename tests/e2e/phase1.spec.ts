@@ -128,12 +128,12 @@ test.describe("Phase 1 public authentication surfaces", () => {
       if (surface.name === "marketing") {
         const contentSecurityPolicy =
           (await response?.headerValue("content-security-policy")) ?? "";
-        expect(contentSecurityPolicy).toContain(
-          "script-src 'self' https://unpkg.com",
-        );
+        expect(contentSecurityPolicy).toContain("script-src 'self'");
+        expect(contentSecurityPolicy).not.toContain("unpkg.com");
         expect(contentSecurityPolicy).toContain(
           "style-src 'self' 'unsafe-inline'",
         );
+        await expect(page.locator("svg.lucide")).toHaveCount(58);
 
         const motionStyle = await page.locator(".feature-card").first().evaluate(
           (element) => ({
@@ -312,6 +312,7 @@ test.describe("Phase 1 public authentication surfaces", () => {
     await featuresLink.press("Enter");
     await expect(menuButton).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator("#features")).toBeFocused();
+    await expect(page).toHaveURL(/#features$/);
   });
 
   for (const viewport of [
