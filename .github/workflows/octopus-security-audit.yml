@@ -17,16 +17,19 @@ jobs:
       issues: write
 
     steps:
-      - name: Run Security Audit Runbook in Octopus 🔐
-        uses: OctopusDeploy/run-runbook-action@v1
-        env:
-          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
-          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
-          OCTOPUS_SPACE: Default
+      - name: Check out repository
+        uses: actions/checkout@v4
         with:
-          project: Vinifera
-          runbook: Security Audit
-          environments: Development
-          use_guided_failure: false
-          variables: |
-            GitHubPAT: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
+          ref: main
+          sparse-checkout: |
+            .github/scripts/octopus-security-audit.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Run Security Audit Runbook in Octopus 🔐
+        env:
+          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
+          GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
+        run: node .github/scripts/octopus-security-audit.mjs
