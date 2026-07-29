@@ -1,0 +1,678 @@
+name: Promote dev to staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorization_reason:
+        description: "Owner-authorized reason for promoting dev to staging"
+        required: true
+        type: string
+      dry_run:
+        description: "Dry run — open PR and evaluate gates without merging"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+concurrency:
+  group: vinifera-promote-dev-to-staging
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  PR_TITLE: "chore(release): promote dev → staging"
+  PR_BODY: |
+    **Owner-authorized promotion:** dev → staging
+
+    This PR was opened by an explicit workflow dispatch. Automation validates
+    the staging Supabase REST probes, required CI and review checks, and
+    unresolved-thread gate for the captured head and base. The final merge
+    remains human-triggered because GitHub's merge API cannot atomically require
+    an expected base SHA.
+
+    > **staging → main** is a human-only gate and is never automated.
+
+jobs:
+  authorize-source:
+    name: Authorize trusted promotion source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Require the current protected default branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_SHA: ${{ github.sha }}
+          RUN_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUN_REF" != "refs/heads/main" ]]; then
+            echo "::error::Promotion control must be dispatched from refs/heads/main."
+            exit 1
+          fi
+          trusted_sha=$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')
+          if [[ "$RUN_SHA" != "$trusted_sha" ]]; then
+            echo "::error::Promotion control is not running the current main revision."
+            exit 1
+          fi
+
+  open-pr:
+    name: Open or update dev→staging PR
+    needs: authorize-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: promotion-control
+    outputs:
+      gate_requested_at: ${{ steps.upsert.outputs.gate_requested_at }}
+      pr_base_sha: ${{ steps.upsert.outputs.pr_base_sha }}
+      pr_number: ${{ steps.upsert.outputs.pr_number }}
+      pr_sha: ${{ steps.upsert.outputs.pr_sha }}
+      review_attempt: ${{ steps.upsert.outputs.review_attempt }}
+
+    steps:
+      - name: Upsert promotion PR using an event-producing token
+        id: upsert
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
+          REPO: ${{ github.repository }}
+          PR_TITLE: ${{ env.PR_TITLE }}
+          PR_BODY: ${{ env.PR_BODY }}
+          AUTHORIZATION_REASON: ${{ github.event.inputs.authorization_reason }}
+          REVIEW_ATTEMPT: ${{ github.run_id }}.${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::GH_PAT_FOR_OCTOPUS is required to open the PR and trigger pull_request CI."
+            exit 1
+          fi
+          if [[ -z "${AUTHORIZATION_REASON//[[:space:]]/}" ]]; then
+            echo "::error::An owner-authorized promotion reason is required."
+            exit 1
+          fi
+          if [[ ! "$REVIEW_ATTEMPT" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Promotion review attempt is not an exact workflow run identifier."
+            exit 1
+          fi
+          gate_requested_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [[ ! "$gate_requested_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
+            echo "::error::Readiness attempt time is not a canonical UTC timestamp."
+            exit 1
+          fi
+          promotion_body="${PR_BODY}"$'\n\n'"Authorization: ${AUTHORIZATION_REASON}"$'\n\n'"Review attempt: ${REVIEW_ATTEMPT}"$'\n'"Readiness attempt started: ${gate_requested_at}"
+
+          existing=$(gh pr list \
+            --repo "$REPO" \
+            --head dev \
+            --base staging \
+            --state open \
+            --json number \
+            --jq '.[0].number // ""')
+
+          if [[ -n "$existing" ]]; then
+            existing_metadata=$(gh pr view "$existing" --repo "$REPO" \
+              --json labels,state)
+            if [[ "$(jq -r '.state' <<<"$existing_metadata")" != "OPEN" ]] \
+              || jq -e \
+                'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+                <<<"$existing_metadata" >/dev/null; then
+              echo "::error::The existing promotion PR is closed or paused by an emergency label."
+              exit 1
+            fi
+            echo "Existing promotion PR #$existing found — updating body."
+            gh pr edit "$existing" --repo "$REPO" --body "$promotion_body"
+            pr_number="$existing"
+          else
+            pr_url=$(gh pr create \
+              --repo "$REPO" \
+              --head dev \
+              --base staging \
+              --title "$PR_TITLE" \
+              --body "$promotion_body" \
+              --no-maintainer-edit)
+            pr_number="${pr_url##*/}"
+            if [[ ! "$pr_number" =~ ^[0-9]+$ ]]; then
+              echo "::error::Could not resolve the created promotion PR number."
+              exit 1
+            fi
+            echo "Opened new promotion PR #$pr_number"
+          fi
+
+          pr_metadata=$(gh pr view "$pr_number" \
+            --repo "$REPO" \
+            --json baseRefName,baseRefOid,headRefOid)
+          pr_base_name=$(jq -r '.baseRefName' <<<"$pr_metadata")
+          pr_base_sha=$(jq -r '.baseRefOid' <<<"$pr_metadata")
+          pr_sha=$(jq -r '.headRefOid' <<<"$pr_metadata")
+          if [[ ! "$pr_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Promotion PR head is not an exact commit SHA."
+            exit 1
+          fi
+          if [[ "$pr_base_name" != "staging" || ! "$pr_base_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Promotion PR base is not the exact staging revision."
+            exit 1
+          fi
+          echo "pr_base_sha=$pr_base_sha" >> "$GITHUB_OUTPUT"
+          echo "gate_requested_at=$gate_requested_at" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          echo "pr_sha=$pr_sha" >> "$GITHUB_OUTPUT"
+          echo "review_attempt=$REVIEW_ATTEMPT" >> "$GITHUB_OUTPUT"
+          echo "### Promotion PR: #$pr_number (head: \`${pr_sha:0:12}\`)" >> "$GITHUB_STEP_SUMMARY"
+
+  staging-rest-pre:
+    name: Staging Supabase REST pre-flight
+    needs: open-pr
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: promotion-control
+
+    steps:
+      - name: Probe staging Supabase REST API
+        env:
+          STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${STAGING_SUPABASE_URL:-}" || -z "${STAGING_SUPABASE_ANON_KEY:-}" ]]; then
+            echo "::error::STAGING_SUPABASE_URL and STAGING_SUPABASE_ANON_KEY must be configured."
+            exit 1
+          fi
+
+          http_code=$(curl -sS -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            --retry 3 \
+            --retry-delay 5 \
+            -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
+            "${STAGING_SUPABASE_URL%/}/auth/v1/health" || printf "000")
+
+          if [[ "$http_code" =~ ^2 ]]; then
+            echo "### Staging REST pre-flight: ✅ HTTP $http_code" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::Staging REST pre-flight failed (HTTP $http_code); PR remains open."
+            exit 1
+          fi
+
+  wait-for-gates:
+    name: Wait for promotion PR gates
+    needs: [open-pr, staging-rest-pre]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: promotion-control
+    permissions:
+      actions: read
+      checks: read
+      pull-requests: read
+      statuses: read
+
+    steps:
+      - name: Poll exact-head CI, review status, and threads
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GATE_REQUESTED_AT: ${{ needs.open-pr.outputs.gate_requested_at }}
+          PR_BASE_SHA: ${{ needs.open-pr.outputs.pr_base_sha }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.open-pr.outputs.pr_number }}
+          PR_SHA: ${{ needs.open-pr.outputs.pr_sha }}
+          REVIEW_ATTEMPT: ${{ needs.open-pr.outputs.review_attempt }}
+        run: |
+          set -euo pipefail
+
+          deadline=$(( $(date +%s) + 2400 ))
+          required_checks=(
+            "Type, test, build, and package"
+          )
+          promotion_checks='[
+            "Open or update dev→staging PR",
+            "Staging Supabase REST pre-flight",
+            "Wait for promotion PR gates",
+            "Staging Supabase REST pre-merge re-check",
+            "Report promotion readiness"
+          ]'
+
+          while true; do
+            if (( $(date +%s) > deadline )); then
+              echo "::error::Promotion gates timed out after 40 minutes."
+              exit 1
+            fi
+
+            current_metadata=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+              --json baseRefName,baseRefOid,headRefOid,labels,state)
+            current_sha=$(jq -r '.headRefOid' <<<"$current_metadata")
+            current_base_name=$(jq -r '.baseRefName' <<<"$current_metadata")
+            current_base_sha=$(jq -r '.baseRefOid' <<<"$current_metadata")
+            current_state=$(jq -r '.state' <<<"$current_metadata")
+            if [[ "$current_state" != "OPEN" ]] \
+              || jq -e \
+                'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+                <<<"$current_metadata" >/dev/null; then
+              echo "::error::Promotion PR is closed or paused by an emergency label."
+              exit 1
+            fi
+            if [[ "$current_sha" != "$PR_SHA" ]]; then
+              echo "::error::PR head changed from captured SHA $PR_SHA to $current_sha."
+              exit 1
+            fi
+            if [[ "$current_base_name" != "staging" || "$current_base_sha" != "$PR_BASE_SHA" ]]; then
+              echo "::error::PR base changed from captured staging SHA $PR_BASE_SHA."
+              exit 1
+            fi
+
+            raw_runs=$(gh api --paginate \
+              "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
+              | jq --slurp '[.[].check_runs[]]')
+            suite_map="{}"
+            while IFS= read -r sid; do
+              [[ -z "$sid" ]] && continue
+              ts=$(gh api "repos/$REPO/check-suites/$sid" --jq '.created_at // ""')
+              suite_map=$(jq --arg id "$sid" --arg ts "$ts" '. + {($id): $ts}' <<<"$suite_map")
+            done < <(jq -r '[.[].check_suite.id | select(. != null)] | unique | .[]' <<<"$raw_runs")
+            checks=$(jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
+              --arg pr_base_sha "$PR_BASE_SHA" \
+              --arg pr_sha "$PR_SHA" \
+              --argjson promotion_checks "$promotion_checks" \
+              --argjson pr_number "$PR_NUMBER" \
+              --argjson suite_map "$suite_map" \
+              '[.[] |
+                select(($suite_map[(.check_suite.id | tostring)] // "") >= $gate_requested_at) |
+                select(.started_at >= $gate_requested_at) |
+                select(any(.pull_requests[]?;
+                  .number == $pr_number and
+                  .base.sha == $pr_base_sha and
+                  .head.sha == $pr_sha)) |
+                select(.name as $name | $promotion_checks | index($name) | not)]
+               | group_by(.name)
+               | map(sort_by(.started_at) | last)' <<<"$raw_runs")
+            statuses=$(gh api --paginate \
+              "repos/$REPO/commits/$PR_SHA/statuses?per_page=100" \
+              | jq --slurp 'add' \
+              | jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
+                '[.[] | select(.created_at >= $gate_requested_at)]
+                 | group_by(.context)
+                 | map(sort_by(.created_at) | last)')
+            threads=$(gh api graphql \
+              -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved} pageInfo{hasNextPage}}}}}' \
+              -f owner="${REPO%%/*}" \
+              -f name="${REPO#*/}" \
+              -F number="$PR_NUMBER")
+            if [[ "$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$threads")" == "true" ]]; then
+              echo "::error::Review thread count exceeds the validated 100-thread page."
+              exit 1
+            fi
+            unresolved=$(jq \
+              '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length' \
+              <<<"$threads")
+            failed_checks=$(jq -r \
+              '[.[] |
+                select(.name | test("coderabbit"; "i") | not) |
+                select(.status == "completed" and (.conclusion | IN("success","skipped","neutral") | not)) |
+                .name] | join(", ")' \
+              <<<"$checks")
+            failed_statuses=$(jq -r \
+              '[.[] |
+                select(.context | test("coderabbit"; "i") | not) |
+                select(.state | IN("failure","error")) |
+                .context] | unique | join(", ")' \
+              <<<"$statuses")
+            if [[ -n "$failed_checks" || -n "$failed_statuses" ]]; then
+              echo "::error::Failed gates — checks: ${failed_checks:-none}; statuses: ${failed_statuses:-none}."
+              exit 1
+            fi
+
+            missing=()
+            pending=()
+            required_failed=()
+            for required in "${required_checks[@]}"; do
+              count=$(jq --arg required "$required" \
+                '[.[] | select(.name == $required and .app.slug == "github-actions")] | length' \
+                <<<"$checks")
+              success=$(jq --arg required "$required" \
+                '[.[] |
+                  select(.name == $required and .app.slug == "github-actions") |
+                  select(.status == "completed" and .conclusion == "success")] | length' \
+                <<<"$checks")
+              if (( count == 0 )); then
+                missing+=("$required")
+              elif (( success == 0 )); then
+                completed_non_success=$(jq --arg required "$required" \
+                  '[.[] | select(.name == $required and .status == "completed" and .conclusion != "success")] | length' \
+                  <<<"$checks")
+                if (( completed_non_success > 0 )); then
+                  required_failed+=("$required")
+                else
+                  pending+=("$required")
+                fi
+              fi
+            done
+            if (( ${#required_failed[@]} > 0 )); then
+              echo "::error::Required checks did not succeed: ${required_failed[*]}."
+              exit 1
+            fi
+
+            ci_source_valid=false
+            ci_candidate=$(jq -c \
+              '[.[] |
+                select(.name == "Type, test, build, and package") |
+                select(.app.slug == "github-actions")] | last // {}' \
+              <<<"$checks")
+            ci_details_url=$(jq -r '.details_url // ""' <<<"$ci_candidate")
+            if [[ "$ci_details_url" =~ /actions/runs/([0-9]+)(/|$) ]]; then
+              ci_run_id="${BASH_REMATCH[1]}"
+              ci_run=$(gh api "repos/$REPO/actions/runs/$ci_run_id")
+              ci_jobs=$(gh api --paginate \
+                "repos/$REPO/actions/runs/$ci_run_id/jobs?per_page=100" \
+                | jq --slurp '[.[].jobs[]]')
+              if [[ "$(jq -r '.path' <<<"$ci_run")" == ".github/workflows/ci.yml" \
+                && "$(jq -r '.event' <<<"$ci_run")" == "pull_request" \
+                && "$(jq -r '.head_sha' <<<"$ci_run")" == "$PR_SHA" \
+                && "$(jq -r '.status' <<<"$ci_run")" == "completed" \
+                && "$(jq -r '.conclusion' <<<"$ci_run")" == "success" ]] \
+                && jq -e \
+                  'any(.[]; .name == "Type, test, build, and package" and .conclusion == "success")' \
+                  <<<"$ci_jobs" >/dev/null; then
+                ci_source_valid=true
+              fi
+            fi
+
+            octopus=$(jq -r \
+              '[.[] | select(.context == "Octopus PR Quality Gates")] | last | .state // "missing"' \
+              <<<"$statuses")
+            octopus_description=$(jq -r \
+              '[.[] | select(.context == "Octopus PR Quality Gates")] | last | .description // ""' \
+              <<<"$statuses")
+            octopus_source_valid=false
+            octopus_target_url=$(jq -r \
+              '[.[] | select(.context == "Octopus PR Quality Gates")] | last | .target_url // ""' \
+              <<<"$statuses")
+            octopus_creator=$(jq -r \
+              '[.[] | select(.context == "Octopus PR Quality Gates")] | last | .creator.login // ""' \
+              <<<"$statuses")
+            if [[ "$octopus_target_url" =~ /actions/runs/([0-9]+)(/|$) ]]; then
+              octopus_run_id="${BASH_REMATCH[1]}"
+              octopus_run=$(gh api "repos/$REPO/actions/runs/$octopus_run_id")
+              octopus_jobs=$(gh api --paginate \
+                "repos/$REPO/actions/runs/$octopus_run_id/jobs?per_page=100" \
+                | jq --slurp '[.[].jobs[]]')
+              if [[ "$(jq -r '.path' <<<"$octopus_run")" == ".github/workflows/octopus-pr-quality-gates.yml" \
+                && "$(jq -r '.event' <<<"$octopus_run")" == "pull_request_target" \
+                && "$(jq -r '.status' <<<"$octopus_run")" == "completed" \
+                && "$(jq -r '.conclusion' <<<"$octopus_run")" == "success" \
+                && "$octopus_creator" == "github-actions[bot]" ]] \
+                && jq -e --arg base_sha "$PR_BASE_SHA" --arg head_sha "$PR_SHA" \
+                  --argjson number "$PR_NUMBER" \
+                  'any(.pull_requests[]?;
+                    .number == $number and
+                    .base.sha == $base_sha and
+                    .head.sha == $head_sha)' <<<"$octopus_run" >/dev/null \
+                && jq -e \
+                  'any(.[]; .name == "Run PR Quality Gates" and .conclusion == "success")' \
+                  <<<"$octopus_jobs" >/dev/null; then
+                octopus_source_valid=true
+              fi
+            fi
+            expected_octopus_description="Runbook completed PR #$PR_NUMBER staging@$PR_BASE_SHA attempt $REVIEW_ATTEMPT"
+            other_pending=$(jq \
+              '[.[] |
+                select(.name | test("coderabbit"; "i") | not) |
+                select(.status != "completed")] | length' <<<"$checks")
+            pending_statuses=$(jq \
+              '[.[] |
+                select(.context | test("coderabbit"; "i") | not) |
+                select(.state == "pending")] | length' <<<"$statuses")
+
+            echo "Required missing=${#missing[@]} pending=${#pending[@]} trusted_source=$ci_source_valid; Octopus=$octopus trusted_source=$octopus_source_valid ($octopus_description); other pending checks=$other_pending statuses=$pending_statuses; unresolved threads=$unresolved"
+
+            if (( ${#missing[@]} == 0 && ${#pending[@]} == 0 )) \
+              && [[ "$ci_source_valid" == "true" ]] \
+              && [[ "$octopus" == "success" ]] \
+              && [[ "$octopus_source_valid" == "true" ]] \
+              && [[ "$octopus_description" == "$expected_octopus_description" ]] \
+              && (( other_pending == 0 && pending_statuses == 0 && unresolved == 0 )); then
+              echo "### PR gates: ✅ exact-head CI, Octopus, and threads passed (CodeRabbit optional)" >> "$GITHUB_STEP_SUMMARY"
+              break
+            fi
+
+            sleep 20
+          done
+
+  staging-rest-pre-merge:
+    name: Staging Supabase REST pre-merge re-check
+    needs: [open-pr, wait-for-gates]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: promotion-control
+
+    steps:
+      - name: Re-probe staging Supabase REST API
+        env:
+          STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          http_code=$(curl -sS -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            --retry 2 \
+            --retry-delay 5 \
+            -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
+            "${STAGING_SUPABASE_URL%/}/auth/v1/health" || printf "000")
+
+          if [[ "$http_code" =~ ^2 ]]; then
+            echo "### Staging REST pre-merge: ✅ HTTP $http_code" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::Staging REST pre-merge probe failed (HTTP $http_code); PR remains open."
+            exit 1
+          fi
+
+  ready:
+    name: Report promotion readiness
+    needs: [open-pr, wait-for-gates, staging-rest-pre-merge]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: promotion-control
+    permissions:
+      actions: read
+      checks: read
+      pull-requests: read
+      statuses: read
+
+    steps:
+      - name: Revalidate complete promotion readiness
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          GATE_REQUESTED_AT: ${{ needs.open-pr.outputs.gate_requested_at }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BASE_SHA: ${{ needs.open-pr.outputs.pr_base_sha }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.open-pr.outputs.pr_number }}
+          PR_SHA: ${{ needs.open-pr.outputs.pr_sha }}
+          REVIEW_ATTEMPT: ${{ needs.open-pr.outputs.review_attempt }}
+        run: |
+          set -euo pipefail
+
+          current_metadata=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json baseRefName,baseRefOid,headRefOid,labels,state)
+          current_sha=$(jq -r '.headRefOid' <<<"$current_metadata")
+          current_base_name=$(jq -r '.baseRefName' <<<"$current_metadata")
+          current_base_sha=$(jq -r '.baseRefOid' <<<"$current_metadata")
+          current_state=$(jq -r '.state' <<<"$current_metadata")
+          if [[ "$current_state" != "OPEN" ]] \
+            || jq -e \
+              'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+              <<<"$current_metadata" >/dev/null; then
+            echo "::error::Promotion PR is closed or paused by an emergency label."
+            exit 1
+          fi
+          if [[ "$current_sha" != "$PR_SHA" ]]; then
+            echo "::error::PR head changed before readiness was recorded."
+            exit 1
+          fi
+          if [[ "$current_base_name" != "staging" || "$current_base_sha" != "$PR_BASE_SHA" ]]; then
+            echo "::error::PR base changed before readiness was recorded."
+            exit 1
+          fi
+
+          promotion_checks='[
+            "Open or update dev→staging PR",
+            "Staging Supabase REST pre-flight",
+            "Wait for promotion PR gates",
+            "Staging Supabase REST pre-merge re-check",
+            "Report promotion readiness"
+          ]'
+          raw_runs=$(gh api --paginate \
+            "repos/$REPO/commits/$PR_SHA/check-runs?per_page=100" \
+            | jq --slurp '[.[].check_runs[]]')
+          suite_map="{}"
+          while IFS= read -r sid; do
+            [[ -z "$sid" ]] && continue
+            ts=$(gh api "repos/$REPO/check-suites/$sid" --jq '.created_at // ""')
+            suite_map=$(jq --arg id "$sid" --arg ts "$ts" '. + {($id): $ts}' <<<"$suite_map")
+          done < <(jq -r '[.[].check_suite.id | select(. != null)] | unique | .[]' <<<"$raw_runs")
+          checks=$(jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
+            --arg pr_base_sha "$PR_BASE_SHA" \
+            --arg pr_sha "$PR_SHA" \
+            --argjson promotion_checks "$promotion_checks" \
+            --argjson pr_number "$PR_NUMBER" \
+            --argjson suite_map "$suite_map" \
+            '[.[] |
+              select(($suite_map[(.check_suite.id | tostring)] // "") >= $gate_requested_at) |
+              select(.started_at >= $gate_requested_at) |
+              select(any(.pull_requests[]?;
+                .number == $pr_number and
+                .base.sha == $pr_base_sha and
+                .head.sha == $pr_sha)) |
+              select(.name as $name | $promotion_checks | index($name) | not)]
+             | group_by(.name)
+             | map(sort_by(.started_at) | last)' <<<"$raw_runs")
+          statuses=$(gh api --paginate \
+            "repos/$REPO/commits/$PR_SHA/statuses?per_page=100" \
+            | jq --slurp 'add' \
+            | jq --arg gate_requested_at "$GATE_REQUESTED_AT" \
+              '[.[] | select(.created_at >= $gate_requested_at)]
+               | group_by(.context)
+               | map(sort_by(.created_at) | last)')
+          review_state=$(gh api graphql \
+            -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved} pageInfo{hasNextPage}}}}}' \
+            -f owner="${REPO%%/*}" \
+            -f name="${REPO#*/}" \
+            -F number="$PR_NUMBER")
+          if [[ "$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$review_state")" == "true" ]]; then
+            echo "::error::Review state exceeds the validated 100-item pages."
+            exit 1
+          fi
+
+          required_success=$(jq \
+            '[.[] |
+              select(.name == "Type, test, build, and package") |
+              select(.app.slug == "github-actions") |
+              select(.status == "completed" and .conclusion == "success")] | length' \
+            <<<"$checks")
+          invalid_checks=$(jq \
+            '[.[] |
+              select(.name | test("coderabbit"; "i") | not) |
+              select(.status != "completed" or (.conclusion | IN("success","skipped","neutral") | not))] | length' \
+            <<<"$checks")
+          octopus_success=$(jq --arg expected "Runbook completed PR #$PR_NUMBER staging@$PR_BASE_SHA attempt $REVIEW_ATTEMPT" \
+            '[.[] | select(.context == "Octopus PR Quality Gates" and .state == "success" and .description == $expected)] | length' \
+            <<<"$statuses")
+          invalid_statuses=$(jq \
+            '[.[] |
+              select(.context | test("coderabbit"; "i") | not) |
+              select(.state != "success")] | length' <<<"$statuses")
+          unresolved=$(jq \
+            '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length' \
+            <<<"$review_state")
+          ci_candidate=$(jq -c \
+            '[.[] |
+              select(.name == "Type, test, build, and package") |
+              select(.app.slug == "github-actions")] | last // {}' \
+            <<<"$checks")
+          ci_details_url=$(jq -r '.details_url // ""' <<<"$ci_candidate")
+          ci_source_valid=false
+          if [[ "$ci_details_url" =~ /actions/runs/([0-9]+)(/|$) ]]; then
+            ci_run_id="${BASH_REMATCH[1]}"
+            ci_run=$(gh api "repos/$REPO/actions/runs/$ci_run_id")
+            ci_jobs=$(gh api --paginate \
+              "repos/$REPO/actions/runs/$ci_run_id/jobs?per_page=100" \
+              | jq --slurp '[.[].jobs[]]')
+            if [[ "$(jq -r '.path' <<<"$ci_run")" == ".github/workflows/ci.yml" \
+              && "$(jq -r '.event' <<<"$ci_run")" == "pull_request" \
+              && "$(jq -r '.head_sha' <<<"$ci_run")" == "$PR_SHA" \
+              && "$(jq -r '.status' <<<"$ci_run")" == "completed" \
+              && "$(jq -r '.conclusion' <<<"$ci_run")" == "success" ]] \
+              && jq -e \
+                'any(.[]; .name == "Type, test, build, and package" and .conclusion == "success")' \
+                <<<"$ci_jobs" >/dev/null; then
+              ci_source_valid=true
+            fi
+          fi
+          octopus_target_url=$(jq -r \
+            '[.[] | select(.context == "Octopus PR Quality Gates")] | last | .target_url // ""' \
+            <<<"$statuses")
+          octopus_creator=$(jq -r \
+            '[.[] | select(.context == "Octopus PR Quality Gates")] | last | .creator.login // ""' \
+            <<<"$statuses")
+          octopus_source_valid=false
+          if [[ "$octopus_target_url" =~ /actions/runs/([0-9]+)(/|$) ]]; then
+            octopus_run_id="${BASH_REMATCH[1]}"
+            octopus_run=$(gh api "repos/$REPO/actions/runs/$octopus_run_id")
+            octopus_jobs=$(gh api --paginate \
+              "repos/$REPO/actions/runs/$octopus_run_id/jobs?per_page=100" \
+              | jq --slurp '[.[].jobs[]]')
+            if [[ "$(jq -r '.path' <<<"$octopus_run")" == ".github/workflows/octopus-pr-quality-gates.yml" \
+              && "$(jq -r '.event' <<<"$octopus_run")" == "pull_request_target" \
+              && "$(jq -r '.status' <<<"$octopus_run")" == "completed" \
+              && "$(jq -r '.conclusion' <<<"$octopus_run")" == "success" \
+              && "$octopus_creator" == "github-actions[bot]" ]] \
+              && jq -e --arg base_sha "$PR_BASE_SHA" --arg head_sha "$PR_SHA" \
+                --argjson number "$PR_NUMBER" \
+                'any(.pull_requests[]?;
+                  .number == $number and
+                  .base.sha == $base_sha and
+                  .head.sha == $head_sha)' <<<"$octopus_run" >/dev/null \
+              && jq -e \
+                'any(.[]; .name == "Run PR Quality Gates" and .conclusion == "success")' \
+                <<<"$octopus_jobs" >/dev/null; then
+              octopus_source_valid=true
+            fi
+          fi
+          if (( required_success == 0 || invalid_checks > 0 \
+            || octopus_success == 0 || invalid_statuses > 0 \
+            || unresolved > 0 )) \
+            || [[ "$ci_source_valid" != "true" \
+              || "$octopus_source_valid" != "true" ]]; then
+            echo "::error::Promotion gates changed after polling; readiness is no longer valid."
+            exit 1
+          fi
+
+          final_metadata=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json baseRefName,baseRefOid,headRefOid,labels,state)
+          final_sha=$(jq -r '.headRefOid' <<<"$final_metadata")
+          final_base_name=$(jq -r '.baseRefName' <<<"$final_metadata")
+          final_base_sha=$(jq -r '.baseRefOid' <<<"$final_metadata")
+          final_state=$(jq -r '.state' <<<"$final_metadata")
+          if [[ "$final_sha" != "$PR_SHA" \
+            || "$final_base_name" != "staging" \
+            || "$final_base_sha" != "$PR_BASE_SHA" \
+            || "$final_state" != "OPEN" ]] \
+            || jq -e \
+              'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+              <<<"$final_metadata" >/dev/null; then
+            echo "::error::PR closed, paused, or changed while readiness evidence was refreshed."
+            exit 1
+          fi
+
+          echo "::notice::PR #$PR_NUMBER passed automated readiness at head ${PR_SHA:0:12} and base ${PR_BASE_SHA:0:12}; a human must re-check the current base and merge."
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "### Dry-run readiness passed: PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Ready for human merge: PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "- Captured head: \`${PR_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Captured staging base: \`${PR_BASE_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "> GitHub exposes an atomic expected-head merge guard but no expected-base guard; automation intentionally leaves the PR open." >> "$GITHUB_STEP_SUMMARY"

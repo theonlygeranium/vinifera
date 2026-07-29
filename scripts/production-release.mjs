@@ -4,6 +4,7 @@ import {
   assertActiveDeployment,
   assertHealthPayload,
   assertProductionConfirmation,
+  assertRollbackDeploymentHistory,
   assertVersionMatchesGitSha,
   buildProductionSecretBundle,
   hashProductionTarget,
@@ -103,7 +104,7 @@ if (operation === "verify-targets") {
   const [inputPath] = arguments_;
   if (!inputPath) throw new Error("Worker version JSON path is required.");
   assertVersionMatchesGitSha({
-    gitSha: validateImmutableGitSha(process.env.PRODUCTION_GIT_SHA),
+    gitSha: validateImmutableGitSha(process.env.PRODUCTION_ARTIFACT_GIT_SHA),
     version: await readJson(inputPath, "Wrangler version view"),
     versionId: validateWorkerVersionId(process.env.PRODUCTION_VERSION_ID),
   });
@@ -119,6 +120,21 @@ if (operation === "verify-targets") {
     process.env.PRODUCTION_VERSION_ID,
   );
   console.log("Verified sole 100% active Worker version.");
+} else if (operation === "verify-rollback-history") {
+  const [historyPath, currentPath] = arguments_;
+  if (!historyPath || !currentPath) {
+    throw new Error(
+      "Rollback deployment history and current deployment paths are required.",
+    );
+  }
+  assertRollbackDeploymentHistory(
+    await readJson(historyPath, "Wrangler deployment history"),
+    await readJson(currentPath, "Wrangler deployment status"),
+    process.env.PRODUCTION_VERSION_ID,
+  );
+  console.log(
+    "Verified that the rollback version was previously active and is not current.",
+  );
 } else if (operation === "active-version") {
   const [inputPath, outputPath] = arguments_;
   if (!inputPath || !outputPath) {
@@ -204,6 +220,6 @@ if (operation === "verify-targets") {
   console.log("Restored the allowlisted custom domain to the Pages project.");
 } else {
   throw new Error(
-    "Usage: production-release.mjs hash-target <kind>, verify-targets <upload|worker|domain>, verify-confirmation <mode>, verify-bootstrap-absent, verify-version-id, prepare-secrets <path>, parse-upload <input> <output>, verify-version <json>, verify-deployment <json>, active-version <deployment-json> <output>, verify-health <health-json> <configuration-json> [core|cutover], snapshot <output>, cutover <output>, or restore-pages <output>.",
+    "Usage: production-release.mjs hash-target <kind>, verify-targets <upload|worker|domain>, verify-confirmation <mode>, verify-bootstrap-absent, verify-version-id, prepare-secrets <path>, parse-upload <input> <output>, verify-version <json>, verify-deployment <json>, verify-rollback-history <history-json> <current-json>, active-version <deployment-json> <output>, verify-health <health-json> <configuration-json> [core|cutover], snapshot <output>, cutover <output>, or restore-pages <output>.",
   );
 }

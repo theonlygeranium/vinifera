@@ -70,6 +70,11 @@ Credential-deferred operations are fully wired through the
 [production cutover/rollback](../runbooks/production-cutover-rollback.md), and
 [signed mobile release](../runbooks/mobile-store-release.md) runbooks.
 
+The cross-agent merge-cleanup investigation, attribution, regression repairs,
+review waiver, exact evidence, remaining blockers, and recommended release
+sequence are consolidated in the
+[2026-07-28 merge-cleanup regression audit](./merge-cleanup-regression-audit-2026-07-28.md).
+
 ## Credentials
 
 The repository is public, so no secret values may appear in a tracked file.

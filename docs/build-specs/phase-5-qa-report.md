@@ -79,11 +79,12 @@ The post-phase release hardening additionally provides:
 - a protected immutable signed mobile build plus separately confirmed Google
   Play internal/TestFlight delivery path.
 
-The `staging`, `production`, and `mobile-release` GitHub environments now have
-`main`-only branch policies and require review by the repository owner.
-Self-review remains allowed because a second human reviewer has not been
-configured; exact confirmations, immutable commit binding, target hashes, and
-the default-off live-billing gate remain independent controls.
+The `staging` GitHub environment has a `staging`-only branch policy, while
+`production` and `mobile-release` remain `main`-only. All three require review
+by the repository owner. Self-review remains allowed because a second human
+reviewer has not been configured; exact confirmations, immutable commit
+binding, target hashes, and the default-off live-billing gate remain
+independent controls.
 
 See the [hosted environment](../runbooks/hosted-environment-provisioning.md),
 [production cutover](../runbooks/production-cutover-rollback.md), and

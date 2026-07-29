@@ -1,6 +1,6 @@
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-07-27
+**Last updated:** 2026-07-29
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
 
 ## Project identity
@@ -105,6 +105,184 @@ The Worker is connection-ready but must not replace the Pages custom-domain
 baseline until the hosted Supabase, Stripe, provider, DNS, physical-device, and
 store activation checks in the phase QA reports pass.
 
+## 2026-07-29 two-speed delivery governance
+
+The current delivery contract is defined by
+`docs/decisions/2026-07-29-two-speed-delivery-governance.md`. It supersedes
+older process descriptions below where they say every feature PR requires full
+CI, Octopus, CodeRabbit, or automatic `dev → staging` readiness after each
+`dev` push.
+
+- Routine feature branches and PRs to `dev` use the always-present
+  `Dev fast checks` aggregate. The fail-closed classifier selects
+  documentation, routine, or high-risk focused work.
+- Cloudflare Pages preview runs independently and records a branch alias plus
+  immutable deployment URL. Preview evidence is not stable-dev, staging,
+  production, database, or provider evidence.
+- Consolidated `dev → staging`, `staging → main`, protected releases, and
+  explicit full runs retain the exact
+  `Type, test, build, and package` aggregate.
+- `dev → staging` promotion starts manually or through an explicitly
+  owner-authorized workflow. It does not start after every `dev` push.
+- Octopus is required for the promotion comparison and available by request
+  for high-risk feature work. It does not run automatically for every routine
+  `dev` PR.
+- CodeRabbit is optional and non-blocking while unavailable or rate-limited.
+  Any substantive findings it does produce still require disposition.
+- One logical PR or promotion receives one consolidated changelog entry. WIP
+  commits are allowed only on an isolated feature branch and are squash-merged
+  into `dev`; the final logical commit records a substantive body and exact
+  verification.
+- ADRs are required only for architectural, security, deployment,
+  database-policy, or governance decisions.
+- Staging and production remain exact-revision, protected operations.
+  Standing owner authorization does not bypass environment controls, target
+  hashes, confirmations, privacy, rollback, `human-review-required`, or
+  `do-not-merge`.
+
+Evidence must be reported as one of: local validation, fast GitHub validation,
+full GitHub validation, preview deployment, staging deployment, production
+deployment, or hosted/provider readiness. An HTTP 200 or healthy static page is
+not sufficient environment evidence; hosted verification requires the expected
+marker, build SHA/artifact digest, and API health contract.
+
+Stable addresses remain:
+
+- Dev: `https://vinifera-dev.edstratumlabs.ai`
+- Staging: `https://vinifera-staging.edstratumlabs.ai`
+- Live: `https://vinifera-live.edstratumlabs.ai`
+- Marketing/static rollback: `https://vinifera.edstratumlabs.ai`
+
+Feature preview URLs supplement the stable addresses. Cloudflare Access must
+protect dev or preview surfaces that expose non-public application or test
+data. Development and staging cannot use production credentials or production
+customer data.
+
+This implementation changes source governance and delivery workflow only. It
+does not merge or promote an environment branch, provision a hosted target,
+activate a provider, deploy an environment, move DNS, enable billing, or mark
+any of the 20 activation gates complete.
+
+## 2026-07-28 comprehensive UI testing mission
+
+The original UI evidence is in
+`docs/build-specs/ui-test-report-2026-07-28.md`. The authoritative cross-agent
+attribution, merge audit, repair chronology, verification, waiver, blockers,
+and next-step handoff is
+`docs/build-specs/merge-cleanup-regression-audit-2026-07-28.md`. The mission
+opened manifest PR #27, fifteen isolated defect PRs #28–#42, and report PR #43,
+all against `dev`. PRs #27–#28, #31–#34, and #36–#43 were squash-merged. PRs
+#30 and #35 were closed after direct resolution commits.
+
+- Baseline `dev` at `4d0ba11` passed 448/448 checks and 145/145 Playwright
+  tests.
+- Local integrated snapshot `72d85f82d96384334f066763f5a2ee5d31744699`
+  passed 454/454 checks and a final complete 149/149 Playwright run.
+- Authenticated Jeff - Pro Chrome spot checks at mobile and desktop reported
+  zero axe violations, horizontal overflow, or console errors.
+- The 14 squash merges are patch-identical to their reviewed PR diffs. The
+  direct PR #30/#35 resolutions were not: they replaced current files, restored
+  six obsolete marketing CTA destinations, and deleted merged Phase 1/5
+  regression assertions. PR #49 repaired the WCAG focus/touch-target source;
+  PR #51 restores the remaining signup behavior and recombines all deleted
+  assertions with the intended pricing and HTTPS-logo changes. The restored
+  trial links remain on pricing unless `/api/health/configuration` reports
+  application-origin, database, and authentication-email readiness; generic
+  runtime health alone cannot expose a signup route that is guaranteed to fail.
+- Octopus still does not run on `dev` PRs because `pull_request_target` loads
+  the workflow from GitHub's default branch. The current remote `main` head
+  (`c5639547746a` at the 2026-07-29 audit) retains the old
+  `pull_request`/main-only
+  workflow and nonexistent action reference; the corrected
+  `pull_request_target` definition visible on `dev` is not default-branch
+  runtime code. The secure workflow and runbook bridge must be promoted to
+  `main` before Octopus can be a real dev/staging gate. This implementation
+  does not perform that promotion: after its feature PR is merged to `dev`,
+  the owner must use the existing protected/manual path to place the reviewed
+  bridge on `staging` and then `main`, configure the main-only
+  `promotion-control` environment, and only then require the new contexts.
+  The environment was created on 2026-07-29 with owner review and a custom
+  `main`-only deployment branch policy, but its promotion PAT and staging
+  probe secrets remain unset until the owner moves them from repository scope.
+  The corrected bridge
+  publishes its trusted runbook outcome as an explicit status on the PR head,
+  because `pull_request_target` check runs attach to the base revision. The
+  promotion gate additionally requires check-run association with the current
+  PR, evidence timestamps no older than the current readiness attempt, and an
+  Octopus description naming that PR. These bindings prevent a recreated PR
+  at the same SHA from inheriting stale results. CodeRabbit is no longer part
+  of this required evidence boundary under the 2026-07-29 policy. The
+  runbook receives the event head SHA, base ref, and base SHA as required
+  prompts and refuses checkout if GitHub's live PR metadata differs. Its
+  aggregate and per-commit diffs are generated from the fetched immutable
+  merge-base/head objects rather than mutable PR API artifacts. The published
+  status attests the base SHA, which promotion captures and revalidates through
+  its final readiness check. Rules 1–3 now require the task state and inspect
+  tracked TypeScript with `git grep`, preventing missing-state false success
+  and symlink traversal into the Octopus host.
+  Octopus Deploy's authenticated `main` project view also shows no published
+  runbook.
+- Cloudflare Access now has one scoped `Vinifera GitHub Actions — Octopus`
+  Service Auth policy on the Octopus application, selecting only the
+  `Vinifera GitHub Actions` service token. The token has a one-year duration,
+  and its client ID and one-time secret are installed as the encrypted
+  `OCTOPUS_CF_ACCESS_CLIENT_ID` and `OCTOPUS_CF_ACCESS_CLIENT_SECRET` GitHub
+  Actions secrets; neither value is recorded in source. The existing human OTP
+  policy is unchanged.
+- `.coderabbit.yaml` enables CodeRabbit auto-review for `dev` and `staging`,
+  but the service is rate-limited. CodeRabbit is now optional and non-blocking;
+  available substantive findings still require disposition. Full CI, Octopus
+  promotion review, staging, and production controls remain independent.
+- Remote branch cleanup was initially incomplete: the merged governance and
+  WCAG branches remained after the report claimed only `main`, `dev`, and
+  `staging`. The audit verified PRs #49/#50 were merged and then deleted both
+  stale remote branches; only the active repair branch now supplements the
+  three environment branches.
+- Automated `dev → staging` readiness remains fail-closed because the isolated
+  staging Supabase target and `STAGING_SUPABASE_URL` /
+  `STAGING_SUPABASE_ANON_KEY` Actions secrets do not yet exist. Exact-head
+  review also proved GitHub's merge API cannot atomically bind an expected base
+  SHA, so the workflow now leaves every validated promotion PR open for a human
+  merge. Normal and dry-run readiness both refresh the complete head/base,
+  CI/status, review, and thread evidence after the second provider probe. Each
+  readiness attempt has a timestamped PR marker; CI must name the captured base
+  and head, and statuses/reviews must be newer than that attempt. Quality CI
+  handles the marker's `edited` event, guaranteeing a fresh run when the
+  promotion head itself has not changed.
+- GitHub Actions run `30407043361` passed the full and Android lanes plus the
+  required aggregate for controlled-review-freeze head `8c7341e`. An earlier exact-head Codex
+  review found that checkout did not persist `MERGE_BASE_SHA` for the isolated
+  Rules 4–10 Octopus action; the follow-up repair persists it in task-scoped
+  state. The following review also found that an unchanged head could be
+  reviewed against a temporarily switched base; the bridge now requires the
+  event's base ref and SHA to match live metadata. The controlled audit then
+  found reduced-motion, hidden-focus, Worker marketing-CSP, and Rules 1–3
+  host-boundary defects;
+  their consolidated repair passed 490 Vitest tests, all five embedded
+  database suites, 153 Playwright/axe tests, Worker and Pages builds, mobile
+  identity, compile-only mobile-web preparation, actionlint 1.7.12, and a
+  manual 375-pixel check in the Jeff Pro Chrome profile. Exact-head CI run
+  `30408522282` passed, but the final Codex review correctly
+  found that Rules 1 and 3 still converted operational `git grep` errors into
+  false passes. The owner authorized one bounded correction batch. That local
+  batch now preserves operational failures, resolves Rule 2 imports relative
+  to tracked source blobs, binds check creation as well as start time to the
+  readiness attempt, self-hosts Lucide under `script-src 'self'`, and hardens
+  fragment navigation. The final local matrix passed 492 Vitest tests, all
+  five embedded database suites, the independent clean-seed check, 153
+  Playwright/axe tests, both static and Worker builds, mobile identity,
+  Android synchronization, actionlint, and a fresh desktop/375-pixel Jeff Pro
+  Chrome inspection. One final exact-head CI/Codex review remains mandatory
+  after the single authorized push. Octopus has not run, so PR #51 is not yet
+  merge-ready.
+- Open product/API decisions include the retention attempt list, a staff
+  loyalty Redeem action, Team roster data, the Owner invitation security
+  contract, the single-brand switcher, mobile dashboard spacing, CSV browser
+  transport proof, and the `/app/signup` cutover boundary.
+
+All 20 activation gates remain pending. No provider, hosted-data, migration,
+billing, email, push, deployment, or merge activation occurred.
+
 ## Runtime architecture
 
 | Route | Implementation |
@@ -148,28 +326,18 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 
 ## Release evidence
 
-- CI now classifies the exact base/head diff into one of two fail-closed
-  validation lanes. Only changes wholly within `AGENTS.md`, `CHANGELOG.md`,
-  `CONTINUITY_BRIEF.md`, `README.md`, `REVERT.md`, and `docs/**/*.md` may use
-  the restricted docs lane; every other, ambiguous, missing, copied, deleted,
-  or unsupported change uses full validation or fails closed. The exact
-  required `Type, test, build, and package` check is an `if: always()` policy
-  gate over classification, docs validation, full quality, and Android
-  results. Pushes to `main` always run full quality and Android. Greptile,
-  direct-push protection, strict branch currency, conversation resolution,
-  Cloudflare Pages preview, administrator enforcement, and activation-gated
-  migration/deployment behavior are unchanged. This is repository CI and
-  governance only; it does not change runtime, providers, hosted state, the
-  Pages rollback baseline, or any activation gate.
-- Owner-authorized PR governance now makes PR ownership a terminal agent
-  condition: the implementation agent monitors Greptile, required CI, and
-  every review thread until the PR is ready or explicitly blocked. GitHub
-  requires current branches, the three protected checks, and resolved
-  conversations; five precedence-ordered labels scope a 15-minute Codex safety
-  monitor's ability to watch, apply low-risk fixes, escalate, or merge. The
-  monitor cannot self-grant fix or merge authority, and sensitive changes
-  require human review. This changes repository process only, not runtime or
-  activation state.
+- The previous docs/full classifier and full aggregate on routine PRs are
+  historical. The 2026-07-29 two-speed contract now gives routine feature PRs
+  `Dev fast checks`, preserves `Type, test, build, and package` for promotion,
+  and selects Android only for mobile-relevant or explicitly scheduled/full
+  work. Required aggregates remain `if: always()` fail-closed policy gates;
+  skipped optional work cannot leave them pending, and skipped required work
+  cannot be treated as success.
+- PR ownership remains a terminal agent condition, but the applicable gate now
+  depends on delivery level. Five precedence-ordered labels scope recurring
+  monitoring; `human-review-required` pauses mutation and `do-not-merge` is
+  absolute. Standing owner authority can cover routine reversible delivery
+  through protected controls but cannot bypass either label.
 - The repository README now displays the CodeRabbit pull-request review badge,
   making automated review coverage visible without changing application,
   deployment, provider, or activation behavior.
@@ -303,9 +471,12 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
 - Optional Worker deployment targets only the isolated `vinifera-staging`
   environment, requires hash-authorized targets, runs hosted pgTAP/RLS, attaches
   available secrets atomically, and requires the core configuration report.
-- Production Worker bootstrap/version/deploy/domain/rollback/Pages restore is
-  wired as a protected manual workflow. Account, zone, and Worker-origin hashes
-  remain empty, so no production mutation can run yet.
+- Production Worker bootstrap/version/deploy/Worker rollback is wired as a
+  protected manual workflow. The standard dispatch no longer exposes legacy
+  domain cutover or Pages restoration. Rollback keeps current `main` as the
+  control authorization and independently verifies a prior reviewed release
+  SHA plus a previously sole-active Worker version. Account and Worker-origin
+  hashes remain empty, so no production mutation can run yet.
 - Signed Android/iOS build and Play internal/TestFlight delivery are wired as a
   protected manual workflow. Normal CI remains explicitly compile-only.
 - Commit `5cc1bda` passed the complete GitHub quality and Android run
@@ -376,9 +547,10 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   maximum, and Playwright login/signup captures at 375, 768, and 1440 are
   explicitly retained for 90 days. Android setup is pinned to v4.0.1/Node 24
   in normal CI and the protected mobile-release workflow.
-- GitHub environments `staging`, `production`, and `mobile-release` are
-  restricted to `main` and require review by `theonlygeranium`; self-review is
-  currently allowed because no second human reviewer is configured.
+- The GitHub `staging` environment is restricted to the `staging` branch;
+  `production` and `mobile-release` remain restricted to `main`. All three
+  require review by `theonlygeranium`; self-review is currently allowed
+  because no second human reviewer is configured.
 - The current Phase 5 evidence and any remaining local checks belong in
   `docs/build-specs/phase-5-qa-report.md`; do not copy pending checks here as
   passes.

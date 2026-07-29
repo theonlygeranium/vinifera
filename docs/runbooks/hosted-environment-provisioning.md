@@ -6,16 +6,66 @@ providers remain `activation_required`; no production simulator is substituted.
 
 ## Control model
 
+Source validation and hosted authority are separate:
+
+- feature PRs use `Dev fast checks` and an independent Pages preview;
+- consolidated `dev → staging` promotions use
+  `Type, test, build, and package` plus exact-comparison Octopus review;
+- staging mutations consume only the protected `staging` environment; and
+- production operations consume only the protected `production` environment.
+
+A promotion is started manually or by an explicitly owner-authorized workflow.
+It must not begin after every push to `dev`. Fast CI, full CI, a preview, and a
+successful HTTP response do not grant hosted mutation authority.
+
 Three GitHub environments separate authority:
 
 | Environment | Purpose | Allowed authority |
 | --- | --- | --- |
 | `staging` | Supabase migration, native pgTAP, isolated Worker, read-only readiness | Stripe test mode and provider sandboxes only |
-| `production` | Production Worker bootstrap/version/deploy/domain control | Stripe test mode only; no live-billing activation |
+| `production` | Production Worker bootstrap/version/deploy/Worker rollback | Stripe test mode only; no live-billing activation |
 | `mobile-release` | Signed Android/iOS builds and optional internal-track upload | App signing and store-delivery authority only |
 
-Configure required reviewers and prevent self-review where the GitHub plan
-supports it. Do not place production credentials in `staging`.
+Create a fourth control environment before enabling deliberate promotion:
+
+| Environment | Purpose | Required restriction |
+| --- | --- | --- |
+| `promotion-control` | Event-producing GitHub token and staging REST probe credentials used by `promote-dev-to-staging.yml` | Deployment branch policy permits only `main`; prevent self-review where supported |
+
+Move `GH_PAT_FOR_OCTOPUS`, `STAGING_SUPABASE_URL`, and
+`STAGING_SUPABASE_ANON_KEY` into `promotion-control` before dispatching the
+workflow. The workflow itself also rejects any ref or SHA other than the
+current `main`, but that source check supplements rather than replaces the
+environment boundary.
+
+Configure protected-environment policy and prevent self-review where the
+GitHub plan supports it. Standing owner authorization may permit a trusted
+protected workflow to proceed, but it does not bypass target hashes, branch
+restrictions, exact confirmations, environment secrets, or emergency labels.
+Do not place production credentials or production customer data in
+development, previews, or `staging`.
+
+Restrict the `staging` environment to the `staging` branch. Staging
+migrations, Worker deployment, readiness probes, and Stripe test-catalog
+operations must run from the immutable head of that branch after a full-gated
+`dev` to `staging` promotion. Keep `production` and `mobile-release`
+restricted to `main`.
+
+The stable environment addresses are:
+
+```text
+Dev:                       https://vinifera-dev.edstratumlabs.ai
+Staging:                   https://vinifera-staging.edstratumlabs.ai
+Live:                      https://vinifera-live.edstratumlabs.ai
+Marketing/static rollback: https://vinifera.edstratumlabs.ai
+```
+
+Feature branch aliases and immutable `*.pages.dev` deployment URLs are
+additional preview surfaces, not replacements for the stable addresses.
+Protect dev and preview URLs with Cloudflare Access whenever they expose
+non-public application or test data. Access service tokens used by automation
+must remain narrowly scoped; never publish them or copy human OTP/session
+credentials into CI.
 
 Generic repository secrets are deliberately limited to
 `.github/workflows/hosted-readiness.yml`, which performs GET-only provider
@@ -25,7 +75,8 @@ to them.
 The architecture is currently complete but services are intentionally
 disconnected. Do not treat the sections below as permission to dispatch a
 mutation. Resume only the smallest provider-specific step after its credential,
-target, and human authority are available.
+target, protected-workflow authority, and absence of `human-review-required`
+and `do-not-merge` are confirmed.
 
 ## Staging target authorization
 
@@ -109,6 +160,8 @@ runs `supabase test db --linked`. That suite includes tenant and brand isolation
 proof. The Worker job deploys only `vinifera-staging`, then requires:
 
 - `/api/health` identifies `vinifera-api` with status `ok`;
+- the response identifies the staging environment and expected build SHA or
+  reviewed artifact digest;
 - `app`, `database`, `billing`, `security`, and `webhook` capabilities are
   configured;
 - the origin is the isolated `vinifera-staging.*.workers.dev` form; and
@@ -117,6 +170,12 @@ proof. The Worker job deploys only `vinifera-staging`, then requires:
 Optional capabilities may remain false in staging while their credentials are
 pending. Their application paths continue returning explicit activation
 states.
+
+After a staging deployment, verify the stable staging URL separately from the
+immutable Worker or Pages preview. Record the environment marker, build
+SHA/digest, API health contract, primary browser journey, basic accessibility,
+and absence of critical console/server errors. An HTTP 200 or a static landing
+page is insufficient.
 
 Winery connection secrets may be stored in an authenticated encrypted
 database envelope or referenced by the exact
@@ -173,10 +232,21 @@ First bootstrap creates only the named `vinifera-production` Worker on
 `workers.dev`; it does not attach a route or custom domain. Later version
 uploads are bound to an immutable full Git SHA and deployed separately.
 
-Before domain cutover, all configuration capabilities listed in the production
-policy must report configured. Follow
-`production-cutover-rollback.md`; do not use Worker bootstrap or version upload
-as proof that the public application is operational.
+Before production deployment, all configuration capabilities listed in the
+production policy must report configured. Follow
+`production-cutover-rollback.md`; do not use Worker bootstrap, version upload,
+or Worker deployment as proof that the public application is operational. The
+standard release dispatch does not expose the legacy domain-cutover or
+Pages-restoration operations.
+
+Production credentials remain scoped to the protected `production`
+environment. A release must consume the same reviewed staging artifact or
+verify an identical content digest, satisfy the configured staging soak, and
+retain a known rollback target before production deployment is authorized.
+The production workflow enforces this source boundary by requiring a
+successful staging deployment run for the promotion PR's exact staging head,
+comparing the staging and production Git tree IDs, and waiting at least the
+configured `PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS` before mutation.
 
 ## Deferred production controls
 
@@ -196,12 +266,12 @@ activate it later:
 
 Stripe live billing is controlled separately by
 `config/stripe-live-billing-policy.json`. It is disabled by default and is not
-part of Worker deployment or domain cutover. A later activation requires the
-independent authority phrase, reviewed Cloudflare Worker, test/live Stripe
-account and webhook hashes, canonical Price contracts, immutable commit, exact
-confirmation, and post-change health evidence. Reversion restores only the
-reviewed test bindings. Do not populate or execute this control while service
-connections are deferred.
+part of Worker deployment or any separately authorized domain change. A later
+activation requires the independent authority phrase, reviewed Cloudflare
+Worker, test/live Stripe account and webhook hashes, canonical Price contracts,
+immutable commit, exact confirmation, and post-change health evidence.
+Reversion restores only the reviewed test bindings. Do not populate or execute
+this control while service connections are deferred.
 
 ## Mobile-release environment
 
@@ -231,6 +301,19 @@ Run the **Hosted readiness probe** workflow at any time. It:
 
 The report recommends the next safe gate. It does not authorize mutation.
 
+Classify retained evidence explicitly:
+
+| Evidence | Required identity |
+| --- | --- |
+| Fast GitHub | Feature PR and exact head SHA |
+| Full GitHub | Promotion PR, exact head SHA, base ref/SHA, and attempt |
+| Preview | Branch alias plus immutable deployment URL |
+| Staging | Stable URL, environment marker, SHA/digest, and API health |
+| Production | Live URL, reviewed SHA/digest, health, and rollback target |
+| Provider | Authorized target plus redacted provider-specific contract |
+
+Do not promote one row into another without collecting the named evidence.
+
 ## Credential rotation and rollback
 
 1. Disable the relevant activation variable or stop the protected workflow.
@@ -239,6 +322,10 @@ The report recommends the next safe gate. It does not authorize mutation.
 4. Re-run read-only readiness, then the smallest provider-specific validation.
 5. Re-enable mutation only after target hashes and sandbox/production modes
    still match.
+
+If `human-review-required` or `do-not-merge` is present, stop mutation,
+promotion, and deployment. Only the human owner or an explicitly trusted owner
+workflow may remove either control.
 
 Database migrations are forward-only. Restore a verified hosted backup instead
 of attempting to drop Phase 1–5 tables. Domain rollback is documented

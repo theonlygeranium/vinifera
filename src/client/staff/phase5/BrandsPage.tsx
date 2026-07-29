@@ -18,8 +18,9 @@ import {
   ErrorBlock,
   LoadingBlock,
 } from "../../shared/OperationalState";
-import { money } from "../phase2/format";
+import { money, sentence } from "../phase2/format";
 import { useApiResource } from "../phase2/useApiResource";
+import { useStaffSession } from "../StaffSessionContext";
 import { StaffShell } from "../StaffShell";
 import { useBrandScope } from "./BrandScopeContext";
 
@@ -39,6 +40,9 @@ const EMPTY_BRAND: BrandDraft = {
 
 export function BrandsPage() {
   const brandScope = useBrandScope();
+  const { session } = useStaffSession();
+  const canManageBrands =
+    session?.user?.role === "owner" || session?.user?.role === "admin";
   const loadOverview = useCallback(() => {
     const scope =
       brandScope.activeBrandId === "all"
@@ -86,6 +90,7 @@ export function BrandsPage() {
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canManageBrands) return;
     setBusy(true);
     setFeedback(null);
     try {
@@ -130,14 +135,16 @@ export function BrandsPage() {
       title="Brands"
       eyebrow="Multi-brand tenancy"
       actions={
-        <button
-          type="button"
-          className="button button--primary button--compact"
-          onClick={openCreate}
-        >
-          <Plus aria-hidden="true" />
-          <span>Add brand</span>
-        </button>
+        canManageBrands ? (
+          <button
+            type="button"
+            className="button button--primary button--compact"
+            onClick={openCreate}
+          >
+            <Plus aria-hidden="true" />
+            <span>Add brand</span>
+          </button>
+        ) : null
       }
     >
       <div aria-live="polite">
@@ -209,14 +216,16 @@ export function BrandsPage() {
                   billing remain brand-scoped.
                 </p>
               </div>
-              <button
-                type="button"
-                className="button button--secondary"
-                onClick={openCreate}
-              >
-                <Plus aria-hidden="true" />
-                Create brand
-              </button>
+              {canManageBrands ? (
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  onClick={openCreate}
+                >
+                  <Plus aria-hidden="true" />
+                  Create brand
+                </button>
+              ) : null}
             </div>
             {brandScope.status === "loading" ? (
               <p role="status">Loading brand access…</p>
@@ -239,6 +248,11 @@ export function BrandsPage() {
                               Default
                             </span>
                           ) : null}
+                          <span
+                            className={`status-pill status-pill--${brand.domainStatus}`}
+                          >
+                            Portal {sentence(brand.domainStatus)}
+                          </span>
                         </div>
                         <p>
                           {brand.description ||
@@ -276,13 +290,15 @@ export function BrandsPage() {
                           <Grape aria-hidden="true" />
                           Work in brand
                         </button>
-                        <button
-                          type="button"
-                          className="button button--ghost button--compact"
-                          onClick={() => openEdit(brand)}
-                        >
-                          Edit
-                        </button>
+                        {canManageBrands ? (
+                          <button
+                            type="button"
+                            className="button button--ghost button--compact"
+                            onClick={() => openEdit(brand)}
+                          >
+                            Edit
+                          </button>
+                        ) : null}
                       </div>
                     </article>
                   );
@@ -292,7 +308,7 @@ export function BrandsPage() {
               <EmptyBlock
                 title="No brand is configured"
                 detail="Create the organization’s default club brand before assigning operational data."
-                action={
+                action={canManageBrands ? (
                   <button
                     type="button"
                     className="button button--primary"
@@ -300,7 +316,7 @@ export function BrandsPage() {
                   >
                     Create first brand
                   </button>
-                }
+                ) : undefined}
               />
             )}
           </section>
@@ -308,7 +324,7 @@ export function BrandsPage() {
       ) : null}
 
       <Dialog
-        open={dialogOpen}
+        open={dialogOpen && canManageBrands}
         title={editing ? `Edit ${editing.name}` : "Create a brand"}
         description="Brand creation is additive and does not move existing records implicitly."
         onClose={() => setDialogOpen(false)}

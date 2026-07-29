@@ -623,6 +623,17 @@ test.describe("Phase 2 core club loop", () => {
     await expect(trigger).toBeFocused();
   });
 
+  test("release schedule cards identify participating club tiers", async ({
+    page,
+  }) => {
+    await page.goto("/app/releases");
+    const releaseCard = page
+      .getByRole("article")
+      .filter({ has: page.getByRole("heading", { name: "Fall 2026" }) });
+
+    await expect(releaseCard).toContainText("Club tiers: Founders Circle");
+  });
+
   test("staff can create a tier, member, and scheduled release", async ({ page }) => {
     await page.goto("/app/tiers");
     await page.getByRole("button", { name: "Create Tier" }).click();
@@ -758,6 +769,13 @@ test.describe("Phase 2 core club loop", () => {
     await page.getByRole("button", { name: "Upload and preview" }).click();
     expect((await previewRequest).headers()["content-type"]).toContain("multipart/form-data");
     await expect(page.getByRole("heading", { name: "Map columns" })).toBeVisible();
+    const previewRegion = page.getByLabel(
+      "CSV import preview; scroll horizontally for additional columns",
+    );
+    await expect(previewRegion).toHaveAttribute("tabindex", "0");
+    await previewRegion.focus();
+    await expect(previewRegion).toBeFocused();
+    await assertA11y(page);
     await page.getByRole("button", { name: /Import 1 valid member/ }).click();
     await expect(page.getByText("1 member imported into the live roster.")).toBeVisible();
   });

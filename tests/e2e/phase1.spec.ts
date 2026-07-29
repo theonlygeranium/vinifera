@@ -118,12 +118,202 @@ test.describe("Phase 1 public authentication surfaces", () => {
       page,
     }) => {
       await page.setViewportSize({ width: 375, height: 812 });
-      await page.goto(surface.path);
+      if (surface.name === "marketing") {
+        await page.emulateMedia({ reducedMotion: "reduce" });
+      }
+      const response = await page.goto(surface.path);
       await expect(page.locator("h1")).toContainText(surface.headingFragment);
       await assertA11y(page);
       await assertNoHorizontalOverflow(page);
+      if (surface.name === "marketing") {
+        const contentSecurityPolicy =
+          (await response?.headerValue("content-security-policy")) ?? "";
+        expect(contentSecurityPolicy).toContain("script-src 'self'");
+        expect(contentSecurityPolicy).not.toContain("unpkg.com");
+        expect(contentSecurityPolicy).toContain(
+          "style-src 'self' 'unsafe-inline'",
+        );
+        await expect(page.locator("svg.lucide")).toHaveCount(58);
+
+        const motionStyle = await page.locator(".feature-card").first().evaluate(
+          (element) => ({
+            inlineTransform: (element as HTMLElement).style.transform,
+            inlineTransition: (element as HTMLElement).style.transition,
+          }),
+        );
+        expect(motionStyle).toEqual({
+          inlineTransform: "",
+          inlineTransition: "",
+        });
+
+        const undersized = await page.evaluate(() =>
+          Array.from(
+            document.querySelectorAll<HTMLElement>(
+              "a,button,input,select,textarea,[role='button']",
+            ),
+          )
+            .filter((element) => {
+              const style = getComputedStyle(element);
+              return style.visibility !== "hidden" && style.display !== "none";
+            })
+            .map((element) => {
+              const rect = element.getBoundingClientRect();
+              return {
+                height: rect.height,
+                label:
+                  element.getAttribute("aria-label") ||
+                  element.textContent?.trim().slice(0, 80) ||
+                  element.tagName,
+                width: rect.width,
+              };
+            })
+            .filter(
+              (target) =>
+                target.height > 0 && (target.height < 44 || target.width < 44),
+            ),
+        );
+        expect(undersized).toEqual([]);
+      }
     });
   }
+
+  test("marketing pricing matches every canonical subscription tier", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const pricing = page.locator("#pricing");
+
+    for (const tier of [
+      { name: "Vine", price: "$149/mo", entitlement: "Up to 250 members" },
+      { name: "Cellar", price: "$349/mo", entitlement: "Up to 1,000 members" },
+      { name: "Estate", price: "$749/mo", entitlement: "Unlimited members" },
+      { name: "Reserve", price: "$1,500+/mo", entitlement: "Multi-brand estates" },
+    ]) {
+      const card = pricing.locator(".pricing-card").filter({
+        has: page.getByText(tier.name, { exact: true }),
+      });
+      await expect(card).toHaveCount(1);
+      await expect(card).toContainText(tier.price);
+      await expect(card).toContainText(tier.entitlement);
+    }
+  });
+
+  test("marketing free-trial calls to action open staff signup", async ({
+    page,
+  }) => {
+    await page.route("**/api/health/configuration", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            app: { configured: true, missing: [] },
+            database: { configured: true, missing: [] },
+            email: { configured: true, missing: [] },
+          },
+        }),
+      }),
+    );
+    await page.goto("/");
+    const freeTrialCallsToAction = page
+      .locator("a")
+      .filter({ hasText: /Start (?:Free|30-Day Free)/ });
+
+    await expect(freeTrialCallsToAction).toHaveCount(6);
+    for (const callToAction of await freeTrialCallsToAction.all()) {
+      await expect(callToAction).toHaveAttribute("href", "/app/signup");
+    }
+  });
+
+  test("marketing free-trial calls to action stay on pricing without the Worker runtime", async ({
+    page,
+  }) => {
+    await page.route("**/api/health/configuration", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<!doctype html><title>Static Pages fallback</title>",
+      }),
+    );
+    await page.goto("/");
+    const freeTrialCallsToAction = page.locator("[data-signup-cta]");
+
+    await expect(freeTrialCallsToAction).toHaveCount(6);
+    for (const callToAction of await freeTrialCallsToAction.all()) {
+      await expect(callToAction).toHaveAttribute("href", "#pricing");
+    }
+  });
+
+  test("marketing free-trial calls to action stay on pricing when signup is not configured", async ({
+    page,
+  }) => {
+    await page.route("**/api/health/configuration", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            app: { configured: true, missing: [] },
+            database: { configured: true, missing: [] },
+            email: { configured: false, missing: ["AUTH_EMAIL_ENABLED"] },
+          },
+        }),
+      }),
+    );
+    await page.goto("/");
+    const freeTrialCallsToAction = page.locator("[data-signup-cta]");
+
+    await expect(freeTrialCallsToAction).toHaveCount(6);
+    for (const callToAction of await freeTrialCallsToAction.all()) {
+      await expect(callToAction).toHaveAttribute("href", "#pricing");
+    }
+  });
+
+  test("marketing free-trial calls to action stay on pricing without an application origin", async ({
+    page,
+  }) => {
+    await page.route("**/api/health/configuration", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            app: { configured: false, missing: ["APP_ORIGIN"] },
+            database: { configured: true, missing: [] },
+            email: { configured: true, missing: [] },
+          },
+        }),
+      }),
+    );
+    await page.goto("/");
+    const freeTrialCallsToAction = page.locator("[data-signup-cta]");
+
+    await expect(freeTrialCallsToAction).toHaveCount(6);
+    for (const callToAction of await freeTrialCallsToAction.all()) {
+      await expect(callToAction).toHaveAttribute("href", "#pricing");
+    }
+  });
+
+  test("marketing mobile menu restores focus when Escape closes it", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/");
+    const menuButton = page.getByRole("button", { name: "Open menu" });
+    const mobileMenu = page.locator("#mobileMenu");
+    const featuresLink = mobileMenu.getByRole("link", { name: "Features" });
+
+    await menuButton.click();
+    await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+    await featuresLink.focus();
+    await expect(featuresLink).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    await expect(menuButton).toBeFocused();
+
+    await menuButton.click();
+    await featuresLink.focus();
+    await featuresLink.press("Enter");
+    await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator("#features")).toBeFocused();
+    await expect(page).toHaveURL(/#features$/);
+  });
 
   for (const viewport of [
     { name: "mobile", width: 375, height: 812 },
@@ -398,6 +588,18 @@ test.describe("Phase 1 authenticated shells", () => {
 
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/app");
+    const skipLink = page.getByRole("link", { name: "Skip to main content" });
+    await expect(skipLink).toHaveAttribute("href", "#main");
+    await skipLink.focus();
+    await expect(skipLink).toBeVisible();
+    await expect(skipLink).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    const skipLinkZIndex = Number.parseInt(
+      await skipLink.evaluate((element) => getComputedStyle(element).zIndex),
+      10,
+    );
+    expect(skipLinkZIndex).toBeGreaterThan(1200);
+    await skipLink.press("Enter");
+    await expect(page.locator("main#main")).toBeFocused();
     await expect(page.getByRole("heading", { name: "Welcome to QA Winery" })).toBeVisible();
     await page.getByRole("button", { name: "Open menu" }).click();
     await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();

@@ -1,5 +1,418 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Two-speed development and release delivery: added the exact-diff
+  `Dev fast checks` lane with focused tests, TypeScript/Worker validation,
+  production builds, credential and whitespace checks, a mobile accessibility
+  browser smoke, cancellable branch concurrency, and independent Cloudflare
+  preview evidence; retained the exact `Type, test, build, and package`
+  promotion aggregate with complete Vitest, Phase 1–5 database,
+  Playwright/axe, Pages, Worker, selective Android, and nightly native drift
+  validation. Promotion is now deliberate instead of running after every
+  `dev` push; Octopus is required for exact-comparison promotions and
+  explicitly requested high-risk feature review, while CodeRabbit is
+  non-blocking while rate-limited. Promotion secrets are isolated behind a
+  main-only `promotion-control` environment, emergency labels fail closed
+  throughout readiness, and production release now requires the current
+  `main` SHA from a merged `staging → main` PR without either emergency label.
+  Production also requires a successful exact-staging deployment run, an
+  identical staging/production Git tree, and the configured staging soak
+  before revalidating authorization immediately ahead of Worker mutation.
+  The standard production dispatch no longer accepts legacy marketing-domain
+  cutover or Pages-restore operations, preserving the static rollback hostname.
+  Updated the delivery governance, continuity
+  brief, PR template, runbooks, contract tests, implementation manifest, and
+  ADR for one changelog entry per logical PR, isolated-branch WIP commits, and
+  squash merge into `dev`. **Deployment impact:** Changes CI, review,
+  promotion-readiness, and production-release authorization behavior, including
+  staging evidence/soak/tree-equality enforcement and the available standard
+  release operations. This PR itself performs no branch merge, environment
+  promotion, provider activation, deployment, DNS change, database mutation, or
+  production resource change.
+
+### Fixed
+- Review-gate permissions and Worker rollback authorization now fail closed
+  without becoming unusable: Octopus can read PR metadata, promotion and
+  production gates can read exact Actions run/job evidence, and rollback keeps
+  current `main` as the trusted control SHA while independently verifying a
+  prior reviewed release SHA, matching staging tree/run/soak, version
+  annotations, and previously sole-active Cloudflare deployment history.
+  Current and prior release identities are revalidated immediately before
+  mutation. **Deployment impact:** Tightens protected review/promotion/release
+  authorization only; no merge, promotion, deployment, DNS, database, provider,
+  or production mutation occurs.
+- Cloudflare preview evidence now prefers the `vinifera-dev` project check when
+  present and falls back to the actual `vinifera` feature-preview check. Live
+  PR evidence showed that feature heads receive `Cloudflare Pages: vinifera`,
+  while the `dev` branch itself receives `Cloudflare Pages: vinifera-dev`;
+  previously the evidence job waited four minutes for a check that could not
+  appear on the feature head. **Deployment impact:** CI evidence discovery only;
+  no Pages deployment, branch merge, DNS change, or hosted mutation occurs.
+- - `promote-dev-to-staging.yml` (jq suite iterator typo | [] vs | .[]): Fixed `| []` (empty array constructor, always emits literal string `[]`) to `| .[]` (array iterator) in the check-suite ID extraction jq expression. The typo caused `gh api repos/.../check-suites/[]` to be called on every iteration, returning HTTP 404 under `set -e` and crashing both the `wait-for-gates` and `ready` jobs within 1 second of startup.
+- - `promote-dev-to-staging.yml` (null check_suite id → HTTP 404): Added `| select(. != null)` to the jq filter that collects check-suite IDs before fetching their `created_at` timestamps. When a check-run has no associated suite, `.check_suite.id` is null; jq emitted the literal string 'null', which bypassed the empty-string guard and caused `gh api repos/.../check-suites/null` to return HTTP 404 under `set -e`, immediately crashing both the `wait-for-gates` and `ready` jobs on the first poll iteration.
+- - `promote-dev-to-staging.yml` (gh CLI --slurp/--jq incompatibility): Replaced four `gh api --paginate --slurp ... --jq` call-sites with `gh api --paginate ... | jq --slurp '...'`. The `--slurp` and `--jq` flags are mutually exclusive in the current gh CLI version; the combination caused an immediate exit-1 on the first poll iteration of both the `wait-for-gates` and `ready` jobs, preventing the promotion workflow from ever completing.
+- - `octopus-security-audit.yml` / `octopus-security-audit.mjs` (nightly security audit): Replaced broken `OctopusDeploy/run-runbook-action@v1` (tag `v1` does not exist; latest is `v4.0.3`) with a checkout-and-run step that executes the new `.github/scripts/octopus-security-audit.mjs` script. The script mirrors the CF-aware HTTP infrastructure from `octopus-runbook.mjs` — passing `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers on every Octopus API request — while requiring only the four non-PR secrets. The old action made direct HTTPS calls without CF Access headers, causing a Cloudflare 302 redirect on the first request regardless of tag version.
+- - `ci/octopus-pr-quality-gates.yml` (Cloudflare Access service token): Created service token `vinifera-github-actions-octopus` (expires 2027-07-29) for the `Octopus Deploy — Schubert` Access application. Installed four GitHub repository secrets — `OCTOPUS_URL`, `OCTOPUS_API_KEY`, `OCTOPUS_CF_ACCESS_CLIENT_ID`, `OCTOPUS_CF_ACCESS_CLIENT_SECRET` — required by `octopus-runbook.mjs` to authenticate through the Cloudflare Access proxy to the self-hosted Octopus Deploy instance on Schubert V2. Previously the quality gate workflow failed because the secrets were absent; the runbook now has all credentials to connect via HTTPS.
+- `promote-dev-to-staging.yml` (staging REST probe endpoint): Changed from
+  `/health` to `/auth/v1/health`. The self-hosted Kong gateway on Schubert
+  requires auth credentials on the `/health` route (returns 401) but serves
+  `/auth/v1/health` openly (returns 200). No gate logic affected.
+- `promote-dev-to-staging.yml` (staging REST pre-flight and re-check probes):
+  Changed probe endpoint from `/rest/v1/` to `/health`. Supabase restricts
+  `/rest/v1/` to `service_role` credentials; the anon key returns HTTP 401,
+  causing the pre-flight job to fail closed on every run. The `/health`
+  endpoint returns HTTP 200 without credentials and accurately confirms that
+  the Supabase project is reachable. No functional change to any gate logic.
+- `promote-dev-to-staging.yml` (both readiness-attempt sites): Fetch each
+  check-run's parent check-suite via `gh api repos/$REPO/check-suites/$sid`
+  to obtain the real `created_at` timestamp. The GitHub check-runs API does
+  not return `created_at` on run objects; filtering by the missing field
+  silently discarded every check-run, making all promotion gates
+  un-passable. The fix builds an in-memory `suite_map` indexed by suite id,
+  substitutes `$suite_map[(.check_suite.id | tostring)]` for the direct
+  field access, and removes the now-redundant `.created_at` fallback from
+  `sort_by`. Updated `promote-dev-to-staging.test.mjs` to assert the new
+  suite-map pattern instead of the removed `select(.created_at …)` guard.
+  **Deployment impact:** Promotion readiness gates can now evaluate
+  attempt-bound check runs; no environment or provider activation occurs.
+- Final owner-approved PR #51 correction: make Octopus tracked-source scans
+  distinguish “no matches” from operational failures; resolve relative
+  cross-layer imports against their tracked source paths; require promotion
+  check runs to be both created and started during the current readiness
+  attempt; preserve valid encoded fragment navigation and history; and
+  self-host the pinned Lucide 1.27.0 bundle with its license so the Worker can
+  restore `script-src 'self'`. Added adversarial regressions for corrupted Git
+  state, nested relative-import bypasses, bundle integrity, exact CSP, and
+  attempt-bound check creation. **Deployment impact:** Static marketing,
+  guide, and rollback-prototype icons load from the first-party origin;
+  promotion and Octopus gates fail closed on additional stale/error paths. No
+  provider activation, environment promotion, merge, or deployment occurs.
+- Controlled PR #51 audit: Honor reduced-motion preferences for scripted card
+  reveals and anchor scrolling; restore focus to the selected in-page mobile
+  destination; align the Worker CSP with the landing page's legacy inline CSS;
+  pin the allowed Lucide bundle to 1.27.0 with SHA-384 integrity; make Octopus
+  Rules 1–3 fail closed on missing task state and inspect only tracked files;
+  refresh workflow counts, staging-isolation state, evidence timestamps, actor
+  handoff, and merge/readiness terminology across governance documentation.
+  **Deployment impact:** The Worker-served landing page regains its intended
+  styling and 44-pixel mobile targets; marketing behavior changes for
+  reduced-motion and mobile-keyboard users; Octopus remains blocked until its
+  trusted default-branch workflow and runnable snapshot are bootstrapped. No
+  environment or provider activation occurs.
+- `.github/workflows/octopus-pr-quality-gates.yml`,
+  `.github/scripts/octopus-runbook.mjs`, and the Octopus runbook contract:
+  Bind each queued review to the event's base ref and base SHA as well as its
+  head SHA, include the base SHA in the published status attestation, and make
+  promotion capture and revalidate that base through readiness reporting. A temporary or
+  later base-branch change can no longer produce a reusable success status for
+  an unreviewed comparison.
+- `.github/workflows/promote-dev-to-staging.yml` and governance documentation:
+  Removed the automatic PR merge after exact-head review found that GitHub's
+  merge API has no atomic expected-base guard. Automation now captures and
+  validates both revisions, runs every readiness gate, and leaves the PR open
+  for a human to re-check and merge.
+- `.github/workflows/promote-dev-to-staging.yml` and its contract test:
+  Revalidate the captured head/base, exact CI and status set, CodeRabbit review,
+  Octopus attestation, and unresolved threads after the second provider probe
+  for both normal and dry-run readiness. Dry-run now skips only mutation, not
+  evidence validation.
+- `.github/workflows/promote-dev-to-staging.yml`: Bracket the final evidence
+  refresh with head/base reads and reject readiness if either revision changes
+  while checks, statuses, reviews, or threads are queried.
+- `.github/workflows/promote-dev-to-staging.yml`: Start each readiness attempt
+  with a unique timestamped PR-body marker, require CI check associations to
+  name the captured head and base, and accept statuses and CodeRabbit reviews
+  only when they were created during that attempt. A prior review of the same
+  head against an older staging base cannot satisfy readiness.
+- `.github/workflows/ci.yml` and the promotion contract: Handle the readiness
+  marker's pull-request `edited` event so every attempt creates a fresh,
+  base-bound quality run even when the `dev` head has not changed.
+- `.octopus/runbooks/pr-quality-gates/runbook.ocl` and its contract test:
+  Persist the resolved merge-base SHA in task-scoped state before the separate
+  Rules 4–10 action sources it. Without this transfer, strict shell mode
+  stopped the mandatory change-aware Octopus gate before any rule executed.
+- `index.html` and `tests/e2e/phase1.spec.ts`: Restored all six marketing
+  free-trial CTA capability paths while retaining the four canonical pricing
+  tiers, and restored the staff skip-link regression assertion. The prior
+  direct PR #30 resolution had replaced later landing-page behavior and deleted
+  both previously merged tests.
+- `tests/e2e/phase5.spec.ts`: Recombined PR #35's HTTPS-logo validation coverage
+  with the previously merged mobile select sizing, portal status, manager role
+  gate, and branded document-title assertions. The direct resolution had
+  silently replaced those tests rather than resolving them together.
+- `.github/workflows/promote-dev-to-staging.yml`: Open the promotion PR before
+  provider probes, use an event-producing token so pull-request CI and Octopus
+  actually run and so the merged staging push invokes deployment workflows,
+  exclude the promotion run from its own exact-SHA polling, require aggregate
+  CI, Octopus, CodeRabbit, the latest registered statuses, and zero unresolved
+  threads, and report an exact-head/base readiness result for human merge. This removes
+  the original self-deadlock, missing-label failure, suppressed staging event,
+  and false-success merge path.
+- `tests/scripts/promote-dev-to-staging.test.mjs`: Added source-contract coverage
+  for PR ordering, event triggering, self-run exclusion, review gates,
+  credential documentation, and exact-head/base readiness confirmation.
+- `.github/workflows/promote-dev-to-staging.yml`: Granted the polling token
+  explicit check/status read permissions and excluded every promotion job name,
+  including prior attempts on the same commit, so credential repair or a
+  transient-provider retry cannot be poisoned by an older failed run.
+- `.github/workflows/promote-dev-to-staging.yml`: Explicitly request a
+  CodeRabbit review on the non-default staging base and accept its nominally
+  successful status only when the description is exactly `Review completed`;
+  skipped and rate-limited reviews otherwise report misleading success states.
+- `CONTINUITY_BRIEF.md`: Replaced the stale pre-merge UI mission state with the
+  audited merge-cleanup outcome, including the direct-resolution regressions,
+  remaining remote branches, default-branch Octopus bootstrap gap, and
+  isolated-staging credential blocker.
+- `.coderabbit.yaml`, `AGENTS.md`, and `docs/agent-workflow.md`: Added
+  version-controlled automatic review coverage for PRs targeting `dev` and
+  `staging`, with incremental review enabled and a ten-commit pause threshold.
+  This replaces the default-branch-only behavior observed on PR #51.
+- `CONTINUITY_BRIEF.md`: Recorded verified deletion of the stale merged PR
+  #49/#50 remote branches after the strategist's three-branch cleanup claim was
+  found to be premature.
+- `index.html`, `tests/e2e/phase1.spec.ts`, and
+  `tests/scripts/landing-static.test.mjs`: Trial CTAs now fail safely to the
+  pricing section on static Pages and switch to `/app/signup` only after the
+  same-origin `/api/health` response proves the Vinifera Worker runtime.
+  Marketing interactions moved from CSP-blocked inline blocks to the
+  self-hosted `public/marketing.js`, preserving signup enhancement, smooth
+  scrolling, motion, and the mobile menu under the Worker's `script-src
+  'self'` policy.
+- `CONTINUITY_BRIEF.md`: Pinned the Octopus bootstrap finding to the audited
+  GitHub default-branch SHA and distinguished `main` runtime workflow code from
+  the corrected but not-yet-promoted `dev` definition.
+- `.github/workflows/promote-dev-to-staging.yml`: Set workflow token permissions
+  to empty by default, scoped check/status/thread reads to the polling job, and
+  made required aggregate CI pass only on an exact `success` conclusion.
+  Skipped, neutral, cancelled, or failed required checks now fail immediately
+  instead of passing or waiting until timeout.
+- `CONTINUITY_BRIEF.md`: Updated CodeRabbit state after adding automatic
+  `dev`/`staging` reviews and retained explicit review requests plus exact
+  completion-description enforcement as defense-in-depth.
+- `public/marketing.js` and `tests/e2e/phase1.spec.ts`: Closing the marketing
+  mobile menu with Escape now restores focus from a hidden menu link to the
+  hamburger control, with a 375px keyboard regression test.
+- `public/marketing.js`, `tests/e2e/phase1.spec.ts`, and
+  `tests/scripts/landing-static.test.mjs`: Marketing trial CTAs now require
+  both database and authentication-email readiness from the Worker
+  configuration report before linking to staff signup; generic API health or a
+  partially configured runtime retains the safe pricing fallback.
+- `.github/workflows/octopus-pr-quality-gates.yml`,
+  `.github/workflows/promote-dev-to-staging.yml`, and the promotion contract:
+  The trusted Octopus bridge now publishes its runbook outcome on the exact PR
+  head SHA, so promotion no longer waits for a `pull_request_target` check that
+  GitHub attaches only to the base revision. Promotion also binds checks and
+  statuses to the current PR number and readiness-attempt time so a recreated PR at the
+  same commit cannot reuse stale approvals.
+- `CONTINUITY_BRIEF.md`: Recorded completion of the approved Cloudflare Access
+  Service Auth policy and encrypted GitHub Actions credential transfer for the
+  Octopus application without storing credential values in the repository.
+- `.github/workflows/promote-dev-to-staging.yml` and its contract tests:
+  Paginate every exact-head check and status query and revalidate CI, Octopus,
+  CodeRabbit, and unresolved review threads before reporting readiness. The
+  required aggregate must succeed, while intentionally skipped or neutral
+  non-required GitHub job checks remain valid.
+- `.github/workflows/octopus-pr-quality-gates.yml`,
+  `.github/scripts/octopus-runbook.mjs`, and the PR quality-gates runbook:
+  Pass the event head as a required `ExpectedHeadSHA` prompt and reject live PR
+  metadata that names another commit before Octopus checks out or reviews code.
+  Generate the aggregate and per-commit diffs locally from the immutable
+  merge-base/head objects, so the published status cannot claim success for a
+  different or mid-review rewritten revision. Per-commit generation uses
+  first-parent semantics so merge commits remain visible to the Rule 9
+  changelog requirement.
+- `public/marketing.js`, `tests/e2e/phase1.spec.ts`, and
+  `tests/scripts/landing-static.test.mjs`: Require the application capability,
+  including `APP_ORIGIN`, in addition to database and authentication-email
+  readiness before marketing trial CTAs expose staff signup.
+
+### Changed
+- `docs/build-specs/merge-cleanup-regression-audit-2026-07-28.md`,
+  `docs/build-specs/README.md`, and `CONTINUITY_BRIEF.md`: Added an
+  authoritative cross-agent handoff identifying each actor, authority,
+  strategist-report correction, repair group, evidence boundary, one-PR
+  CodeRabbit waiver, active blockers, and recommended release sequence.
+- **Governance safety amendment:** `dev → staging` readiness is automated via
+  `promote-dev-to-staging.yml`. The workflow opens or updates a promotion PR,
+  probes authenticated staging Supabase REST availability twice, waits for
+  exact-head/base CI and review gates, and reports readiness without merging.
+  Both environment-branch merges remain human-triggered.
+- `staging → main` promotion remains exclusively human-initiated.
+- `AGENTS.md`, `docs/agent-workflow.md`, and the promotion ADR now describe the
+  implemented order, exact gates, token-trigger requirement, and the current
+  missing staging-probe credentials instead of claiming they are installed.
+
+**Deployment impact:** The landing page routes trial traffic to signup only
+when the same-origin Worker reports every required signup capability configured.
+No provider, branch, Pages project, or production environment is mutated by
+the UI repair commit. The promotion workflow remains intentionally fail-closed
+until an isolated staging Supabase target exists and its URL/anon-key secrets
+are installed. **Verification:** Run `npm run check`,
+`npx playwright test tests/e2e/phase1.spec.ts tests/e2e/phase5.spec.ts`, and
+`git diff --check`; validate the workflow with `actionlint`; run
+`npm run test -- --run tests/scripts/promote-dev-to-staging.test.mjs`; then
+require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
+
+## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
+
+### Fixed
+- `.octopus/runbooks/pr-quality-gates/runbook.ocl`: Resolves immutable PR base
+  and head commits from GitHub, authenticates fetches with an ephemeral HTTP
+  header, removes the authenticated remote before inspection, and enforces
+  change-aware Rules 4–10—including tenant-isolation Rule 8—against GitHub's
+  merge-base-aware PR diff. Multiline source windows distinguish safe
+  idempotency, tenant filters, and native bearer handling from violations.
+  Tenant safety now requires an actual query predicate rather than a nearby
+  identifier or comment, and every commit is checked for its own changelog
+  update. Concurrent pull-request runs use task-scoped state and
+  no longer cancel or overwrite one another. GitHub credentials are supplied
+  through stdin or process environment rather than process arguments.
+- `.github/workflows/octopus-pr-quality-gates.yml` and `.octopus/runbooks/`:
+  Retired the secret-bearing AI-comment and auto-fix failure path. Pull-request
+  dependencies and formatter binaries are no longer executed on the
+  self-hosted Octopus server, and a PR failure cannot place a GitHub PAT near
+  untrusted lifecycle scripts.
+- `tests/scripts/octopus-runbook.test.mjs`: Added regression coverage requiring
+  the ephemeral authenticated checkout, complete Rule 8 enforcement, and the
+  absence of the retired auto-fix dispatch.
+- Branch history: Reconciled the existing `staging` ancestry into `dev` before
+  promotion so the three-tier branches can advance through reviewable merge
+  commits without force-pushes or discarded governance history.
+- `.github/scripts/octopus-runbook.mjs` and
+  `tests/scripts/octopus-runbook.test.mjs`: Corrected the run-creation field
+  to `RunbookSnapshotId` and ensured a failed timeout-cancellation request
+  cannot mask the actionable runbook timeout error.
+- `.github/scripts/octopus-runbook.mjs`: Added a fail-closed sensitive-control
+  check so `GitHubPAT` is never submitted to an Octopus prompt that the
+  preview identifies as plain text or leaves untyped.
+- `.github/workflows/octopus-pr-quality-gates.yml` and
+  `tests/scripts/octopus-runbook.test.mjs`: Moved the secret-bearing Octopus
+  jobs to `pull_request_target`, pinned checkout to the trusted default branch,
+  disabled persisted credentials, removed unused write permissions, and added
+  a regression test that rejects pull-request-head execution.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Added an unprivileged
+  source-validation job that rejects forks and shell-capable branch names
+  before any Octopus, GitHub, or Access secret can enter a job.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Made rejected source
+  validation produce an explicit failed quality-gate job rather than a skipped
+  reviewer state.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Added the `edited` PR
+  activity so base-branch retargeting always receives a fresh Octopus review.
+- `.github/workflows/ci.yml`: Retained post-merge quality validation on `main`
+  while explicitly restricting staging migration and Worker deployment jobs
+  to `refs/heads/staging`.
+- `.github/workflows/ci.yml`,
+  `.github/workflows/stripe-test-catalog.yml`, and hosted activation
+  documentation: Aligned staging mutations and Stripe test-catalog operations
+  with the three-tier promotion model. Staging now runs from the immutable
+  `staging` head instead of `main`, while production controls remain
+  `main`-bound.
+- `docs/runbooks/phase-1-hosted-activation.md`: Reconciled the remaining
+  environment-policy and Stripe bootstrap examples with the staging-only
+  control boundary.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Routed Octopus PR quality
+  gates to the `dev`, `staging`, and `main` PR bases and added
+  `ready_for_review` activity. The prior `main`-only filter prevented
+  agent-authored product PRs from invoking the required reviewer; retaining
+  all three bases ensures promotion PRs are reviewed too.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Replaced the nonexistent
+  `run-runbook-action@v1` reference with a tested REST bridge. The self-hosted
+  server predates the v4 Executions API and its legacy CLI is incompatible
+  with GitHub's Ubuntu 24 OpenSSL runtime, so the bridge implements the
+  documented prompted-runbook flow and bounded task polling without a legacy
+  binary.
+- `.github/scripts/octopus-runbook.mjs` and
+  `tests/scripts/octopus-runbook.test.mjs`: Added the HTTPS-only, fail-closed
+  bridge and focused coverage for URL normalization, prompt mapping, required
+  prompt enforcement, run creation, and successful task completion.
+- `.github/workflows/octopus-pr-quality-gates.yml`: Added encrypted
+  `OCTOPUS_CF_ACCESS_CLIENT_ID` and `OCTOPUS_CF_ACCESS_CLIENT_SECRET` inputs
+  so the hosted runner can authenticate through the Octopus hostname's
+  Cloudflare Access Service Auth policy before using the Octopus API key.
+- `.github/pull_request_template.md` and `docs/agent-workflow.md`: Replaced
+  stale Greptile and direct-to-`main` instructions with the current
+  Octopus/CodeRabbit review loop and `dev` PR routing.
+- `docs/decisions/2026-07-28-switch-greptile-to-octopus.md`: Reconciled the
+  ADR with current repository governance and recorded the human-authorized,
+  one-time bootstrap exception for this workflow correction.
+
+### Deployment impact
+- No application, routing, database, provider, Pages, or Worker resource is
+  changed by this commit. The published Octopus `PR Quality Gates` snapshot
+  must be updated before the GitHub gate is re-triggered. Future PR failures
+  remain visible in the Octopus task and GitHub check logs; no self-hosted
+  auto-fix or AI-comment runbook is dispatched.
+
+### Verification
+- Validate workflow syntax, run the repository docs-only CI lane, confirm
+  CodeRabbit and zero unresolved review threads on the bootstrap PR, merge it
+  to `dev`, then reopen the pending product PRs and require successful Octopus
+  runs before merge.
+- Run the focused Octopus bridge tests and confirm the hosted workflow waits
+  for the self-hosted runbook result.
+- Confirm the published runbook resolves the exact PR commits, removes its
+  authenticated remote, passes all ten rules for a clean PR, and fails a
+  tenant-unscoped added service query.
+- Promote an immutable `dev` head to `staging`, verify the quality workflow
+  triggers on the resulting `staging` push, and confirm the read-only readiness
+  and Stripe test-catalog workflows reject non-`staging` refs.
+
+## [Unreleased] — 2026-07-28 (UI Testing Work Manifest)
+
+### Added
+- `docs/build-specs/ui-test-manifest-2026-07-28.md`: Recorded SA-01 through
+  SA-12 test-domain assignments, isolated worktree paths, sequencing,
+  single-defect fix-branch conventions, baseline evidence, and activation
+  safety boundaries before subagent dispatch.
+
+### Verification
+- `npm run check`: 448/448 Vitest tests passed with TypeScript, Worker type,
+  Vite build, and Worker dry-run checks successful.
+- `npm run qa:e2e`: 145/145 Playwright/axe tests passed.
+
+### Deployment impact
+- Documentation only. No runtime, routing, provider, hosted environment, or
+  activation-gate state changed.
+
+## [Unreleased] — 2026-07-28 (Release Schedule Tier Visibility)
+
+### Fixed
+- `src/client/staff/phase2/ReleasesPage.tsx`: Release schedule cards now name
+  every participating club tier alongside their date, status, wine, member,
+  and embargo metadata so staff can identify the targeted tier without opening
+  each release.
+
+### Tests
+- `tests/e2e/phase2.spec.ts`: Added a focused browser regression asserting
+  that the Fall 2026 schedule card exposes its Founders Circle tier.
+
+### Deployment impact
+- Staff UI only. No API contract, database, provider, routing, hosted
+  environment, or activation-gate state changed.
+
+## [Unreleased] — 2026-07-28 (Comprehensive UI Test Report)
+
+### Added
+- **What changed:** Added the consolidated UI test report with workstream
+  results, defect-to-PR traceability, integrated verification, evidence
+  boundaries, open decisions, a pinned-base immutable integration
+  reconstruction manifest, explicit missing-Octopus status, and the untouched
+  activation-gate statement; synchronized `CONTINUITY_BRIEF.md` with the
+  mission results.
+  **Why:** The mission requires a durable handoff that distinguishes browser,
+  automated, fixture, static-fallback, and hosted-CI evidence. **Deployment
+  impact:** Documentation only; application code, routing, headers, providers,
+  hosted data, and activation gates are unchanged. **Verification:** Review
+  `docs/build-specs/ui-test-report-2026-07-28.md`, confirm each linked PR
+  targets `dev`, run `git diff --check`, and validate the docs-only CI lane.
+
+## [Unreleased] — 2026-07-28 (UI Testing Spec Formatting Fix)
+
+### Fixed
+- `docs/build-specs/vinifera-ui-testing-doc.md`: Stripped trailing whitespace from 5 lines (lines 2, 3, 4, 786, 788) to satisfy CI docs-lane `git diff --check` policy. No content change.
+
 ## [Unreleased] — 2026-07-28 (Three-Tier Environment)
 
 ### Added
@@ -45,6 +458,113 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ---
 
 ## [Unreleased]
+
+- **What changed:** Made the restored dark outer keyboard-focus ring override
+  component-specific button shadows, with a source regression protecting that
+  cascade behavior. **Why:** Otherwise the white inner outline could remain
+  while the contrasting dark ring was overridden on primary navigation and
+  pricing buttons, making focus unreliable on white surfaces. **Deployment
+  impact:** Static focus styling and its regression test only. **Verification:**
+  Run the focused focus-indicator test, `npm run check`, and keyboard-tab
+  through the landing-page primary controls.
+- **What changed:** Restored the marketing landing page's three-pixel
+  `:focus-visible` indicator and desktop navigation's 44px minimum target
+  heights after the canonical-pricing integration replaced `index.html` with
+  an older version. **Why:** Keyboard users otherwise received no visible
+  focus ring, while desktop navigation links and buttons could render below
+  the repository's WCAG target-size requirement. **Deployment impact:** Static
+  landing-page CSS only; pricing content, navigation destinations, routing,
+  authentication, billing, and provider activation are unchanged.
+  **Verification:** Run the focused focus-indicator and landing-static tests,
+  `npm run check`, `npm run qa:e2e`, axe-core, and inspect keyboard focus and
+  target dimensions at 1440px and 375px.
+
+- Hardened Octopus Rule 8 to check operation-only query builders supplied by callers and to compare legacy query fingerprints against the pull request's actual merge base rather than the moving base-branch tip.
+
+### Fixed
+
+- **What changed:** Octopus Rule 8 now models assigned descendants of a shared
+  `.from(...)` table builder as independent leaf chains. A regression combines
+  a scoped select and unscoped delete from the same root and verifies the delete
+  fails. **Why:** Merging forked descendants let one branch's tenant predicate
+  satisfy a different unscoped operation. **Deployment impact:** PR security
+  analysis only; application runtime and environment activation are unchanged.
+  **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`,
+  `npm run build:worker`, and `git diff --check`.
+- **What changed:** Octopus Rule 8 now refuses to grandfather unscoped queries
+  whose receiver is a call, computed property, parenthesized expression, or
+  other form that cannot be normalized into a stable member identity. A
+  call-receiver privilege-change regression covers the fail-closed behavior.
+  **Why:** Collapsing unknown receivers to `.from(...)` could make distinct
+  tenant and admin clients share a legacy fingerprint. **Deployment impact:** PR
+  security analysis only; application runtime and environment activation are
+  unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`,
+  `npm run build:worker`, and `git diff --check`.
+- **What changed:** Octopus Rule 8 now accepts tracked predicates only from
+  unconditional same-scope assignments or returns and preserves complete member
+  receiver chains such as `ctx.admin` in query fingerprints. Regressions cover
+  conditional predicates and receiver changes between member expressions.
+  **Why:** A false branch could leave a query unscoped, while truncating both
+  receivers to `admin` could grandfather a privilege-boundary change.
+  **Deployment impact:** PR security analysis only; application runtime and
+  environment activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`,
+  `npm run build:worker`, and `git diff --check`.
+- **What changed:** Octopus Rule 8 query fingerprints now include the database
+  receiver, and builder dataflow stops at the enclosing block. Statement
+  splitting ignores semicolons inside parentheses, while base-source lookup is
+  timeout-bounded and emits a fail-closed diagnostic. Regressions cover
+  RLS-to-admin receiver changes and same-named builders in adjacent functions.
+  **Why:** Receiver-free fingerprints could grandfather a move to privileged
+  access, and brace-depth equality alone could borrow a predicate from another
+  function. **Deployment impact:** PR security analysis only; application
+  runtime and environment activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`, and
+  `git diff --check`.
+- **What changed:** Octopus Rule 8 now consumes grandfathered unscoped query
+  fingerprints one-to-one and follows builder variables when `.from(...)`, the
+  database operation, and its tenant predicate are split across same-scope
+  assignments. Documentation and regressions cover duplicate legacy
+  fingerprints and pre-operation builder splits. **Why:** Set membership could
+  grandfather unlimited new duplicates, while discarding an operation-free
+  `.from(...)` statement could miss a later unscoped `.select()`. **Deployment
+  impact:** PR security analysis only; application runtime and environment
+  activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`, and
+  `git diff --check`.
+- **What changed:** Octopus Rule 8 now models complete queries in the trusted
+  base and current head, including multiline predicates and later
+  query-variable assignments. New or newly unscoped surviving queries fail;
+  unchanged legacy unscoped operations remain grandfathered, and fully deleted
+  queries are ignored. Known JavaScript utility constructors such as
+  `Array.from()` are excluded as query boundaries without restricting dynamic
+  Supabase table arguments. Documentation and regressions cover every reviewed
+  case. **Why:** Source-line proximity could miss distant or multiline predicate
+  deletion, reject valid later assignments, or block removal of an entire safe
+  query. **Deployment impact:** PR security analysis only; application runtime
+  and environment activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, `npm run check`, and
+  `git diff --check`.
+- **What changed:** The Octopus Rule 8 deletion regression now models a pure
+  predicate-line deletion from a valid automatic-semicolon-insertion query
+  chain, with no compensating added line. **Why:** The fixture must prove the
+  deletion anchor itself triggers re-evaluation. **Deployment impact:** Test
+  evidence only; the gate implementation and application runtime are unchanged.
+  **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`.
+- **What changed:** Octopus Rule 8 now re-evaluates tenant query chains touched
+  by additions or deletions and binds each `brand_id`/`organization_id`
+  predicate to its individual database chain. The Rule 8 documentation now
+  states those change-aware and per-chain semantics, and regression fixtures
+  cover deleted tenant predicates and adjacent scoped/unscoped queries.
+  **Why:** A deleted predicate was invisible to the added-line scanner, and a
+  nearby scoped query could incorrectly satisfy a separate unscoped operation.
+  **Deployment impact:** PR security analysis only; application runtime,
+  routing, providers, and environment activation are unchanged. **Verification:** Run
+  `npx vitest run tests/scripts/octopus-runbook.test.mjs`, the embedded Bash
+  syntax test, `npm run typecheck`, `npm run build`, and `git diff --check`.
 
 ### Changed
 - Replaced Greptile with Octopus as the AI code review tool (self-hosted). Greptile removed
@@ -129,6 +649,139 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **What changed:** Routed all six marketing free-trial calls to action to the
+  staff workspace signup page and added an exact six-link end-to-end inventory
+  check for every link.
+  **Why:** The visible trial buttons previously jumped to pricing or used empty
+  placeholder links, preventing prospective winery teams from starting
+  signup. **Deployment impact:** Marketing navigation only; authentication,
+  billing, application data, provider activation, routing rules, and headers
+  are unchanged. **Verification:** Run the focused Phase 1 CTA test,
+  `npm run check`, `npm run qa:e2e`, and confirm the links at desktop and
+  375px widths open `/app/signup`.
+
+- **What changed:** Made the horizontally scrollable CSV import preview
+  keyboard-focusable, gave it an accessible label, and added focus plus
+  axe-core regression coverage after preview generation. **Why:** Keyboard
+  users could not reach or scroll wide valid and invalid CSV previews, and
+  axe-core reported `scrollable-region-focusable` at desktop and 375px.
+  **Deployment impact:** Staff import presentation only; CSV parsing, mapping,
+  validation, commit behavior, APIs, provider activation, routing, and headers
+  are unchanged. **Verification:** Run the focused Commerce7 import test,
+  `npm run check`, `npm run qa:e2e`, and verify the preview at 1440px and 375px
+  in the Jeff - Pro Chrome profile.
+
+- **What changed:** Increased every visible desktop marketing-header link and
+  button to at least a 44px target height and added a source regression that
+  preserves the target CSS for links and buttons. **Why:** The
+  navigation links measured 34–42px tall in the Jeff - Pro Chrome profile,
+  below the repository's required 44×44px interaction target. **Deployment
+  impact:** Static marketing header spacing only; navigation destinations,
+  authentication, application data, provider activation, routing, and headers
+  are unchanged. **Verification:** Run the focused Phase 1 desktop-header
+  target test, `npm run check`, `npm run qa:e2e`, and inspect the header at
+  1440px and 375px in Jeff - Pro Chrome.
+
+- **What changed:** Added the trained model's AUC-ROC score to the churn
+  intelligence metric grid and extended the Phase 4 browser regression to
+  require its label and formatted value. **Why:** The API already supplied
+  `aucRoc`, but the staff UI exposed only accuracy, leaving model-ranking
+  quality invisible. **Deployment impact:** Churn intelligence presentation
+  only; scoring, training, A/B validation, alerts, APIs, provider activation,
+  routing, and headers are unchanged. **Verification:** Run the focused Phase
+  4 churn-intelligence test, `npm run check`, `npm run qa:e2e`, and inspect the
+  metric at 1440px and 375px in Jeff - Pro Chrome.
+
+- **What changed:** Restricted brand creation and editing controls to Owner and
+  Admin sessions while preserving read access and brand switching for Manager
+  and Staff roles, with a Phase 5 manager regression. **Why:** Managers could
+  discover and open `Add brand`, `Create brand`, and `Edit` mutation controls
+  even though brand administration is owner/admin-only. **Deployment impact:**
+  Staff brand-management presentation only; server authorization, brand data,
+  billing, providers, routing, and headers are unchanged. **Verification:** Run
+  the focused manager role-gating test, `npm run check`, `npm run qa:e2e`, and
+  inspect Owner and Manager sessions at 1440px and 375px in Jeff - Pro Chrome.
+
+- **What changed:** Applied a validated custom member-portal title to the
+  browser document while the branded member surface is mounted, restored the
+  prior title on provider cleanup without recapturing the custom title during
+  branding refreshes, and added a verified-host browser regression that also
+  checks the title after SPA navigation back to staff login.
+  **Why:** Custom branding appeared in the wordmark but left the browser and
+  assistive document context generically titled `Vinifera Club Management`.
+  **Deployment impact:** Member-portal document metadata only; staff titles,
+  branding validation, member data, APIs, provider activation, routing, and
+  headers are unchanged. **Verification:** Run the focused verified-host
+  branding test, `npm run check`, `npm run qa:e2e`, and inspect the custom
+  title at 1440px and 375px in Jeff - Pro Chrome.
+
+- **What changed:** Added each managed brand's portal-domain status to its
+  portfolio card and extended the Phase 5 brand workflow regression for
+  pending-validation and unconfigured states. **Why:** Non-default brand cards
+  exposed name and member count but no status, leaving staff unable to
+  distinguish activation readiness. **Deployment impact:** Staff brand-card
+  presentation only; brand domains, SSL, billing, APIs, provider activation,
+  routing, and headers are unchanged. **Verification:** Run the focused
+  all-brand workflow test, `npm run check`, `npm run qa:e2e`, and inspect both
+  status states at 1440px and 375px in Jeff - Pro Chrome.
+
+- **What changed:** Made `FormFeedback` return no DOM node for null or empty
+  messages while preserving alert/status semantics for real feedback, with
+  focused component coverage. The existing live-region spacing is now reserved
+  by its wrapper rather than by the feedback child, preserving the stable page
+  geometry while the child is absent. **Why:** Empty feedback created a blank
+  assertive live region that could announce meaningless updates to assistive
+  technology, while removing its layout footprint pushed the loyalty tablet
+  surface above the CLS budget. Dashboard and Team success feedback retain
+  persistent outer polite live regions so text inserted later is announced.
+  **Deployment impact:** Shared form-feedback presentation only; submissions,
+  APIs, provider activation, routing, and headers are unchanged.
+  **Verification:** Run the focused FormFeedback tests, the repeated
+  loyalty/tablet Playwright performance case, `npm run check`,
+  `npm run qa:e2e`, and inspect empty/error/success states in Jeff - Pro Chrome.
+
+- **What changed:** Exposed the visible `LoadingScreen` label as a polite
+  `role="status"` and moved the busy state to its sibling progress mark so the
+  busy subtree cannot defer the announcement, with focused component coverage.
+  **Why:** The loading label was visible but lacked a
+  status semantic, so assistive technology could miss the initial application
+  state. **Deployment impact:** Shared loading-screen semantics only; session
+  checks, APIs, provider activation, routing, and headers are unchanged.
+  **Verification:** Run the focused LoadingScreen test, `npm run check`,
+  `npm run qa:e2e`, and inspect staff/member loading states in Jeff - Pro
+  Chrome.
+
+- **What changed:** Added the exact staff-workspace skip link, a focusable
+  `main` target, visible-on-focus styling above the mobile update banner, an
+  explicit card-surface background, and a mobile keyboard regression.
+  **Why:** Every authenticated staff route omitted the accessibility sweep's
+  required `Skip to main content` bypass control. **Deployment impact:** Staff
+  shell markup and styling only; navigation, APIs, hosted data, providers,
+  routes, and activation gates are unchanged. **Verification:** Run
+  `npm run check`, `npm run qa:e2e`, and confirm the skip link can be focused
+  and activated at 375px and 1440px.
+
+- **What changed:** Added a three-pixel, high-visibility keyboard focus ring
+  for every interactive marketing control and for focusable application
+  regions such as dashboard notices, analytics data regions, and the member
+  ledger; only application regions receive a forced outer contrast ring so
+  later component shadows cannot hide focus without replacing standard-control
+  shadows; added source-contract tests for both surfaces. **Why:** The
+  accessibility sweep found absent landing focus indicators and one-pixel
+  browser-default outlines on focusable application regions. **Deployment
+  impact:** CSS focus presentation only; APIs, navigation, hosted data,
+  providers, routes, and activation gates are unchanged. **Verification:** Run
+  `npm run check`, `npm run qa:e2e`, and measure focused controls at 375px and
+  1440px.
+
+- **What changed:** Increased the mobile staff brand-context select text to
+  16px and added a 375px computed-style regression. **Why:** The responsive
+  sweep found 11px select text on every authenticated staff route, which can
+  trigger automatic zoom in iOS form controls and violates the mobile input
+  criterion. **Deployment impact:** Mobile staff-header typography only;
+  brand selection behavior, APIs, hosted data, providers, routes, and
+  activation gates are unchanged. **Verification:** Run `npm run check`,
+  `npm run qa:e2e`, and measure the select at 375px, 412px, and 430px.
 - **What changed:** Daily portal-login recording now stores the real occurrence
   timestamp. A same-member, same-day retry accepts only the database's exact
   activity-idempotency conflict, verifies the existing organization-, brand-,

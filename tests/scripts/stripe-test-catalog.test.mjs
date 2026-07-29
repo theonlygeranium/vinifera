@@ -491,8 +491,12 @@ describe("Stripe test catalog workflow source", () => {
     expect(workflow).toContain("contents: read");
     expect(workflow).toContain("deployments: none");
     expect(workflow).toContain("cancel-in-progress: false");
-    expect(workflow).toContain('[[ "$GITHUB_REF" == "refs/heads/main" ]]');
-    expect(workflow).toContain('"$(git rev-parse origin/main)"');
+    expect(workflow).toContain('[[ "$GITHUB_REF" == "refs/heads/staging" ]]');
+    expect(workflow).toContain('"$(git rev-parse origin/staging)"');
+    expect(workflow).not.toContain(
+      '[[ "$GITHUB_REF" == "refs/heads/main" ]]',
+    );
+    expect(workflow).not.toContain('"$(git rev-parse origin/main)"');
     expect(workflow).toContain("persist-credentials: false");
     expect(workflow).not.toMatch(/uses:\s+[^#\n]+@(main|master|v[0-9]+)(\s|$)/);
     expect(workflow.match(/secrets\.STRIPE_SECRET_KEY/g)).toHaveLength(1);

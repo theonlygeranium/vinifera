@@ -70,15 +70,39 @@ a {
 
 button:focus-visible,
 a:focus-visible,
-input:focus-visible {
+input:focus-visible,
+summary:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
+}
+
+[tabindex]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--text) !important;
 }
 
 a {
   color: var(--wine);
   font-weight: 600;
   text-underline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 1300;
+  top: 8px;
+  left: 8px;
+  min-height: 44px;
+  padding: 11px 16px;
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(calc(-100% - 16px));
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
 }
 
 h1,
@@ -1469,7 +1493,7 @@ table caption {
   gap: 8px;
 }
 
-.staff-live-region:not(:empty) {
+.staff-live-region {
   margin-bottom: 14px;
 }
 
@@ -6587,7 +6611,7 @@ select:focus-visible {
     width: 132px;
     max-width: 132px;
     padding-left: 8px;
-    font-size: 11px;
+    font-size: 16px;
   }
 
   .integration-health {

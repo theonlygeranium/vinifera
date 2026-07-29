@@ -230,6 +230,11 @@ export function ChurnIntelligencePage() {
               <small>{intelligence.state.data.model?.algorithm ?? "Validation pending"}</small>
             </article>
             <article className="metric-card">
+              <span>AUC-ROC</span>
+              <strong>{percent(intelligence.state.data.model?.metrics.aucRoc)}</strong>
+              <small>Held-out ranking quality</small>
+            </article>
+            <article className="metric-card">
               <span>A/B sample</span>
               <strong>{intelligence.state.data.abTest?.sampleSize.toLocaleString() ?? "—"}</strong>
               <small>Observed outcome records</small>

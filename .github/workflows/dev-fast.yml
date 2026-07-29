@@ -1,0 +1,381 @@
+name: Development fast validation
+
+on:
+  pull_request:
+    branches: [dev]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  push:
+    branches-ignore: [dev, staging, main]
+  workflow_dispatch:
+
+concurrency:
+  group: vinifera-dev-fast-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: read
+
+jobs:
+  classify:
+    name: Classify development change
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      classification_succeeded: ${{ steps.policy.outputs.classification_succeeded }}
+      lane: ${{ steps.policy.outputs.lane }}
+      reason: ${{ steps.policy.outputs.reason }}
+      base_sha: ${{ steps.policy.outputs.base_sha }}
+      head_sha: ${{ steps.policy.outputs.head_sha }}
+      paths_json: ${{ steps.policy.outputs.paths_json }}
+      focused_tests_json: ${{ steps.policy.outputs.focused_tests_json }}
+    steps:
+      - name: Check out exact development head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Classify exact base and head
+        id: policy
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base_sha="$PR_BASE_SHA"
+            head_sha="$PR_HEAD_SHA"
+            git fetch --no-tags --depth=1 origin "$base_sha"
+          else
+            head_sha="$EVENT_HEAD_SHA"
+            git fetch --no-tags origin dev
+            base_sha=$(git merge-base origin/dev "$head_sha")
+          fi
+
+          BASE_SHA="$base_sha" HEAD_SHA="$head_sha" node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
+          import {
+            classifyDeliveryChange,
+            readChangedRecords,
+            selectFocusedTests,
+          } from "./.github/scripts/delivery-policy.mjs";
+
+          let result;
+          try {
+            const records = readChangedRecords(
+              process.env.BASE_SHA,
+              process.env.HEAD_SHA,
+            );
+            result = classifyDeliveryChange(records);
+          } catch (error) {
+            result = {
+              classificationSucceeded: false,
+              lane: "invalid",
+              reason: `classifier_exception: ${error.message}`,
+              paths: [],
+            };
+          }
+          const focusedTests = selectFocusedTests(result.paths, result.lane);
+          appendFileSync(process.env.GITHUB_OUTPUT, [
+            `classification_succeeded=${result.classificationSucceeded}`,
+            `lane=${result.lane}`,
+            `reason=${result.reason.replaceAll(/[\r\n]+/g, " ")}`,
+            `base_sha=${process.env.BASE_SHA}`,
+            `head_sha=${process.env.HEAD_SHA}`,
+            `paths_json=${JSON.stringify(result.paths)}`,
+            `focused_tests_json=${JSON.stringify(focusedTests)}`,
+            "",
+          ].join("\n"));
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            "## Development delivery classification",
+            "",
+            `- Exact base: \`${process.env.BASE_SHA}\``,
+            `- Exact head: \`${process.env.HEAD_SHA}\``,
+            `- Classification: \`${result.lane}\``,
+            `- Reason: \`${result.reason}\``,
+            `- Paths: ${result.paths.map((path) => `\`${path}\``).join(", ") || "(none)"}`,
+            "",
+          ].join("\n"));
+          NODE
+
+  docs:
+    name: Fast documentation validation
+    needs: classify
+    if: needs.classify.outputs.classification_succeeded == 'true' && needs.classify.outputs.lane == 'docs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch exact base
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
+
+      - name: Use repository Node.js pin and lockfile cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate documentation, policy, whitespace, and credentials
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+        run: |
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          node --test .github/scripts/delivery-policy.policy.mjs
+          node --input-type=module <<'NODE'
+          import {
+            scanDiffForSecrets,
+            validateDocumentationChange,
+          } from "./.github/scripts/docs-ci-policy.mjs";
+          validateDocumentationChange({
+            baseSha: process.env.BASE_SHA,
+            headSha: process.env.HEAD_SHA,
+          });
+          scanDiffForSecrets({
+            baseSha: process.env.BASE_SHA,
+            headSha: process.env.HEAD_SHA,
+          });
+          NODE
+
+  fast_checks:
+    name: Fast type, build, and focused tests
+    needs: classify
+    if: >-
+      needs.classify.outputs.classification_succeeded == 'true' &&
+      (needs.classify.outputs.lane == 'routine' || needs.classify.outputs.lane == 'high-risk')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch exact base
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
+
+      - name: Use repository Node.js pin and lockfile cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate policy, whitespace, and credentials
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+        run: |
+          node --test .github/scripts/delivery-policy.policy.mjs
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          node --input-type=module <<'NODE'
+          import { scanDiffForSecrets } from "./.github/scripts/docs-ci-policy.mjs";
+          scanDiffForSecrets({
+            baseSha: process.env.BASE_SHA,
+            headSha: process.env.HEAD_SHA,
+          });
+          NODE
+
+      - name: Generate and validate Worker types
+        run: |
+          npm run cf-typegen
+          npm run qa:worker-types
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Build production web and Worker bundles
+        run: |
+          npm run build
+          npm run build:worker
+
+      - name: Run classifier-selected focused tests
+        env:
+          FOCUSED_TESTS_JSON: ${{ needs.classify.outputs.focused_tests_json }}
+        run: |
+          mapfile -t focused_tests < <(jq -r '.[]' <<<"$FOCUSED_TESTS_JSON")
+          if (( ${#focused_tests[@]} == 0 )); then
+            echo "::error::The classifier selected no focused tests."
+            exit 1
+          fi
+          npx vitest run "${focused_tests[@]}"
+
+  smoke:
+    name: Browser smoke
+    needs: classify
+    if: >-
+      needs.classify.outputs.classification_succeeded == 'true' &&
+      (needs.classify.outputs.lane == 'routine' || needs.classify.outputs.lane == 'high-risk')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          persist-credentials: false
+
+      - name: Use repository Node.js pin and lockfile cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies and Chromium
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run application and accessibility smoke
+        run: npx playwright test tests/e2e/smoke.spec.ts
+
+  preview_evidence:
+    name: Cloudflare preview evidence
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Publish available immutable and branch preview URLs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          branch_slug=$(tr '[:upper:]' '[:lower:]' <<<"$HEAD_REF" \
+            | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+          deadline=$(( $(date +%s) + 150 ))
+          check_name="missing"
+          summary=""
+          conclusion="missing"
+          while (( $(date +%s) <= deadline )); do
+            checks=$(curl --fail-with-body --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPOSITORY/commits/$HEAD_SHA/check-runs?per_page=100")
+            matched_check=$(jq -c \
+              '([.check_runs[] |
+                 select(.app.slug == "cloudflare-workers-and-pages") |
+                 select(.name == "Cloudflare Pages: vinifera-dev")] |
+                sort_by(.started_at) | last) //
+               ([.check_runs[] |
+                 select(.app.slug == "cloudflare-workers-and-pages") |
+                 select(.name == "Cloudflare Pages: vinifera")] |
+                sort_by(.started_at) | last) // {}' \
+              <<<"$checks")
+            check_name=$(jq -r '.name // "missing"' <<<"$matched_check")
+            conclusion=$(jq -r '.conclusion // "missing"' <<<"$matched_check")
+            summary=$(jq -r '.output.summary // ""' <<<"$matched_check")
+            if [[ "$conclusion" != "missing" && "$conclusion" != "null" ]]; then
+              break
+            fi
+            sleep 10
+          done
+          project_name=${check_name#Cloudflare Pages: }
+          if [[ "$project_name" == "missing" ]]; then
+            project_name="vinifera"
+          fi
+          branch_alias="https://${branch_slug}.${project_name}.pages.dev"
+          urls=$(grep -Eo "https://[^'\\\"<[:space:]]+\\.pages\\.dev" <<<"$summary" \
+            | sort -u || true)
+          {
+            echo "## Cloudflare Pages preview evidence"
+            echo
+            echo "- Exact head: \`$HEAD_SHA\`"
+            echo "- Cloudflare check: \`$check_name\`"
+            echo "- Cloudflare check conclusion: \`$conclusion\`"
+            if [[ -n "$urls" ]]; then
+              while read -r url; do
+                if [[ "$url" == "$branch_alias" ]]; then
+                  echo "- Branch alias: [$url]($url)"
+                else
+                  echo "- Immutable deployment URL: [$url]($url)"
+                fi
+              done <<<"$urls"
+            else
+              echo "- Branch alias (expected when published): [$branch_alias]($branch_alias)"
+              echo "- Immutable deployment URL: not yet published by the Cloudflare check."
+            fi
+            echo
+            echo "Preview publication is independent of this validation workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$conclusion" != "success" ]]; then
+            echo "::warning::Cloudflare preview evidence is not successful yet; Dev fast checks remains independent."
+          fi
+
+  aggregate:
+    name: ${{ github.event_name == 'pull_request' && 'Dev fast checks' || 'Dev branch fast checks' }}
+    if: always()
+    needs: [classify, docs, fast_checks, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out aggregate policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Enforce selected fast lane
+        env:
+          CLASSIFICATION_SUCCEEDED: ${{ needs.classify.outputs.classification_succeeded }}
+          LANE: ${{ needs.classify.outputs.lane }}
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          DOCS_RESULT: ${{ needs.docs.result }}
+          CHECKS_RESULT: ${{ needs.fast_checks.result }}
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
+          import { evaluateFastAggregate } from "./.github/scripts/delivery-policy.mjs";
+          const state = {
+            classificationSucceeded: process.env.CLASSIFICATION_SUCCEEDED === "true",
+            lane: process.env.LANE,
+            classifyResult: process.env.CLASSIFY_RESULT,
+            docsResult: process.env.DOCS_RESULT,
+            checksResult: process.env.CHECKS_RESULT,
+            smokeResult: process.env.SMOKE_RESULT,
+          };
+          const result = evaluateFastAggregate(state);
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            "## Required fast validation",
+            "",
+            `- Lane: \`${state.lane || "missing"}\``,
+            `- Classifier: \`${state.classifyResult}\``,
+            `- Documentation: \`${state.docsResult}\``,
+            `- Type/build/focused tests: \`${state.checksResult}\``,
+            `- Browser smoke: \`${state.smokeResult}\``,
+            `- Policy: \`${result.passed ? "pass" : "fail"}\` (${result.reason})`,
+            "",
+          ].join("\n"));
+          if (!result.passed) {
+            throw new Error(`Dev fast checks failed closed: ${result.reason}`);
+          }
+          NODE

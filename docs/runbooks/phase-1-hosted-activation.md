@@ -21,8 +21,8 @@ project and Stripe test mode.
 ## 1. Provision the isolated staging boundary
 
 1. Create a GitHub `staging` environment.
-   Require repository-owner review and restrict it to `main`; self-review is
-   currently permitted until a second authorized reviewer exists.
+   Require repository-owner review and restrict it to `staging`; self-review
+   is currently permitted until a second authorized reviewer exists.
 2. Add the staging Supabase project reference and Cloudflare account ID to the
    repository's reviewed, hashed target allowlist. Do not reuse a production
    target.
@@ -110,7 +110,7 @@ No email body, token, callback code, or cookie value belongs in the evidence.
 After the database gate passes:
 
 1. Enable `STAGING_CLOUDFLARE_DEPLOY_ENABLED`.
-2. Dispatch the staging workflow from the verified `main` commit.
+2. Dispatch the staging workflow from the verified `staging` commit.
 3. Require the deployment to target only `vinifera-staging` on `workers.dev`.
 4. Verify `/api/health` returns JSON with service `vinifera-api`.
 5. Verify `/api/health/configuration` reports the Phase 1 database and Auth
@@ -127,11 +127,11 @@ Use a Stripe test secret only. Keep `LIVE_BILLING_ENABLED=false` or unset.
 
 ### 5.1 Probe and authorize the test account
 
-Dispatch `Stripe test catalog activation` from the exact `main` commit:
+Dispatch `Stripe test catalog activation` from the exact `staging` commit:
 
 ```text
 operation: probe
-git_sha: <full main SHA>
+git_sha: <full staging SHA>
 confirmation: PROBE VINIFERA STRIPE TEST ACCOUNT
 ```
 
@@ -155,7 +155,7 @@ From the reviewed allowlist commit, dispatch:
 
 ```text
 operation: bootstrap
-git_sha: <full reviewed main SHA>
+git_sha: <full reviewed staging SHA>
 confirmation: BOOTSTRAP VINIFERA STRIPE TEST CATALOG
 ```
 

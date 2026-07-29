@@ -1,303 +1,293 @@
-# Agent Workflow Guide
+# Agent workflow guide
 
-> Canonical instructions for AI coding agents (WRITER Agent, Codex, Claude Code) working on vinifera.
-> Every change to this repo must flow through a pull request — never commit directly to `main`.
+> Canonical instructions for AI coding agents working on Vinifera. Agent
+> feature work targets `dev`; deliberate promotion PRs advance
+> `dev → staging → main`.
 
-## Why PRs are required
+## Delivery model
 
-- **Greptile** runs an automated AI code review on every PR, flagging logic errors, security issues, type safety problems, and architectural concerns before code reaches production.
-- **CI checks** (type, test, build, Cloudflare Pages) must pass before merging.
-- Every merge to `main` triggers a live deploy. Unreviewed code = unreviewed production.
+Vinifera uses two validation speeds:
 
-The credential-independent CI database contract runs the Phase 1-5 embedded
-PostgreSQL gates and `npm run qa:local-seed`. The latter replays every
-migration and applies the deterministic seed twice in PGlite, so local-fixture
-idempotence is enforced without Docker or hosted credentials.
+| Path | Required aggregate | Purpose |
+| --- | --- | --- |
+| Feature branch or PR to `dev` | `Dev fast checks` | Fast, actionable routine-development feedback |
+| `dev → staging`, `staging → main`, protected release, or explicit full run | `Type, test, build, and package` | Release-quality, exact-comparison evidence |
 
-## Mandatory commit contract
+The fail-closed classifier may add focused high-risk validation to a feature
+PR. It must not silently turn every routine change into the complete release
+pipeline. A Cloudflare Pages branch preview runs independently of the slow
+release jobs.
 
-Every commit must update `CHANGELOG.md` and use the repository's Conventional
-Commits format:
+Octopus is required for `dev → staging` promotion and protected/high-risk
+review. It is available by explicit request for a high-risk feature PR, but it
+does not run automatically for every routine `dev` PR. CodeRabbit is optional
+and non-blocking while unavailable or rate-limited.
+
+The credential-independent database contract and complete Playwright/axe suite
+remain part of full validation. Staging and production provider evidence
+remains separate from source and CI evidence.
+
+## Logical delivery and commit contract
+
+The logical unit is one coherent PR or promotion:
+
+1. Work only on a named isolated feature branch. Preserve unrelated checkout
+   and worktree changes.
+2. WIP commits are allowed on that branch. Do not use them on `dev`, `staging`,
+   or `main`.
+3. Add one consolidated `[Unreleased]` changelog entry for the logical PR or
+   promotion. Do not duplicate it for every WIP or repair commit.
+4. Before merge to `dev`, squash the branch into one logical commit.
+5. The final commit must use Conventional Commits, explain what changed and
+   why, and record the exact verification actually run:
 
 ```text
 <type>(<scope>): <short summary>
 
-<body explaining what changed and why>
+<body explaining what changed, why, and deployment/activation impact>
 
-Verification: <exact checks run>
+Verification: <exact commands and results>
 ```
 
-The prompt templates below inherit this contract. A branch or PR is not ready
-for review if its commits omit the body, `Verification:` section, or changelog
-entry.
+Create an ADR only for an architectural, security, deployment,
+database-policy, or governance decision. Routine implementation,
+documentation, tests, dependency maintenance, and defect repair do not require
+an ADR unless they change one of those boundaries.
 
----
+## Evidence vocabulary
 
-## Mandatory PR ownership and completion loop
+Use these terms precisely in PRs, reports, and notifications:
 
-> After opening a PR, remain responsible for it until completion. Wait for
-> Greptile and all required CI checks. Inspect every unresolved review thread;
-> fix actionable findings, reply with an evidence-based disposition for
-> non-actionable or intentionally deferred findings, and resolve threads only
-> after verification. Rerun affected tests and wait for Greptile/CI after every
-> push. Repeat until all required checks pass and zero unresolved review
-> threads remain. Merge only when explicitly authorized; otherwise leave the
-> PR ready and report its status.
+- **Local validation:** named commands passed in one local checkout.
+- **Fast GitHub validation:** `Dev fast checks` passed for the exact feature
+  head. This is not promotion evidence.
+- **Full GitHub validation:** `Type, test, build, and package` passed for the
+  exact head/base comparison.
+- **Preview deployment:** a feature artifact is reachable at a branch alias and
+  immutable Pages URL. This is not stable-dev or staging evidence.
+- **Staging deployment:** the stable staging URL reports the expected
+  environment marker, build SHA/artifact digest, and API health contract.
+- **Production deployment:** the live URL reports the reviewed artifact and
+  required health contract after protected release.
+- **Hosted/provider readiness:** a provider-specific redacted runtime contract
+  passes against its authorized target.
 
-**“Remain responsible” is a terminal condition.** Opening a PR, posting a
-status update, or starting a review does not end the task. The owning agent must
-use an available wait or monitoring mechanism and continue until one of these
-terminal states is reached:
+An HTTP 200, landing page, Pages deployment, local fixture, or passing CI does
+not by itself prove a hosted application, database, provider, or production
+state.
 
-1. every required check passes, the branch is current with `main`, zero
-   unresolved review threads remain, and the PR has either been merged under
-   explicit authority or left ready and unmerged; or
-2. a documented human-review boundary, repeated-failure limit, unavailable
-   external dependency, or missing authority prevents safe progress.
+## Fast development loop
 
-### Operational loop
+1. Branch from the current `origin/dev` using `feat/`, `fix/`, `refactor/`,
+   `docs/`, `chore/`, or `ci/`.
+2. Implement and locally validate the affected surface. Visual work includes a
+   375-pixel check and accessibility coverage.
+3. Add the consolidated changelog entry and update relevant documentation.
+4. Push the feature branch and open a PR targeting `dev`.
+5. Confirm the classifier reports the exact base/head and selects the expected
+   documentation, routine, or high-risk path.
+6. Wait for `Dev fast checks` and the independent exact-head feature-preview
+   check (`Cloudflare Pages: vinifera` in the current project configuration).
+   Record the branch alias and immutable URL from the Cloudflare check. The
+   informational `Cloudflare preview evidence` job discovers those URLs without
+   delaying the fast aggregate; it does not replace the Cloudflare check. The
+   post-merge `dev` deployment separately emits
+   `Cloudflare Pages: vinifera-dev`.
+7. Inspect every available review thread. Fix substantive findings, test the
+   repair, and push a consolidated update. CodeRabbit absence or rate limiting
+   is non-blocking.
+8. When the exact head is ready, squash-merge to `dev` only under applicable
+   owner authority and neither emergency label. Verify the resulting `dev`
+   commit and stable-dev deployment evidence that applies.
 
-1. Open the PR with an accurate description, verification evidence, and
-   activation impact. Apply `codex-managed` when the recurring monitor should
-   provide a safety net.
-2. Wait for Greptile, `Type, test, build, and package`,
-   `Block direct push to main`, and the relevant preview/deployment checks.
-   Do not repeatedly report unchanged pending state.
-3. Fetch thread-aware review state. Flat comment lists are insufficient; use
-   Greptile MCP when available or GitHub GraphQL review threads so
-   `isResolved`, outdated state, file, and line anchors are visible.
-4. Classify every unresolved finding:
-   - **Actionable:** implement the smallest correct in-scope fix, update
-     required documentation and tests, and record verification.
-   - **Non-actionable:** reply with concrete code, test, specification, or
-     runtime evidence explaining why no change is required.
-   - **Intentionally deferred:** reply with the reason, owner or prerequisite,
-     and durable tracking location. Deferral cannot be used to conceal a
-     required acceptance criterion.
-   - **Human review required:** stop mutation and escalate under the boundaries
-     below.
-5. Resolve a thread only after the fix or disposition is verified and the
-   evidence-based reply is present. Never resolve merely to satisfy the merge
-   gate.
-6. Rerun the affected tests, update `CHANGELOG.md` in every follow-up commit,
-   push, and wait for fresh Greptile and CI results on the new head.
-7. Repeat until the exact current head is green and zero unresolved review
-   threads remain. Stop after three unsuccessful fix/review cycles or when the
-   same finding reappears; apply `human-review-required` and report the
-   evidence.
-8. Merge only under explicit task-specific human authority or the
-   `codex-auto-merge` label. If merging, verify the resulting `main` commit,
-   post-merge required workflows, Pages/deployment state, and branch cleanup.
-   Otherwise leave the PR ready and report its exact status.
+Routine `dev` work does not wait for full Android assembly, all Phase 1–5
+database suites, complete Playwright/axe, provider probes, or automatic
+Octopus. High-risk classification may add focused tests or an explicit Octopus
+request without weakening the full promotion boundary.
 
-## Human supervision and automation authority
+## Full promotion and release loop
 
-Only the human owner or an authorized maintainer may apply
-`codex-auto-fix` or `codex-auto-merge`. Automation must never grant itself
-either label. Label precedence is fail-closed:
+Do not open or update a `dev → staging` promotion after every `dev` push.
+Start a consolidated promotion only by manual dispatch or an explicitly
+owner-authorized workflow.
 
-| Label | Authority |
-|---|---|
-| `codex-managed` | Include the PR in recurring monitoring. When `human-review-required` is absent, authorizes read-only inspection plus evidence-based replies and resolution of verified non-actionable or intentionally deferred threads. |
-| `codex-auto-fix` | With `codex-managed`, authorizes localized low-risk fixes on the existing branch, required documentation/tests, commits, and pushes. |
-| `codex-auto-merge` | With `codex-managed`, provides explicit merge authority only after every merge gate passes. |
-| `human-review-required` | Stop all automated mutation, preserve evidence, and notify the human owner. Automation may apply but must not remove this label. |
-| `do-not-merge` | Absolute merge prohibition. Automation must not remove or override it. |
+1. Capture the exact promotion PR, `dev` head SHA, `staging` base SHA, and
+   attempt timestamp.
+2. Require `Type, test, build, and package` for that exact comparison. Missing,
+   failed, cancelled, stale, timed-out, ambiguous, or incorrectly skipped
+   evidence fails closed.
+3. Require an Octopus result bound to the exact PR, head SHA, base ref, base
+   SHA, and current attempt. Inspect and disposition all blocking threads.
+4. Record CodeRabbit if available, but do not require it.
+5. Run the authorized staging provider preflight and final recheck. A credential
+   or HTTP 200 alone is not readiness.
+6. Revalidate head, base, checks, statuses, reviews, and threads immediately
+   before any authorized merge.
+7. After staging deploys, verify its environment marker, build SHA/digest,
+   API/browser/accessibility smoke, and critical error state at
+   `https://vinifera-staging.edstratumlabs.ai`.
+8. Production promotion remains protected and owner-authorized. Require the
+   configured soak, identical reviewed artifact or content digest, and
+   protected release confirmations. A known rollback target means a separately
+   verified prior reviewed release SHA plus a matching previously sole-active
+   Worker version; the current `main` SHA remains the workflow-control
+   authorization.
+9. After production deploys, verify the live marker/SHA, API health, primary
+   journey, authentication boundary, accessibility smoke, and critical
+   console/server state. Use the automatic rollback path if a critical check
+   fails.
 
-`do-not-merge` overrides all merge authority but does not prevent authorized
-review dispositions or low-risk fixes. `human-review-required` overrides
-`codex-managed` and both auto labels: the monitor may perform read-only
-inspection and notify the human owner, but it must not reply, resolve, fix,
-push, or merge. Missing `codex-auto-fix` means the recurring monitor may
-inspect and report but must not change code. Missing `codex-auto-merge` means a
-ready PR remains unmerged.
+Android lint/debug/minified release is required when Android, Capacitor,
+mobile, shared mobile-web, native configuration, or relevant dependencies
+change; when full mobile validation is explicitly requested; and during the
+scheduled drift run. Non-mobile promotions validate the shared mobile web
+bundle without unnecessary native assembly.
 
-The recurring monitor must stop and request human review for architecture,
-authentication, authorization, database migrations, billing, production
-configuration, provider activation, security tradeoffs, destructive actions,
-or materially expanded scope. These boundaries apply even when
-`codex-auto-fix` is present.
+## Review trust boundary
 
-### Recurring repository monitor
+The privileged Octopus workflow runs only reviewed default-branch bridge code.
+Pull-request branch names, SHAs, and diffs are untrusted data. PR head code must
+never be checked out or executed in a job that can read repository, GitHub,
+Octopus, Cloudflare, provider, or deployment credentials. Forks and invalid
+branch names fail before any secret-bearing job starts.
 
-The external Codex automation runs every 15 minutes as a safety net for an
-owner task that ended, crashed, or lost context. It follows this contract:
+The Octopus publisher has read-only PR metadata plus status-write permission.
+Promotion evidence jobs have read-only Actions, checks, PR, and status
+permissions so they can bind results to the exact trusted run and job without
+granting repository-content mutation.
 
-1. List open PRs in `theonlygeranium/vinifera` labeled `codex-managed`.
-2. Inspect draft state, mergeability, whether the head is current with its
-   base, required checks, Greptile, blocking labels, and thread-aware
-   unresolved review state.
-3. If `human-review-required` is already present, make no mutation, notify the
-   human owner with the current evidence, and stop. If checks are pending, exit
-   without reporting unchanged state.
-4. If a low-risk actionable finding exists and `codex-auto-fix` is present,
-   use an isolated worktree for the existing branch, implement and document the
-   fix, run affected tests, commit, push, and restart the review loop.
-5. For verified non-actionable or intentionally deferred feedback, post the
-   evidence-based disposition and resolve only after verification.
-6. Apply `human-review-required` and stop on a human-review boundary, the third
-   unsuccessful cycle, or a repeated finding.
-7. Merge only when `codex-auto-merge` is present, the PR is not a draft, its
-   head is current with the base, every required check passes, zero unresolved
-   threads remain, and neither blocking label exists.
-8. After merge, verify the post-merge `main` workflows and report the final
-   commit and deployment state.
+To request Octopus for a high-risk feature PR, an owner or trusted automation
+applies `octopus-review-required`. Removing that label or closing the PR
+cancels an in-flight attempt; the bridge rechecks that the PR is open and the
+label is still present before publishing. Promotion PRs are selected by their
+exact `dev → staging` or `staging → main` comparison and do not need the label.
 
----
+Collect all current Octopus findings before editing. Batch confirmed fixes,
+add regression coverage, run focused validation, push once, and request one
+fresh exact-head review. Continue for no more than two repair/re-review cycles.
+Optional or speculative suggestions do not justify churn. Escalate a repeated
+substantive blocker after the bounded loop.
 
-## Agent prompt templates
+Resolve a review thread only after the fix or evidence-based disposition is
+present and verified. Flat comments are insufficient; use thread-aware review
+state so resolution, outdated state, file, and line anchors are visible.
 
-Copy and paste the appropriate template when starting a coding task.
+## Authority and emergency controls
 
-### WRITER Agent (general feature or fix)
+Standing owner authorization may cover routine reversible fixes, trusted
+labels, squash merges to `dev`, validated promotions, protected deployments,
+verification, branch cleanup, and automatic rollback. It does not bypass
+branch protection, target allowlists, environment scoping, exact confirmations,
+privacy, exact-revision evidence, or rollback requirements.
 
-```
-Work on the vinifera repository (theonlygeranium/vinifera).
+The `Promote dev to staging` workflow must be dispatched from the current
+`main` revision. Every job that reads the event-producing PAT or staging probe
+credentials uses the `promotion-control` environment. Before enabling that
+workflow, configure the environment to allow only `main`, prevent self-review
+where supported, and move the promotion PAT and staging probe credentials into
+that environment. A feature-ref dispatch must remain unable to read them.
 
-Branching rules (mandatory):
-- NEVER commit directly to main.
-- Create a branch named: <type>/<short-description>
-  Branch types: feat/, fix/, chore/, refactor/, docs/, ci/
-  Example: feat/churn-model-v2, fix/null-member-id
-- Commit all changes to that branch using the mandatory commit contract above,
-  including the `CHANGELOG.md` update.
-- Open a pull request targeting main with:
-    Title: <type>: <concise description>
-    Body: what changed, why, and any risks or assumptions
-- Follow the mandatory PR ownership and completion loop in
-  docs/agent-workflow.md. Opening the PR is not completion.
-- This template grants no merge authority. Leave the all-green,
-  zero-unresolved-thread PR ready and unmerged unless the task explicitly
-  authorizes merge.
+| Label | Effect |
+| --- | --- |
+| `codex-managed` | Includes the PR in recurring monitoring |
+| `codex-auto-fix` | Authorizes scoped reversible repairs under the standing contract |
+| `codex-auto-merge` | Authorizes merge only after the applicable exact-revision gate |
+| `human-review-required` | Pauses all automated mutation, replies, resolutions, merges, promotions, and deployments |
+| `do-not-merge` | Absolute merge prohibition |
 
-Task:
-[DESCRIBE YOUR TASK HERE]
-```
+Automation may apply either emergency label when risk is detected. Only the
+human owner or an explicitly trusted owner workflow may remove it. Neither
+control may be bypassed by standing authorization.
 
----
+Apply `human-review-required`, preserve evidence, and notify the owner for:
 
-### Codex (terminal / CLI)
+- destructive or irreversible database operations;
+- credible production data-loss or corruption risk;
+- unresolved authentication, authorization, tenant-isolation, or
+  secret-exposure risk;
+- real-money billing activation or an unapproved charge/refund decision;
+- legal or regulatory judgment;
+- suspected credential compromise requiring rotation;
+- DNS/domain ownership changes that could disconnect production;
+- materially different product choices with no documented preference;
+- repeated substantive failure after the bounded repair attempts; or
+- external failure without a safe fallback or rollback.
 
-```
+Routine reversible implementation, accessibility fixes, test repairs,
+dependency maintenance, CI corrections, additive forward migrations, normal
+protected deployments, and automatic rollbacks do not by themselves require
+escalation.
+
+## Stable environment and privacy contract
+
+| Surface | Stable URL | Boundary |
+| --- | --- | --- |
+| Dev | `https://vinifera-dev.edstratumlabs.ai` | Development credentials and non-production data only |
+| Staging | `https://vinifera-staging.edstratumlabs.ai` | Isolated staging credentials, sandboxes, and non-production data |
+| Live | `https://vinifera-live.edstratumlabs.ai` | Protected production credentials and reviewed production artifact |
+| Marketing/rollback | `https://vinifera.edstratumlabs.ai` | Retained public static baseline |
+
+Feature branch aliases and immutable Cloudflare Pages deployment URLs supplement
+the stable dev URL. Protect dev and preview surfaces with Cloudflare Access
+whenever they expose non-public application or test data. Never use production
+credentials or production customer data in development, staging, previews,
+fixtures, review prompts, source, or logs.
+
+## Agent prompt template
+
+```text
 Repository: theonlygeranium/vinifera
 
-Branching rules (mandatory):
-- Do not push to main directly.
-- Create a branch: git checkout -b <type>/<short-description>
-- Commit changes to that branch only using the mandatory commit contract
-  above, including the `CHANGELOG.md` update.
-- Push and open a PR with: gh pr create --base main --title "<type>: <description>" --body "<summary>"
-- Follow the mandatory PR ownership and completion loop in
-  docs/agent-workflow.md. Opening the PR is not completion.
-- This template grants no merge authority. Leave the all-green,
-  zero-unresolved-thread PR ready and unmerged unless the task explicitly
-  authorizes merge.
+- Read AGENTS.md, CONTINUITY_BRIEF.md, and the relevant specification/ADRs.
+- Preserve unrelated changes and work from an isolated branch based on current
+  origin/dev.
+- Target dev with one logical PR and one consolidated CHANGELOG entry.
+- WIP commits may exist only on the feature branch. Before merge to dev, squash
+  to one Conventional Commit with a body and exact Verification line.
+- Run affected local checks, then own the exact-head Dev fast checks and Pages
+  preview loop. Request Octopus only when high-risk or explicitly directed.
+- CodeRabbit is optional while unavailable or rate-limited.
+- Do not initiate an environment promotion unless this task explicitly
+  includes that protected phase.
+- Respect human-review-required and do-not-merge without exception.
 
 Task:
-[DESCRIBE YOUR TASK HERE]
+[DESCRIBE THE TASK]
 ```
 
----
+## Readiness checklists
 
-### Claude Code (with Greptile MCP + /greploop)
+### Feature PR to `dev`
 
-```
-Repository: theonlygeranium/vinifera
+- [ ] Exact base/head classifier evidence is present
+- [ ] `Dev fast checks` passes on the current head
+- [ ] Branch alias and immutable preview URL are recorded when applicable
+- [ ] Affected local tests and 375-pixel/accessibility checks are recorded
+- [ ] Available substantive findings are dispositioned
+- [ ] Zero blocking unresolved threads remain
+- [ ] One consolidated changelog entry is present
+- [ ] Final squash commit body and exact verification are prepared
+- [ ] No secrets or production data are in the diff or preview
+- [ ] Neither emergency label is present
 
-Branching rules (mandatory):
-- Never commit to main directly.
-- Create a branch: git checkout -b <type>/<short-description>
-- Commit using the mandatory commit contract above, including the
-  `CHANGELOG.md` update, then push and open a PR targeting main.
-- After the PR is open, run /greploop to let Greptile review,
-  fix all flagged issues, and iterate until the PR reaches 5/5 confidence.
-- Follow the mandatory PR ownership and completion loop in
-  docs/agent-workflow.md. Opening the PR is not completion.
-- This template grants no merge authority. Leave the all-green,
-  zero-unresolved-thread PR ready and unmerged unless the task explicitly
-  authorizes merge.
+### Promotion or protected release
 
-Task:
-[DESCRIBE YOUR TASK HERE]
-```
-
----
-
-## Branch naming conventions
-
-| Prefix | Use for |
-|---|---|
-| `feat/` | New features |
-| `fix/` | Bug fixes |
-| `chore/` | Maintenance, deps, config |
-| `refactor/` | Code restructuring without behavior change |
-| `docs/` | Documentation only |
-| `ci/` | GitHub Actions / workflow changes |
-| `greptile/` | Greptile-specific review triggers (reserved) |
-
----
-
-## Checklist before merging any PR
-
-- [ ] The PR is not a draft and its head is current with `main`
-- [ ] Greptile Review check is green on the current head
-- [ ] `Block direct push to main` check passes on the pull request
-- [ ] `Type, test, build, and package` CI check passes
-- [ ] Cloudflare Pages preview deploy succeeded
-- [ ] Every review thread has an evidence-backed disposition
-- [ ] Zero unresolved review threads remain
-- [ ] Affected tests were rerun after the final push
-- [ ] PR description explains what changed and why
-- [ ] Commits include a body, `Verification:` section, and `CHANGELOG.md`
-- [ ] No secrets, API keys, or credentials in the diff
-- [ ] Merge authority is explicit and neither `human-review-required` nor
-      `do-not-merge` is present
-
----
+- [ ] Exact PR/head/base/attempt evidence is present
+- [ ] `Type, test, build, and package` passes for that comparison
+- [ ] Octopus passes for that exact comparison and attempt
+- [ ] Required skipped jobs cannot be mistaken for success
+- [ ] Zero blocking unresolved threads remain
+- [ ] Authorized provider readiness probes pass with redacted evidence
+- [ ] Staging marker, SHA/digest, health, and soak requirements pass
+- [ ] Production artifact identity and rollback target are known
+- [ ] Protected environment and exact confirmation requirements are satisfied
+- [ ] Neither emergency label is present
 
 ## Direct-push enforcement
 
-The `Block direct push to main` job runs in two modes:
-
-- On every pull request targeting `main`, it runs its focused policy tests and
-  supplies the required branch-protection check.
-- After every push to `main`, it queries GitHub's associated-pull-request API
-  for the pushed commit. It passes only when the pushed SHA is the recorded
-  merge result of a closed, merged pull request targeting this repository's
-  `main` branch. This supports GitHub merge commits, squash merges, and rebase
-  merges without trusting commit-message text. The verifier follows at most
-  ten same-origin API pages. Every GitHub request has a five-second
-  `AbortController` deadline. A timeout consumes the current evidence attempt
-  and uses the same ten-second backoff as an indexing miss; the verifier makes
-  at most three evidence attempts over two backoff intervals and still fails
-  closed if exact evidence never appears.
-
-This timing policy prevents a stalled GitHub response body from consuming the
-entire job without producing a governance decision, while retaining bounded
-retries for normal associated-PR indexing delay. Its operational impact is
-limited to the GitHub Actions evidence check: application, Pages, Worker,
-database, provider, and activation behavior are unchanged. The focused policy
-suite verifies timeout recovery, a timeout during JSON parsing, three-timeout
-exhaustion, exact backoff counts, and fail-closed behavior (12/12).
-
-The push-side run is a fail-closed audit after Git has already updated the
-branch. Branch protection must require pull requests, require the
-`Block direct push to main` check, and disallow administrator bypass to prevent
-the update before it occurs. It must also use strict required checks so the PR
-head is current with `main`, require `Greptile Review` and
-`Type, test, build, and package`, and require conversation resolution. Do not
-treat a green post-push workflow by itself as branch-protection evidence.
-
----
-
-## Greptile quick reference
-
-| Action | How |
-|---|---|
-| Trigger a review on any PR | Comment `@greptileai` on the PR |
-| Ask a follow-up question | Reply `@greptileai <your question>` on any comment |
-| Request alternative fix | Reply `@greptileai suggest another approach` |
-| Train Greptile to ignore a pattern | 👎 react on a comment + brief explanation |
-| Reinforce a pattern | 👍 react on a comment |
-| Auto-fix all comments (Claude Code) | Run `/check-pr` in Claude Code terminal |
-| Iterate to 5/5 score (Claude Code) | Run `/greploop` in Claude Code terminal |
+`Block direct push to main` remains the protected production-branch context.
+It verifies GitHub associated-PR evidence for the exact resulting commit and
+fails closed on forced updates, missing evidence, API errors, or timeout. The
+push-side audit is not a substitute for branch protection: `main` must require
+PR-only updates, strict required checks, conversation resolution,
+administrator enforcement, and no force push.
