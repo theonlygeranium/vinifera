@@ -71,12 +71,15 @@
 - Restored the flat `.octopus/runbooks/pr-quality-gates.ocl` layout that
   Octopus Config as Code actually loads, aligned contract tests to that
   canonical path, and changed the trusted bridge from snapshot endpoints to
-  Git-ref-qualified preview/template/run-v1 endpoints. The prior nested path
-  passed local tests but left `PR Quality Gates` absent from every live
-  Git-backed runbook list. **Deployment impact:** Repairs trusted high-risk PR
-  review once the bridge and flat OCL reach the default branch; no application
-  deployment, provider activation, DNS change, database mutation, or
-  production action occurs.
+  Git-ref-qualified preview/template/run-v1 endpoints. Config-as-Code now
+  defines the five non-secret exact-PR inputs as required prompts while the
+  GitHub PAT remains solely in Octopus's database-backed sensitive variable
+  store; GitHub Actions no longer injects it into the bridge process or submits
+  it as form data. The prior nested path passed local tests but left `PR
+  Quality Gates` absent from every live Git-backed runbook list. **Deployment
+  impact:** Repairs trusted high-risk PR review once the bridge, prompts, and
+  flat OCL reach the default branch; no application deployment, provider
+  activation, DNS change, database mutation, or production action occurs.
 - Review-gate permissions and Worker rollback authorization now fail closed
   without becoming unusable: Octopus can read PR metadata, promotion and
   production gates can read exact Actions run/job evidence, and rollback keeps

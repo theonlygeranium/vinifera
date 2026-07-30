@@ -140,7 +140,8 @@ This source branch makes it canonical and implements its first bounded unit:
   accepts reserved environment branch names;
 - the Octopus bridge now uses Git-ref-qualified Config-as-Code routes and the
   flat `runbooks/pr-quality-gates.ocl` resource layout that the live project
-  enumerates; and
+  enumerates; five non-secret exact-PR inputs are prompted from Git-backed
+  variables while `GitHubPAT` remains database-backed and sensitive; and
 - review repairs are collected and batched for no more than two substantive
   repair/re-review cycles.
 

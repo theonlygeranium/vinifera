@@ -85,3 +85,53 @@ variable "LiteLLMEndpoint" {
 variable "LiteLLMModel" {
     value "writer/palmyra-x5" {}
 }
+
+variable "PRBranch" {
+    value {
+        prompt {
+            description = "Exact same-repository pull-request head branch."
+            label = "PRBranch"
+            required = true
+        }
+    }
+}
+
+variable "PRNumber" {
+    value {
+        prompt {
+            description = "GitHub pull-request number to review."
+            label = "PRNumber"
+            required = true
+        }
+    }
+}
+
+variable "ExpectedBaseRef" {
+    value {
+        prompt {
+            description = "Expected pull-request base branch."
+            label = "ExpectedBaseRef"
+            required = true
+        }
+    }
+}
+
+variable "ExpectedBaseSHA" {
+    value {
+        prompt {
+            description = "Exact expected pull-request base commit."
+            label = "ExpectedBaseSHA"
+            required = true
+        }
+    }
+}
+
+variable "ExpectedHeadSHA" {
+    value {
+        prompt {
+            description = "Exact expected pull-request head commit."
+            label = "ExpectedHeadSHA"
+            required = true
+        }
+    }
+}
