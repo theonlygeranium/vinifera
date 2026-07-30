@@ -251,6 +251,29 @@ Missing, queued, in-progress, neutral, skipped, cancelled, stale, or failed
 required evidence blocks the mutation. More than 100 review threads fails
 closed for explicit inspection. High-risk work is never auto-merged.
 
+### Development deployment and selected release candidate
+
+A merge to `dev` produces an unprivileged exact deployment candidate.
+Credentialed mutation runs only from trusted default-branch controller code
+and remains disabled unless `DEV_WORKER_DEPLOY_ENABLED=true` and the protected
+`development-worker` environment is fully provisioned. The controller builds
+once without secrets, verifies the immutable manifest before upload, deploys
+one Cloudflare Worker version, proves the real runtime and tenant boundaries,
+and rolls back automatically on failure.
+
+One maintained `dev → staging` PR is the selected release candidate.
+`Package selected release candidate` requires its exact full CI and Octopus
+evidence and packages one Worker/assets artifact. Staging and production must
+consume the reviewed artifact without rebuilding. The protected production
+entry point summarizes commit, changes, risk, validation, staging evidence,
+artifact digest, target, rollback, and caveats before the one `production`
+environment approval.
+
+`Delivery Control Center` is one maintained GitHub issue. It reports
+implemented, CI-verified, deployed, and live-verified states separately,
+current revision and candidate, automatic repairs, health, blockers, next
+automatic action, and the owner action. It does not send external messages.
+
 Apply `human-review-required`, preserve evidence, and notify the owner for:
 
 - destructive or irreversible database operations;

@@ -1,0 +1,135 @@
+name: Package selected release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact current dev SHA selected for release certification
+        required: true
+        type: string
+      promotion_pr_number:
+        description: Open dev-to-staging promotion PR number
+        required: true
+        type: string
+
+permissions:
+  checks: read
+  contents: read
+  pull-requests: read
+  statuses: read
+
+concurrency:
+  group: vinifera-selected-release-candidate
+  cancel-in-progress: true
+
+jobs:
+  authorize:
+    name: Authorize selected certified candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      candidate_sha: ${{ steps.verify.outputs.candidate_sha }}
+    steps:
+      - name: Check out trusted default-branch controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Verify current dev, promotion PR, and certification
+        id: verify
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.promotion_pr_number }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUN_REF" != "refs/heads/main" \
+            || ! "$CANDIDATE_SHA" =~ ^[0-9a-fA-F]{40}$ \
+            || ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Release packaging requires current main control and exact inputs."
+            exit 1
+          fi
+          current_dev=$(gh api "repos/$REPOSITORY/git/ref/heads/dev" --jq '.object.sha')
+          pr=$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")
+          if [[ "$current_dev" != "$CANDIDATE_SHA" \
+            || "$(jq -r '.state' <<<"$pr")" != "open" \
+            || "$(jq -r '.base.ref' <<<"$pr")" != "staging" \
+            || "$(jq -r '.head.ref' <<<"$pr")" != "dev" \
+            || "$(jq -r '.head.sha' <<<"$pr")" != "$CANDIDATE_SHA" \
+            || "$(jq -r '.head.repo.full_name' <<<"$pr")" != "$REPOSITORY" ]]; then
+            echo "::error::Selected candidate is not the one live dev-to-staging PR."
+            exit 1
+          fi
+          if jq -e \
+            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+            <<<"$pr" >/dev/null; then
+            echo "::error::An emergency label blocks release packaging."
+            exit 1
+          fi
+          checks=$(gh api --paginate \
+            "repos/$REPOSITORY/commits/$CANDIDATE_SHA/check-runs?per_page=100" |
+            jq -s '[.[].check_runs[]]')
+          statuses=$(gh api --paginate \
+            "repos/$REPOSITORY/commits/$CANDIDATE_SHA/statuses?per_page=100" |
+            jq -s 'add')
+          full=$(jq -r '
+            [.[] | select(.name == "Type, test, build, and package")] |
+            sort_by(.started_at // .created_at) | last |
+            if .status == "completed" and .conclusion == "success"
+            then "success" else "failure" end
+          ' <<<"$checks")
+          octopus=$(jq -r '
+            [.[] | select(.context == "Octopus PR Quality Gates")] |
+            sort_by(.created_at) | last |
+            if .state == "success" then "success" else "failure" end
+          ' <<<"$statuses")
+          if [[ "$full" != "success" || "$octopus" != "success" ]]; then
+            echo "::error::Selected candidate lacks exact full CI or Octopus certification."
+            exit 1
+          fi
+          echo "candidate_sha=$CANDIDATE_SHA" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Build immutable release candidate once
+    needs: authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact certified source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.authorize.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Use repository Node.js pin and lockfile cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Build one Worker and static-assets package
+        env:
+          CANDIDATE_SHA: ${{ needs.authorize.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+          mkdir -p release/worker release/dist
+          npx wrangler deploy --env staging --dry-run --outdir release/worker
+          cp -R dist/. release/dist/
+          node scripts/release-artifact.mjs create \
+            "$CANDIDATE_SHA" \
+            release/worker/worker.js \
+            release/dist \
+            release/manifest.json
+
+      - name: Retain selected immutable artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-candidate-${{ needs.authorize.outputs.candidate_sha }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 30

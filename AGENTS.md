@@ -182,9 +182,14 @@ workflows under `.github/workflows/`:
 |--------------|---------|-------------|
 | `dev-fast.yml` | Ready PR candidates to `dev`, non-draft new heads, exact manual candidates | Fail-closed candidate/path classification, focused validation, path-aware browser smoke, preview packaging, the PR-only `Dev fast checks` aggregate, and distinct manual evidence |
 | `frontend-preview-publish.yml` | Completed development candidate workflow, trusted default-branch code | Revalidates the exact same-repository PR and publishes frontend assets or policy-approved non-applicability as `Frontend preview evidence` without executing PR-head code beside credentials |
+| `dev-automerge.yml` | Completed fast CI, preview dispatch, or authorized PR metadata change | Trusted default-branch exact-SHA squash merge for eligible low/medium-risk `dev` candidates |
+| `dev-deployment-candidate.yml` | Protected `dev` push | Records one unprivileged exact development deployment candidate |
+| `dev-worker-release.yml` | Completed development deployment candidate | Prepared-disabled trusted immutable Worker upload, deploy, hosted verification, evidence, and automatic rollback |
+| `release-candidate-package.yml` | Manual, trusted default branch | Packages one exact fully certified `dev → staging` candidate without environment rebuild |
+| `delivery-control-center.yml` | Scheduled, manual | Maintains one exception-oriented delivery status issue |
 | `ci.yml` | Promotion PRs, staging/main, manual, nightly | Full release validation, selective/nightly Android, and the exact `Type, test, build, and package` aggregate |
 | `direct-push-guard.yml` | Push to main | Enforces no direct commits reach main without a merged PR; fails closed |
-| `hosted-readiness.yml` | Manual, protected | Apply Supabase migrations + deploy isolated `vinifera-staging` Worker (credential-gated) |
+| `hosted-readiness.yml` | Manual, protected | Read-only credential and hosted-target readiness report; performs no migration or deployment |
 | `octopus-main-deploy.yml` | Push to main, manual | Reconcile trusted Octopus configuration after the default-branch bootstrap |
 | `octopus-pr-quality-gates.yml` | Promotion PRs and explicit high-risk review requests | Validate same-repository PR source and publish the trusted Octopus result for the exact PR/head/base/attempt |
 | `octopus-security-audit.yml` | Scheduled, manual | Run the trusted Octopus security audit |

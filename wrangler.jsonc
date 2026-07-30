@@ -75,6 +75,64 @@
     ]
   },
   "env": {
+    "development": {
+      "name": "vinifera-development",
+      "workers_dev": true,
+      "preview_urls": true,
+      "assets": {
+        "directory": "./dist",
+        "binding": "ASSETS",
+        "html_handling": "none",
+        "not_found_handling": "none",
+        "run_worker_first": true
+      },
+      "ratelimits": [
+        {
+          "name": "AUTH_RATE_LIMITER",
+          "namespace_id": "10401",
+          "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "API_RATE_LIMITER",
+          "namespace_id": "10402",
+          "simple": { "limit": 100, "period": 60 }
+        },
+        {
+          "name": "WEBHOOK_RATE_LIMITER",
+          "namespace_id": "10403",
+          "simple": { "limit": 500, "period": 60 }
+        },
+        {
+          "name": "ADMIN_RATE_LIMITER",
+          "namespace_id": "10404",
+          "simple": { "limit": 30, "period": 60 }
+        }
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "INTEGRATION_WAKE_QUEUE",
+            "queue": "vinifera-integration-wake-development"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "vinifera-integration-wake-development",
+            "max_batch_size": 10,
+            "max_batch_timeout": 1,
+            "max_retries": 3,
+            "max_concurrency": 5,
+            "retry_delay": 5
+          }
+        ]
+      },
+      "vars": {
+        "APP_ENV": "development",
+        "APP_ORIGIN": "https://vinifera-dev.edstratumlabs.ai",
+        "ALLOWED_ORIGINS": "https://vinifera-dev.edstratumlabs.ai,capacitor://localhost,https://localhost",
+        "LIVE_BILLING_ENABLED": "false"
+      }
+    },
     "production": {
       "name": "vinifera-production",
       "workers_dev": true,

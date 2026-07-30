@@ -1,0 +1,41 @@
+name: Development deployment candidate
+
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vinifera-development-candidate
+  cancel-in-progress: true
+
+jobs:
+  candidate:
+    name: Record exact development merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Validate exact protected dev revision
+        env:
+          CANDIDATE_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$CANDIDATE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::Development candidate is not an exact commit."
+            exit 1
+          fi
+          current_dev=$(gh api "repos/$REPOSITORY/git/ref/heads/dev" --jq '.object.sha')
+          if [[ "$current_dev" != "$CANDIDATE_SHA" ]]; then
+            echo "::error::Development candidate is no longer current."
+            exit 1
+          fi
+          {
+            echo "## Development deployment candidate"
+            echo
+            echo "- Exact dev revision: \`$CANDIDATE_SHA\`"
+            echo "- Mutation authority: none"
+          } >> "$GITHUB_STEP_SUMMARY"

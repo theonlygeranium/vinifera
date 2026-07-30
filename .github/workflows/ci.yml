@@ -21,6 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -598,6 +599,9 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Validate staging activation and sandbox credentials
         id: activation
@@ -672,7 +676,79 @@ jobs:
           node-version: 22.22.0
           cache: npm
 
-      - name: Verify all configured staging provider targets
+      - name: Resolve the selected immutable release package
+        if: steps.activation.outputs.ready == 'true'
+        id: release-package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          STAGING_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          prs=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$REPOSITORY/commits/$STAGING_SHA/pulls")
+          promotion_pr=$(jq -c \
+            --arg repository "$REPOSITORY" \
+            --arg staging_sha "$STAGING_SHA" \
+            '[.[] |
+              select(.merged_at != null) |
+              select(.base.ref == "staging") |
+              select(.head.ref == "dev") |
+              select(.merge_commit_sha == $staging_sha) |
+              select(.head.repo.full_name == $repository)] |
+             sort_by(.merged_at) | last // empty' <<<"$prs")
+          candidate_sha=$(jq -r '.head.sha // empty' <<<"$promotion_pr")
+          if [[ ! "$candidate_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Staging must come from one merged dev-to-staging candidate."
+            exit 1
+          fi
+          if jq -e \
+            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+            <<<"$promotion_pr" >/dev/null; then
+            echo "::error::The staging candidate is paused by an emergency label."
+            exit 1
+          fi
+          git fetch --no-tags origin "$candidate_sha"
+          if [[ "$(git rev-parse "$candidate_sha^{tree}")" \
+            != "$(git rev-parse "$STAGING_SHA^{tree}")" ]]; then
+            echo "::error::Staging tree differs from the selected dev candidate."
+            exit 1
+          fi
+          package_run_id=""
+          while IFS= read -r run_id; do
+            artifacts=$(gh api \
+              "repos/$REPOSITORY/actions/runs/$run_id/artifacts?per_page=100")
+            if jq -e \
+              --arg name "release-candidate-$candidate_sha" \
+              'any(.artifacts[]?; .name == $name and .expired == false)' \
+              <<<"$artifacts" >/dev/null; then
+              package_run_id="$run_id"
+              break
+            fi
+          done < <(
+            gh api --paginate \
+              "repos/$REPOSITORY/actions/workflows/release-candidate-package.yml/runs?branch=main&event=workflow_dispatch&status=success&per_page=100" \
+              | jq -r '.workflow_runs[] | .id'
+          )
+          if [[ ! "$package_run_id" =~ ^[0-9]+$ ]]; then
+            echo "::error::No successful immutable package exists for this candidate."
+            exit 1
+          fi
+          printf 'candidate_sha=%s\nrun_id=%s\n' \
+            "$candidate_sha" "$package_run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download the exact selected release package
+        if: steps.activation.outputs.ready == 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.release-package.outputs.run_id }}
+          name: release-candidate-${{ steps.release-package.outputs.candidate_sha }}
+          path: release
+
+      - name: Verify all configured staging provider targets and artifact
         if: steps.activation.outputs.ready == 'true'
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.STAGING_CLOUDFLARE_ACCOUNT_ID }}
@@ -682,6 +758,12 @@ jobs:
           FCM_PROJECT_ID: ${{ secrets.STAGING_FCM_PROJECT_ID }}
           SHIPCOMPLIANT_BASE_URL: ${{ secrets.STAGING_SHIPCOMPLIANT_BASE_URL }}
         run: |
+          npm ci
+          node scripts/release-artifact.mjs verify \
+            "${{ steps.release-package.outputs.candidate_sha }}" \
+            release/worker/worker.js \
+            release/dist \
+            release/manifest.json
           node scripts/verify-staging-activation.mjs verify-target cloudflare
           if [[ -n "$CLOUDFLARE_ZONE_ID" ]]; then
             node scripts/verify-staging-activation.mjs verify-target cloudflare-zone
@@ -693,12 +775,6 @@ jobs:
           if [[ "$COMPLIANCE_PROVIDER" == "shipcompliant" ]]; then
             node scripts/verify-staging-activation.mjs verify-target shipcompliant-origin
           fi
-
-      - name: Install and build
-        if: steps.activation.outputs.ready == 'true'
-        run: |
-          npm ci
-          npm run build
 
       - name: Verify configured Stripe test catalog semantics
         if: steps.activation.outputs.ready == 'true'
@@ -885,20 +961,63 @@ jobs:
         run: |
           deploy_log="$RUNNER_TEMP/vinifera-staging-deploy.log"
           if [[ "${{ steps.worker-secrets.outputs.count }}" -gt 0 ]]; then
-            npx wrangler deploy --env staging --secrets-file "${{ steps.worker-secrets.outputs.path }}" | tee "$deploy_log"
+            npx wrangler versions upload release/worker/worker.js \
+              --no-bundle --assets release/dist --env staging --strict \
+              --secrets-file "${{ steps.worker-secrets.outputs.path }}" \
+              --var "APP_ENV:staging" \
+              --var "APP_ORIGIN:https://vinifera-staging.edstratumlabs.ai" \
+              --var "ALLOWED_ORIGINS:https://vinifera-staging.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+              --var "LIVE_BILLING_ENABLED:false" \
+              --var "DEPLOY_GIT_SHA:${{ steps.release-package.outputs.candidate_sha }}" \
+              --tag "candidate-${{ steps.release-package.outputs.candidate_sha }}" \
+              --message "vinifera staging candidate=${{ steps.release-package.outputs.candidate_sha }} artifact_sha256=$(jq -r '.artifactSha256' release/manifest.json)" \
+              | tee "$deploy_log"
           else
-            npx wrangler deploy --env staging | tee "$deploy_log"
+            npx wrangler versions upload release/worker/worker.js \
+              --no-bundle --assets release/dist --env staging --strict \
+              --var "APP_ENV:staging" \
+              --var "APP_ORIGIN:https://vinifera-staging.edstratumlabs.ai" \
+              --var "ALLOWED_ORIGINS:https://vinifera-staging.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+              --var "LIVE_BILLING_ENABLED:false" \
+              --var "DEPLOY_GIT_SHA:${{ steps.release-package.outputs.candidate_sha }}" \
+              --tag "candidate-${{ steps.release-package.outputs.candidate_sha }}" \
+              --message "vinifera staging candidate=${{ steps.release-package.outputs.candidate_sha }} artifact_sha256=$(jq -r '.artifactSha256' release/manifest.json)" \
+              | tee "$deploy_log"
           fi
-          staging_url="$(grep -Eo 'https://[^[:space:]]+\.workers\.dev' "$deploy_log" | tail -1)"
-          if [[ -z "$staging_url" ]]; then
-            echo "::error::Wrangler did not report an isolated workers.dev staging URL."
+          node scripts/production-release.mjs parse-upload \
+            "$deploy_log" "$RUNNER_TEMP/staging-upload.json"
+          version_id=$(jq -r '.versionId' "$RUNNER_TEMP/staging-upload.json")
+          staging_url=$(jq -r '.previewUrl' "$RUNNER_TEMP/staging-upload.json")
+          if [[ ! "$version_id" =~ ^[0-9a-f-]{36}$ ]]; then
+            echo "::error::Wrangler did not report the immutable staging version."
             exit 1
           fi
+          if [[ -z "$staging_url" ]]; then
+            echo "::error::Wrangler did not report an isolated staging preview URL."
+            exit 1
+          fi
+          npx wrangler versions deploy "$version_id@100%" --env staging -y
           node scripts/verify-hosted-runtime.mjs \
             --origin "$staging_url" \
             --output "$RUNNER_TEMP/vinifera-staging-runtime.json"
+          jq -n \
+            --arg artifact_sha256 "$(jq -r '.artifactSha256' release/manifest.json)" \
+            --arg candidate_sha "${{ steps.release-package.outputs.candidate_sha }}" \
+            --arg package_run_id "${{ steps.release-package.outputs.run_id }}" \
+            --arg version_id "$version_id" \
+            '{
+              artifactSha256: $artifact_sha256,
+              candidateSha: $candidate_sha,
+              environment: "staging",
+              liveVerified: true,
+              packageRunId: $package_run_id,
+              versionId: $version_id
+            }' > "$RUNNER_TEMP/vinifera-staging-release.json"
           echo "### Staging Worker" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL: $staging_url" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Candidate: ${{ steps.release-package.outputs.candidate_sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact SHA-256: $(jq -r '.artifactSha256' release/manifest.json)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Worker version: $version_id" >> "$GITHUB_STEP_SUMMARY"
           echo "- Runtime secrets uploaded with this version: ${{ steps.worker-secrets.outputs.count }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Core app, database, Stripe test billing, security-secret separation, and webhook capabilities: passed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Native hosted pgTAP/RLS gate: passed in the database job" >> "$GITHUB_STEP_SUMMARY"
@@ -916,6 +1035,7 @@ jobs:
           name: staging-runtime-evidence
           path: |
             ${{ runner.temp }}/vinifera-staging-runtime.json
+            ${{ runner.temp }}/vinifera-staging-release.json
             ${{ runner.temp }}/stripe-test-catalog-verification.json
           if-no-files-found: ignore
           retention-days: 14

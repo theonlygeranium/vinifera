@@ -169,6 +169,23 @@ full exact-head/base decision immediately before an exact-SHA squash merge.
 The source is present on `dev`; automatic execution remains inactive until the
 workflow is promoted to the repository default branch.
 
+After an authorized `dev` merge, an unprivileged marker can wake the trusted
+`Development Worker release` controller. The controller is currently
+`prepared_disabled`: it packages one prebuilt Worker/assets artifact, verifies
+its digest before a protected Cloudflare version upload, checks the exact
+runtime revision/environment plus auth/tenant/browser evidence, and
+automatically rolls back failed development verification. Activation requires
+the isolated development Worker, protected scoped credentials, a prior
+rollback version, and two synthetic QA tenants. The Pages prototype is not
+accepted as Worker evidence.
+
+The existing promotion controller maintains one `dev → staging` candidate.
+Full CI and Octopus certify the selected comparison once; the release packager
+then retains one immutable artifact for environment promotion without rebuild.
+Production remains the single protected `Production Worker release` entry and
+requires the reviewed summary, artifact, staging evidence, rollback identity,
+caveats, and environment approval.
+
 ### Routing
 
 | Route | Served By | Content-Type |

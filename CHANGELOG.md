@@ -3,6 +3,33 @@
 ## [Unreleased]
 
 ### Added
+- Prepared protected development deployment and consolidated release control:
+  an unprivileged `dev` merge marker wakes a trusted default-branch controller
+  that remains disabled until the isolated Worker, scoped protected
+  credentials, rollback version, and two synthetic QA tenants are verified.
+  When enabled, it builds one preprocessed Worker/assets package, verifies a
+  deterministic SHA-256 manifest, uploads the same bundle with Wrangler
+  `--no-bundle`, deploys one Cloudflare version, proves exact
+  revision/environment health, configuration readiness, staff authentication,
+  a tenant-scoped member journey, cross-tenant denial, the member-auth
+  boundary, desktop and 375-pixel rendering, and critical browser/server
+  errors, then
+  rolls back automatically on failure. The selected release-candidate
+  packager accepts only the current maintained `dev → staging` PR after full
+  CI and Octopus and retains one immutable artifact. Protected staging
+  resolves and verifies that exact package before a no-bundle version upload;
+  production bootstrap/upload requires the same package run, source tree, and
+  digest rather than rebuilding. The protected production entry now summarizes commit, changes,
+  risk, validation, staging evidence, artifact digest, target, rollback, and
+  caveats before its existing environment approval. One scheduled Delivery
+  Control Center issue separates implemented, CI-verified, deployed, and
+  live-verified state. The 20 pending activation gates are sequenced into
+  private synthetic beta, restricted live winery pilot, and GA without
+  changing any status. **Deployment impact:** Adds a distinct
+  `vinifera-development` Wrangler environment and protected workflow
+  definitions, but hosted mutation is disabled and no Worker version,
+  provider, credential, DNS, database, billing, production, or activation-gate
+  change occurs.
 - Risk-based autonomous delivery to `dev`: added the machine-readable
   `.github/delivery-risk-contract.json`, a pure policy evaluator with contract
   tests, and a trusted default-branch auto-merge workflow. The workflow
