@@ -155,7 +155,8 @@ The implementation contract is `.github/delivery-risk-contract.json`.
 `.github/workflows/dev-automerge.yml` consumes it from a trusted
 default-branch checkout and unions its canonical contexts with live `dev`
 branch-protection contexts. The workflow reacts to the completed fast gate,
-successful frontend-preview status, and relevant PR metadata changes. It
+the successful frontend publisher's exact-identity repository dispatch, and
+relevant PR metadata changes. It
 reclassifies the live diff, rejects forks, stale bases, drafts, high risk,
 emergency labels, missing authority, non-success terminal states, and
 unresolved review threads, then repeats the entire evaluation immediately

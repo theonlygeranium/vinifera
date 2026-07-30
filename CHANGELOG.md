@@ -13,7 +13,10 @@
   threads. It rejects drafts, forks, high/unknown risk, emergency labels,
   missing/pending/skipped/neutral/cancelled/failed evidence, and paginated
   review state, then repeats the complete decision immediately before an
-  exact-SHA squash merge. The GitHub governance snapshot defines reversible
+  exact-SHA squash merge. Successful trusted frontend publication wakes the
+  controller through an exact-identity repository dispatch because ordinary
+  token-created status events do not reliably trigger another workflow. The
+  GitHub governance snapshot defines reversible
   `dev` PR protection and read-only default Actions permissions without
   changing production controls. Trusted merge and preview publishers retain
   their scoped checkout credentials only for authenticated private-repository
