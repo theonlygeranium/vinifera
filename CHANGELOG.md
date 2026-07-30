@@ -84,6 +84,14 @@
   review once the bridge, prompts, and flat OCL reach the default branch; no
   application deployment, provider activation, DNS change, database mutation,
   or production action occurs.
+- Octopus Rule 3 now requires a provider-token boundary and at least 16
+  credential payload characters, so ordinary identifiers such as
+  `pre_shipment` and `store_meta_attribution_touchpoint` no longer fail the
+  full-source scan while realistic `re_`, Stripe, EasyPost, and restricted-key
+  tokens remain blocking. Positive and negative embedded-runbook fixtures
+  cover both paths. **Deployment impact:** High-risk review precision only; no
+  application deployment, provider activation, DNS change, database mutation,
+  or production action occurs.
 - Review-gate permissions and Worker rollback authorization now fail closed
   without becoming unusable: Octopus can read PR metadata, promotion and
   production gates can read exact Actions run/job evidence, and rollback keeps

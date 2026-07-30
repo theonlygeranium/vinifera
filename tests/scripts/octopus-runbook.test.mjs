@@ -235,6 +235,50 @@ describe("Octopus runbook bridge", () => {
     }
   });
 
+  it("does not treat ordinary re_ substrings as provider credentials", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule3-safe-"));
+    try {
+      mkdirSync(join(fixture, "server", "services"), { recursive: true });
+      writeFileSync(
+        join(fixture, "server", "services", "safe.ts"),
+        [
+          'export const event = "pre_shipment";',
+          'export const operation = "store_meta_attribution_touchpoint";',
+          "",
+        ].join("\n"),
+      );
+      initializeGitFixture(fixture);
+      const result = runEmbeddedStep(
+        "rule-3-no-provider-secrets-in-source",
+        fixture,
+      );
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+      expect(result.stdout).toContain("PASS: Rule 3");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a boundary-delimited provider credential", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule3-leak-"));
+    try {
+      mkdirSync(join(fixture, "server", "services"), { recursive: true });
+      writeFileSync(
+        join(fixture, "server", "services", "unsafe.ts"),
+        'export const credential = "re_1234567890abcdefghijkl";\n',
+      );
+      initializeGitFixture(fixture);
+      const result = runEmbeddedStep(
+        "rule-3-no-provider-secrets-in-source",
+        fixture,
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain("FAIL:");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
   it("rejects an unscoped query added to a flat service file", () => {
     const qualityRunbook = readFileSync(
       new URL(
