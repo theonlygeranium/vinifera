@@ -9,6 +9,13 @@
   `2026-07-28-automated-dev-staging-promotion.md`, and
   `2026-07-28-switch-greptile-to-octopus.md`
 
+> **Amended 2026-07-30:** Candidate eligibility, path-aware browser and preview
+> selection, trusted preview publication, and the two-cycle repair limit are
+> defined by
+> `2026-07-30-principal-orchestrator-candidate-delivery.md`. General feature
+> pushes and draft PRs are no longer fast-CI candidates. The exact aggregate
+> names and protected full-validation boundary below remain unchanged.
+
 ## Context
 
 Vinifera applied release-quality validation and two external AI reviewers to
@@ -34,14 +41,13 @@ builds the web application, runs focused tests, checks whitespace and secret
 patterns, and executes a small application/navigation/accessibility browser
 smoke.
 
-The Cloudflare Pages branch preview runs independently and records both its
-branch alias and immutable deployment URL. Preview evidence does not imply
-stable-dev, staging, production, database, or provider readiness.
-Branch protection requires the independent exact-head feature-preview result
-(`Cloudflare Pages: vinifera` in the current project configuration) alongside
-`Dev fast checks`; the informational preview-discovery job is not a substitute
-for Cloudflare's own check. The `dev` branch deployment separately emits
-`Cloudflare Pages: vinifera-dev`.
+Frontend-relevant ready candidates produce an unprivileged Pages artifact.
+Trusted default-branch publication records both the branch alias and immutable
+deployment URL as exact-head `Frontend preview evidence`; other surfaces
+receive explicit policy-approved non-applicability. Preview evidence does not
+imply stable-dev, staging, production, database, or provider readiness. The
+existing direct Pages integration remains only as a bootstrap fallback until
+the trusted publisher is live on the default branch and verified.
 
 Promotion and release comparisons retain the exact required
 `Type, test, build, and package` aggregate. The full lane validates the exact

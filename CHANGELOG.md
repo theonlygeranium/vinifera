@@ -1,12 +1,31 @@
-## [Unreleased] - 2026-07-30
-### Fixed
-- Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure so CI policy tests can locate the embedded quality-gate runbook (22 test failures on `main`).
-
 # Changelog
 
 ## [Unreleased]
 
 ### Added
+- Principal-orchestrator candidate delivery governance and fast CI: ready
+  pull-request heads now drive the exact `Dev fast checks` candidate while
+  feature pushes and draft WIP avoid expensive cloud validation. The
+  fail-closed classifier reports exact base/head, low/medium/high risk,
+  execution surface, focused tests, browser applicability, and preview
+  applicability; unknown paths are invalid and authority-high-risk candidates
+  require the trusted Octopus boundary. Backend, workflow, test-only, and documentation candidates
+  avoid Playwright unless a risk rule requires it. Every candidate records an
+  always-present `Feature preview decision`. Frontend candidates retain a
+  prebuilt Pages artifact for a trusted default-branch publisher that
+  revalidates the live same-repository PR and exact revisions before publishing
+  `Frontend preview evidence`, without executing PR-head code beside
+  Cloudflare credentials or accepting reserved environment branch names.
+  Manual exact-candidate evidence uses a distinct check context and must be
+  dispatched from the candidate head. Governance, prior delivery ADRs, the PR template,
+  continuity, workflow documentation, and contract tests now use one logical
+  PR changelog entry, batched findings, and at most two substantive
+  repair/re-review cycles. **Deployment impact:** Changes development CI and
+  defines a protected preview-publication transition. The direct Pages
+  integration remains enabled until the trusted publisher reaches `main` and
+  passes frontend/applicability bootstrap proofs. This PR performs no Worker or
+  production deployment, provider activation, DNS change, billing action,
+  credential rotation, hosted-data mutation, or activation-gate completion.
 - Two-speed development and release delivery: added the exact-diff
   `Dev fast checks` lane with focused tests, TypeScript/Worker validation,
   production builds, credential and whitespace checks, a mobile accessibility
@@ -37,6 +56,9 @@
   production resource change.
 
 ### Fixed
+- Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure
+  so CI policy tests can locate the embedded quality-gate runbook (22 test
+  failures on `main`).
 - Review-gate permissions and Worker rollback authorization now fail closed
   without becoming unusable: Octopus can read PR metadata, promotion and
   production gates can read exact Actions run/job evidence, and rollback keeps

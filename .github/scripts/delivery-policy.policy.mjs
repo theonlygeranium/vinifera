@@ -3,9 +3,13 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   classifyDeliveryChange,
+  evaluateCandidateEvent,
   evaluateFastAggregate,
   evaluateFullAggregate,
+  isAuthorityHighRiskPath,
+  isBrowserRelevantPath,
   isHighRiskPath,
+  isPreviewRelevantPath,
   parseNameStatusZ,
   selectFocusedTests,
 } from "./delivery-policy.mjs";
@@ -20,16 +24,106 @@ test("routine frontend changes select the fast routine lane", () => {
   assert.equal(result.classificationSucceeded, true);
   assert.equal(result.lane, "routine");
   assert.equal(result.mobileRequired, false);
+  assert.equal(result.browserRequired, true);
+  assert.equal(result.previewRequired, true);
+  assert.equal(result.surface, "frontend");
+  assert.equal(result.risk, "medium");
 });
 
 test("documentation-only changes select the documentation lane", () => {
-  assert.equal(
-    classifyDeliveryChange([
+  const result = classifyDeliveryChange([
       record("M", "README.md"),
       record("A", "docs/runbooks/fast-ci.md"),
-    ]).lane,
-    "docs",
+    ]);
+  assert.equal(result.lane, "docs");
+  assert.equal(result.risk, "low");
+  assert.equal(result.surface, "docs");
+  assert.equal(result.browserRequired, false);
+  assert.equal(result.previewRequired, false);
+});
+
+test("candidate events distinguish draft WIP from coherent review heads", () => {
+  assert.deepEqual(
+    evaluateCandidateEvent({
+      eventName: "pull_request",
+      action: "opened",
+      draft: true,
+    }),
+    { eligible: false, reason: "draft_not_candidate" },
   );
+  for (const action of [
+    "opened",
+    "synchronize",
+    "reopened",
+    "ready_for_review",
+  ]) {
+    assert.equal(
+      evaluateCandidateEvent({
+        eventName: "pull_request",
+        action,
+        draft: false,
+      }).eligible,
+      true,
+      action,
+    );
+  }
+  assert.equal(
+    evaluateCandidateEvent({
+      eventName: "pull_request",
+      action: "converted_to_draft",
+      draft: true,
+    }).eligible,
+    false,
+  );
+  assert.deepEqual(
+    evaluateCandidateEvent({ eventName: "workflow_dispatch" }),
+    { eligible: true, reason: "manual_exact_candidate" },
+  );
+  assert.equal(
+    evaluateCandidateEvent({ eventName: "push" }).eligible,
+    false,
+  );
+});
+
+test("browser and preview selection are path-aware", () => {
+  for (const path of [
+    "src/client/App.tsx",
+    "public/marketing.js",
+    "web/staff.html",
+    "index.html",
+  ]) {
+    assert.equal(isBrowserRelevantPath(path), true, path);
+    assert.equal(isPreviewRelevantPath(path), true, path);
+  }
+  for (const path of [
+    "server/routes/members.ts",
+    ".github/workflows/ci.yml",
+    "tests/server/app.test.ts",
+    "README.md",
+  ]) {
+    assert.equal(isBrowserRelevantPath(path), false, path);
+    assert.equal(isPreviewRelevantPath(path), false, path);
+  }
+  assert.equal(isBrowserRelevantPath("tests/e2e/smoke.spec.ts"), true);
+  assert.equal(isPreviewRelevantPath("tests/e2e/smoke.spec.ts"), false);
+  assert.equal(isBrowserRelevantPath("playwright.config.ts"), true);
+  assert.equal(isPreviewRelevantPath("playwright.config.ts"), false);
+});
+
+test("backend-only and workflow-only candidates avoid browser and preview work", () => {
+  for (const [path, surface, risk] of [
+    ["server/services/members.ts", "backend", "medium"],
+    [".github/workflows/ci.yml", "workflow", "high"],
+    ["tests/server/app.test.ts", "test", "medium"],
+  ]) {
+    const result = classifyDeliveryChange([record("M", path)]);
+    assert.equal(result.classificationSucceeded, true, path);
+    assert.equal(result.lane, "high-risk", path);
+    assert.equal(result.surface, surface, path);
+    assert.equal(result.risk, risk, path);
+    assert.equal(result.browserRequired, false, path);
+    assert.equal(result.previewRequired, false, path);
+  }
 });
 
 test("minimum mandated security and delivery paths are high-risk", () => {
@@ -52,16 +146,58 @@ test("minimum mandated security and delivery paths are high-risk", () => {
     assert.equal(isHighRiskPath(path), true, path);
     assert.equal(classifyDeliveryChange([record("M", path)]).lane, "high-risk");
   }
+  for (const path of [
+    "server/routes/auth.ts",
+    "server/lib/authorization.ts",
+    "server/services/stripe.ts",
+    "supabase/migrations/999.sql",
+    ".github/workflows/ci.yml",
+    ".octopus/config.yml",
+    "scripts/credential-envelope-rotation.mjs",
+    "scripts/production-release.mjs",
+    "wrangler.jsonc",
+    "package-lock.json",
+  ]) {
+    assert.equal(isAuthorityHighRiskPath(path), true, path);
+    assert.equal(classifyDeliveryChange([record("M", path)]).risk, "high");
+  }
 });
 
-test("unknown paths and deletions fail closed to high-risk", () => {
-  assert.deepEqual(
-    classifyDeliveryChange([record("M", "unknown/new-format.bin")]).lane,
-    "high-risk",
-  );
+test("unknown paths are invalid and deletions fail closed to high-risk", () => {
+  const unknown = classifyDeliveryChange([
+    record("M", "unknown/new-format.bin"),
+  ]);
+  assert.equal(unknown.classificationSucceeded, false);
+  assert.equal(unknown.lane, "invalid");
+  assert.equal(unknown.risk, "high");
+  assert.equal(unknown.surface, "unknown");
   assert.equal(
     classifyDeliveryChange([record("D", "src/client/Old.tsx")]).lane,
     "high-risk",
+  );
+});
+
+test("fast aggregate requires the Octopus boundary for authority-high-risk work", () => {
+  const state = {
+    candidateEligible: true,
+    candidateResult: "success",
+    classificationSucceeded: true,
+    lane: "high-risk",
+    classifyResult: "success",
+    docsResult: "skipped",
+    checksResult: "success",
+    smokeResult: "skipped",
+    previewDecisionResult: "success",
+    browserRequired: false,
+    octopusRequired: true,
+  };
+  assert.deepEqual(evaluateFastAggregate(state), {
+    passed: false,
+    reason: "octopus_boundary_missing",
+  });
+  assert.equal(
+    evaluateFastAggregate({ ...state, octopusBoundarySatisfied: true }).passed,
+    true,
   );
 });
 
@@ -124,6 +260,8 @@ test("fast aggregate accepts only the selected successful lane", () => {
       docsResult: "skipped",
       checksResult: "success",
       smokeResult: "success",
+      previewDecisionResult: "success",
+      browserRequired: true,
     }).passed,
     true,
   );
@@ -135,6 +273,7 @@ test("fast aggregate accepts only the selected successful lane", () => {
       docsResult: "skipped",
       checksResult: "skipped",
       smokeResult: "skipped",
+      previewDecisionResult: "success",
     }).passed,
     false,
   );
@@ -146,6 +285,70 @@ test("fast aggregate accepts only the selected successful lane", () => {
       docsResult: "skipped",
       checksResult: "skipped",
       smokeResult: "skipped",
+      previewDecisionResult: "success",
+    }).passed,
+    false,
+  );
+  assert.equal(
+    evaluateFastAggregate({
+      candidateEligible: true,
+      candidateResult: "success",
+      classificationSucceeded: true,
+      lane: "high-risk",
+      classifyResult: "success",
+      docsResult: "skipped",
+      checksResult: "success",
+      smokeResult: "skipped",
+      previewDecisionResult: "success",
+      browserRequired: false,
+    }).passed,
+    true,
+  );
+  assert.equal(
+    evaluateFastAggregate({
+      candidateEligible: false,
+      candidateResult: "success",
+      classificationSucceeded: false,
+      lane: "",
+      classifyResult: "skipped",
+      docsResult: "skipped",
+      checksResult: "skipped",
+      smokeResult: "skipped",
+      previewDecisionResult: "success",
+      browserRequired: false,
+    }).passed,
+    false,
+  );
+  for (const result of ["cancelled", "failure", "timed_out"]) {
+    assert.equal(
+      evaluateFastAggregate({
+        candidateEligible: true,
+        candidateResult: "success",
+        classificationSucceeded: true,
+        lane: "routine",
+        classifyResult: "success",
+        docsResult: "skipped",
+        checksResult: result,
+        smokeResult: "success",
+        previewDecisionResult: "success",
+        browserRequired: true,
+      }).passed,
+      false,
+      result,
+    );
+  }
+  assert.equal(
+    evaluateFastAggregate({
+      candidateEligible: true,
+      candidateResult: "success",
+      classificationSucceeded: true,
+      lane: "routine",
+      classifyResult: "success",
+      docsResult: "skipped",
+      checksResult: "success",
+      smokeResult: "success",
+      previewDecisionResult: "cancelled",
+      browserRequired: true,
     }).passed,
     false,
   );
@@ -187,41 +390,76 @@ test("full aggregate rejects skipped required work and permits one mobile lane",
   );
 });
 
-test("development workflow has an always-present aggregate and cancellable branch concurrency", () => {
+test("development workflow has candidate-only triggers and cancellable PR concurrency", () => {
   const workflow = readFileSync(".github/workflows/dev-fast.yml", "utf8");
   assert.match(workflow, /pull_request:\n\s+branches: \[dev\]/);
-  assert.match(workflow, /push:\n\s+branches-ignore: \[dev, staging, main\]/);
+  assert.doesNotMatch(workflow, /\n\s+push:/);
+  assert.match(workflow, /workflow_dispatch:\n\s+inputs:/);
   assert.match(
     workflow,
-    /group: vinifera-dev-fast-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}/,
+    /group: vinifera-dev-fast-\$\{\{ github\.event\.pull_request\.number \|\| inputs\.head_sha \|\| github\.ref \}\}/,
   );
   assert.match(workflow, /cancel-in-progress: true/);
   assert.match(
     workflow,
-    /aggregate:\n\s+name: \$\{\{ github\.event_name == 'pull_request' && 'Dev fast checks' \|\| 'Dev branch fast checks' \}\}\n\s+if: always\(\)/,
+    /aggregate:\n\s+name: \$\{\{ github\.event_name == 'workflow_dispatch' && 'Manual exact candidate checks' \|\| 'Dev fast checks' \}\}\n\s+if: always\(\)/,
   );
   assert.match(
     workflow,
-    /types: \[opened, synchronize, reopened, ready_for_review, edited\]/,
+    /opened, synchronize, reopened, ready_for_review, converted_to_draft/,
   );
+  assert.match(workflow, /draft_not_candidate/);
+  assert.match(workflow, /current_dev.*base_sha/);
+  assert.match(workflow, /if \[\[ "\$GITHUB_SHA" != "\$head_sha" \]\]; then/);
+  assert.match(workflow, /Manual exact candidate checks/);
+  assert.match(workflow, /octopus-review-required/);
 });
 
-test("development workflow keeps preview evidence independent and unprivileged", () => {
+test("development workflow makes browser and preview work path-aware", () => {
   const workflow = readFileSync(".github/workflows/dev-fast.yml", "utf8");
+  const smoke = workflow.slice(
+    workflow.indexOf("  smoke:"),
+    workflow.indexOf("  preview_decision:"),
+  );
   const preview = workflow.slice(
-    workflow.indexOf("  preview_evidence:"),
+    workflow.indexOf("  preview_decision:"),
     workflow.indexOf("  aggregate:"),
   );
-  assert.doesNotMatch(preview, /\n\s+needs:/);
   assert.doesNotMatch(workflow, /\bsecrets\./);
   assert.match(workflow, /persist-credentials: false/);
-  assert.match(preview, /cloudflare-workers-and-pages/);
-  assert.match(preview, /Cloudflare Pages: vinifera-dev/);
-  assert.match(preview, /Cloudflare Pages: vinifera/);
-  assert.match(preview, /\| last\) \/\//);
-  assert.match(preview, /check-runs\?per_page=100/);
-  assert.match(preview, /Immutable deployment URL/);
-  assert.match(preview, /Branch alias/);
+  assert.match(smoke, /browser_required == 'true'/);
+  assert.match(workflow, /preview_required == 'true'/);
+  assert.match(preview, /policy_approved_non_applicability/);
+  assert.match(preview, /frontend-preview-candidate/);
+  assert.match(preview, /Feature preview decision/);
+});
+
+test("trusted preview publisher never executes PR-head code beside credentials", () => {
+  const workflow = readFileSync(
+    ".github/workflows/frontend-preview-publish.yml",
+    "utf8",
+  );
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /workflows: \["Development fast validation"\]/);
+  assert.match(
+    workflow,
+    /ref: \$\{\{ github\.event\.repository\.default_branch \}\}/,
+  );
+  assert.doesNotMatch(
+    workflow,
+    /ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/,
+  );
+  assert.match(workflow, /head\.repo\.full_name/);
+  assert.match(workflow, /human-review-required/);
+  assert.match(workflow, /do-not-merge/);
+  assert.match(workflow, /Frontend preview evidence/);
+  assert.match(workflow, /--commit-hash "\$HEAD_SHA"/);
+  assert.match(workflow, /npm ci/);
+  const install = workflow.slice(
+    workflow.indexOf("Install trusted Wrangler toolchain"),
+    workflow.indexOf("Publish exact frontend assets"),
+  );
+  assert.doesNotMatch(install, /\bsecrets\./);
 });
 
 test("full workflow excludes dev pushes and retains promotion-grade coverage", () => {

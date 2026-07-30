@@ -1,12 +1,20 @@
 # ADR 2026-07-28 — Governance Amendment: Automated dev→staging Readiness
 
-**Status:** Accepted, safety-amended 2026-07-28
+**Status:** Accepted, safety-amended 2026-07-28 and amended 2026-07-30
 
 **Date:** 2026-07-28
 **Author:** Writer Agent (authorized by human owner in session thread `7784a4df-eb35-4347-8335-297aa8d85a26`)
 **Supersedes:** Sections 7 and 9 of `AGENTS.md` (prior dev→staging human-gate rule)
 
 ---
+
+> **2026-07-30 amendment:** The principal-orchestrator candidate-delivery ADR
+> supersedes the push-after-every-`dev`-update trigger and the CodeRabbit
+> requirement described below. Promotion is one maintained, deliberately
+> selected release candidate. Full CI, Octopus, exact-comparison evidence, and
+> zero blocking threads remain required; CodeRabbit is advisory. The current
+> branch topology remains in place until a separate staging-environment ADR is
+> reviewed.
 
 ## Context
 
@@ -34,7 +42,10 @@ automation prepares and validates the PR, but a human performs the merge.
 
 ## Decision
 
-A new GitHub Actions workflow (`promote-dev-to-staging.yml`) is introduced. It fires on every push to `dev` and on `workflow_dispatch`.
+A GitHub Actions workflow (`promote-dev-to-staging.yml`) maintains one
+consolidated release candidate. It starts only through deliberate manual or
+explicitly owner-authorized dispatch; routine pushes to `dev` do not start
+promotion work.
 
 ### Gates (all must pass before readiness is reported)
 
@@ -42,7 +53,7 @@ A new GitHub Actions workflow (`promote-dev-to-staging.yml`) is introduced. It f
 |------|------|---------------|
 | 0. Promotion PR | Open/update via an event-producing repository token and capture its exact head and staging base | Fail closed — readiness is not reported |
 | 1. Staging REST pre-flight | HTTP probe to `STAGING_SUPABASE_URL/rest/v1/` | Fail closed — PR remains open |
-| 2. PR quality gates | Require aggregate CI, Octopus, CodeRabbit, all registered statuses, and zero unresolved threads on the captured head | Fail closed — PR remains open for human inspection |
+| 2. PR quality gates | Require aggregate CI, Octopus, all required registered statuses, and zero unresolved threads on the captured head; record CodeRabbit when available | Fail closed — PR remains open for human inspection |
 | 3. Staging REST readiness re-check | Same probe immediately before readiness reporting | Fail closed — guards against mid-run provider degradation |
 | 4. Readiness report | Revalidate the captured head/base, CI, statuses, reviews, and threads after the second probe | PR remains open for a human merge |
 | 5. Dry-run override | `workflow_dispatch` input `dry_run=true` | Runs the same evidence validation, records dry-run readiness, and leaves the PR open |

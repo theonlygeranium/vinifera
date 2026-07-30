@@ -3,13 +3,21 @@ name: Development fast validation
 on:
   pull_request:
     branches: [dev]
-    types: [opened, synchronize, reopened, ready_for_review, edited]
-  push:
-    branches-ignore: [dev, staging, main]
+    types:
+      [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   workflow_dispatch:
+    inputs:
+      base_sha:
+        description: "Exact dev base SHA for the manual candidate"
+        required: true
+        type: string
+      head_sha:
+        description: "Exact candidate head SHA to validate"
+        required: true
+        type: string
 
 concurrency:
-  group: vinifera-dev-fast-${{ github.event.pull_request.number || github.ref }}
+  group: vinifera-dev-fast-${{ github.event.pull_request.number || inputs.head_sha || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -17,8 +25,48 @@ permissions:
   checks: read
 
 jobs:
+  candidate:
+    name: Select coherent PR candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      eligible: ${{ steps.candidate.outputs.eligible }}
+      reason: ${{ steps.candidate.outputs.reason }}
+    steps:
+      - name: Evaluate draft and event state
+        id: candidate
+        shell: bash
+        env:
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          set -euo pipefail
+          eligible=false
+          reason=unsupported_event
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            eligible=true
+            reason=manual_exact_candidate
+          elif [[ "$EVENT_NAME" == "pull_request" ]] \
+            && [[ "$EVENT_ACTION" == "converted_to_draft" || "$PR_DRAFT" == "true" ]]; then
+            reason=draft_not_candidate
+          elif [[ "$EVENT_NAME" == "pull_request" ]] \
+            && [[ "$EVENT_ACTION" =~ ^(opened|synchronize|reopened|ready_for_review)$ ]]; then
+            eligible=true
+            reason="ready_candidate_$EVENT_ACTION"
+          fi
+          printf 'eligible=%s\nreason=%s\n' "$eligible" "$reason" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Candidate decision"
+            echo
+            echo "- Eligible: \`$eligible\`"
+            echo "- Reason: \`$reason\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   classify:
     name: Classify development change
+    needs: candidate
+    if: needs.candidate.outputs.eligible == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -29,11 +77,16 @@ jobs:
       head_sha: ${{ steps.policy.outputs.head_sha }}
       paths_json: ${{ steps.policy.outputs.paths_json }}
       focused_tests_json: ${{ steps.policy.outputs.focused_tests_json }}
+      risk: ${{ steps.policy.outputs.risk }}
+      surface: ${{ steps.policy.outputs.surface }}
+      browser_required: ${{ steps.policy.outputs.browser_required }}
+      preview_required: ${{ steps.policy.outputs.preview_required }}
+      octopus_required: ${{ steps.policy.outputs.octopus_required }}
     steps:
       - name: Check out exact development head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -44,17 +97,38 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          EVENT_HEAD_SHA: ${{ github.sha }}
+          MANUAL_BASE_SHA: ${{ inputs.base_sha }}
+          MANUAL_HEAD_SHA: ${{ inputs.head_sha }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             base_sha="$PR_BASE_SHA"
             head_sha="$PR_HEAD_SHA"
-            git fetch --no-tags --depth=1 origin "$base_sha"
           else
-            head_sha="$EVENT_HEAD_SHA"
-            git fetch --no-tags origin dev
-            base_sha=$(git merge-base origin/dev "$head_sha")
+            base_sha="$MANUAL_BASE_SHA"
+            head_sha="$MANUAL_HEAD_SHA"
+          fi
+          for pair in "base:$base_sha" "head:$head_sha"; do
+            label="${pair%%:*}"
+            sha="${pair#*:}"
+            if [[ ! "$sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "::error::$label SHA must be an exact 40-character commit SHA."
+              exit 1
+            fi
+            git fetch --no-tags --depth=1 origin "$sha"
+            git cat-file -e "${sha}^{commit}"
+          done
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$GITHUB_SHA" != "$head_sha" ]]; then
+              echo "::error::Dispatch ref SHA must equal the exact candidate head SHA."
+              exit 1
+            fi
+            current_dev=$(git ls-remote origin refs/heads/dev | cut -f1)
+            if [[ "$current_dev" != "$base_sha" ]]; then
+              echo "::error::Manual candidate base is not the current dev revision."
+              exit 1
+            fi
           fi
 
           BASE_SHA="$base_sha" HEAD_SHA="$head_sha" node --input-type=module <<'NODE'
@@ -89,6 +163,11 @@ jobs:
             `head_sha=${process.env.HEAD_SHA}`,
             `paths_json=${JSON.stringify(result.paths)}`,
             `focused_tests_json=${JSON.stringify(focusedTests)}`,
+            `risk=${result.risk}`,
+            `surface=${result.surface}`,
+            `browser_required=${result.browserRequired}`,
+            `preview_required=${result.previewRequired}`,
+            `octopus_required=${result.risk === "high"}`,
             "",
           ].join("\n"));
           appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
@@ -97,6 +176,10 @@ jobs:
             `- Exact base: \`${process.env.BASE_SHA}\``,
             `- Exact head: \`${process.env.HEAD_SHA}\``,
             `- Classification: \`${result.lane}\``,
+            `- Risk: \`${result.risk}\``,
+            `- Surface: \`${result.surface}\``,
+            `- Browser required: \`${result.browserRequired}\``,
+            `- Preview required: \`${result.previewRequired}\``,
             `- Reason: \`${result.reason}\``,
             `- Paths: ${result.paths.map((path) => `\`${path}\``).join(", ") || "(none)"}`,
             "",
@@ -119,7 +202,7 @@ jobs:
 
       - name: Fetch exact base
         env:
-          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          BASE_SHA: ${{ needs.classify.outputs.base_sha || github.event.pull_request.base.sha }}
         run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
 
       - name: Use repository Node.js pin and lockfile cache
@@ -135,7 +218,7 @@ jobs:
       - name: Validate documentation, policy, whitespace, and credentials
         env:
           BASE_SHA: ${{ needs.classify.outputs.base_sha }}
-          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha || github.event.pull_request.head.sha }}
         run: |
           git diff --check "$BASE_SHA" "$HEAD_SHA"
           node --test .github/scripts/delivery-policy.policy.mjs
@@ -209,8 +292,14 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Build production web and Worker bundles
+        env:
+          PREVIEW_REQUIRED: ${{ needs.classify.outputs.preview_required }}
         run: |
-          npm run build
+          if [[ "$PREVIEW_REQUIRED" == "true" ]]; then
+            npm run build:pages
+          else
+            npm run build
+          fi
           npm run build:worker
 
       - name: Run classifier-selected focused tests
@@ -224,11 +313,21 @@ jobs:
           fi
           npx vitest run "${focused_tests[@]}"
 
+      - name: Retain exact frontend preview assets
+        if: needs.classify.outputs.preview_required == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: frontend-preview-assets
+          path: dist/
+          if-no-files-found: error
+          retention-days: 2
+
   smoke:
     name: Browser smoke
     needs: classify
     if: >-
       needs.classify.outputs.classification_succeeded == 'true' &&
+      needs.classify.outputs.browser_required == 'true' &&
       (needs.classify.outputs.lane == 'routine' || needs.classify.outputs.lane == 'high-risk')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -254,86 +353,108 @@ jobs:
       - name: Run application and accessibility smoke
         run: npx playwright test tests/e2e/smoke.spec.ts
 
-  preview_evidence:
-    name: Cloudflare preview evidence
+  preview_decision:
+    name: Feature preview decision
     if: always()
+    needs: [candidate, classify, docs, fast_checks, smoke]
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 5
     steps:
-      - name: Publish available immutable and branch preview URLs
+      - name: Validate preview applicability
+        id: decision
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+          CANDIDATE_ELIGIBLE: ${{ needs.candidate.outputs.eligible }}
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          FAST_RESULT: ${{ needs.fast_checks.result }}
+          PREVIEW_REQUIRED: ${{ needs.classify.outputs.preview_required }}
+        run: |
+          set -euo pipefail
+          applicable=false
+          reason=not_a_ready_candidate
+          if [[ "$CANDIDATE_ELIGIBLE" == "true" ]]; then
+            if [[ "$CLASSIFY_RESULT" != "success" ]]; then
+              echo "::error::Preview applicability cannot be decided without classification."
+              exit 1
+            fi
+            if [[ "$PREVIEW_REQUIRED" == "true" ]]; then
+              applicable=true
+              reason=frontend_candidate
+              if [[ "$FAST_RESULT" != "success" ]]; then
+                echo "::error::Frontend preview assets require successful fast validation."
+                exit 1
+              fi
+            else
+              reason=policy_approved_non_applicability
+            fi
+          fi
+          printf 'applicable=%s\nreason=%s\n' "$applicable" "$reason" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Feature preview decision"
+            echo
+            echo "- Applicable: \`$applicable\`"
+            echo "- Reason: \`$reason\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Download exact preview assets
+        if: steps.decision.outputs.applicable == 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: frontend-preview-assets
+          path: preview-candidate/dist
+
+      - name: Write validated candidate metadata
+        shell: bash
+        env:
+          APPLICABLE: ${{ steps.decision.outputs.applicable }}
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          CANDIDATE_ELIGIBLE: ${{ needs.candidate.outputs.eligible }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+          PREVIEW_REASON: ${{ steps.decision.outputs.reason }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          branch_slug=$(tr '[:upper:]' '[:lower:]' <<<"$HEAD_REF" \
-            | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-          deadline=$(( $(date +%s) + 150 ))
-          check_name="missing"
-          summary=""
-          conclusion="missing"
-          while (( $(date +%s) <= deadline )); do
-            checks=$(curl --fail-with-body --silent --show-error \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/$REPOSITORY/commits/$HEAD_SHA/check-runs?per_page=100")
-            matched_check=$(jq -c \
-              '([.check_runs[] |
-                 select(.app.slug == "cloudflare-workers-and-pages") |
-                 select(.name == "Cloudflare Pages: vinifera-dev")] |
-                sort_by(.started_at) | last) //
-               ([.check_runs[] |
-                 select(.app.slug == "cloudflare-workers-and-pages") |
-                 select(.name == "Cloudflare Pages: vinifera")] |
-                sort_by(.started_at) | last) // {}' \
-              <<<"$checks")
-            check_name=$(jq -r '.name // "missing"' <<<"$matched_check")
-            conclusion=$(jq -r '.conclusion // "missing"' <<<"$matched_check")
-            summary=$(jq -r '.output.summary // ""' <<<"$matched_check")
-            if [[ "$conclusion" != "missing" && "$conclusion" != "null" ]]; then
-              break
-            fi
-            sleep 10
-          done
-          project_name=${check_name#Cloudflare Pages: }
-          if [[ "$project_name" == "missing" ]]; then
-            project_name="vinifera"
-          fi
-          branch_alias="https://${branch_slug}.${project_name}.pages.dev"
-          urls=$(grep -Eo "https://[^'\\\"<[:space:]]+\\.pages\\.dev" <<<"$summary" \
-            | sort -u || true)
-          {
-            echo "## Cloudflare Pages preview evidence"
-            echo
-            echo "- Exact head: \`$HEAD_SHA\`"
-            echo "- Cloudflare check: \`$check_name\`"
-            echo "- Cloudflare check conclusion: \`$conclusion\`"
-            if [[ -n "$urls" ]]; then
-              while read -r url; do
-                if [[ "$url" == "$branch_alias" ]]; then
-                  echo "- Branch alias: [$url]($url)"
-                else
-                  echo "- Immutable deployment URL: [$url]($url)"
-                fi
-              done <<<"$urls"
-            else
-              echo "- Branch alias (expected when published): [$branch_alias]($branch_alias)"
-              echo "- Immutable deployment URL: not yet published by the Cloudflare check."
-            fi
-            echo
-            echo "Preview publication is independent of this validation workflow."
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$conclusion" != "success" ]]; then
-            echo "::warning::Cloudflare preview evidence is not successful yet; Dev fast checks remains independent."
-          fi
+          mkdir -p preview-candidate
+          jq -n \
+            --argjson applicable "$APPLICABLE" \
+            --arg base_sha "$BASE_SHA" \
+            --argjson candidate_eligible "$CANDIDATE_ELIGIBLE" \
+            --arg head_ref "$HEAD_REF" \
+            --arg head_repository "$HEAD_REPOSITORY" \
+            --arg head_sha "$HEAD_SHA" \
+            --arg reason "$PREVIEW_REASON" \
+            --argjson draft "${PR_DRAFT:-false}" \
+            --argjson pr_number "${PR_NUMBER:-0}" \
+            --arg repository "$REPOSITORY" \
+            '{
+              applicable: $applicable,
+              base_sha: $base_sha,
+              candidate_eligible: $candidate_eligible,
+              draft: $draft,
+              head_ref: $head_ref,
+              head_repository: $head_repository,
+              head_sha: $head_sha,
+              pr_number: $pr_number,
+              reason: $reason,
+              repository: $repository
+            }' > preview-candidate/metadata.json
+
+      - name: Retain preview decision for trusted publication
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: frontend-preview-candidate
+          path: preview-candidate/
+          if-no-files-found: error
+          retention-days: 2
 
   aggregate:
-    name: ${{ github.event_name == 'pull_request' && 'Dev fast checks' || 'Dev branch fast checks' }}
+    name: ${{ github.event_name == 'workflow_dispatch' && 'Manual exact candidate checks' || 'Dev fast checks' }}
     if: always()
-    needs: [classify, docs, fast_checks, smoke]
+    needs: [candidate, classify, docs, fast_checks, smoke, preview_decision]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -346,32 +467,48 @@ jobs:
       - name: Enforce selected fast lane
         env:
           CLASSIFICATION_SUCCEEDED: ${{ needs.classify.outputs.classification_succeeded }}
+          CANDIDATE_ELIGIBLE: ${{ needs.candidate.outputs.eligible }}
+          CANDIDATE_RESULT: ${{ needs.candidate.result }}
+          BROWSER_REQUIRED: ${{ needs.classify.outputs.browser_required }}
           LANE: ${{ needs.classify.outputs.lane }}
           CLASSIFY_RESULT: ${{ needs.classify.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
           CHECKS_RESULT: ${{ needs.fast_checks.result }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
+          PREVIEW_DECISION_RESULT: ${{ needs.preview_decision.result }}
+          OCTOPUS_REQUIRED: ${{ needs.classify.outputs.octopus_required }}
+          OCTOPUS_BOUNDARY_SATISFIED: ${{ contains(github.event.pull_request.labels.*.name, 'octopus-review-required') }}
         run: |
           node --input-type=module <<'NODE'
           import { appendFileSync } from "node:fs";
           import { evaluateFastAggregate } from "./.github/scripts/delivery-policy.mjs";
           const state = {
+            candidateEligible: process.env.CANDIDATE_ELIGIBLE === "true",
+            candidateResult: process.env.CANDIDATE_RESULT,
             classificationSucceeded: process.env.CLASSIFICATION_SUCCEEDED === "true",
+            browserRequired: process.env.BROWSER_REQUIRED === "true",
             lane: process.env.LANE,
             classifyResult: process.env.CLASSIFY_RESULT,
             docsResult: process.env.DOCS_RESULT,
             checksResult: process.env.CHECKS_RESULT,
             smokeResult: process.env.SMOKE_RESULT,
+            previewDecisionResult: process.env.PREVIEW_DECISION_RESULT,
+            octopusRequired: process.env.OCTOPUS_REQUIRED === "true",
+            octopusBoundarySatisfied: process.env.OCTOPUS_BOUNDARY_SATISFIED === "true",
           };
           const result = evaluateFastAggregate(state);
           appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
             "## Required fast validation",
             "",
             `- Lane: \`${state.lane || "missing"}\``,
+            `- Candidate eligible: \`${state.candidateEligible}\``,
             `- Classifier: \`${state.classifyResult}\``,
             `- Documentation: \`${state.docsResult}\``,
             `- Type/build/focused tests: \`${state.checksResult}\``,
             `- Browser smoke: \`${state.smokeResult}\``,
+            `- Preview decision: \`${state.previewDecisionResult}\``,
+            `- Octopus required: \`${state.octopusRequired}\``,
+            `- Octopus boundary present: \`${state.octopusBoundarySatisfied}\``,
             `- Policy: \`${result.passed ? "pass" : "fail"}\` (${result.reason})`,
             "",
           ].join("\n"));

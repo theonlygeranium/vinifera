@@ -105,6 +105,60 @@ The Worker is connection-ready but must not replace the Pages custom-domain
 baseline until the hosted Supabase, Stripe, provider, DNS, physical-device, and
 store activation checks in the phase QA reports pass.
 
+## 2026-07-30 principal-orchestrator candidate delivery
+
+The owner accepted the candidate-based delivery model in
+`docs/decisions/2026-07-30-principal-orchestrator-candidate-delivery.md`.
+This source branch makes it canonical and implements its first bounded unit:
+
+- feature-branch pushes no longer trigger fast CI;
+- draft PRs record terminal `draft_not_candidate` failure without dependency,
+  build, test, browser, or preview work, preventing stale same-head success;
+- ready, non-draft new PR heads retain the required `Dev fast checks` name and
+  cancellable per-PR concurrency; exact manual candidates use the distinct
+  `Manual exact candidate checks` context and must dispatch from their head;
+- the classifier reports exact base/head, risk, surface, focused tests,
+  browser applicability, and preview applicability;
+- unknown paths are invalid, while authority-high-risk candidates require the
+  trusted `octopus-review-required` boundary before the aggregate can pass;
+- browser smoke runs only for frontend, routing, shared-client,
+  accessibility-sensitive, or explicitly browser-risk paths;
+- every candidate has an always-present `Feature preview decision`;
+- frontend candidates retain a prebuilt artifact for trusted
+  default-branch publication as exact-head `Frontend preview evidence`;
+- the privileged publisher revalidates the live same-repository PR and never
+  executes PR-head source beside Cloudflare credentials or accepts reserved
+  environment branch names; and
+- review repairs are collected and batched for no more than two substantive
+  repair/re-review cycles.
+
+The current external-control snapshot found zero open PRs, no rulesets, and
+only `main` protected. `dev` and `staging` are unprotected. `main` requires
+`Type, test, build, and package` plus `Block direct push to main` and resolved
+conversations, but administrator enforcement is disabled and no approval is
+required. The four protected environments require owner review but allow
+self-review and administrator bypass. Repository workflow tokens default to
+write and can approve reviews. These are current gaps for the follow-on
+risk-based autonomous-delivery change; they are not proof of enforcement.
+
+The trusted preview publisher cannot receive `workflow_run` events until the
+reviewed definition reaches the default branch. Therefore the direct
+Cloudflare Pages preview integration remains enabled as a bootstrap fallback.
+After one ready frontend candidate proves an immutable preview and one backend
+candidate proves non-applicability, disable automatic Pages preview
+deployments and then require `Frontend preview evidence`. Do not reverse that
+order.
+
+The latest observed Octopus nightly security audit failed with HTTP 403.
+Octopus remains the promotion/high-risk review owner, but that failed audit is
+not passing evidence and requires a separate repair. Pages checks on current
+branches are static build evidence only; the Worker activation jobs remain
+skipped.
+
+This governance and CI work does not deploy a Worker, change DNS, activate a
+provider, mutate hosted data, enable billing, access production customer data,
+or mark any activation gate complete. All 20 gates below remain pending.
+
 ## 2026-07-29 two-speed delivery governance
 
 The current delivery contract is defined by
