@@ -142,12 +142,14 @@ manual dispatches must run from the candidate head and report the distinct
 
 Browser/accessibility smoke and Pages preview assets are selected only for
 frontend, routing, shared-client, or accessibility-relevant changes. A trusted
-default-branch publisher revalidates the exact same-repository PR before
-uploading prebuilt frontend assets and publishes `Frontend preview evidence`;
-it never executes PR-head code beside Cloudflare credentials. The existing
-direct Pages preview integration remains the bootstrap fallback until that
-publisher is promoted to `main` and verified, so this source change alone does
-not claim path-aware hosted preview activation.
+default-branch publisher independently reclassifies and revalidates the exact
+same-repository PR before uploading prebuilt frontend assets to preview
+branches of the non-production `vinifera-dev` Pages project and publishes
+`Frontend preview evidence`; it never executes PR-head code beside Cloudflare
+credentials or targets the public `vinifera` project. The existing direct
+Pages preview integration remains the bootstrap fallback until that publisher
+is promoted to `main` and verified, so this source change alone does not claim
+path-aware hosted preview activation.
 
 Unknown paths fail classification. Authority-high-risk changes require the
 trusted `octopus-review-required` boundary before fast validation can pass.

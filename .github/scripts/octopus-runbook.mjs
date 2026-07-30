@@ -171,6 +171,16 @@ export function credentialShapeSummary(environment) {
   return `Octopus credential shape accepted: ${summaries.join("; ")}`;
 }
 
+export function configAsCodeRunbooksPath(projectId, gitRef) {
+  if (!/^Projects-\d+$/.test(projectId)) {
+    throw new Error("Octopus project ID has an unexpected shape");
+  }
+  if (!/^refs\/heads\/[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(gitRef)) {
+    throw new Error("OCTOPUS_GIT_REF must be an exact refs/heads/* reference");
+  }
+  return `projects/${projectId}/${encodeURIComponent(gitRef)}/runbooks`;
+}
+
 export async function runRunbook({
   runbookName,
   environment = process.env,
@@ -242,20 +252,21 @@ export async function runRunbook({
     "projects",
     "Vinifera",
   );
+  const runbooksPath = configAsCodeRunbooksPath(
+    project.Id,
+    environment.OCTOPUS_GIT_REF ?? "refs/heads/main",
+  );
   const runbook = await findByName(
     fetchImpl,
     spaceBase,
     authenticationHeaders,
-    `projects/${project.Id}/runbooks`,
+    runbooksPath,
     runbookName,
   );
-  if (!runbook.PublishedRunbookSnapshotId) {
-    throw new Error(`Octopus runbook has no published snapshot: ${runbookName}`);
-  }
 
   const preview = await requestJson(
     fetchImpl,
-    `${spaceBase}/runbooks/${runbook.Id}/runbookRuns/preview/${octopusEnvironment.Id}`,
+    `${spaceBase}/${runbooksPath}/${runbook.Slug}/runbookRuns/preview/${octopusEnvironment.Id}?includeDisabledSteps=true`,
     authenticationHeaders,
   );
   const formValues = resolveFormValues(preview, {
@@ -266,31 +277,47 @@ export async function runRunbook({
     PRNumber: environment.PR_NUMBER,
     GitHubPAT: environment.GH_PAT_FOR_OCTOPUS,
   });
-
-  const run = await requestJson(
+  const snapshotTemplate = await requestJson(
     fetchImpl,
-    `${spaceBase}/runbookRuns`,
+    `${spaceBase}/${runbooksPath}/${runbook.Slug}/runbookSnapShotTemplate`,
+    authenticationHeaders,
+  );
+  if (
+    (snapshotTemplate.Packages?.length ?? 0) !== 0 ||
+    (snapshotTemplate.GitResources?.length ?? 0) !== 0
+  ) {
+    throw new Error(
+      "PR Quality Gates must not require package or Git-resource selection",
+    );
+  }
+
+  const groupedRun = await requestJson(
+    fetchImpl,
+    `${spaceBase}/${runbooksPath}/${runbook.Slug}/run/v1`,
     authenticationHeaders,
     {
       method: "POST",
       body: JSON.stringify({
-        RunbookId: runbook.Id,
-        RunbookSnapshotId: runbook.PublishedRunbookSnapshotId,
-        FrozenRunbookProcessId: null,
-        EnvironmentId: octopusEnvironment.Id,
-        TenantId: null,
-        SkipActions: [],
-        QueueTime: null,
-        QueueTimeExpiry: null,
-        FormValues: formValues,
-        ForcePackageDownload: false,
-        ForcePackageRedeployment: true,
-        UseGuidedFailure: false,
-        SpecificMachineIds: [],
-        ExcludedMachineIds: [],
+        SelectedGitResources: [],
+        SelectedPackages: [],
+        Runs: [
+          {
+            EnvironmentId: octopusEnvironment.Id,
+            TenantId: null,
+            SkipActions: [],
+            QueueTime: null,
+            QueueTimeExpiry: null,
+            FormValues: formValues,
+            ForcePackageDownload: false,
+            UseGuidedFailure: false,
+            SpecificMachineIds: [],
+            ExcludedMachineIds: [],
+          },
+        ],
       }),
     },
   );
+  const run = groupedRun?.Resources?.[0];
   if (!run.TaskId) {
     throw new Error("Octopus runbook response did not include a task ID");
   }

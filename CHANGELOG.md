@@ -13,9 +13,14 @@
   avoid Playwright unless a risk rule requires it. Every candidate records an
   always-present `Feature preview decision`. Frontend candidates retain a
   prebuilt Pages artifact for a trusted default-branch publisher that
-  revalidates the live same-repository PR and exact revisions before publishing
-  `Frontend preview evidence`, without executing PR-head code beside
-  Cloudflare credentials or accepting reserved environment branch names.
+  independently reclassifies the live exact diff before publishing
+  `Frontend preview evidence` to preview branches of `vinifera-dev`, without
+  executing PR-head code beside Cloudflare credentials, trusting
+  artifact-supplied applicability, accepting reserved environment branch
+  names, or deploying to the public `vinifera` project. Applying or removing
+  `octopus-review-required` now retriggers the same exact candidate, and manual
+  candidates resolve that boundary from the one live exact-head PR rather than
+  an absent dispatch payload.
   Manual exact-candidate evidence uses a distinct check context and must be
   dispatched from the candidate head. Governance, prior delivery ADRs, the PR template,
   continuity, workflow documentation, and contract tests now use one logical
@@ -63,9 +68,15 @@
   before network access. **Deployment impact:** Trusted PR-review diagnostics
   only; no application deployment, provider activation, DNS change, database
   mutation, or production action occurs.
-- Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure
-  so CI policy tests can locate the embedded quality-gate runbook (22 test
-  failures on `main`).
+- Restored the flat `.octopus/runbooks/pr-quality-gates.ocl` layout that
+  Octopus Config as Code actually loads, aligned contract tests to that
+  canonical path, and changed the trusted bridge from snapshot endpoints to
+  Git-ref-qualified preview/template/run-v1 endpoints. The prior nested path
+  passed local tests but left `PR Quality Gates` absent from every live
+  Git-backed runbook list. **Deployment impact:** Repairs trusted high-risk PR
+  review once the bridge and flat OCL reach the default branch; no application
+  deployment, provider activation, DNS change, database mutation, or
+  production action occurs.
 - Review-gate permissions and Worker rollback authorization now fail closed
   without becoming unusable: Octopus can read PR metadata, promotion and
   production gates can read exact Actions run/job evidence, and rollback keeps

@@ -133,9 +133,14 @@ This source branch makes it canonical and implements its first bounded unit:
 - every candidate has an always-present `Feature preview decision`;
 - frontend candidates retain a prebuilt artifact for trusted
   default-branch publication as exact-head `Frontend preview evidence`;
-- the privileged publisher revalidates the live same-repository PR and never
-  executes PR-head source beside Cloudflare credentials or accepts reserved
-  environment branch names; and
+- the privileged publisher independently reclassifies the live exact diff,
+  targets only preview branches of the non-production `vinifera-dev` Pages
+  project, and never executes PR-head source beside Cloudflare credentials,
+  trusts artifact applicability, targets the public `vinifera` project, or
+  accepts reserved environment branch names;
+- the Octopus bridge now uses Git-ref-qualified Config-as-Code routes and the
+  flat `runbooks/pr-quality-gates.ocl` resource layout that the live project
+  enumerates; and
 - review repairs are collected and batched for no more than two substantive
   repair/re-review cycles.
 
@@ -156,11 +161,14 @@ candidate proves non-applicability, disable automatic Pages preview
 deployments and then require `Frontend preview evidence`. Do not reverse that
 order.
 
-The latest observed Octopus nightly security audit failed with HTTP 403.
-Octopus remains the promotion/high-risk review owner, but that failed audit is
-not passing evidence and requires a separate repair. Pages checks on current
-branches are static build evidence only; the Worker activation jobs remain
-skipped.
+The latest exact-head Octopus PR attempt failed because the trusted
+default-branch bridge used a non-version-controlled API route, and live
+read-only probes showed the nested quality-gate OCL was absent from every
+Git-ref-qualified runbook list. This branch contains the bridge and flat-layout
+repair, but it is not active until it reaches the default branch. Octopus
+remains the promotion/high-risk review owner; the failed run is not passing
+evidence. Pages checks on current branches are static build evidence only; the
+Worker activation jobs remain skipped.
 
 This governance and CI work does not deploy a Worker, change DNS, activate a
 provider, mutate hosted data, enable billing, access production customer data,

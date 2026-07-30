@@ -93,11 +93,16 @@ browser or preview evidence.
    untrusted data, rejects symlinks and malformed metadata, and revalidates the
    live same-repository PR, exact head, exact base, draft state, emergency
    labels, and rejects the reserved `dev`, `staging`, and `main` branch names.
+   It independently reclassifies the exact live diff with trusted
+   default-branch policy and rejects artifact-supplied applicability that does
+   not match.
 3. The publisher installs the trusted locked Wrangler toolchain before any
    Cloudflare credential is present.
 4. Only the deployment step receives the Pages credential. It uploads the
-   already-built artifact without executing PR-head source and binds the
-   deployment to the exact commit.
+   already-built artifact to a feature branch of the non-production
+   `vinifera-dev` Pages project without executing PR-head source and binds the
+   deployment to the exact commit. The public `vinifera` project is never a
+   preview target.
 5. The exact-head status reports either successful publication or explicit
    policy-approved non-applicability. Failure is terminal.
 

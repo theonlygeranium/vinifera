@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  configAsCodeRunbooksPath,
   credentialShapeSummary,
   normalizeApiBase,
   responseProvenance,
@@ -29,7 +30,7 @@ function jsonResponse(payload, status = 200) {
 function embeddedQualityChecker() {
   const qualityRunbook = readFileSync(
     new URL(
-      "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+      "../../.octopus/runbooks/pr-quality-gates.ocl",
       import.meta.url,
     ),
     "utf8",
@@ -48,7 +49,7 @@ function embeddedQualityChecker() {
 function embeddedRunbookStep(stepId) {
   const qualityRunbook = readFileSync(
     new URL(
-      "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+      "../../.octopus/runbooks/pr-quality-gates.ocl",
       import.meta.url,
     ),
     "utf8",
@@ -160,7 +161,7 @@ describe("Octopus runbook bridge", () => {
     );
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -198,7 +199,7 @@ describe("Octopus runbook bridge", () => {
   it("keeps every embedded Octopus Bash action syntactically valid", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -231,7 +232,7 @@ describe("Octopus runbook bridge", () => {
   it("rejects an unscoped query added to a flat service file", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -306,7 +307,7 @@ describe("Octopus runbook bridge", () => {
   it("rejects a query whose tenant predicate is deleted", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -385,7 +386,7 @@ describe("Octopus runbook bridge", () => {
   it("binds tenant predicates to the individual changed query", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -463,7 +464,7 @@ describe("Octopus runbook bridge", () => {
   it("rejects a tenant predicate deleted from a later query assignment", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -550,7 +551,7 @@ describe("Octopus runbook bridge", () => {
   it("does not split a scoped query at a nested Array.from call", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -1049,7 +1050,7 @@ describe("Octopus runbook bridge", () => {
   it("requires a changelog update in every commit", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -1105,6 +1106,15 @@ describe("Octopus runbook bridge", () => {
     expect(() => normalizeApiBase("http://octopus.example.test")).toThrow(
       "must use HTTPS",
     );
+  });
+
+  it("builds an encoded Config-as-Code runbook path", () => {
+    expect(
+      configAsCodeRunbooksPath("Projects-1", "refs/heads/main"),
+    ).toBe("projects/Projects-1/refs%2Fheads%2Fmain/runbooks");
+    expect(() =>
+      configAsCodeRunbooksPath("Projects-1", "main"),
+    ).toThrow("refs/heads");
   });
 
   it("reports credential shape without exposing credential values", () => {
@@ -1211,13 +1221,17 @@ describe("Octopus runbook bridge", () => {
           Items: [{ Id: "Projects-1", Name: "Vinifera" }],
         });
       }
-      if (String(url).includes("/projects/Projects-1/runbooks?")) {
+      if (
+        String(url).includes(
+          "/projects/Projects-1/refs%2Fheads%2Fmain/runbooks?",
+        )
+      ) {
         return jsonResponse({
           Items: [
             {
               Id: "Runbooks-1",
               Name: "PR Quality Gates",
-              PublishedRunbookSnapshotId: "RunbookSnapshots-1",
+              Slug: "pr-quality-gates",
             },
           ],
         });
@@ -1252,8 +1266,13 @@ describe("Octopus runbook bridge", () => {
           },
         });
       }
-      if (String(url).endsWith("/Spaces-1/runbookRuns")) {
-        return jsonResponse({ Id: "RunbookRuns-1", TaskId: "ServerTasks-1" });
+      if (String(url).endsWith("/runbookSnapShotTemplate")) {
+        return jsonResponse({ Packages: [], GitResources: [] });
+      }
+      if (String(url).endsWith("/pr-quality-gates/run/v1")) {
+        return jsonResponse({
+          Resources: [{ Id: "RunbookRuns-1", TaskId: "ServerTasks-1" }],
+        });
       }
       if (String(url).endsWith("/tasks/ServerTasks-1")) {
         return jsonResponse({ State: "Success" });
@@ -1287,11 +1306,13 @@ describe("Octopus runbook bridge", () => {
       state: "Success",
     });
 
-    const post = calls.find(({ url }) => url.endsWith("/Spaces-1/runbookRuns"));
+    const post = calls.find(({ url }) =>
+      url.endsWith("/pr-quality-gates/run/v1"),
+    );
     const runRequest = JSON.parse(post.options.body);
-    expect(runRequest.RunbookSnapshotId).toBe("RunbookSnapshots-1");
-    expect(runRequest).not.toHaveProperty("RunbookSnapShotId");
-    expect(runRequest.FormValues).toEqual({
+    expect(runRequest.SelectedPackages).toEqual([]);
+    expect(runRequest.SelectedGitResources).toEqual([]);
+    expect(runRequest.Runs[0].FormValues).toEqual({
       "V-1": "fix/example",
       "V-2": "44",
       "V-3": "secret-pat",
@@ -1329,13 +1350,17 @@ describe("Octopus runbook bridge", () => {
           Items: [{ Id: "Projects-1", Name: "Vinifera" }],
         });
       }
-      if (requestUrl.includes("/projects/Projects-1/runbooks?")) {
+      if (
+        requestUrl.includes(
+          "/projects/Projects-1/refs%2Fheads%2Fmain/runbooks?",
+        )
+      ) {
         return jsonResponse({
           Items: [
             {
               Id: "Runbooks-1",
               Name: "PR Quality Gates",
-              PublishedRunbookSnapshotId: "RunbookSnapshots-1",
+              Slug: "pr-quality-gates",
             },
           ],
         });
@@ -1370,8 +1395,13 @@ describe("Octopus runbook bridge", () => {
           },
         });
       }
-      if (requestUrl.endsWith("/Spaces-1/runbookRuns")) {
-        return jsonResponse({ Id: "RunbookRuns-1", TaskId: "ServerTasks-1" });
+      if (requestUrl.endsWith("/runbookSnapShotTemplate")) {
+        return jsonResponse({ Packages: [], GitResources: [] });
+      }
+      if (requestUrl.endsWith("/pr-quality-gates/run/v1")) {
+        return jsonResponse({
+          Resources: [{ Id: "RunbookRuns-1", TaskId: "ServerTasks-1" }],
+        });
       }
       if (requestUrl.endsWith("/tasks/ServerTasks-1/cancel")) {
         return jsonResponse({}, 500);
@@ -1479,7 +1509,7 @@ describe("Octopus workflow trust boundary", () => {
     );
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",

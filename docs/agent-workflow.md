@@ -98,8 +98,9 @@ state.
 7. Wait for exact-head `Dev fast checks`. `Feature preview decision` is always
    present. After the trusted publisher is bootstrapped on `main`,
    frontend-relevant ready candidates also publish a branch alias and immutable
-   URL through `Frontend preview evidence`; non-frontend candidates receive
-   explicit policy-approved non-applicability without claiming a deployment.
+   `vinifera-dev.pages.dev` URL through `Frontend preview evidence`;
+   non-frontend candidates receive explicit policy-approved non-applicability
+   without claiming a deployment.
 8. Inspect all current thread-aware findings before editing. Apply confirmed
    repairs and regression coverage together, validate the whole diff, and push
    one consolidated repair candidate. Repeat for no more than two substantive
@@ -121,10 +122,12 @@ paths are invalid and require an explicit classifier update.
 The pull-request workflow may build candidate assets but has no secrets or
 write authority. The preview publisher is a `workflow_run` loaded from the
 default branch. It revalidates the live same-repository PR, exact head/base,
-draft state, emergency labels, and reserved environment branch names; installs
-trusted locked Wrangler without credentials; and exposes the Cloudflare token
-only to upload the prebuilt artifact. It never checks out or executes PR-head
-code in the privileged job.
+draft state, emergency labels, reserved environment branch names, and exact
+live-diff applicability using trusted policy; installs trusted locked Wrangler
+without credentials; and exposes the Cloudflare token only to upload the
+prebuilt artifact to a feature branch of the non-production `vinifera-dev`
+Pages project. It never checks out or executes PR-head code in the privileged
+job, and never targets the public `vinifera` project.
 
 Cloudflare's direct Git preview integration remains enabled until the reviewed
 publisher is on `main` and a frontend plus backend proof both pass. Only then

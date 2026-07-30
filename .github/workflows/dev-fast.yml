@@ -4,7 +4,15 @@ on:
   pull_request:
     branches: [dev]
     types:
-      [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+      [
+        opened,
+        synchronize,
+        reopened,
+        ready_for_review,
+        converted_to_draft,
+        labeled,
+        unlabeled,
+      ]
   workflow_dispatch:
     inputs:
       base_sha:
@@ -23,6 +31,7 @@ concurrency:
 permissions:
   contents: read
   checks: read
+  pull-requests: read
 
 jobs:
   candidate:
@@ -39,6 +48,7 @@ jobs:
         env:
           EVENT_ACTION: ${{ github.event.action }}
           EVENT_NAME: ${{ github.event_name }}
+          EVENT_LABEL: ${{ github.event.label.name }}
           PR_DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           set -euo pipefail
@@ -54,6 +64,14 @@ jobs:
             && [[ "$EVENT_ACTION" =~ ^(opened|synchronize|reopened|ready_for_review)$ ]]; then
             eligible=true
             reason="ready_candidate_$EVENT_ACTION"
+          elif [[ "$EVENT_NAME" == "pull_request" ]] \
+            && [[ "$EVENT_ACTION" =~ ^(labeled|unlabeled)$ ]]; then
+            eligible=true
+            if [[ "$EVENT_LABEL" == "octopus-review-required" ]]; then
+              reason="octopus_boundary_$EVENT_ACTION"
+            else
+              reason="metadata_label_$EVENT_ACTION"
+            fi
           fi
           printf 'eligible=%s\nreason=%s\n' "$eligible" "$reason" >> "$GITHUB_OUTPUT"
           {
@@ -477,8 +495,33 @@ jobs:
           SMOKE_RESULT: ${{ needs.smoke.result }}
           PREVIEW_DECISION_RESULT: ${{ needs.preview_decision.result }}
           OCTOPUS_REQUIRED: ${{ needs.classify.outputs.octopus_required }}
-          OCTOPUS_BOUNDARY_SATISFIED: ${{ contains(github.event.pull_request.labels.*.name, 'octopus-review-required') }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          REPOSITORY: ${{ github.repository }}
         run: |
+          set -euo pipefail
+          pr_number="$EVENT_PR_NUMBER"
+          if [[ -z "$pr_number" ]]; then
+            pr_number=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "repos/$REPOSITORY/commits/$HEAD_SHA/pulls" \
+              --jq '[.[] | select(
+                .state == "open" and
+                .base.ref == "dev" and
+                .base.sha == "'"$BASE_SHA"'" and
+                .head.sha == "'"$HEAD_SHA"'" and
+                .head.repo.full_name == "'"$REPOSITORY"'"
+              )] | if length == 1 then .[0].number else empty end')
+          fi
+          if [[ -z "$pr_number" ]]; then
+            echo "::error::Unable to resolve one live pull request for the exact candidate."
+            exit 1
+          fi
+          octopus_boundary_satisfied=$(gh api "repos/$REPOSITORY/pulls/$pr_number" \
+            --jq 'any(.labels[]?; .name == "octopus-review-required")')
+          export OCTOPUS_BOUNDARY_SATISFIED="$octopus_boundary_satisfied"
           node --input-type=module <<'NODE'
           import { appendFileSync } from "node:fs";
           import { evaluateFastAggregate } from "./.github/scripts/delivery-policy.mjs";

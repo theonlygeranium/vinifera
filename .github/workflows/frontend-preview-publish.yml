@@ -26,6 +26,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Download unprivileged candidate artifact
@@ -118,17 +119,37 @@ jobs:
             echo "::error::An emergency label blocks preview mutation."
             exit 1
           fi
-          if [[ "$candidate_eligible" != "true" && "$applicable" == "true" ]]; then
+          git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"
+          trusted_applicable=$(BASE_SHA="$base_sha" HEAD_SHA="$head_sha" \
+            node --input-type=module <<'NODE'
+          import {
+            classifyDeliveryChange,
+            readChangedRecords,
+          } from "./.github/scripts/delivery-policy.mjs";
+          const result = classifyDeliveryChange(
+            readChangedRecords(process.env.BASE_SHA, process.env.HEAD_SHA),
+          );
+          if (!result.classificationSucceeded) {
+            throw new Error(`Trusted preview classification failed: ${result.reason}`);
+          }
+          process.stdout.write(String(result.previewRequired));
+          NODE
+          )
+          if [[ "$applicable" != "$trusted_applicable" ]]; then
+            echo "::error::Artifact preview applicability differs from trusted live-diff policy."
+            exit 1
+          fi
+          if [[ "$candidate_eligible" != "true" && "$trusted_applicable" == "true" ]]; then
             echo "::error::A non-candidate cannot require a preview."
             exit 1
           fi
-          if [[ "$applicable" == "true" && ! -d "$candidate/dist" ]]; then
+          if [[ "$trusted_applicable" == "true" && ! -d "$candidate/dist" ]]; then
             echo "::error::Applicable preview assets are missing."
             exit 1
           fi
 
           printf 'applicable=%s\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
-            "$applicable" "$base_sha" "$head_ref" "$head_sha" "$pr_number" \
+            "$trusted_applicable" "$base_sha" "$head_ref" "$head_sha" "$pr_number" \
             >> "$GITHUB_OUTPUT"
 
       - name: Install trusted Wrangler toolchain
@@ -150,12 +171,12 @@ jobs:
           deploy_log="$RUNNER_TEMP/frontend-preview-deploy.log"
           ./node_modules/.bin/wrangler pages deploy \
             "$RUNNER_TEMP/frontend-preview-candidate/dist" \
-            --project-name vinifera \
+            --project-name vinifera-dev \
             --branch "$HEAD_REF" \
             --commit-hash "$HEAD_SHA" \
             --commit-dirty=false \
             | tee "$deploy_log"
-          immutable_url=$(grep -Eo 'https://[a-z0-9-]+\.vinifera\.pages\.dev' "$deploy_log" \
+          immutable_url=$(grep -Eo 'https://[a-z0-9-]+\.vinifera-dev\.pages\.dev' "$deploy_log" \
             | tail -1)
           if [[ -z "$immutable_url" ]]; then
             echo "::error::Wrangler did not report an immutable Pages deployment URL."
@@ -163,7 +184,7 @@ jobs:
           fi
           branch_slug=$(tr '[:upper:]' '[:lower:]' <<<"$HEAD_REF" \
             | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-          branch_url="https://${branch_slug}.vinifera.pages.dev"
+          branch_url="https://${branch_slug}.vinifera-dev.pages.dev"
           printf 'branch_url=%s\nimmutable_url=%s\n' "$branch_url" "$immutable_url" \
             >> "$GITHUB_OUTPUT"
 

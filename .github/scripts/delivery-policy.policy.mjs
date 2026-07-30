@@ -406,13 +406,18 @@ test("development workflow has candidate-only triggers and cancellable PR concur
   );
   assert.match(
     workflow,
-    /opened, synchronize, reopened, ready_for_review, converted_to_draft/,
+    /ready_for_review,[\s\S]*converted_to_draft,[\s\S]*labeled,[\s\S]*unlabeled,/,
   );
   assert.match(workflow, /draft_not_candidate/);
+  assert.match(workflow, /octopus_boundary_\$EVENT_ACTION/);
+  assert.match(workflow, /metadata_label_\$EVENT_ACTION/);
+  assert.match(workflow, /EVENT_LABEL.*github\.event\.label\.name/);
   assert.match(workflow, /current_dev.*base_sha/);
   assert.match(workflow, /if \[\[ "\$GITHUB_SHA" != "\$head_sha" \]\]; then/);
   assert.match(workflow, /Manual exact candidate checks/);
   assert.match(workflow, /octopus-review-required/);
+  assert.match(workflow, /commits\/\$HEAD_SHA\/pulls/);
+  assert.match(workflow, /octopus_boundary_satisfied=\$\(gh api/);
 });
 
 test("development workflow makes browser and preview work path-aware", () => {
@@ -454,6 +459,12 @@ test("trusted preview publisher never executes PR-head code beside credentials",
   assert.match(workflow, /do-not-merge/);
   assert.match(workflow, /Frontend preview evidence/);
   assert.match(workflow, /--commit-hash "\$HEAD_SHA"/);
+  assert.match(workflow, /classifyDeliveryChange/);
+  assert.match(workflow, /readChangedRecords/);
+  assert.match(workflow, /applicable" != "\$trusted_applicable/);
+  assert.match(workflow, /--project-name vinifera-dev/);
+  assert.doesNotMatch(workflow, /--project-name vinifera(?:\s|\\)/);
+  assert.match(workflow, /\.vinifera-dev\.pages\.dev/);
   assert.match(workflow, /npm ci/);
   const install = workflow.slice(
     workflow.indexOf("Install trusted Wrangler toolchain"),
