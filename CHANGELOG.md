@@ -3,6 +3,29 @@
 ## [Unreleased]
 
 ### Added
+- Risk-based autonomous delivery to `dev`: added the machine-readable
+  `.github/delivery-risk-contract.json`, a pure policy evaluator with contract
+  tests, and a trusted default-branch auto-merge workflow. The workflow
+  resolves one live same-repository PR, reclassifies the exact diff from
+  trusted code, requires current `dev` base/head identity,
+  `codex-auto-merge`, low/medium risk, every canonical and live protected
+  context, applicable `Frontend preview evidence`, and zero unresolved review
+  threads. It rejects drafts, forks, high/unknown risk, emergency labels,
+  missing/pending/skipped/neutral/cancelled/failed evidence, and paginated
+  review state, then repeats the complete decision immediately before an
+  exact-SHA squash merge. Successful trusted frontend publication wakes the
+  controller through an exact-identity repository dispatch because ordinary
+  token-created status events do not reliably trigger another workflow. The
+  GitHub governance snapshot defines reversible
+  `dev` PR protection and read-only default Actions permissions without
+  changing production controls. Trusted merge and preview publishers retain
+  their scoped checkout credentials only for authenticated private-repository
+  object fetches and never execute PR-head code. **Deployment impact:** Changes non-production
+  repository governance and prepares trusted automatic merges. The workflow
+  does not activate until it reaches the repository default branch and this
+  PR performs no deployment, provider activation, credential rotation, DNS
+  change, hosted-data mutation, production action, or activation-gate
+  completion.
 - Principal-orchestrator candidate delivery governance and fast CI: ready
   pull-request heads now drive the exact `Dev fast checks` candidate while
   feature pushes and draft WIP avoid expensive cloud validation. The

@@ -69,6 +69,9 @@ Activation gates affected: None
 - [ ] Stable dev/staging/live/marketing URLs and the Pages rollback baseline remain intact
 - [ ] No provider, billing, email, DNS, database, Worker, mobile-store, or production gate is claimed active without its own evidence
 - [ ] Neither `human-review-required` nor `do-not-merge` is present
+- [ ] If `codex-auto-merge` is present: risk is low/medium, the PR is
+      same-repository to current `dev`, applicable preview evidence succeeded,
+      and zero review threads remain unresolved
 
 ## Risks, rollback, and assumptions
 

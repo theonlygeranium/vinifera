@@ -1,0 +1,324 @@
+name: Trusted development auto-merge
+
+on:
+  workflow_run:
+    workflows: ["Development fast validation"]
+    types: [completed]
+  repository_dispatch:
+    types: [frontend_preview_evidence]
+  pull_request_target:
+    branches: [dev]
+    types: [labeled, unlabeled, ready_for_review, reopened, synchronize]
+
+concurrency:
+  group: vinifera-dev-automerge-${{ github.event.pull_request.number || github.event.workflow_run.head_sha || github.event.client_payload.head_sha }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  checks: read
+  contents: write
+  pull-requests: write
+  statuses: read
+
+jobs:
+  merge:
+    name: Revalidate and merge eligible dev candidate
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'pull_request') ||
+      github.event_name == 'repository_dispatch' ||
+      (github.event_name == 'pull_request_target' &&
+       contains(github.event.pull_request.labels.*.name, 'codex-auto-merge'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out trusted default-branch policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          # Trusted default-branch code needs authenticated private-repository
+          # fetches and the exact merge token; no PR-head code is executed.
+          persist-credentials: true
+
+      - name: Resolve live pull request
+        id: pr
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          DISPATCH_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          DISPATCH_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          pr_number="$EVENT_PR_NUMBER"
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            pr_number=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "repos/$REPOSITORY/commits/$WORKFLOW_HEAD_SHA/pulls" \
+              --jq '[.[] | select(
+                .state == "open" and
+                .base.ref == "dev" and
+                .head.sha == "'"$WORKFLOW_HEAD_SHA"'" and
+                .head.repo.full_name == "'"$REPOSITORY"'"
+              )] | if length == 1 then .[0].number else empty end')
+          elif [[ "$EVENT_NAME" == "repository_dispatch" ]]; then
+            if [[ ! "$DISPATCH_PR_NUMBER" =~ ^[1-9][0-9]*$ \
+              || ! "$DISPATCH_HEAD_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "::error::Preview dispatch lacks an exact PR and head."
+              exit 1
+            fi
+            pr_number="$DISPATCH_PR_NUMBER"
+            dispatched_pr=$(gh api "repos/$REPOSITORY/pulls/$pr_number")
+            if [[ "$(jq -r '.state' <<<"$dispatched_pr")" != "open" \
+              || "$(jq -r '.base.ref' <<<"$dispatched_pr")" != "dev" \
+              || "$(jq -r '.head.sha' <<<"$dispatched_pr")" != "$DISPATCH_HEAD_SHA" \
+              || "$(jq -r '.head.repo.full_name' <<<"$dispatched_pr")" != "$REPOSITORY" ]]; then
+              echo "::error::Preview dispatch does not match the live PR."
+              exit 1
+            fi
+          fi
+          if [[ ! "$pr_number" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::notice::No unique live dev pull request matches this event."
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "number=$pr_number" >> "$GITHUB_OUTPUT"
+
+      - name: Evaluate exact candidate
+        if: steps.pr.outputs.eligible == 'true'
+        id: evaluate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          evaluate_candidate() {
+            local phase="$1"
+            local pr current_base base_sha head_sha owner repo_name
+            pr=$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")
+            current_base=$(git ls-remote origin refs/heads/dev | cut -f1)
+            base_sha=$(jq -r '.base.sha' <<<"$pr")
+            head_sha=$(jq -r '.head.sha' <<<"$pr")
+            owner="${REPOSITORY%%/*}"
+            repo_name="${REPOSITORY#*/}"
+
+            for sha in "$base_sha" "$head_sha" "$current_base"; do
+              if [[ ! "$sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+                echo "::error::$phase observed a non-exact revision."
+                return 1
+              fi
+            done
+            git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"
+
+            local classification
+            classification=$(BASE_SHA="$base_sha" HEAD_SHA="$head_sha" \
+              node --input-type=module <<'NODE'
+            import {
+              classifyDeliveryChange,
+              readChangedRecords,
+            } from "./.github/scripts/delivery-policy.mjs";
+            process.stdout.write(JSON.stringify(classifyDeliveryChange(
+              readChangedRecords(process.env.BASE_SHA, process.env.HEAD_SHA),
+            )));
+            NODE
+            )
+
+            local protected_contexts
+            protected_contexts=$(gh api \
+              "repos/$REPOSITORY/branches/dev/protection/required_status_checks" \
+              --jq '.contexts // []' 2>/dev/null || printf '[]')
+
+            local required_contexts
+            required_contexts=$(CONTRACT_CLASSIFICATION="$classification" \
+              PROTECTED_CONTEXTS="$protected_contexts" \
+              node --input-type=module <<'NODE'
+            import {
+              readDeliveryRiskContract,
+              requiredAutomergeContexts,
+            } from "./.github/scripts/dev-automerge-policy.mjs";
+            const contract = readDeliveryRiskContract();
+            const classification = JSON.parse(process.env.CONTRACT_CLASSIFICATION);
+            process.stdout.write(JSON.stringify(requiredAutomergeContexts({
+              contract,
+              protectedContexts: JSON.parse(process.env.PROTECTED_CONTEXTS),
+              previewRequired: classification.previewRequired === true,
+            })));
+            NODE
+            )
+
+            local check_runs statuses context_states
+            check_runs=$(gh api --paginate \
+              -H "Accept: application/vnd.github+json" \
+              "repos/$REPOSITORY/commits/$head_sha/check-runs?per_page=100" |
+              jq -s '[.[].check_runs[]]')
+            statuses=$(gh api --paginate \
+              -H "Accept: application/vnd.github+json" \
+              "repos/$REPOSITORY/commits/$head_sha/statuses?per_page=100" |
+              jq -s 'add')
+            context_states=$(jq -n \
+              --argjson required "$required_contexts" \
+              --argjson runs "$check_runs" \
+              --argjson statuses "$statuses" '
+              def check_state:
+                if .status != "completed" then "pending"
+                elif .conclusion == "success" then "success"
+                else (.conclusion // "failure")
+                end;
+              [
+                $required[] as $name |
+                (
+                  [$runs[] | select(.name == $name)] |
+                  sort_by(.started_at // .created_at) |
+                  last
+                ) as $run |
+                (
+                  [$statuses[] | select(.context == $name)] |
+                  sort_by(.created_at) |
+                  last
+                ) as $status |
+                {
+                  name: $name,
+                  state:
+                    if $run != null then ($run | check_state)
+                    elif $status != null then
+                      (if $status.state == "success" then "success"
+                       elif $status.state == "pending" then "pending"
+                       else ($status.state // "failure")
+                       end)
+                    else "missing"
+                    end
+                }
+              ]')
+
+            local threads
+            threads=$(gh api graphql \
+              -f query='
+                query($owner: String!, $name: String!, $number: Int!) {
+                  repository(owner: $owner, name: $name) {
+                    pullRequest(number: $number) {
+                      reviewThreads(first: 100) {
+                        pageInfo { hasNextPage }
+                        nodes { isResolved }
+                      }
+                    }
+                  }
+                }' \
+              -f owner="$owner" \
+              -f name="$repo_name" \
+              -F number="$PR_NUMBER")
+            if [[ "$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$threads")" != "false" ]]; then
+              echo "::error::More than 100 review threads require explicit inspection."
+              return 1
+            fi
+            local unresolved
+            unresolved=$(jq \
+              '[.data.repository.pullRequest.reviewThreads.nodes[] |
+                select(.isResolved == false)] | length' <<<"$threads")
+
+            local state decision
+            state=$(jq -n \
+              --arg repository "$REPOSITORY" \
+              --arg current_base_sha "$current_base" \
+              --argjson pr "$pr" \
+              --argjson classification "$classification" \
+              --argjson contexts "$context_states" \
+              --argjson unresolved_threads "$unresolved" '
+              {
+                repository: $repository,
+                currentBaseSha: $current_base_sha,
+                pullRequest: {
+                  state: $pr.state,
+                  draft: $pr.draft,
+                  baseRef: $pr.base.ref,
+                  baseSha: $pr.base.sha,
+                  headSha: $pr.head.sha,
+                  baseRepository: $pr.base.repo.full_name,
+                  headRepository: $pr.head.repo.full_name,
+                  labels: [$pr.labels[].name]
+                },
+                classification: $classification,
+                contexts: $contexts,
+                unresolvedThreads: $unresolved_threads
+              }')
+            decision=$(AUTOMERGE_STATE="$state" node --input-type=module <<'NODE'
+            import {
+              evaluateAutomergeCandidate,
+              readDeliveryRiskContract,
+            } from "./.github/scripts/dev-automerge-policy.mjs";
+            process.stdout.write(JSON.stringify(evaluateAutomergeCandidate({
+              contract: readDeliveryRiskContract(),
+              ...JSON.parse(process.env.AUTOMERGE_STATE),
+            })));
+            NODE
+            )
+            {
+              echo "## Trusted development auto-merge"
+              echo
+              echo "- Phase: \`$phase\`"
+              echo "- PR: \`#$PR_NUMBER\`"
+              echo "- Base: \`$base_sha\`"
+              echo "- Head: \`$head_sha\`"
+              echo "- Risk: \`$(jq -r '.risk' <<<"$classification")\`"
+              echo "- Required contexts: \`$(jq -c . <<<"$context_states")\`"
+              echo "- Unresolved review threads: \`$unresolved\`"
+              echo "- Decision: \`$(jq -r '.reason' <<<"$decision")\`"
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+            if [[ "$(jq -r '.eligible' <<<"$decision")" != "true" ]]; then
+              printf 'INELIGIBLE:%s\n' "$(jq -r '.reason' <<<"$decision")"
+              return 0
+            fi
+            printf '%s\n' "$head_sha"
+          }
+
+          initial=$(evaluate_candidate "initial")
+          if [[ "$initial" == INELIGIBLE:* ]]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Candidate is not auto-merge eligible: ${initial#INELIGIBLE:}"
+            exit 0
+          fi
+          head_sha="$initial"
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+          # Evaluate exact candidate again immediately before merge.
+          revalidated_head=$(evaluate_candidate "pre-merge")
+          if [[ "$revalidated_head" == INELIGIBLE:* ]]; then
+            echo "::error::Candidate became ineligible during trusted revalidation."
+            exit 1
+          fi
+          if [[ "$revalidated_head" != "$head_sha" ]]; then
+            echo "::error::Candidate head changed during trusted revalidation."
+            exit 1
+          fi
+
+      - name: Squash merge exact eligible candidate
+        if: >-
+          steps.pr.outputs.eligible == 'true' &&
+          steps.evaluate.outputs.eligible == 'true' &&
+          steps.evaluate.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ steps.evaluate.outputs.head_sha }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          response=$(gh api \
+            --method PUT \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$REPOSITORY/pulls/$PR_NUMBER/merge" \
+            -f merge_method=squash \
+            -f sha="$HEAD_SHA")
+          if [[ "$(jq -r '.merged' <<<"$response")" != "true" ]]; then
+            echo "::error::GitHub rejected the exact candidate merge."
+            exit 1
+          fi
+          echo "Merged PR #$PR_NUMBER at exact head $HEAD_SHA into dev." \
+            >> "$GITHUB_STEP_SUMMARY"

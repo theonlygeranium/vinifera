@@ -408,6 +408,18 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   monitoring; `human-review-required` pauses mutation and `do-not-merge` is
   absolute. Standing owner authority can cover routine reversible delivery
   through protected controls but cannot bypass either label.
+- Risk-based development merge source is defined by
+  `.github/delivery-risk-contract.json`,
+  `.github/scripts/dev-automerge-policy.mjs`, and
+  `.github/workflows/dev-automerge.yml`. It accepts only current-base,
+  same-repository, low/medium-risk `dev` PRs with `codex-auto-merge`, exact
+  successful required/preview contexts, and zero unresolved threads, then
+  repeats the decision before exact-SHA squash merge. It remains inactive
+  until the trusted workflow reaches the default branch.
+- The pre-change GitHub configuration and rollback are recorded in
+  `docs/build-specs/github-governance-snapshot-2026-07-30.md`. `dev`
+  protection and read-only default Actions permissions are the intended live
+  non-production settings; production controls are unchanged.
 - The repository README now displays the CodeRabbit pull-request review badge,
   making automated review coverage visible without changing application,
   deployment, provider, or activation behavior.

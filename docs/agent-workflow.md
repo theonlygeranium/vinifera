@@ -229,6 +229,28 @@ Automation may apply either emergency label when risk is detected. Only the
 human owner or an explicitly trusted owner workflow may remove it. Neither
 control may be bypassed by standing authorization.
 
+### Trusted development auto-merge
+
+`.github/delivery-risk-contract.json` is the machine-readable standing
+authority contract. `Trusted development auto-merge` runs only from the
+repository default branch and never checks out PR-head code. A candidate is
+eligible only when it:
+
+1. targets `dev` from the same repository and is not a draft;
+2. carries `codex-auto-merge` and neither emergency label;
+3. has an exact base equal to the current `dev` revision and an exact live
+   head;
+4. reclassifies as low or medium risk under trusted policy;
+5. has successful `Dev fast checks`, every live protected context, and
+   `Frontend preview evidence` when applicable;
+6. has zero unresolved review threads; and
+7. produces the same result when the entire decision is repeated immediately
+   before the exact-SHA squash merge.
+
+Missing, queued, in-progress, neutral, skipped, cancelled, stale, or failed
+required evidence blocks the mutation. More than 100 review threads fails
+closed for explicit inspection. High-risk work is never auto-merged.
+
 Apply `human-review-required`, preserve evidence, and notify the owner for:
 
 - destructive or irreversible database operations;
