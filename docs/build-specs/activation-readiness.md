@@ -21,6 +21,34 @@ Partial local evidence:
 - Gate 15: two local organizations/default brands with staff isolation; no
   independent billing or hostname-derived member context.
 
+## Activation phases
+
+This grouping changes sequencing only. It does not change any composite gate
+status or weaken a gate's own exit criteria.
+
+### 1. Private production-like beta
+
+Synthetic/non-production data, no live billing, and no production customer
+access. Primary gates: 1 (database), 2 (isolated Worker), 3 (Auth), the
+non-billing isolation subset of 7, and the synthetic multi-brand subset of 15.
+Incomplete billing, shipping, communications, compliance, ML, benchmark,
+optional-provider, and mobile-store capabilities remain hidden or fail closed.
+
+### 2. Restricted live winery pilot
+
+Adds the independent controls required for real winery operations. Primary
+gates: 4–8, 10, 13–16, 19, and 20. Billing, email, fulfillment, compliance,
+imports, customer data, custom hostnames, and live cutover retain their
+separate evidence and approvals; completing a private beta does not imply any
+of them.
+
+### 3. General availability
+
+Adds remaining scale and distribution evidence. Primary gates: 9, 11, 12, 17,
+and 18, plus the GA-scale portions of analytics, integrations, and multi-brand
+evidence. ML, peer benchmarks, optional providers, physical devices, and app
+stores do not block the private web beta.
+
 | Gate | Description | Status | Evidence required for `live-passed` | Owner |
 |---:|---|---|---|---|
 | 1 | Apply migrations to staging Supabase and run linked pgTAP/RLS | pending | Authorized project hash, successful migration job, and complete linked native test output | Track A — staging database |

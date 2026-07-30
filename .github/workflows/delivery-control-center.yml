@@ -1,0 +1,148 @@
+name: Delivery Control Center digest
+
+on:
+  schedule:
+    - cron: "17 16 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: vinifera-delivery-control-center
+  cancel-in-progress: true
+
+jobs:
+  digest:
+    name: Update exception-oriented delivery digest
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out trusted default-branch reporter
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Build and upsert one Delivery Control Center issue
+        env:
+          DEPLOY_ENABLED: ${{ vars.DEV_WORKER_DEPLOY_ENABLED }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          dev_sha=$(gh api "repos/$REPOSITORY/git/ref/heads/dev" --jq '.object.sha')
+          staging_sha=$(gh api "repos/$REPOSITORY/git/ref/heads/staging" --jq '.object.sha')
+          main_sha=$(gh api "repos/$REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          active_pr=$(gh pr list \
+            --repo "$REPOSITORY" \
+            --base dev \
+            --state open \
+            --json number,headRefOid,title \
+            --jq 'sort_by(.number) | first // {}')
+          deployment_run=$(gh run list \
+            --repo "$REPOSITORY" \
+            --workflow "Development Worker release" \
+            --limit 1 \
+            --json conclusion,databaseId,headSha,status,url \
+            --jq 'first // {}' 2>/dev/null || printf '{}')
+          promotion_pr=$(gh pr list \
+            --repo "$REPOSITORY" \
+            --head dev \
+            --base staging \
+            --state open \
+            --json number,headRefOid,url \
+            --jq 'first // {}')
+          blocker="none"
+          owner_action="none"
+          deploy_state=$(jq -r '.conclusion // .status // "not-run"' <<<"$deployment_run")
+          deployment_run_id=$(jq -r '.databaseId // empty' <<<"$deployment_run")
+          exact_live_verified=false
+          if [[ "$DEPLOY_ENABLED" != "true" ]]; then
+            deploy_state="prepared-disabled"
+            blocker="Development Worker target, protected secrets, two QA tenants, and isolated origin require activation evidence."
+          elif [[ "$deploy_state" == "success" && "$deployment_run_id" =~ ^[0-9]+$ ]]; then
+            deployment_artifacts=$(gh api \
+              "repos/$REPOSITORY/actions/runs/$deployment_run_id/artifacts?per_page=100")
+            if jq -e \
+              --arg name "development-deployment-evidence-$dev_sha" \
+              'any(.artifacts[]?; .name == $name and .expired == false)' \
+              <<<"$deployment_artifacts" >/dev/null; then
+              exact_live_verified=true
+            else
+              deploy_state="stale-or-missing-evidence"
+              blocker="Latest successful development run lacks retained evidence for current dev."
+            fi
+          else
+            blocker="Latest Development Worker release is not live-verified."
+          fi
+          if [[ "$(jq -r '.number // empty' <<<"$promotion_pr")" != "" ]]; then
+            owner_action="test staging"
+          fi
+
+          jq -n \
+            --arg active_pr "$(jq -c . <<<"$active_pr")" \
+            --arg blocker "$blocker" \
+            --arg deploy_state "$deploy_state" \
+            --arg dev_sha "$dev_sha" \
+            --arg main_sha "$main_sha" \
+            --arg owner_action "$owner_action" \
+            --arg promotion_pr "$(jq -c . <<<"$promotion_pr")" \
+            --argjson live_verified "$exact_live_verified" \
+            --arg staging_sha "$staging_sha" '
+            [
+              "<!-- vinifera-delivery-control-center -->",
+              "## Current objective",
+              "",
+              "Principal-orchestrator delivery and selected release candidate.",
+              "",
+              "## State",
+              "",
+              "| Layer | Evidence |",
+              "| --- | --- |",
+              "| Implemented | dev `" + ($dev_sha[0:12]) + "` |",
+              "| CI-verified | See exact PR aggregate; never inferred from deployment |",
+              "| Deployed | `" + $deploy_state + "` |",
+              "| Live-verified | `" + (if $live_verified then "yes" else "no" end) + "` |",
+              "| Staging | `" + ($staging_sha[0:12]) + "` |",
+              "| Production control | main `" + ($main_sha[0:12]) + "`; protected approval unchanged |",
+              "",
+              "## Active work",
+              "",
+              "- Development PR: `" + $active_pr + "`",
+              "- Release candidate: `" + $promotion_pr + "`",
+              "- Automatic repairs: see current PR history and exact-head review evidence",
+              "",
+              "## Exceptions",
+              "",
+              "- Blocker: " + $blocker,
+              "- Next automatic action: re-evaluate after the next exact candidate or protected deployment run",
+              "- Owner action: **" + $owner_action + "**"
+            ] | join("\n")
+          ' > "$RUNNER_TEMP/delivery-control-center.md"
+
+          matching_issues=$(gh issue list \
+            --repo "$REPOSITORY" \
+            --state open \
+            --search '"Delivery Control Center" in:title' \
+            --json number,title \
+            --jq '[.[] | select(.title == "Delivery Control Center")]')
+          issue_count=$(jq 'length' <<<"$matching_issues")
+          if (( issue_count > 1 )); then
+            echo "::error::Multiple open Delivery Control Center issues require manual consolidation."
+            exit 1
+          fi
+          issue_number=$(jq -r '.[0].number // empty' <<<"$matching_issues")
+          if [[ -n "$issue_number" ]]; then
+            gh issue edit "$issue_number" \
+              --repo "$REPOSITORY" \
+              --body-file "$RUNNER_TEMP/delivery-control-center.md"
+          else
+            gh issue create \
+              --repo "$REPOSITORY" \
+              --title "Delivery Control Center" \
+              --body-file "$RUNNER_TEMP/delivery-control-center.md"
+          fi

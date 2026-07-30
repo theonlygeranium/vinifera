@@ -1,6 +1,6 @@
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-07-29
+**Last updated:** 2026-07-30
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
 
 ## Project identity
@@ -145,14 +145,14 @@ This source branch makes it canonical and implements its first bounded unit:
 - review repairs are collected and batched for no more than two substantive
   repair/re-review cycles.
 
-The current external-control snapshot found zero open PRs, no rulesets, and
-only `main` protected. `dev` and `staging` are unprotected. `main` requires
-`Type, test, build, and package` plus `Block direct push to main` and resolved
-conversations, but administrator enforcement is disabled and no approval is
-required. The four protected environments require owner review but allow
-self-review and administrator bypass. Repository workflow tokens default to
-write and can approve reviews. These are current gaps for the follow-on
-risk-based autonomous-delivery change; they are not proof of enforcement.
+The pre-change external-control snapshot found zero open PRs, no rulesets, and
+only `main` protected. The owner-authorized non-production update now protects
+`dev` with strict `Dev fast checks`, PR-only updates, resolved conversations,
+linear history, administrator enforcement, and no force-push or deletion.
+Default Actions permissions are read-only and workflow tokens cannot approve
+reviews. `main`, `staging`, and protected environment settings were not
+changed; the exact before/after payloads and rollback procedure are recorded
+in `docs/build-specs/github-governance-snapshot-2026-07-30.md`.
 
 The trusted preview publisher cannot receive `workflow_run` events until the
 reviewed definition reaches the default branch. Therefore the direct
@@ -420,6 +420,23 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   `docs/build-specs/github-governance-snapshot-2026-07-30.md`. `dev`
   protection and read-only default Actions permissions are the intended live
   non-production settings; production controls are unchanged.
+- Development Worker automation is source-complete but
+  `prepared_disabled`. `Development deployment candidate` is unprivileged;
+  `Development Worker release` runs trusted default-branch code, builds one
+  immutable prebuilt bundle/assets package, requires a known rollback version,
+  deploys only `vinifera-development`, verifies exact health/configuration,
+  staff/member/tenant boundaries and desktop/375 rendering, and rolls back on
+  failure. Activation blockers and rollback are in
+  `docs/runbooks/development-worker-release.md`.
+- `Package selected release candidate` packages one current `dev` head only
+  after the maintained `dev → staging` PR has exact full CI and Octopus
+  evidence. The protected staging and production upload paths consume that
+  exact manifest-bound bundle/assets package with `--no-bundle`; both remain
+  unactivated and no hosted artifact was uploaded.
+  `Delivery Control Center` maintains one low-noise GitHub issue and separates
+  implemented, CI-verified, deployed, and live-verified state.
+- The 20 pending activation gates are sequenced into private synthetic beta,
+  restricted live winery pilot, and GA without changing any gate status.
 - The repository README now displays the CodeRabbit pull-request review badge,
   making automated review coverage visible without changing application,
   deployment, provider, or activation behavior.

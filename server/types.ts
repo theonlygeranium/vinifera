@@ -67,6 +67,7 @@ export interface WorkerEnv {
   APNS_PRIVATE_KEY?: string;
   APNS_TEAM_ID?: string;
   APP_ENV?: "development" | "test" | "staging" | "production";
+  DEPLOY_GIT_SHA?: string;
   APP_ORIGIN?: string;
   ASSETS?: Fetcher;
   AUTH_EMAIL_ENABLED?: "true" | "false";

@@ -104,6 +104,7 @@ if (operation === "verify-targets") {
   const [inputPath] = arguments_;
   if (!inputPath) throw new Error("Worker version JSON path is required.");
   assertVersionMatchesGitSha({
+    artifactSha256: process.env.RELEASE_ARTIFACT_SHA256,
     gitSha: validateImmutableGitSha(process.env.PRODUCTION_ARTIFACT_GIT_SHA),
     version: await readJson(inputPath, "Wrangler version view"),
     versionId: validateWorkerVersionId(process.env.PRODUCTION_VERSION_ID),

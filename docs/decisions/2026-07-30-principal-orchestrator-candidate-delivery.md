@@ -223,6 +223,14 @@ branch. `dev` branch protection and default workflow-token hardening are live
 repository settings with the pre-change snapshot and rollback procedure in
 `docs/build-specs/github-governance-snapshot-2026-07-30.md`.
 
+The final delivery unit adds prepared-but-disabled default-branch development
+deployment, immutable selected-candidate packaging, one protected production
+summary/approval surface, and a maintained Delivery Control Center issue. The
+real development mutation remains disabled until the isolated Worker,
+protected credentials, rollback version, and synthetic two-tenant QA
+identities are externally provisioned and verified. No activation gate is
+advanced by source completeness.
+
 ## Verification
 
 - Run `node --test .github/scripts/delivery-policy.policy.mjs`.
