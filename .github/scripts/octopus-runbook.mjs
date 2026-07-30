@@ -21,6 +21,40 @@ function resourceItems(payload) {
   throw new Error("Octopus returned an unexpected resource-list shape");
 }
 
+function safeHeaderToken(value) {
+  if (!value) return "absent";
+  return value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9.+/-]/g, "_")
+    .slice(0, 80);
+}
+
+export function responseProvenance(response) {
+  const location = response.headers.get("location");
+  let redirectHost = "absent";
+  if (location) {
+    try {
+      redirectHost = safeHeaderToken(new URL(location).hostname);
+    } catch {
+      redirectHost = "invalid";
+    }
+  }
+
+  return [
+    `server=${safeHeaderToken(response.headers.get("server"))}`,
+    `cf-ray=${response.headers.has("cf-ray") ? "present" : "absent"}`,
+    `content-type=${safeHeaderToken(
+      response.headers.get("content-type")?.split(";", 1)[0],
+    )}`,
+    `redirect-host=${redirectHost}`,
+  ].join("; ");
+}
+
+function requestTarget(url, method) {
+  const parsed = new URL(url);
+  return `${method ?? "GET"} ${parsed.pathname}`;
+}
+
 async function requestJson(fetchImpl, url, authenticationHeaders, options = {}) {
   const response = await fetchImpl(url, {
     ...options,
@@ -34,7 +68,12 @@ async function requestJson(fetchImpl, url, authenticationHeaders, options = {}) 
   });
 
   if (!response.ok) {
-    throw new Error(`Octopus API request failed with HTTP ${response.status}`);
+    throw new Error(
+      `Octopus API request failed for ${requestTarget(
+        url,
+        options.method,
+      )} with HTTP ${response.status} (${responseProvenance(response)})`,
+    );
   }
 
   if (response.status === 204) return null;
@@ -116,6 +155,22 @@ function isSensitivePromptControl(control) {
   );
 }
 
+export function credentialShapeSummary(environment) {
+  const credentials = [
+    ["cf-client-id", environment.CF_ACCESS_CLIENT_ID],
+    ["cf-client-secret", environment.CF_ACCESS_CLIENT_SECRET],
+    ["octopus-api-key", environment.OCTOPUS_API_KEY],
+  ];
+  const summaries = credentials.map(([name, value]) => {
+    if (!/^[\x21-\x7e]+$/.test(value)) {
+      throw new Error(`${name} must contain visible ASCII characters only`);
+    }
+    return `${name}-chars=${value.length}`;
+  });
+  summaries.push(`octopus-host=${new URL(environment.OCTOPUS_URL).hostname}`);
+  return `Octopus credential shape accepted: ${summaries.join("; ")}`;
+}
+
 export async function runRunbook({
   runbookName,
   environment = process.env,
@@ -158,6 +213,7 @@ export async function runRunbook({
   }
   if (!runbookName) throw new Error("Runbook name is required");
 
+  log(credentialShapeSummary(environment));
   const apiBase = normalizeApiBase(environment.OCTOPUS_URL);
   const authenticationHeaders = {
     "CF-Access-Client-Id": environment.CF_ACCESS_CLIENT_ID,

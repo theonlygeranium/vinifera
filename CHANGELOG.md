@@ -56,6 +56,13 @@
   production resource change.
 
 ### Fixed
+- Octopus PR bridge failures now report secret-safe credential shape and HTTP
+  response provenance, distinguishing Cloudflare Access rejection from
+  Octopus API authorization without logging credential values, response
+  bodies, query strings, or redirect paths. Non-ASCII header credentials fail
+  before network access. **Deployment impact:** Trusted PR-review diagnostics
+  only; no application deployment, provider activation, DNS change, database
+  mutation, or production action occurs.
 - Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure
   so CI policy tests can locate the embedded quality-gate runbook (22 test
   failures on `main`).

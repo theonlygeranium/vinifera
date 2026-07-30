@@ -12,7 +12,9 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  credentialShapeSummary,
   normalizeApiBase,
+  responseProvenance,
   resolveFormValues,
   runRunbook,
 } from "../../.github/scripts/octopus-runbook.mjs";
@@ -1105,6 +1107,50 @@ describe("Octopus runbook bridge", () => {
     );
   });
 
+  it("reports credential shape without exposing credential values", () => {
+    const summary = credentialShapeSummary({
+      CF_ACCESS_CLIENT_ID: "client-id.access",
+      CF_ACCESS_CLIENT_SECRET: "sensitive-value",
+      OCTOPUS_API_KEY: "API-EXAMPLE",
+      OCTOPUS_URL: "https://octopus.example.test",
+    });
+
+    expect(summary).toBe(
+      "Octopus credential shape accepted: cf-client-id-chars=16; " +
+        "cf-client-secret-chars=15; octopus-api-key-chars=11; " +
+        "octopus-host=octopus.example.test",
+    );
+    expect(summary).not.toContain("sensitive-value");
+    expect(() =>
+      credentialShapeSummary({
+        CF_ACCESS_CLIENT_ID: "client-id.access",
+        CF_ACCESS_CLIENT_SECRET: "curly\u201csecret",
+        OCTOPUS_API_KEY: "API-EXAMPLE",
+        OCTOPUS_URL: "https://octopus.example.test",
+      }),
+    ).toThrow("visible ASCII");
+  });
+
+  it("reports safe HTTP response provenance without response bodies", () => {
+    const response = new Response("private response body", {
+      status: 403,
+      headers: {
+        "CF-Ray": "fixture-ray",
+        "Content-Type": "text/html; charset=UTF-8",
+        Location:
+          "https://little-brook.cloudflareaccess.com/cdn-cgi/access/login",
+        Server: "cloudflare",
+      },
+    });
+
+    const provenance = responseProvenance(response);
+    expect(provenance).toBe(
+      "server=cloudflare; cf-ray=present; content-type=text/html; " +
+        "redirect-host=little-brook.cloudflareaccess.com",
+    );
+    expect(provenance).not.toContain("private response body");
+  });
+
   it("maps prompted names to Octopus form element IDs and fails closed", () => {
     const preview = {
       Form: {
@@ -1355,7 +1401,10 @@ describe("Octopus runbook bridge", () => {
       }),
     ).rejects.toThrow("Octopus runbook timed out after -1ms");
     expect(log).toHaveBeenCalledWith(
-      "Failed to cancel Octopus task ServerTasks-1: Octopus API request failed with HTTP 500",
+      "Failed to cancel Octopus task ServerTasks-1: Octopus API request failed " +
+        "for POST /api/tasks/ServerTasks-1/cancel with HTTP 500 " +
+        "(server=absent; cf-ray=absent; content-type=application/json; " +
+        "redirect-host=absent)",
     );
   });
 });

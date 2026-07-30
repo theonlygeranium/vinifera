@@ -21,6 +21,13 @@ than the Worker JSON health contract, so the production application has not
 replaced that baseline. Version 0.5.0 contains the complete Phase 1–5
 connection-ready source architecture:
 
+- The trusted Octopus PR bridge reports credential-value-free diagnostics for
+  Access/API failures: visible-ASCII validation and character counts for the
+  three authentication headers, plus the Octopus hostname and sanitized
+  response provenance (`server`, `cf-ray` presence, media type, and redirect
+  hostname). It never logs secret values, response bodies, query strings, or
+  redirect paths. This preserves the trusted default-branch execution boundary
+  and changes no hosted activation gate.
 - Runtime signing/hash material is purpose-separated: rate-limit hashing and
   member-brand context signing require distinct, independently generated
   32-byte-or-longer secrets. Runtime configuration, staging activation, and
