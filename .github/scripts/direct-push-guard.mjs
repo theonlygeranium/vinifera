@@ -3,8 +3,8 @@ import { pathToFileURL } from "node:url";
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/i;
 const MAX_PAGES = 10;
-const MAX_EVIDENCE_ATTEMPTS = 3;
-const EVIDENCE_RETRY_DELAY_MS = 10_000;
+const MAX_EVIDENCE_ATTEMPTS = 6;
+const EVIDENCE_RETRY_DELAY_MS = 15_000;
 const GITHUB_REQUEST_TIMEOUT_MS = 5_000;
 
 class GitHubRequestTimeoutError extends Error {
