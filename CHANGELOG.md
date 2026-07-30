@@ -76,11 +76,14 @@
   GitHub PAT remains an Octopus database-backed sensitive prompt. The bridge
   recognizes Octopus's `Octopus.ControlType` sensitive marker and submits the
   PAT only through the masked form-value channel; it is never stored in Git or
-  logged. The prior nested path passed local tests but left `PR Quality Gates`
-  absent from every live Git-backed runbook list. **Deployment impact:**
-  Repairs trusted high-risk PR review once the bridge, prompts, and flat OCL
-  reach the default branch; no application deployment, provider activation,
-  DNS change, database mutation, or production action occurs.
+  logged. The runbook constructs GitHub's Basic `x-access-token` smart-HTTP
+  header in memory for the private-repository fetch and unsets it immediately;
+  GitHub API requests retain Bearer authentication. The prior nested path
+  passed local tests but left `PR Quality Gates` absent from every live
+  Git-backed runbook list. **Deployment impact:** Repairs trusted high-risk PR
+  review once the bridge, prompts, and flat OCL reach the default branch; no
+  application deployment, provider activation, DNS change, database mutation,
+  or production action occurs.
 - Review-gate permissions and Worker rollback authorization now fail closed
   without becoming unusable: Octopus can read PR metadata, promotion and
   production gates can read exact Actions run/job evidence, and rollback keeps

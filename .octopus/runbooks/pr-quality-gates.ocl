@@ -85,10 +85,13 @@ print(data["base"]["sha"])
                     cd "$WORK_DIR"
                     git init --quiet
                     git remote add origin https://github.com/theonlygeranium/vinifera.git
+                    GIT_AUTH_HEADER=$(printf 'x-access-token:%s' "#{GitHubPAT}" \
+                        | base64 | tr -d '\n')
                     GIT_CONFIG_COUNT=1 \
                     GIT_CONFIG_KEY_0=http.extraHeader \
-                    GIT_CONFIG_VALUE_0="Authorization: Bearer #{GitHubPAT}" \
+                    GIT_CONFIG_VALUE_0="Authorization: Basic $GIT_AUTH_HEADER" \
                         git fetch --quiet --no-tags --depth=100 origin "$BASE_SHA" "$HEAD_SHA"
+                    unset GIT_AUTH_HEADER
                     MERGE_BASE_SHA=$(git merge-base "$BASE_SHA" "$HEAD_SHA") || {
                         echo "FAIL: unable to resolve pull request merge base"
                         exit 1

@@ -176,6 +176,11 @@ describe("Octopus runbook bridge", () => {
     expect(qualityRunbook).not.toContain('-H "$AUTH_HEADER"');
     expect(qualityRunbook).not.toContain("git -c http.extraHeader");
     expect(qualityRunbook).toContain("GIT_CONFIG_KEY_0=http.extraHeader");
+    expect(qualityRunbook).toContain("x-access-token:%s");
+    expect(qualityRunbook).toContain("Authorization: Basic $GIT_AUTH_HEADER");
+    expect(qualityRunbook).not.toContain(
+      'GIT_CONFIG_VALUE_0="Authorization: Bearer #{GitHubPAT}"',
+    );
     expect(qualityRunbook).toContain("curl -fsS --config -");
     expect(qualityRunbook).toContain("git remote remove origin");
     expect(qualityRunbook).toContain(
