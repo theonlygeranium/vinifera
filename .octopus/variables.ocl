@@ -9,3 +9,79 @@ variable "Octopus.Action.MaxParallelism" {
         description = "Max parallel actions per deployment step"
     }
 }
+
+variable "NodeEnv" {
+    value "production" {}
+}
+
+variable "AppHealthUrl" {
+    value "http://localhost:3000/health" {}
+}
+
+variable "AppName" {
+    value "vinifera" {}
+}
+
+variable "AppEnv" {
+    value "development" {}
+}
+
+variable "AppOrigin" {
+    value "https://vinifera-dev.edstratumlabs.ai" {}
+}
+
+variable "LiveBillingEnabled" {
+    value "false" {}
+}
+
+variable "AuthEmailEnabled" {
+    value "false" {}
+}
+
+variable "GoogleOauthEnabled" {
+    value "false" {}
+}
+
+variable "EasypostLiveLabelsEnabled" {
+    value "false" {}
+}
+
+variable "ShippingSimulatorEnabled" {
+    value "false" {}
+}
+
+variable "EmailSimulatorEnabled" {
+    value "false" {}
+}
+
+variable "ComplianceSimulatorEnabled" {
+    value "false" {}
+}
+
+variable "SupabaseUrl" {
+    value "https://cfrqrllmyquggqjkzifs.supabase.co" {}
+}
+
+variable "SupabaseProjectId" {
+    value "cfrqrllmyquggqjkzifs" {}
+}
+
+variable "ShippingProvider" {
+    value "easypost" {}
+}
+
+variable "EmailProvider" {
+    value "resend" {}
+}
+
+variable "ComplianceProvider" {
+    value "shipcompliant" {}
+}
+
+variable "LiteLLMEndpoint" {
+    value "http://172.17.0.1:4000" {}
+}
+
+variable "LiteLLMModel" {
+    value "writer/palmyra-x5" {}
+}
