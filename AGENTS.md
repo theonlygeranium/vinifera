@@ -306,6 +306,9 @@ feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
   same-repository PR to `dev` after trusted automation revalidates the live
   head/base, exact required checks, applicable preview evidence, labels, and
   zero blocking threads immediately before merge.
+- `.github/delivery-risk-contract.json` is the machine-readable merge
+  authority contract. Missing, skipped, neutral, pending, cancelled, stale, or
+  failed required evidence blocks merge. High-risk candidates never auto-merge.
 - A consolidated `dev → staging` promotion is started manually or by an
   explicitly owner-authorized workflow; it is never created after every push
   to `dev`. `promote-dev-to-staging.yml`:

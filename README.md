@@ -160,6 +160,15 @@ separate batched release candidate using `Type, test, build, and package` plus
 Octopus. Production, live billing, provider activation, credential rotation,
 DNS, destructive hosted data work, and emergency labels remain protected.
 
+The machine-readable authority boundary lives in
+`.github/delivery-risk-contract.json`. The trusted default-branch
+`Trusted development auto-merge` workflow independently reclassifies the live
+diff, unions canonical checks with live `dev` protection, requires successful
+preview evidence when applicable, checks all review threads, and repeats the
+full exact-head/base decision immediately before an exact-SHA squash merge.
+The source is present on `dev`; automatic execution remains inactive until the
+workflow is promoted to the repository default branch.
+
 ### Routing
 
 | Route | Served By | Content-Type |

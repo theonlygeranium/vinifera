@@ -151,6 +151,16 @@ must run trusted default-branch code. It must re-read the live PR, exact head
 and base, risk, labels, required terminal checks, applicable preview evidence,
 and thread-aware review state immediately before mutation.
 
+The implementation contract is `.github/delivery-risk-contract.json`.
+`.github/workflows/dev-automerge.yml` consumes it from a trusted
+default-branch checkout and unions its canonical contexts with live `dev`
+branch-protection contexts. The workflow reacts to the completed fast gate,
+successful frontend-preview status, and relevant PR metadata changes. It
+reclassifies the live diff, rejects forks, stale bases, drafts, high risk,
+emergency labels, missing authority, non-success terminal states, and
+unresolved review threads, then repeats the entire evaluation immediately
+before an exact-SHA squash merge.
+
 ### 6. Keep release and production boundaries protected
 
 Routine development does not start a promotion. One maintained release
@@ -182,6 +192,8 @@ customer-data access.
 - Privileged preview publication never executes PR-head code.
 - Routine low- and medium-risk merge automation can be added without granting
   write authority to the PR workflow.
+- Default workflow permissions can remain read-only because the trusted merge
+  workflow declares its narrowly scoped write permissions explicitly.
 - The current branch topology remains in place. Treating staging solely as a
   deployment environment is a future separately reviewed migration.
 
@@ -203,6 +215,12 @@ previews:
    `none`.
 
 No activation gate is completed by this ADR.
+
+The risk-based merge implementation is source-complete on `dev` but cannot
+become active until the trusted workflow reaches the repository default
+branch. `dev` branch protection and default workflow-token hardening are live
+repository settings with the pre-change snapshot and rollback procedure in
+`docs/build-specs/github-governance-snapshot-2026-07-30.md`.
 
 ## Verification
 
