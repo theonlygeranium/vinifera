@@ -4,6 +4,13 @@
 **Status:** Accepted
 **Decided by:** Human owner, implemented by Codex
 
+> **Amended 2026-07-30:** The principal-orchestrator candidate-delivery ADR
+> reduces the repair limit from three to two substantive cycles, makes
+> CodeRabbit optional while unavailable, reserves Octopus for promotion and
+> high-risk work, and validates routine post-merge state on `dev` rather than
+> `main`. Its exact-candidate and emergency-label rules supersede conflicting
+> statements below.
+
 ## Context
 
 The repository already required pull requests, CI, Greptile, and a direct-push
@@ -39,7 +46,7 @@ passes and neither blocking label is present.
 Architecture, authentication, authorization, database migrations, billing,
 production configuration, provider activation, security tradeoffs,
 destructive actions, and materially expanded scope always require human
-review. The monitor stops after three unsuccessful fix/review cycles or when
+review. The monitor stops after two substantive fix/review cycles or when
 the same finding reappears.
 
 ## Rationale
@@ -73,7 +80,9 @@ treating stale evidence as approval.
 - Low-risk fixes can proceed only under label authority, while sensitive or
   repeated findings stop for human review.
 - Automatic merge is possible only under explicit label authority and after
-  post-merge `main` CI is verified.
+  exact-candidate checks are revalidated immediately before merge to `dev`;
+  the resulting `dev` revision and applicable stable-dev evidence are then
+  verified separately.
 - The external Codex automation and GitHub settings must be audited alongside
   repository documentation.
 

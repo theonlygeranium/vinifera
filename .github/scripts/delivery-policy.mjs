@@ -27,6 +27,33 @@ const ROUTINE_FILES = new Set([
   "vitest.config.ts",
 ]);
 
+const FRONTEND_RUNTIME_PREFIXES = Object.freeze([
+  "src/client/",
+  "public/",
+  "web/",
+]);
+
+const FRONTEND_RUNTIME_FILES = new Set([
+  "app",
+  "guide",
+  "index.html",
+  "vite.config.ts",
+]);
+
+const BACKEND_PREFIXES = Object.freeze([
+  "server/",
+  "supabase/",
+]);
+
+const WORKFLOW_PREFIXES = Object.freeze([
+  ".github/",
+  ".octopus/",
+]);
+
+const TEST_PREFIXES = Object.freeze([
+  "tests/",
+]);
+
 const HIGH_RISK_PREFIXES = Object.freeze([
   ".github/",
   ".octopus/",
@@ -95,6 +122,20 @@ export function isHighRiskPath(path) {
   );
 }
 
+export function isAuthorityHighRiskPath(path) {
+  if (
+    path.startsWith(".github/") ||
+    path.startsWith(".octopus/") ||
+    path.startsWith("supabase/migrations/") ||
+    [".env.example", "package-lock.json", "wrangler.jsonc"].includes(path)
+  ) {
+    return true;
+  }
+  return /(^|[-_/])(auth|authorization|rls|billing|compliance|credential|deploy|dns|migration|production|secret|stripe)([-_/.]|$)/i.test(
+    path,
+  );
+}
+
 export function isMobilePath(path) {
   return (
     MOBILE_FILES.has(path) ||
@@ -107,6 +148,81 @@ function isRoutinePath(path) {
     ROUTINE_FILES.has(path) ||
     ROUTINE_PREFIXES.some((prefix) => path.startsWith(prefix))
   );
+}
+
+export function isPreviewRelevantPath(path) {
+  return (
+    FRONTEND_RUNTIME_FILES.has(path) ||
+    FRONTEND_RUNTIME_PREFIXES.some((prefix) => path.startsWith(prefix))
+  );
+}
+
+export function isBrowserRelevantPath(path) {
+  return (
+    isPreviewRelevantPath(path) ||
+    path === "tests/e2e/smoke.spec.ts" ||
+    path === "playwright.config.ts" ||
+    /(^|[-_/])(a11y|accessibility|wcag)([-_/.]|$)/i.test(path)
+  );
+}
+
+function deliverySurface(paths) {
+  if (paths.every(isDocumentationPath)) return "docs";
+  const surfaces = new Set();
+  for (const path of paths) {
+    if (isPreviewRelevantPath(path)) surfaces.add("frontend");
+    else if (BACKEND_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+      surfaces.add("backend");
+    } else if (WORKFLOW_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+      surfaces.add("workflow");
+    } else if (TEST_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+      surfaces.add("test");
+    } else {
+      surfaces.add("other");
+    }
+  }
+  if (
+    surfaces.has("frontend") &&
+    [...surfaces].every((surface) => surface === "frontend" || surface === "test")
+  ) {
+    return "frontend";
+  }
+  if (
+    surfaces.has("backend") &&
+    [...surfaces].every((surface) => surface === "backend" || surface === "test")
+  ) {
+    return "backend";
+  }
+  if (
+    surfaces.has("workflow") &&
+    [...surfaces].every((surface) => surface === "workflow" || surface === "test")
+  ) {
+    return "workflow";
+  }
+  if (surfaces.size === 1 && surfaces.has("other")) return "unknown";
+  return surfaces.size === 1 ? [...surfaces][0] : "mixed";
+}
+
+export function evaluateCandidateEvent({
+  eventName,
+  action = "",
+  draft = false,
+}) {
+  if (eventName === "workflow_dispatch") {
+    return { eligible: true, reason: "manual_exact_candidate" };
+  }
+  if (eventName !== "pull_request") {
+    return { eligible: false, reason: "unsupported_event" };
+  }
+  if (action === "converted_to_draft" || draft === true) {
+    return { eligible: false, reason: "draft_not_candidate" };
+  }
+  if (
+    ["opened", "synchronize", "reopened", "ready_for_review"].includes(action)
+  ) {
+    return { eligible: true, reason: `ready_candidate_${action}` };
+  }
+  return { eligible: false, reason: "unsupported_pull_request_action" };
 }
 
 export function parseNameStatusZ(buffer) {
@@ -159,6 +275,10 @@ export function classifyDeliveryChange(records) {
       lane: "invalid",
       reason: "empty_or_missing_diff",
       mobileRequired: false,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "high",
+      surface: "unknown",
       paths: [],
     };
   }
@@ -175,6 +295,10 @@ export function classifyDeliveryChange(records) {
         lane: "invalid",
         reason: "malformed_diff_record",
         mobileRequired: false,
+        browserRequired: false,
+        previewRequired: false,
+        risk: "high",
+        surface: "unknown",
         paths: [],
       };
     }
@@ -190,6 +314,10 @@ export function classifyDeliveryChange(records) {
         lane: "invalid",
         reason: `unsupported_or_unsafe_diff_${record.status || "missing"}`,
         mobileRequired: false,
+        browserRequired: false,
+        previewRequired: false,
+        risk: "high",
+        surface: "unknown",
         paths: [],
       };
     }
@@ -198,6 +326,9 @@ export function classifyDeliveryChange(records) {
 
   const uniquePaths = [...new Set(paths)];
   const mobileRequired = uniquePaths.some(isMobilePath);
+  const browserRequired = uniquePaths.some(isBrowserRelevantPath);
+  const previewRequired = uniquePaths.some(isPreviewRelevantPath);
+  const surface = deliverySurface(uniquePaths);
   if (
     records.every(
       ({ status, paths: recordPaths }) =>
@@ -209,6 +340,10 @@ export function classifyDeliveryChange(records) {
       lane: "docs",
       reason: "documentation_allowlist_match",
       mobileRequired,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "low",
+      surface,
       paths: uniquePaths,
     };
   }
@@ -219,19 +354,37 @@ export function classifyDeliveryChange(records) {
       !isRoutinePath(path) &&
       !isHighRiskPath(path),
   );
+  if (unknown.length > 0) {
+    return {
+      classificationSucceeded: false,
+      lane: "invalid",
+      reason: "unknown_path_fail_closed",
+      mobileRequired,
+      browserRequired,
+      previewRequired,
+      risk: "high",
+      surface,
+      paths: uniquePaths,
+    };
+  }
   const highRisk =
     records.some(({ status }) => status === "D") ||
-    uniquePaths.some(isHighRiskPath) ||
-    unknown.length > 0;
+    uniquePaths.some(isHighRiskPath);
+  const authorityHighRisk =
+    highRisk &&
+    (records.some(({ status }) => status === "D") ||
+      uniquePaths.some(isAuthorityHighRiskPath));
   return {
     classificationSucceeded: true,
     lane: highRisk ? "high-risk" : "routine",
     reason: highRisk
-      ? unknown.length > 0
-        ? "unknown_path_fail_closed"
-        : "high_risk_path"
+      ? "high_risk_path"
       : "routine_allowlist_match",
     mobileRequired,
+    browserRequired,
+    previewRequired,
+    risk: authorityHighRisk ? "high" : "medium",
+    surface,
     paths: uniquePaths,
   };
 }
@@ -271,15 +424,42 @@ export function selectFocusedTests(paths, lane) {
 }
 
 export function evaluateFastAggregate({
+  candidateEligible = true,
+  candidateResult = "success",
   classificationSucceeded,
   lane,
   classifyResult,
   docsResult,
   checksResult,
   smokeResult,
+  previewDecisionResult = "success",
+  browserRequired = true,
+  octopusRequired = false,
+  octopusBoundarySatisfied = false,
 }) {
+  if (candidateResult !== "success") {
+    return { passed: false, reason: "candidate_policy_failed" };
+  }
+  if (candidateEligible !== true) {
+    const terminal =
+      classifyResult === "skipped" &&
+      docsResult === "skipped" &&
+      checksResult === "skipped" &&
+      smokeResult === "skipped" &&
+      previewDecisionResult === "success";
+    return {
+      passed: false,
+      reason: terminal ? "draft_not_candidate" : "draft_result_mismatch",
+    };
+  }
   if (classifyResult !== "success" || classificationSucceeded !== true) {
     return { passed: false, reason: "classification_failed" };
+  }
+  if (previewDecisionResult !== "success") {
+    return { passed: false, reason: "preview_decision_failed" };
+  }
+  if (octopusRequired && !octopusBoundarySatisfied) {
+    return { passed: false, reason: "octopus_boundary_missing" };
   }
   if (lane === "docs") {
     const passed =
@@ -289,10 +469,11 @@ export function evaluateFastAggregate({
     return { passed, reason: passed ? "docs_passed" : "docs_result_mismatch" };
   }
   if (lane === "routine" || lane === "high-risk") {
+    const expectedSmokeResult = browserRequired ? "success" : "skipped";
     const passed =
       docsResult === "skipped" &&
       checksResult === "success" &&
-      smokeResult === "success";
+      smokeResult === expectedSmokeResult;
     return {
       passed,
       reason: passed ? `${lane}_passed` : `${lane}_result_mismatch`,

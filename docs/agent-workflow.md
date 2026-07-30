@@ -13,10 +13,10 @@ Vinifera uses two validation speeds:
 | Feature branch or PR to `dev` | `Dev fast checks` | Fast, actionable routine-development feedback |
 | `dev → staging`, `staging → main`, protected release, or explicit full run | `Type, test, build, and package` | Release-quality, exact-comparison evidence |
 
-The fail-closed classifier may add focused high-risk validation to a feature
-PR. It must not silently turn every routine change into the complete release
-pipeline. A Cloudflare Pages branch preview runs independently of the slow
-release jobs.
+The fail-closed classifier reports risk, execution surface, browser
+applicability, preview applicability, and focused tests. It must not silently
+turn every routine change into the complete release pipeline. Local and draft
+work is WIP; a non-draft exact PR head is the cloud-CI candidate.
 
 Octopus is required for `dev → staging` promotion and protected/high-risk
 review. It is available by explicit request for a high-risk feature PR, but it
@@ -83,27 +83,57 @@ state.
 2. Implement and locally validate the affected surface. Visual work includes a
    375-pixel check and accessibility coverage.
 3. Add the consolidated changelog entry and update relevant documentation.
-4. Push the feature branch and open a PR targeting `dev`.
-5. Confirm the classifier reports the exact base/head and selects the expected
-   documentation, routine, or high-risk path.
-6. Wait for `Dev fast checks` and the independent exact-head feature-preview
-   check (`Cloudflare Pages: vinifera` in the current project configuration).
-   Record the branch alias and immutable URL from the Cloudflare check. The
-   informational `Cloudflare preview evidence` job discovers those URLs without
-   delaying the fast aggregate; it does not replace the Cloudflare check. The
-   post-merge `dev` deployment separately emits
-   `Cloudflare Pages: vinifera-dev`.
-7. Inspect every available review thread. Fix substantive findings, test the
-   repair, and push a consolidated update. CodeRabbit absence or rate limiting
-   is non-blocking.
-8. When the exact head is ready, squash-merge to `dev` only under applicable
-   owner authority and neither emergency label. Verify the resulting `dev`
-   commit and stable-dev deployment evidence that applies.
+4. Push the feature branch and open a draft PR targeting `dev` when early
+   collaboration is useful. General feature pushes and draft synchronization
+   do not run expensive cloud CI; `Dev fast checks` concludes
+   `draft_not_candidate` so that head cannot carry a reusable success.
+5. Collect the complete implementation and local findings, then mark one
+   coherent head ready for review. A non-draft open/reopen, ready-for-review
+   event or later non-draft synchronization creates the PR candidate. An exact
+   manual dispatch must run from the candidate head ref, bind the current
+   `dev` base, and report the distinct `Manual exact candidate checks` context.
+6. Confirm the classifier reports the exact base/head, low/medium/high risk,
+   execution surface, selected lane, browser decision, preview decision, and
+   focused tests.
+7. Wait for exact-head `Dev fast checks`. `Feature preview decision` is always
+   present. After the trusted publisher is bootstrapped on `main`,
+   frontend-relevant ready candidates also publish a branch alias and immutable
+   `vinifera-dev.pages.dev` URL through `Frontend preview evidence`;
+   non-frontend candidates receive explicit policy-approved non-applicability
+   without claiming a deployment.
+8. Inspect all current thread-aware findings before editing. Apply confirmed
+   repairs and regression coverage together, validate the whole diff, and push
+   one consolidated repair candidate. Repeat for no more than two substantive
+   repair/re-review cycles. CodeRabbit absence or rate limiting is
+   non-blocking.
+9. When the exact head is ready, squash-merge to `dev` only under applicable
+   owner authority, low/medium risk, trusted revalidation, and neither emergency
+   label. Verify the resulting `dev` commit and stable-dev deployment evidence
+   that applies.
 
 Routine `dev` work does not wait for full Android assembly, all Phase 1–5
 database suites, complete Playwright/axe, provider probes, or automatic
-Octopus. High-risk classification may add focused tests or an explicit Octopus
-request without weakening the full promotion boundary.
+Octopus. Authority-high-risk classification requires the trusted
+`octopus-review-required` label before the fast aggregate can pass; unknown
+paths are invalid and require an explicit classifier update.
+
+### Preview trust boundary and bootstrap
+
+The pull-request workflow may build candidate assets but has no secrets or
+write authority. The preview publisher is a `workflow_run` loaded from the
+default branch. It revalidates the live same-repository PR, exact head/base,
+draft state, emergency labels, reserved environment branch names, and exact
+live-diff applicability using trusted policy; installs trusted locked Wrangler
+without credentials; and exposes the Cloudflare token only to upload the
+prebuilt artifact to a feature branch of the non-production `vinifera-dev`
+Pages project. It never checks out or executes PR-head code in the privileged
+job, and never targets the public `vinifera` project.
+
+Cloudflare's direct Git preview integration remains enabled until the reviewed
+publisher is on `main` and a frontend plus backend proof both pass. Only then
+may automatic Pages previews be disabled and `Frontend preview evidence`
+become required. This ordered transition prevents a permanently pending or
+missing preview context.
 
 ## Full promotion and release loop
 
@@ -259,11 +289,14 @@ Task:
 
 ### Feature PR to `dev`
 
+- [ ] PR is non-draft and the current head is the intended coherent candidate
 - [ ] Exact base/head classifier evidence is present
+- [ ] Risk, surface, focused tests, browser, and preview decisions are present
 - [ ] `Dev fast checks` passes on the current head
-- [ ] Branch alias and immutable preview URL are recorded when applicable
+- [ ] `Frontend preview evidence` records exact-head URLs or policy-approved non-applicability when the trusted publisher is active
 - [ ] Affected local tests and 375-pixel/accessibility checks are recorded
 - [ ] Available substantive findings are dispositioned
+- [ ] No more than two substantive repair/re-review cycles were required
 - [ ] Zero blocking unresolved threads remain
 - [ ] One consolidated changelog entry is present
 - [ ] Final squash commit body and exact verification are prepared

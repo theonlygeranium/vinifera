@@ -1,0 +1,236 @@
+name: Trusted frontend preview publication
+
+on:
+  workflow_run:
+    workflows: ["Development fast validation"]
+    types: [completed]
+
+concurrency:
+  group: vinifera-preview-publish-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+  statuses: write
+
+jobs:
+  publish:
+    name: Frontend preview evidence
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out trusted default-branch publisher
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download unprivileged candidate artifact
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: frontend-preview-candidate
+          path: ${{ runner.temp }}/frontend-preview-candidate
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Validate artifact against live pull request
+        id: validate
+        continue-on-error: true
+        shell: bash
+        env:
+          DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$WORKFLOW_CONCLUSION" != "success" ]]; then
+            echo "::error::Development fast validation did not succeed."
+            exit 1
+          fi
+          if [[ "$DOWNLOAD_OUTCOME" != "success" ]]; then
+            echo "::error::The exact candidate artifact is unavailable."
+            exit 1
+          fi
+
+          candidate="$RUNNER_TEMP/frontend-preview-candidate"
+          metadata="$candidate/metadata.json"
+          if [[ ! -f "$metadata" ]] || find "$candidate" -type l -print -quit | grep -q .; then
+            echo "::error::Preview candidate metadata is missing or contains a symlink."
+            exit 1
+          fi
+          jq -e '
+            type == "object" and
+            (.applicable | type == "boolean") and
+            (.candidate_eligible | type == "boolean") and
+            (.draft | type == "boolean") and
+            (.pr_number | type == "number") and
+            (.pr_number > 0) and
+            (.base_sha | test("^[0-9a-f]{40}$")) and
+            (.head_sha | test("^[0-9a-f]{40}$")) and
+            (.head_ref | test("^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")) and
+            (.head_repository | type == "string") and
+            (.repository | type == "string")
+          ' "$metadata" >/dev/null
+
+          pr_number=$(jq -r '.pr_number' "$metadata")
+          head_sha=$(jq -r '.head_sha' "$metadata")
+          base_sha=$(jq -r '.base_sha' "$metadata")
+          head_ref=$(jq -r '.head_ref' "$metadata")
+          applicable=$(jq -r '.applicable' "$metadata")
+          candidate_eligible=$(jq -r '.candidate_eligible' "$metadata")
+          draft=$(jq -r '.draft' "$metadata")
+          head_repository=$(jq -r '.head_repository' "$metadata")
+          artifact_repository=$(jq -r '.repository' "$metadata")
+
+          git check-ref-format --branch "$head_ref" >/dev/null
+          if [[ "$head_ref" == "main" || "$head_ref" == "staging" || "$head_ref" == "dev" ]]; then
+            echo "::error::Protected environment branches cannot be used as preview branches."
+            exit 1
+          fi
+          if [[ "$artifact_repository" != "$REPOSITORY" \
+            || "$head_repository" != "$REPOSITORY" \
+            || "$head_sha" != "$WORKFLOW_HEAD_SHA" ]]; then
+            echo "::error::Candidate repository or workflow head does not match."
+            exit 1
+          fi
+
+          pr=$(gh api "repos/$REPOSITORY/pulls/$pr_number")
+          if [[ "$(jq -r '.state' <<<"$pr")" != "open" \
+            || "$(jq -r '.base.ref' <<<"$pr")" != "dev" \
+            || "$(jq -r '.base.sha' <<<"$pr")" != "$base_sha" \
+            || "$(jq -r '.head.sha' <<<"$pr")" != "$head_sha" \
+            || "$(jq -r '.head.ref' <<<"$pr")" != "$head_ref" \
+            || "$(jq -r '.head.repo.full_name' <<<"$pr")" != "$REPOSITORY" \
+            || "$(jq -r '.draft' <<<"$pr")" != "$draft" ]]; then
+            echo "::error::Live pull-request identity differs from the candidate artifact."
+            exit 1
+          fi
+          if jq -e \
+            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+            <<<"$pr" >/dev/null; then
+            echo "::error::An emergency label blocks preview mutation."
+            exit 1
+          fi
+          git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"
+          trusted_applicable=$(BASE_SHA="$base_sha" HEAD_SHA="$head_sha" \
+            node --input-type=module <<'NODE'
+          import {
+            classifyDeliveryChange,
+            readChangedRecords,
+          } from "./.github/scripts/delivery-policy.mjs";
+          const result = classifyDeliveryChange(
+            readChangedRecords(process.env.BASE_SHA, process.env.HEAD_SHA),
+          );
+          if (!result.classificationSucceeded) {
+            throw new Error(`Trusted preview classification failed: ${result.reason}`);
+          }
+          process.stdout.write(String(result.previewRequired));
+          NODE
+          )
+          if [[ "$applicable" != "$trusted_applicable" ]]; then
+            echo "::error::Artifact preview applicability differs from trusted live-diff policy."
+            exit 1
+          fi
+          if [[ "$candidate_eligible" != "true" && "$trusted_applicable" == "true" ]]; then
+            echo "::error::A non-candidate cannot require a preview."
+            exit 1
+          fi
+          if [[ "$trusted_applicable" == "true" && ! -d "$candidate/dist" ]]; then
+            echo "::error::Applicable preview assets are missing."
+            exit 1
+          fi
+
+          printf 'applicable=%s\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
+            "$trusted_applicable" "$base_sha" "$head_ref" "$head_sha" "$pr_number" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Install trusted Wrangler toolchain
+        if: steps.validate.outcome == 'success' && steps.validate.outputs.applicable == 'true'
+        run: npm ci
+
+      - name: Publish exact frontend assets to Cloudflare Pages
+        id: deploy
+        if: steps.validate.outcome == 'success' && steps.validate.outputs.applicable == 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          HEAD_REF: ${{ steps.validate.outputs.head_ref }}
+          HEAD_SHA: ${{ steps.validate.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          deploy_log="$RUNNER_TEMP/frontend-preview-deploy.log"
+          ./node_modules/.bin/wrangler pages deploy \
+            "$RUNNER_TEMP/frontend-preview-candidate/dist" \
+            --project-name vinifera-dev \
+            --branch "$HEAD_REF" \
+            --commit-hash "$HEAD_SHA" \
+            --commit-dirty=false \
+            | tee "$deploy_log"
+          immutable_url=$(grep -Eo 'https://[a-z0-9-]+\.vinifera-dev\.pages\.dev' "$deploy_log" \
+            | tail -1)
+          if [[ -z "$immutable_url" ]]; then
+            echo "::error::Wrangler did not report an immutable Pages deployment URL."
+            exit 1
+          fi
+          branch_slug=$(tr '[:upper:]' '[:lower:]' <<<"$HEAD_REF" \
+            | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+          branch_url="https://${branch_slug}.vinifera-dev.pages.dev"
+          printf 'branch_url=%s\nimmutable_url=%s\n' "$branch_url" "$immutable_url" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Publish exact-head preview status
+        if: always()
+        shell: bash
+        env:
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          APPLICABLE: ${{ steps.validate.outputs.applicable }}
+          BASE_SHA: ${{ steps.validate.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.validate.outputs.head_sha || github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ steps.validate.outputs.pr_number }}
+          BRANCH_URL: ${{ steps.deploy.outputs.branch_url }}
+          IMMUTABLE_URL: ${{ steps.deploy.outputs.immutable_url }}
+        run: |
+          set -euo pipefail
+          state=failure
+          description="Preview evidence failed closed"
+          if [[ "$VALIDATE_OUTCOME" == "success" && "$APPLICABLE" != "true" ]]; then
+            state=success
+            description="Preview not applicable PR #$PR_NUMBER dev@${BASE_SHA:0:12}"
+          elif [[ "$VALIDATE_OUTCOME" == "success" && "$DEPLOY_OUTCOME" == "success" ]]; then
+            state=success
+            description="Preview published PR #$PR_NUMBER dev@${BASE_SHA:0:12}"
+          fi
+          gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA" \
+            -f state="$state" \
+            -f context="Frontend preview evidence" \
+            -f description="$description" \
+            -f target_url="$RUN_URL"
+          {
+            echo "## Frontend preview evidence"
+            echo
+            echo "- Exact head: \`$HEAD_SHA\`"
+            echo "- Policy: \`$description\`"
+            if [[ -n "$BRANCH_URL" ]]; then
+              echo "- Branch alias: [$BRANCH_URL]($BRANCH_URL)"
+            fi
+            if [[ -n "$IMMUTABLE_URL" ]]; then
+              echo "- Immutable deployment: [$IMMUTABLE_URL]($IMMUTABLE_URL)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$state" != "success" ]]; then
+            exit 1
+          fi

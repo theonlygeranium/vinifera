@@ -1,12 +1,36 @@
-## [Unreleased] - 2026-07-30
-### Fixed
-- Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure so CI policy tests can locate the embedded quality-gate runbook (22 test failures on `main`).
-
 # Changelog
 
 ## [Unreleased]
 
 ### Added
+- Principal-orchestrator candidate delivery governance and fast CI: ready
+  pull-request heads now drive the exact `Dev fast checks` candidate while
+  feature pushes and draft WIP avoid expensive cloud validation. The
+  fail-closed classifier reports exact base/head, low/medium/high risk,
+  execution surface, focused tests, browser applicability, and preview
+  applicability; unknown paths are invalid and authority-high-risk candidates
+  require the trusted Octopus boundary. Backend, workflow, test-only, and documentation candidates
+  avoid Playwright unless a risk rule requires it. Every candidate records an
+  always-present `Feature preview decision`. Frontend candidates retain a
+  prebuilt Pages artifact for a trusted default-branch publisher that
+  independently reclassifies the live exact diff before publishing
+  `Frontend preview evidence` to preview branches of `vinifera-dev`, without
+  executing PR-head code beside Cloudflare credentials, trusting
+  artifact-supplied applicability, accepting reserved environment branch
+  names, or deploying to the public `vinifera` project. Applying or removing
+  `octopus-review-required` now retriggers the same exact candidate, and manual
+  candidates resolve that boundary from the one live exact-head PR rather than
+  an absent dispatch payload.
+  Manual exact-candidate evidence uses a distinct check context and must be
+  dispatched from the candidate head. Governance, prior delivery ADRs, the PR template,
+  continuity, workflow documentation, and contract tests now use one logical
+  PR changelog entry, batched findings, and at most two substantive
+  repair/re-review cycles. **Deployment impact:** Changes development CI and
+  defines a protected preview-publication transition. The direct Pages
+  integration remains enabled until the trusted publisher reaches `main` and
+  passes frontend/applicability bootstrap proofs. This PR performs no Worker or
+  production deployment, provider activation, DNS change, billing action,
+  credential rotation, hosted-data mutation, or activation-gate completion.
 - Two-speed development and release delivery: added the exact-diff
   `Dev fast checks` lane with focused tests, TypeScript/Worker validation,
   production builds, credential and whitespace checks, a mobile accessibility
@@ -37,6 +61,37 @@
   production resource change.
 
 ### Fixed
+- Octopus PR bridge failures now report secret-safe credential shape and HTTP
+  response provenance, distinguishing Cloudflare Access rejection from
+  Octopus API authorization without logging credential values, response
+  bodies, query strings, or redirect paths. Non-ASCII header credentials fail
+  before network access. **Deployment impact:** Trusted PR-review diagnostics
+  only; no application deployment, provider activation, DNS change, database
+  mutation, or production action occurs.
+- Restored the flat `.octopus/runbooks/pr-quality-gates.ocl` layout that
+  Octopus Config as Code actually loads, aligned contract tests to that
+  canonical path, and changed the trusted bridge from snapshot endpoints to
+  Git-ref-qualified preview/template/run-v1 endpoints. Config-as-Code now
+  defines the five non-secret exact-PR inputs as required prompts while the
+  GitHub PAT remains an Octopus database-backed sensitive prompt. The bridge
+  recognizes Octopus's `Octopus.ControlType` sensitive marker and submits the
+  PAT only through the masked form-value channel; it is never stored in Git or
+  logged. The runbook constructs GitHub's Basic `x-access-token` smart-HTTP
+  header in memory for the private-repository fetch and unsets it immediately;
+  GitHub API requests retain Bearer authentication. The prior nested path
+  passed local tests but left `PR Quality Gates` absent from every live
+  Git-backed runbook list. **Deployment impact:** Repairs trusted high-risk PR
+  review once the bridge, prompts, and flat OCL reach the default branch; no
+  application deployment, provider activation, DNS change, database mutation,
+  or production action occurs.
+- Octopus Rule 3 now requires a provider-token boundary and at least 16
+  credential payload characters, so ordinary identifiers such as
+  `pre_shipment` and `store_meta_attribution_touchpoint` no longer fail the
+  full-source scan while realistic `re_`, Stripe, EasyPost, and restricted-key
+  tokens remain blocking. Positive and negative embedded-runbook fixtures
+  cover both paths. **Deployment impact:** High-risk review precision only; no
+  application deployment, provider activation, DNS change, database mutation,
+  or production action occurs.
 - Review-gate permissions and Worker rollback authorization now fail closed
   without becoming unusable: Octopus can read PR metadata, promotion and
   production gates can read exact Actions run/job evidence, and rollback keeps

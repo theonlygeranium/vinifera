@@ -25,9 +25,14 @@
 
 ## Classifier and test selection
 
+- Candidate state: ready / draft-not-candidate / exact manual dispatch
 - Exact base SHA:
 - Exact head SHA:
+- Risk: low / medium / high
+- Surface: docs / frontend / backend / workflow / test / mixed / unknown
 - Selected lane and reason:
+- Browser smoke: required / policy-approved non-applicability
+- Frontend preview: required / policy-approved non-applicability
 - Android selection and reason:
 - Focused/local checks:
 - Intentionally inapplicable checks:
@@ -35,9 +40,11 @@
 ## Review completion
 
 - [ ] Applicable required aggregate passes on the exact current comparison
-- [ ] Octopus passes for promotion or requested high-risk review
+- [ ] Octopus passes for promotion or classified/labeled high-risk review
+- [ ] `Frontend preview evidence` passes with exact URLs or policy-approved non-applicability when the trusted publisher is active
 - [ ] Available CodeRabbit findings were inspected; CodeRabbit absence/rate limiting is non-blocking
 - [ ] Actionable findings were fixed and affected tests rerun
+- [ ] Findings were collected before editing and no more than two substantive repair/re-review cycles were used
 - [ ] Non-actionable or intentionally deferred findings have an evidence-based reply
 - [ ] Zero correctness, security, tenancy, accessibility, data-loss, or release-blocking threads remain
 - [ ] Branch is current with its target base (`dev` for feature PRs)

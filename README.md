@@ -131,6 +131,35 @@ signed Android/iOS artifacts and optionally uploads only to internal tracks.
 All three paths ship fail-closed until their scoped credentials, target hashes,
 and confirmations exist.
 
+### Candidate delivery
+
+Vinifera uses ready pull-request heads as development candidates. Local and
+draft work does not run required cloud CI. A non-draft PR to `dev` or a later
+non-draft head produces the always-present `Dev fast checks` result with
+explicit risk, surface, focused-test, browser, and preview decisions. Exact
+manual dispatches must run from the candidate head and report the distinct
+`Manual exact candidate checks` context.
+
+Browser/accessibility smoke and Pages preview assets are selected only for
+frontend, routing, shared-client, or accessibility-relevant changes. A trusted
+default-branch publisher independently reclassifies and revalidates the exact
+same-repository PR before uploading prebuilt frontend assets to preview
+branches of the non-production `vinifera-dev` Pages project and publishes
+`Frontend preview evidence`; it never executes PR-head code beside Cloudflare
+credentials or targets the public `vinifera` project. The existing direct
+Pages preview integration remains the bootstrap fallback until that publisher
+is promoted to `main` and verified, so this source change alone does not claim
+path-aware hosted preview activation.
+
+Unknown paths fail classification. Authority-high-risk changes require the
+trusted `octopus-review-required` boundary before fast validation can pass.
+
+Routine low- and medium-risk delivery may merge to `dev` only under explicit
+`codex-auto-merge` authority and immediate trusted revalidation. Promotion is a
+separate batched release candidate using `Type, test, build, and package` plus
+Octopus. Production, live billing, provider activation, credential rotation,
+DNS, destructive hosted data work, and emergency labels remain protected.
+
 ### Routing
 
 | Route | Served By | Content-Type |
