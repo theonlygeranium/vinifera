@@ -148,6 +148,7 @@ function isSensitivePromptControl(control) {
     control?.Type,
     control?.ControlType,
     control?.DisplaySettings?.ControlType,
+    control?.DisplaySettings?.["Octopus.ControlType"],
   ];
   return typeMarkers.some(
     (marker) =>
@@ -194,6 +195,7 @@ export async function runRunbook({
   const requiredEnvironment = [
     "CF_ACCESS_CLIENT_ID",
     "CF_ACCESS_CLIENT_SECRET",
+    "GH_PAT_FOR_OCTOPUS",
     "OCTOPUS_API_KEY",
     "OCTOPUS_URL",
     "PR_BRANCH",
@@ -274,6 +276,7 @@ export async function runRunbook({
     ExpectedBaseSHA: environment.PR_EXPECTED_BASE_SHA,
     ExpectedHeadSHA: environment.PR_EXPECTED_SHA,
     PRNumber: environment.PR_NUMBER,
+    GitHubPAT: environment.GH_PAT_FOR_OCTOPUS,
   });
   const snapshotTemplate = await requestJson(
     fetchImpl,
