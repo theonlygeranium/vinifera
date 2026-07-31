@@ -1,6 +1,6 @@
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-07-30
+**Last updated:** 2026-07-31
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
 
 ## Project identity
@@ -162,14 +162,38 @@ candidate proves non-applicability, disable automatic Pages preview
 deployments and then require `Frontend preview evidence`. Do not reverse that
 order.
 
-The latest exact-head Octopus PR attempt failed because the trusted
-default-branch bridge used a non-version-controlled API route, and live
-read-only probes showed the nested quality-gate OCL was absent from every
-Git-ref-qualified runbook list. This branch contains the bridge and flat-layout
-repair, but it is not active until it reaches the default branch. Octopus
-remains the promotion/high-risk review owner; the failed run is not passing
-evidence. Pages checks on current branches are static build evidence only; the
-Worker activation jobs remain skipped.
+Current remote evidence on 2026-07-31 is `dev` at `55449cbe53e5`, `staging`
+at `c3b9df3dac84`, and `main` at `3a688968a1e3`, with no open pull requests.
+The principal-orchestrator candidate, trusted development auto-merge, and
+immutable release controls are source-complete on `dev` but remain inactive
+until their trusted controllers reach the default branch and their protected
+environments are provisioned.
+
+The original nightly Octopus failure (`30606684736`) was a first-request HTTP
+403. Redacted reproduction identified Cloudflare browser heuristics and stale
+repository credentials. The already-scoped service token was renewed, GitHub
+and the private vault were synchronized, a hostname-only rule disabled Browser
+Integrity Check for `octopus.schubert.life`, and zone Bot Fight Mode was
+disabled because this plan cannot bypass it for machine traffic. Access logs
+and direct probes now prove the non-identity policy reaches Octopus; Access and
+AI-bot controls remain active.
+
+The next trusted `main` rerun (`30626572282`) crossed that boundary and exposed
+HTTP 400 on the obsolete database-backed
+`/projects/Projects-1/runbooks` route. The pending repair uses the exact
+Config-as-Code `refs/heads/main` preview, snapshot-template, and grouped-run
+contract. A real local invocation queued and passed the Security Audit
+runbook. Scheduled GitHub execution remains pending until this trusted bridge
+repair reaches `main`; Pages checks remain static build evidence only, and
+Worker activation jobs remain disabled or skipped.
+
+PR #67 (`ci/octopus-audit-readiness-reconcile → dev`) was first reviewed at
+head `0a12bce`.
+Exact-head fast run `30627097438` passed. Trusted Octopus run `30627097321`
+crossed Access but failed because the main-ref inventory does not expose `PR
+Quality Gates`; the same exact review passed from the maintained `dev` ref.
+The PR remains human-review required and must not be treated as merge- or
+promotion-ready until the trusted main-ref status is green.
 
 This governance and CI work does not deploy a Worker, change DNS, activate a
 provider, mutate hosted data, enable billing, access production customer data,

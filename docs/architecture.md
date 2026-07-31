@@ -356,10 +356,11 @@ dist/ + capacitor.config.json ─ Capacitor ──────── iOS / Andro
 
 GitHub-hosted CI uses Node 22.22.0 to install the lockfile, audit dependencies,
 verify generated Worker binding types, type-check, run service/browser tests
-and Phase 2–5 database gates, build assets, and validate the Worker bundle. A
+and Phase 1–5 database gates, build assets, and validate the Worker bundle. A
 separate Java 21/API 36 job synchronizes,
-lints, and assembles Android debug and R8-minified release shells. On `main`,
-CI conditionally applies migrations with pinned Supabase CLI 2.109.1, then runs
+lints, and assembles Android debug and R8-minified release shells. On the
+protected `staging` branch, CI can conditionally apply migrations with pinned
+Supabase CLI 2.109.1, then runs
 the linked native pgTAP/RLS suite. Optional deployment targets the isolated
 `vinifera-staging` Worker, attaches available secrets atomically to that
 version, and verifies its `workers.dev` health plus core configuration report.
@@ -550,23 +551,9 @@ records partial local prerequisite evidence separately; a composite gate stays
 
 ## File ownership
 
-This table is copied from `AGENTS.md` so architecture reviewers have the same
-ownership boundary.
-
-| File/Directory | Who Can Modify | Notes |
-|---|---|---|
-| `AGENTS.md` | Human owner only | Requires explicit authorization to change |
-| `CONTINUITY_BRIEF.md` | Any agent | Must reflect current reality — update after every session |
-| `README.md` | Any agent | Must reflect reality — no aspirational content |
-| `CHANGELOG.md` | Any agent | One consolidated entry per logical PR or promotion |
-| `REVERT.md` | Any agent | Update whenever a new stable tag is created |
-| `.env.example` | Any agent | Real secrets NEVER go here |
-| `docs/` | Any agent | Must stay in sync with actual architecture |
-| `index.html` | Any agent | Landing page — verify WCAG after changes |
-| `app` | Any agent | App prototype — verify WCAG + mobile after changes |
-| `guide` | Any agent | Investor's guide — verify WCAG after changes |
-| `public/_redirects` | Any agent | Routing rules — test after changes |
-| `public/_headers` | Any agent | Security + content-type headers — test after changes |
+`AGENTS.md` is the canonical ownership table. Architecture reviewers must use
+that current table rather than a copied snapshot, especially for governed
+workflow, Octopus, migration, client, service, and documentation paths.
 
 See [the Phase 1 ADR](./decisions/2026-07-26-phase-1-foundation-architecture.md)
 and [the Phase 2 ADR](./decisions/2026-07-26-phase-2-core-club-loop.md) for

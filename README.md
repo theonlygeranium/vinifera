@@ -119,14 +119,15 @@ npm run build:mobile:ios
 
 The build emits code-split React assets, then copies `index.html`, `guide`, and
 `public/*` into `dist/`. Wrangler packages those assets with the Express Worker.
-GitHub-hosted CI uses Node 22.22.0, runs the Phase 2–5 database gates and browser
+GitHub-hosted CI uses Node 22.22.0, runs the Phase 1–5 database gates and browser
 QA, builds and lints Android debug plus minified release shells, conditionally
 applies migrations with Supabase CLI 2.109.1 plus linked pgTAP/RLS, and can
 deploy an isolated `vinifera-staging` Worker only after hashed target approval.
 Available runtime secrets are attached atomically to that staging version.
-A protected manual controller can later bootstrap and version the production
-Worker, move the custom domain only after the full configuration gate, and
-restore the retained Pages baseline. A separate protected workflow produces
+A protected manual controller can later bootstrap, upload, deploy, or roll
+back an immutable production Worker artifact without changing the public
+marketing/rollback domain. Domain cutover and Pages restoration remain a
+separate, explicitly authorized legacy control. A separate protected workflow produces
 signed Android/iOS artifacts and optionally uploads only to internal tracks.
 All three paths ship fail-closed until their scoped credentials, target hashes,
 and confirmations exist.
@@ -211,7 +212,7 @@ serve the React application instead.
 | Phase 3 retention | Lease-owned activation-safe email, rules scoring, immutable cancel-flow, tenant-scoped commands, snapshot-keyset loyalty, brand-local jobs, and 199 database assertions pass locally |
 | Phase 4 intelligence | Current-stack architecture passes 158 database assertions: brand-local real-fact analytics, source-qualified and actor-audited ML lifecycle, all-brand benchmark authorization, and fail-closed compliance/label binding; hosted real-data, model, cohort, and provider evidence remain gated |
 | Phase 5 scale | Version 0.5.0 source architecture is complete for connectors, multi-brand isolation, white label, and native shells; the Phase 5 QA report records architecture evidence and deferred hosted checks |
-| Release controls | Read-only readiness, Stripe test-catalog bootstrap, staging target guards, native hosted pgTAP, production Worker/Pages rollback control, and signed internal-store workflows are source-complete; credential-bound execution remains gated |
+| Release controls | Read-only readiness, Stripe test-catalog bootstrap, staging target guards, native hosted pgTAP, immutable Worker release/rollback control, and signed internal-store workflows are source-complete; credential-bound execution and any separate domain move remain gated |
 | Provider activation | Pending hosted Supabase, Stripe/provider test and live accounts, custom-domain DNS/certificates, APNs/FCM, signing, physical devices, and store tracks |
 | Public deployment | Pages continues serving the verified prototype until the Worker activation runbooks pass |
 

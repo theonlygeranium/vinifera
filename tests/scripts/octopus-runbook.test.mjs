@@ -19,6 +19,7 @@ import {
   resolveFormValues,
   runRunbook,
 } from "../../.github/scripts/octopus-runbook.mjs";
+import { runSecurityAudit } from "../../.github/scripts/octopus-security-audit.mjs";
 
 function jsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -1209,6 +1210,134 @@ describe("Octopus runbook bridge", () => {
         "redirect-host=little-brook.cloudflareaccess.com",
     );
     expect(provenance).not.toContain("private response body");
+  });
+
+  it("localizes a nightly audit access failure without exposing credentials", async () => {
+    const log = vi.fn();
+    const fetchImpl = vi.fn(async () =>
+      new Response("private Cloudflare response", {
+        status: 403,
+        headers: {
+          "CF-Ray": "fixture-ray",
+          "Content-Type": "text/html; charset=UTF-8",
+          Server: "cloudflare",
+        },
+      }),
+    );
+
+    await expect(
+      runSecurityAudit({
+        environment: {
+          CF_ACCESS_CLIENT_ID: "access-client-id",
+          CF_ACCESS_CLIENT_SECRET: "access-client-secret",
+          OCTOPUS_API_KEY: "secret-api-key",
+          OCTOPUS_URL: "https://octopus.example.test",
+        },
+        fetchImpl,
+        log,
+      }),
+    ).rejects.toThrow(
+      "GET /api/spaces with HTTP 403 (server=cloudflare; cf-ray=present; " +
+        "content-type=text/html; redirect-host=absent)",
+    );
+    expect(log).toHaveBeenCalledWith(
+      "Octopus credential shape accepted: cf-client-id-chars=16; " +
+        "cf-client-secret-chars=20; octopus-api-key-chars=14; " +
+        "octopus-host=octopus.example.test",
+    );
+    expect(JSON.stringify(log.mock.calls)).not.toContain("access-client-secret");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("secret-api-key");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls[0][1]?.headers).toMatchObject({
+      "User-Agent": "Vinifera-GitHub-Actions/1.0",
+    });
+  });
+
+  it("runs the nightly audit through the Config-as-Code main reference", async () => {
+    const calls = [];
+    const fetchImpl = vi.fn(async (url, options = {}) => {
+      calls.push({ url: String(url), options });
+      const path = new URL(url).pathname;
+      if (path === "/api/spaces") {
+        return jsonResponse({ Items: [{ Id: "Spaces-1", Name: "Default" }] });
+      }
+      if (path === "/api/Spaces-1/environments") {
+        return jsonResponse({
+          Items: [{ Id: "Environments-1", Name: "Development" }],
+        });
+      }
+      if (path === "/api/Spaces-1/projects") {
+        return jsonResponse({ Items: [{ Id: "Projects-1", Name: "Vinifera" }] });
+      }
+      if (path.endsWith("/refs%2Fheads%2Fmain/runbooks")) {
+        return jsonResponse({
+          Items: [{ Name: "Security Audit", Slug: "security-audit" }],
+        });
+      }
+      if (path.endsWith("/security-audit/runbookRuns/preview/Environments-1")) {
+        return jsonResponse({
+          Form: {
+            Elements: [
+              {
+                Name: "form-github-pat",
+                Control: { Name: "GitHubPAT", Sensitive: true, Required: true },
+              },
+            ],
+          },
+        });
+      }
+      if (path.endsWith("/security-audit/runbookSnapShotTemplate")) {
+        return jsonResponse({ Packages: [], GitResources: [] });
+      }
+      if (path.endsWith("/security-audit/run/v1")) {
+        return jsonResponse({
+          Resources: [{ Id: "RunbookRuns-1", TaskId: "ServerTasks-1" }],
+        });
+      }
+      if (path === "/api/tasks/ServerTasks-1") {
+        return jsonResponse({ State: "Success" });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await expect(
+      runSecurityAudit({
+        environment: {
+          CF_ACCESS_CLIENT_ID: "access-client-id",
+          CF_ACCESS_CLIENT_SECRET: "access-client-secret",
+          GH_PAT_FOR_OCTOPUS: "github-token",
+          OCTOPUS_API_KEY: "secret-api-key",
+          OCTOPUS_URL: "https://octopus.example.test",
+        },
+        fetchImpl,
+        pollIntervalMs: 0,
+      }),
+    ).resolves.toMatchObject({ state: "Success", taskId: "ServerTasks-1" });
+    expect(
+      calls.some(({ url }) =>
+        url.includes("/projects/Projects-1/refs%2Fheads%2Fmain/runbooks"),
+      ),
+    ).toBe(true);
+    const runCall = calls.find(({ url }) =>
+      url.endsWith("/security-audit/run/v1"),
+    );
+    expect(JSON.parse(runCall.options.body)).toMatchObject({
+      SelectedGitResources: [],
+      SelectedPackages: [],
+      Runs: [{ FormValues: { "form-github-pat": "github-token" } }],
+    });
+  });
+
+  it("packages every local module required by the nightly workflow", () => {
+    const workflow = readFileSync(
+      new URL(
+        "../../.github/workflows/octopus-security-audit.yml",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(workflow).toContain(".github/scripts/octopus-security-audit.mjs");
+    expect(workflow).toContain(".github/scripts/octopus-runbook.mjs");
   });
 
   it("maps prompted names to Octopus form element IDs and fails closed", () => {

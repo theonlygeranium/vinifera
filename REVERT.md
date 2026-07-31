@@ -24,25 +24,26 @@ verification must pass before that designation changes.
 
 ## How to Roll Back
 
-### Option 1 — Git rollback (revert to a previous commit)
+### Option 1 — Source rollback through the protected branch pipeline
 ```bash
-cd /Users/jeffgeronimo/Documents/vinifera
-git log --oneline -20          # find the commit to roll back to
-git revert <commit-sha>        # creates a revert commit
-git push origin main           # Cloudflare Pages auto-deploys
+git fetch origin
+git switch -c fix/revert-<description> origin/dev
+git revert <commit-sha>
+git push -u origin fix/revert-<description>
+# Open the reviewed PR against dev; use the protected promotion path afterward.
 ```
 
-Do not force-push `main`. The optional CI deployment targets only the isolated
+Do not push or force-push `main` or `staging`. The optional CI deployment targets only the isolated
 `vinifera-staging` Worker. The protected production release workflow can create
 or version a separate Worker without moving the domain. If that Worker has not
 been attached to the custom domain, the Pages baseline is already the public
 rollback surface.
 
-After a controlled domain cutover, use the workflow's exact
-`RESTORE VINIFERA DOMAIN TO PAGES` operation. It removes only the allowlisted
-Worker custom-domain attachment, reattaches the retained Pages project, and
-verifies the static root plus prototype marker. It never deletes the Pages
-project. See `docs/runbooks/production-cutover-rollback.md`.
+The standard production Worker workflow does not move the public domain or
+restore Pages. After a separately authorized domain cutover, follow the
+allowlisted legacy restoration procedure in
+`docs/runbooks/production-cutover-rollback.md`; verify the static root and
+prototype marker without deleting the retained Pages project.
 
 Before reverting an activated Phase 5 connection, first stop or disconnect its
 jobs, preserve sanitized reconciliation history, revoke provider tokens when

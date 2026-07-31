@@ -85,7 +85,7 @@ vinifera/
 │   ├── decisions/          # Architectural Decision Records (ADRs)
 │   ├── build-specs/        # BS-01 through BS-06 specs and dispatch guide
 │   └── agent-workflow.md   # Branching, PR, and review loop rules
-├── .github/workflows/      # 14 CI/CD workflows (see Section 5)
+├── .github/workflows/      # 19 CI/CD workflows (see Section 5)
 ├── .octopus/               # Octopus architectural boundary rules
 ├── AGENTS.md               # YOU ARE HERE — agent collaboration guide
 ├── CONTINUITY_BRIEF.md     # Drop-in context for new agent sessions
@@ -146,7 +146,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 492/492 Vitest; 153/153 Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 512/512 Vitest; 155 passed Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -244,17 +244,17 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 ## 6. Quality Assurance
 
-### Current verified test counts (PR #51 audit baseline)
+### Current verified test counts (2026-07-31 credential-independent baseline)
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 497 | `npm run check` |
+| Vitest unit/integration | 512 | `npm run check` |
 | Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |
 | Phase 4 DB (intelligence) | 158 assertions | `npm run qa:db:phase4` |
 | Phase 5 DB (scale) | 513 assertions | `npm run qa:db:phase5` |
-| Playwright E2E + axe-core | 153 | `npm run qa:e2e` |
+| Playwright E2E + axe-core | 155 passed, 3 hosted-only skipped | `npm run qa:e2e` |
 
 A PR may not merge if any of these counts decrease without a documented justification in the PR description. Test regressions are blocking defects.
 

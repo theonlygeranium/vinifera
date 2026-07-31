@@ -1,6 +1,6 @@
 # Activation readiness
 
-**Last reviewed:** 2026-07-27 (BS-05)
+**Last reviewed:** 2026-07-31
 **Allowed statuses:** `pending`, `local-verified`, `live-passed`
 
 All 20 composite activation gates remain `pending`. BS-05 separately proves
@@ -20,6 +20,16 @@ Partial local evidence:
   denial; no provider-backed billing lifecycle.
 - Gate 15: two local organizations/default brands with staff isolation; no
   independent billing or hostname-derived member context.
+
+Current delivery evidence does not advance a gate: `dev` contains the
+principal-orchestrator and immutable release controllers, but they are not on
+the default branch; `development-worker` is not provisioned; and the latest
+trusted nightly Octopus rerun reaches the obsolete database-backed runbook
+route and returns HTTP 400. The repaired Config-as-Code bridge has passed a
+real operator invocation but still requires the normal `dev` and promotion
+path before scheduled execution uses it. Credential-independent QA can
+validate source, migration, tenant, browser, build, and fail-closed release
+contracts while all hosted/provider statuses remain `pending`.
 
 ## Activation phases
 

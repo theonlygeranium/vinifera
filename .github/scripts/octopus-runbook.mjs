@@ -55,12 +55,18 @@ function requestTarget(url, method) {
   return `${method ?? "GET"} ${parsed.pathname}`;
 }
 
-async function requestJson(fetchImpl, url, authenticationHeaders, options = {}) {
+export async function requestJson(
+  fetchImpl,
+  url,
+  authenticationHeaders,
+  options = {},
+) {
   const response = await fetchImpl(url, {
     ...options,
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      "User-Agent": "Vinifera-GitHub-Actions/1.0",
       ...authenticationHeaders,
       ...options.headers,
     },
@@ -80,7 +86,7 @@ async function requestJson(fetchImpl, url, authenticationHeaders, options = {}) 
   return response.json();
 }
 
-async function findByName(
+export async function findByName(
   fetchImpl,
   apiBase,
   authenticationHeaders,
@@ -182,9 +188,12 @@ export function configAsCodeRunbooksPath(projectId, gitRef) {
   return `projects/${projectId}/${encodeURIComponent(gitRef)}/runbooks`;
 }
 
-export async function runRunbook({
+export async function executeConfigAsCodeRunbook({
   runbookName,
   environment = process.env,
+  requiredEnvironment = [],
+  validateEnvironment = () => {},
+  promptedValuesResolver = () => ({}),
   fetchImpl = fetch,
   sleep = (milliseconds) =>
     new Promise((resolve) => setTimeout(resolve, milliseconds)),
@@ -192,37 +201,20 @@ export async function runRunbook({
   timeoutMs = 15 * 60_000,
   log = console.log,
 }) {
-  const requiredEnvironment = [
+  const required = [
     "CF_ACCESS_CLIENT_ID",
     "CF_ACCESS_CLIENT_SECRET",
-    "GH_PAT_FOR_OCTOPUS",
     "OCTOPUS_API_KEY",
     "OCTOPUS_URL",
-    "PR_BRANCH",
-    "PR_EXPECTED_BASE_REF",
-    "PR_EXPECTED_BASE_SHA",
-    "PR_EXPECTED_SHA",
-    "PR_NUMBER",
+    ...requiredEnvironment,
   ];
-  for (const name of requiredEnvironment) {
+  for (const name of new Set(required)) {
     if (!environment[name]) {
       throw new Error(`Missing required environment variable: ${name}`);
     }
   }
-  if (!/^[0-9a-f]{40}$/.test(environment.PR_EXPECTED_SHA)) {
-    throw new Error("PR_EXPECTED_SHA must be an exact lowercase commit SHA");
-  }
-  if (!/^[0-9a-f]{40}$/.test(environment.PR_EXPECTED_BASE_SHA)) {
-    throw new Error(
-      "PR_EXPECTED_BASE_SHA must be an exact lowercase commit SHA",
-    );
-  }
-  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(
-    environment.PR_EXPECTED_BASE_REF,
-  )) {
-    throw new Error("PR_EXPECTED_BASE_REF contains unsupported characters");
-  }
   if (!runbookName) throw new Error("Runbook name is required");
+  validateEnvironment(environment);
 
   log(credentialShapeSummary(environment));
   const apiBase = normalizeApiBase(environment.OCTOPUS_URL);
@@ -270,14 +262,10 @@ export async function runRunbook({
     `${spaceBase}/${runbooksPath}/${runbook.Slug}/runbookRuns/preview/${octopusEnvironment.Id}?includeDisabledSteps=true`,
     authenticationHeaders,
   );
-  const formValues = resolveFormValues(preview, {
-    PRBranch: environment.PR_BRANCH,
-    ExpectedBaseRef: environment.PR_EXPECTED_BASE_REF,
-    ExpectedBaseSHA: environment.PR_EXPECTED_BASE_SHA,
-    ExpectedHeadSHA: environment.PR_EXPECTED_SHA,
-    PRNumber: environment.PR_NUMBER,
-    GitHubPAT: environment.GH_PAT_FOR_OCTOPUS,
-  });
+  const formValues = resolveFormValues(
+    preview,
+    promptedValuesResolver(preview, environment),
+  );
   const snapshotTemplate = await requestJson(
     fetchImpl,
     `${spaceBase}/${runbooksPath}/${runbook.Slug}/runbookSnapShotTemplate`,
@@ -288,7 +276,7 @@ export async function runRunbook({
     (snapshotTemplate.GitResources?.length ?? 0) !== 0
   ) {
     throw new Error(
-      "PR Quality Gates must not require package or Git-resource selection",
+      `${runbookName} must not require package or Git-resource selection`,
     );
   }
 
@@ -319,7 +307,7 @@ export async function runRunbook({
     },
   );
   const run = groupedRun?.Resources?.[0];
-  if (!run.TaskId) {
+  if (!run?.TaskId) {
     throw new Error("Octopus runbook response did not include a task ID");
   }
 
@@ -356,6 +344,60 @@ export async function runRunbook({
     );
   }
   throw new Error(`Octopus runbook timed out after ${timeoutMs}ms`);
+}
+
+export async function runRunbook({
+  runbookName,
+  environment = process.env,
+  fetchImpl = fetch,
+  sleep = (milliseconds) =>
+    new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  pollIntervalMs = 5_000,
+  timeoutMs = 15 * 60_000,
+  log = console.log,
+}) {
+  return executeConfigAsCodeRunbook({
+    runbookName,
+    environment,
+    requiredEnvironment: [
+      "GH_PAT_FOR_OCTOPUS",
+      "PR_BRANCH",
+      "PR_EXPECTED_BASE_REF",
+      "PR_EXPECTED_BASE_SHA",
+      "PR_EXPECTED_SHA",
+      "PR_NUMBER",
+    ],
+    validateEnvironment: (values) => {
+      if (!/^[0-9a-f]{40}$/.test(values.PR_EXPECTED_SHA)) {
+        throw new Error("PR_EXPECTED_SHA must be an exact lowercase commit SHA");
+      }
+      if (!/^[0-9a-f]{40}$/.test(values.PR_EXPECTED_BASE_SHA)) {
+        throw new Error(
+          "PR_EXPECTED_BASE_SHA must be an exact lowercase commit SHA",
+        );
+      }
+      if (
+        !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(
+          values.PR_EXPECTED_BASE_REF,
+        )
+      ) {
+        throw new Error("PR_EXPECTED_BASE_REF contains unsupported characters");
+      }
+    },
+    promptedValuesResolver: (_preview, values) => ({
+      PRBranch: values.PR_BRANCH,
+      ExpectedBaseRef: values.PR_EXPECTED_BASE_REF,
+      ExpectedBaseSHA: values.PR_EXPECTED_BASE_SHA,
+      ExpectedHeadSHA: values.PR_EXPECTED_SHA,
+      PRNumber: values.PR_NUMBER,
+      GitHubPAT: values.GH_PAT_FOR_OCTOPUS,
+    }),
+    fetchImpl,
+    sleep,
+    pollIntervalMs,
+    timeoutMs,
+    log,
+  });
 }
 
 async function main() {
