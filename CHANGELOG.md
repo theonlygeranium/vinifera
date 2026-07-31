@@ -119,7 +119,8 @@
   reject Node's default browser signature. The nightly runner now uses the Git
   Config-as-Code `refs/heads/main` preview, snapshot-template, and grouped-run
   endpoints instead of the obsolete database-backed runbook route, and it
-  shares the complete sensitive-prompt resolver with the PR bridge. The
+  shares one executor with the PR bridge for lookup, sensitive form resolution,
+  template validation, grouped submission, polling, and timeout cancellation. The
   workflow pins the repository-standard checkout action, and focused tests
   cover the Cloudflare-shaped rejection, request identity, and successful
   Config-as-Code run. Current governance, setup,
@@ -141,6 +142,13 @@
   `schubert.life` so CI can reach the still-required Access service-token
   policy. A real Security Audit runbook invocation then passed. AI-bot
   protection and the public `edstratumlabs.ai` zone were unchanged.
+  The zone-wide Bot Fight Mode change was owner-authorized for failed-Actions
+  remediation, affects proxied `*.schubert.life` hosts only, and has an
+  explicit API rollback to `fight_mode=true`; the Octopus-only Browser
+  Integrity Check rule remains independently reversible. Exact-head PR #67
+  fast CI and the `dev`-ref PR Quality Gates runbook passed, while the trusted
+  main-ref status remains blocked until `PR Quality Gates` is present on
+  `main` through the normal promotion path.
   **Deployment impact:** Repairs the CI-to-Octopus access path and documents
   its external Cloudflare/credential reconciliation. No Worker, Pages,
   application provider, database, DNS, billing, branch promotion, or

@@ -60,9 +60,20 @@ synchronized to GitHub and the private vault. The stale audit-specific GitHub
 credential was replaced with the separately documented repository PAT only
 after the GitHub API validated it, and the vault was synchronized. A
 hostname-only configuration rule disables Browser Integrity Check for
-`octopus.schubert.life`; Bot Fight
-Mode was disabled for the `schubert.life` zone because this plan cannot bypass
-that heuristic for CI traffic. Access and AI-bot controls remain active.
+`octopus.schubert.life`; Bot Fight Mode was disabled for the `schubert.life`
+zone because this plan cannot bypass that heuristic for CI traffic. Access and
+AI-bot controls remain active.
+
+The owner explicitly authorized credential use, failed-Actions remediation,
+and necessary operational work in this session. Bot Fight Mode is a zone-level
+setting, so its scope is every proxied `*.schubert.life` host, including the
+Octopus and wiki applications; it does not affect `edstratumlabs.ai`. The
+read-only pre-change snapshot recorded `fight_mode=true`; the post-change
+snapshot recorded `fight_mode=false` with AI-bot protection still set to
+`block`. Roll back by restoring `fight_mode=true` through the same Cloudflare
+Bot Management API after confirming CI no longer depends on it. The distinct
+hostname-only Browser Integrity Check rule can be removed independently or
+changed to `bic=true` without altering Access policy or service-token state.
 
 Rerun `30626572282` then crossed Access and failed with HTTP 400 on the legacy
 database-backed runbook route. This change replaces that route with the exact
@@ -70,6 +81,16 @@ Config-as-Code `refs/heads/main` preview, snapshot-template, and grouped-run
 contract. A direct real invocation queued and passed the Security Audit
 runbook. The scheduled workflow cannot use the repair until trusted code
 reaches `main`.
+
+PR #67 initially bound this repair to `dev` base `55449cbe53e5` and head
+`0a12bce82c94`. Exact-head Development fast validation run `30627097438`
+passed. Trusted Octopus run `30627097321` crossed Access but could not find
+`PR Quality Gates` on `refs/heads/main`; the live main-ref inventory exposes
+only Auto-Fix Suggestions, PR Comment Bot, and Security Audit. An exact local
+invocation of the maintained `refs/heads/dev` PR Quality Gates runbook passed
+for PR #67. This is review evidence, not a substitute for the trusted GitHub
+status: the PR remains human-review blocked until the flat runbook layout and
+bridge reach `main` through the normal promotion path.
 
 ## Credential-independent verification matrix
 
