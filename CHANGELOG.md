@@ -111,6 +111,41 @@
   production resource change.
 
 ### Fixed
+- Nightly Octopus security-audit diagnostics now reuse the trusted PR bridge's
+  credential-shape validation and safe HTTP response provenance, identifying
+  the exact method/path and responder class for the current first-request 403
+  without logging credential values, response bodies, or query data. The
+  shared request path supplies a stable CI user-agent so Cloudflare does not
+  reject Node's default browser signature. The nightly runner now uses the Git
+  Config-as-Code `refs/heads/main` preview, snapshot-template, and grouped-run
+  endpoints instead of the obsolete database-backed runbook route, and it
+  shares the complete sensitive-prompt resolver with the PR bridge. The
+  workflow pins the repository-standard checkout action, and focused tests
+  cover the Cloudflare-shaped rejection, request identity, and successful
+  Config-as-Code run. Current governance, setup,
+  architecture, rollback, activation, delivery-performance, and continuity
+  documentation now distinguishes the `dev`-only principal-orchestrator
+  controls, the inactive hosted boundary, the current branch revisions, and
+  the credential-independent rehearsal from deployment or activation proof.
+  The rehearsal passed 512 Vitest cases, all five database phases, deterministic
+  seed/reseed validation, 155 Playwright/axe cases with three hosted-only
+  skips, mobile identity and release contracts, compile-only Capacitor sync,
+  production-release contracts, Pages packaging, all three Worker dry runs,
+  and a zero-vulnerability production dependency audit.
+  Operationally, the existing Octopus service token was renewed and
+  synchronized to GitHub and the private vault. The stale audit-specific
+  GitHub credential was replaced in both locations with the separately
+  documented repository PAT after successful GitHub API validation. Browser
+  Integrity Check was
+  disabled only for the Octopus hostname and Bot Fight Mode was disabled on
+  `schubert.life` so CI can reach the still-required Access service-token
+  policy. A real Security Audit runbook invocation then passed. AI-bot
+  protection and the public `edstratumlabs.ai` zone were unchanged.
+  **Deployment impact:** Repairs the CI-to-Octopus access path and documents
+  its external Cloudflare/credential reconciliation. No Worker, Pages,
+  application provider, database, DNS, billing, branch promotion, or
+  activation-gate mutation occurs, and the public static prototype is
+  unchanged.
 - Octopus PR bridge failures now report secret-safe credential shape and HTTP
   response provenance, distinguishing Cloudflare Access rejection from
   Octopus API authorization without logging credential values, response

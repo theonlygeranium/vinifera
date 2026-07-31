@@ -55,12 +55,18 @@ function requestTarget(url, method) {
   return `${method ?? "GET"} ${parsed.pathname}`;
 }
 
-async function requestJson(fetchImpl, url, authenticationHeaders, options = {}) {
+export async function requestJson(
+  fetchImpl,
+  url,
+  authenticationHeaders,
+  options = {},
+) {
   const response = await fetchImpl(url, {
     ...options,
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      "User-Agent": "Vinifera-GitHub-Actions/1.0",
       ...authenticationHeaders,
       ...options.headers,
     },
@@ -80,7 +86,7 @@ async function requestJson(fetchImpl, url, authenticationHeaders, options = {}) 
   return response.json();
 }
 
-async function findByName(
+export async function findByName(
   fetchImpl,
   apiBase,
   authenticationHeaders,
