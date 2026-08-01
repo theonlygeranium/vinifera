@@ -170,17 +170,15 @@ describe("Octopus runbook bridge", () => {
 
     expect(workflow).not.toContain("Auto-Fix Suggestions");
     expect(workflow).not.toContain("PR Comment Bot");
-    expect(workflow).toContain("GH_PAT_FOR_OCTOPUS");
+    expect(workflow).not.toContain("GH_PAT_FOR_OCTOPUS");
     expect(qualityRunbook).toContain("cancel_queued_tasks = false");
     expect(qualityRunbook).toContain("cancel_running_tasks = false");
-    expect(qualityRunbook).not.toMatch(/https:\/\/#\{GitHubPAT\}@github\.com/);
+    expect(qualityRunbook).not.toContain("#{GitHubPAT}");
     expect(qualityRunbook).not.toContain('-H "$AUTH_HEADER"');
     expect(qualityRunbook).not.toContain("git -c http.extraHeader");
-    expect(qualityRunbook).toContain("GIT_CONFIG_KEY_0=http.extraHeader");
-    expect(qualityRunbook).toContain("x-access-token:%s");
-    expect(qualityRunbook).toContain("Authorization: Basic $GIT_AUTH_HEADER");
-    expect(qualityRunbook).not.toContain(
-      'GIT_CONFIG_VALUE_0="Authorization: Bearer #{GitHubPAT}"',
+    expect(qualityRunbook).not.toContain("GIT_CONFIG_KEY_0=http.extraHeader");
+    expect(qualityRunbook).toContain(
+      'git fetch --quiet --no-tags --depth=100 origin "$BASE_SHA" "$HEAD_SHA"',
     );
     expect(qualityRunbook).toContain("curl -fsS --config -");
     expect(qualityRunbook).toContain("git remote remove origin");
@@ -1423,25 +1421,14 @@ describe("Octopus runbook bridge", () => {
               { Name: "V-2", Control: { Name: "PRNumber", Required: true } },
               {
                 Name: "V-3",
-                Control: {
-                  Name: "GitHubPAT",
-                  Required: true,
-                  Type: "VariableValue",
-                  DisplaySettings: {
-                    "Octopus.ControlType": "Sensitive",
-                  },
-                },
-              },
-              {
-                Name: "V-4",
                 Control: { Name: "ExpectedHeadSHA", Required: true },
               },
               {
-                Name: "V-5",
+                Name: "V-4",
                 Control: { Name: "ExpectedBaseRef", Required: true },
               },
               {
-                Name: "V-6",
+                Name: "V-5",
                 Control: { Name: "ExpectedBaseSHA", Required: true },
               },
             ],
@@ -1469,7 +1456,6 @@ describe("Octopus runbook bridge", () => {
         environment: {
           CF_ACCESS_CLIENT_ID: "access-client-id",
           CF_ACCESS_CLIENT_SECRET: "access-client-secret",
-          GH_PAT_FOR_OCTOPUS: "secret-pat",
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
           PR_BRANCH: "fix/example",
@@ -1497,10 +1483,9 @@ describe("Octopus runbook bridge", () => {
     expect(runRequest.Runs[0].FormValues).toEqual({
       "V-1": "fix/example",
       "V-2": "44",
-      "V-3": "secret-pat",
-      "V-4": "a".repeat(40),
-      "V-5": "dev",
-      "V-6": "b".repeat(40),
+      "V-3": "a".repeat(40),
+      "V-4": "dev",
+      "V-5": "b".repeat(40),
     });
     expect(
       calls.every(
@@ -1555,25 +1540,14 @@ describe("Octopus runbook bridge", () => {
               { Name: "V-2", Control: { Name: "PRNumber", Required: true } },
               {
                 Name: "V-3",
-                Control: {
-                  Name: "GitHubPAT",
-                  Required: true,
-                  Type: "VariableValue",
-                  DisplaySettings: {
-                    "Octopus.ControlType": "Sensitive",
-                  },
-                },
-              },
-              {
-                Name: "V-4",
                 Control: { Name: "ExpectedHeadSHA", Required: true },
               },
               {
-                Name: "V-5",
+                Name: "V-4",
                 Control: { Name: "ExpectedBaseRef", Required: true },
               },
               {
-                Name: "V-6",
+                Name: "V-5",
                 Control: { Name: "ExpectedBaseSHA", Required: true },
               },
             ],
@@ -1601,7 +1575,6 @@ describe("Octopus runbook bridge", () => {
         environment: {
           CF_ACCESS_CLIENT_ID: "access-client-id",
           CF_ACCESS_CLIENT_SECRET: "access-client-secret",
-          GH_PAT_FOR_OCTOPUS: "secret-pat",
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
           PR_BRANCH: "fix/example",
