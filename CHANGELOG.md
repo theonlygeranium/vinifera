@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Added
+- Promotion smoke coverage now checks the documented branch path, manual
+  promotion controls, staging Octopus requirement, production authorization
+  boundary, and safe main-to-development Octopus deploy target so the delivery
+  workflow can be exercised end to end with a harmless test-only artifact.
+  **Deployment impact:** Adds CI contract coverage only; no application code,
+  hosted provider, database, DNS, billing, production, or activation-gate state
+  changes.
 - Prepared protected development deployment and consolidated release control:
   an unprivileged `dev` merge marker wakes a trusted default-branch controller
   that remains disabled until the isolated Worker, scoped protected
