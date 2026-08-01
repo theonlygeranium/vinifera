@@ -641,6 +641,7 @@ jobs:
               octopus_source_valid=true
             fi
           fi
+
           if (( required_success == 0 || invalid_checks > 0 \
             || octopus_success == 0 || invalid_statuses > 0 \
             || unresolved > 0 )) \
