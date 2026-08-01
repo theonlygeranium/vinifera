@@ -131,6 +131,7 @@ jobs:
       DEV_STAFF_A_PASSWORD: ${{ secrets.DEV_STAFF_A_PASSWORD }}
       DEV_STAFF_B_EMAIL: ${{ secrets.DEV_STAFF_B_EMAIL }}
       DEV_STAFF_B_PASSWORD: ${{ secrets.DEV_STAFF_B_PASSWORD }}
+      RUN_HOSTED_DEVELOPMENT_RUNTIME_E2E: "true"
     steps:
       - name: Check out trusted default-branch deployer
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

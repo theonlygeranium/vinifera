@@ -7,6 +7,14 @@
 ## [Unreleased]
 
 ### Fixed
+- Scoped hosted development runtime E2E to the protected development Worker
+  release lane with an explicit opt-in marker, so local/full promotion
+  Playwright QA does not fail on intentionally absent protected credentials
+  while the actual hosted deploy verification still fails closed when its
+  origin, candidate SHA, or QA credentials are missing. **Deployment impact:**
+  CI/development-release verification wiring only; no application code,
+  provider, DNS, database, billing, production, hosted-data, credential, or
+  activation-gate state changes.
 - Reconciled current `main` ancestry back through `dev` so the protected
   `dev → staging → main` promotion path can fast-forward through the audited
   Octopus proxy, direct-push guard, promotion-control, and delivery-gate
