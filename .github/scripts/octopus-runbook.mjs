@@ -48,11 +48,13 @@ async function findByName(
   authenticationHeaders,
   path,
   name,
+  extraQuery = {},
 ) {
   const query = new URLSearchParams({
     partialName: name,
     skip: "0",
     take: "100",
+    ...extraQuery,
   });
   const payload = await requestJson(
     fetchImpl,
@@ -191,8 +193,9 @@ export async function runRunbook({
     fetchImpl,
     spaceBase,
     authenticationHeaders,
-    `projects/${project.Id}/git/main/runbooks`,
+    `projects/${project.Id}/runbooks`,
     runbookName,
+    { gitRef: "main" },
   );
   if (!runbook.PublishedRunbookSnapshotId) {
     throw new Error(`Octopus runbook has no published snapshot: ${runbookName}`);
