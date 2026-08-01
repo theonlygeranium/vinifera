@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+### Fixed
+- Hardened delivery-control gates after the workflow smoke audit: the main
+  direct-push guard now runs for privileged users and automation, the trusted
+  `dev` automerge controller accepts required check-runs only when they belong
+  to the live PR/base/head tuple, and hosted development runtime verification
+  fails closed when the protected origin, candidate SHA, or QA credentials are
+  absent. The direct-push guard policy tests now match the current six-attempt,
+  15-second associated-PR indexing window. **Deployment impact:** Changes
+  GitHub CI and merge/deployment guardrails only; no application code,
+  provider, DNS, database, billing, production, hosted-data, credential, or
+  activation-gate state changes.
+
 ### Added
 - Promotion smoke coverage now checks the documented branch path, manual
   promotion controls, staging Octopus requirement, production authorization

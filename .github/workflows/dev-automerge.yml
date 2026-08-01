@@ -162,6 +162,9 @@ jobs:
               "repos/$REPOSITORY/commits/$head_sha/statuses?per_page=100" |
               jq -s 'add')
             context_states=$(jq -n \
+              --argjson pr_number "$PR_NUMBER" \
+              --arg base_sha "$base_sha" \
+              --arg head_sha "$head_sha" \
               --argjson required "$required_contexts" \
               --argjson runs "$check_runs" \
               --argjson statuses "$statuses" '
@@ -173,7 +176,12 @@ jobs:
               [
                 $required[] as $name |
                 (
-                  [$runs[] | select(.name == $name)] |
+                  [$runs[] |
+                    select(.name == $name) |
+                    select(any(.pull_requests[]?;
+                      .number == $pr_number and
+                      .base.sha == $base_sha and
+                      .head.sha == $head_sha))] |
                   sort_by(.started_at // .created_at) |
                   last
                 ) as $run |

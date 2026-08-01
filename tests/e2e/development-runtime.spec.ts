@@ -14,12 +14,17 @@ const credentials = [
 ];
 
 test.describe("hosted development runtime", () => {
-  test.skip(
-    !origin ||
-      !/^[0-9a-f]{40}$/.test(candidateSha) ||
-      credentials.some(({ email, password }) => !email || !password),
-    "Protected development runtime credentials are required.",
-  );
+  test.beforeAll(() => {
+    if (!origin) {
+      throw new Error("DEV_RUNTIME_ORIGIN is required for hosted development verification.");
+    }
+    if (!/^[0-9a-f]{40}$/.test(candidateSha)) {
+      throw new Error("CANDIDATE_SHA must be an exact 40-character Git SHA.");
+    }
+    if (credentials.some(({ email, password }) => !email || !password)) {
+      throw new Error("Both protected development QA staff credentials are required.");
+    }
+  });
 
   test("proves exact health, auth, tenant denial, and member boundary", async () => {
     const publicApi = await request.newContext({ baseURL: origin });
