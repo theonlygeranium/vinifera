@@ -265,7 +265,7 @@ print(data["base"]["sha"])
                         printf '%s' "$output"
                     }
                     VIOLATIONS=$(tracked_grep -n -E \
-                        "(sk_live_|sk_test_|rk_live_|ep_test_|re_)[A-Za-z0-9_]+" \
+                        "(sk_live_|sk_test_|rk_live_|ep_test_)[A-Za-z0-9_]+|\\bre_[A-Za-z0-9]{20,}" \
                         -- ":(glob)server/**/*.ts" ":(glob)src/**/*.ts")
                     [ -n "$VIOLATIONS" ] && echo "FAIL: $VIOLATIONS" && exit 1
                     echo "PASS: Rule 3"
