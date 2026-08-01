@@ -191,7 +191,7 @@ export async function runRunbook({
     fetchImpl,
     spaceBase,
     authenticationHeaders,
-    `projects/${project.Id}/runbooks`,
+    `projects/${project.Id}/git/main/runbooks`,
     runbookName,
   );
   if (!runbook.PublishedRunbookSnapshotId) {
@@ -200,7 +200,7 @@ export async function runRunbook({
 
   const preview = await requestJson(
     fetchImpl,
-    `${spaceBase}/runbooks/${runbook.Id}/runbookRuns/preview/${octopusEnvironment.Id}?runbookSnapshotId=${runbook.PublishedRunbookSnapshotId}`,
+    `${spaceBase}/runbooks/${runbook.Id}/runbookRuns/preview/${octopusEnvironment.Id}?runbookSnapshotId=${runbook.PublishedRunbookSnapshotId}&gitRef=main`,
     authenticationHeaders,
   );
   const formValues = resolveFormValues(preview, {
