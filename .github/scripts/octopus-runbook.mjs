@@ -364,7 +364,6 @@ export async function runRunbook({
     runbookName,
     environment,
     requiredEnvironment: [
-      "GH_PAT_FOR_OCTOPUS",
       "PR_BRANCH",
       "PR_EXPECTED_BASE_REF",
       "PR_EXPECTED_BASE_SHA",
@@ -394,7 +393,6 @@ export async function runRunbook({
       ExpectedBaseSHA: values.PR_EXPECTED_BASE_SHA,
       ExpectedHeadSHA: values.PR_EXPECTED_SHA,
       PRNumber: values.PR_NUMBER,
-      GitHubPAT: values.GH_PAT_FOR_OCTOPUS,
     }),
     fetchImpl,
     sleep,
