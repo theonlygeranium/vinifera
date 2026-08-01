@@ -84,6 +84,7 @@ jobs:
       - name: Deploy to Development 🏗️
         uses: OctopusDeploy/deploy-release-action@v4
         env:
+          GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}
           OCTOPUS_SPACE: Default
@@ -92,6 +93,8 @@ jobs:
           release_number: ${{ steps.create_release.outputs.release_number }}
           environments: |
             Development
+          variables: |
+            GitHubPAT:${{ secrets.GH_PAT_FOR_OCTOPUS }}
           # Development deploys are automatic — no manual intervention required.
           # Staging and Production require manual approval in Octopus.
 
