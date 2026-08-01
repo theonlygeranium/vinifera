@@ -65,7 +65,7 @@ jobs:
         with:
           packages: |
             Vinifera
-          version: ${{ github.run_number }}.${{ github.sha }}
+          version: 0.0.${{ github.run_number }}-${{ github.run_attempt }}
           overwrite_mode: OverwriteExisting
 
       - name: Create Octopus Release 🚀
@@ -77,7 +77,7 @@ jobs:
           OCTOPUS_SPACE: Default
         with:
           project: Vinifera
-          release_number: "${{ github.run_number }}-${{ github.sha }}"
+          release_number: "0.0.${{ github.run_number }}-${{ github.run_attempt }}"
           git_ref: ${{ github.ref }}
           git_commit: ${{ github.sha }}
 
