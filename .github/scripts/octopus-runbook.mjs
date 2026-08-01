@@ -387,13 +387,22 @@ export async function runRunbook({
         throw new Error("PR_EXPECTED_BASE_REF contains unsupported characters");
       }
     },
-    promptedValuesResolver: (_preview, values) => ({
-      PRBranch: values.PR_BRANCH,
-      ExpectedBaseRef: values.PR_EXPECTED_BASE_REF,
-      ExpectedBaseSHA: values.PR_EXPECTED_BASE_SHA,
-      ExpectedHeadSHA: values.PR_EXPECTED_SHA,
-      PRNumber: values.PR_NUMBER,
-    }),
+    promptedValuesResolver: (preview, values) => {
+      const promptedValues = {
+        PRBranch: values.PR_BRANCH,
+        ExpectedBaseRef: values.PR_EXPECTED_BASE_REF,
+        ExpectedBaseSHA: values.PR_EXPECTED_BASE_SHA,
+        ExpectedHeadSHA: values.PR_EXPECTED_SHA,
+        PRNumber: values.PR_NUMBER,
+      };
+      const hasStaleGitHubPatPrompt = preview?.Form?.Elements?.some(
+        (element) => element?.Control?.Name === "GitHubPAT",
+      );
+      if (hasStaleGitHubPatPrompt) {
+        promptedValues.GitHubPAT = "unused-stale-octopus-prompt";
+      }
+      return promptedValues;
+    },
     fetchImpl,
     sleep,
     pollIntervalMs,
