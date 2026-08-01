@@ -30,6 +30,12 @@ describe("main to development Octopus deployment contract", () => {
   });
 
   it("keeps deploys idempotent and tied to the exact main commit", () => {
+    expect(workflow).toContain(
+      "version: 0.0.${{ github.run_number }}-${{ github.run_attempt }}",
+    );
+    expect(workflow).toContain(
+      'release_number: "0.0.${{ github.run_number }}-${{ github.run_attempt }}"',
+    );
     expect(workflow).toContain("overwrite_mode: OverwriteExisting");
     expect(workflow).toContain("git_ref: ${{ github.ref }}");
     expect(workflow).toContain("git_commit: ${{ github.sha }}");
