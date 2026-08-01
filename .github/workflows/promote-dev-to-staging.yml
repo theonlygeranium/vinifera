@@ -174,8 +174,8 @@ jobs:
         env:
           STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
@@ -459,8 +459,8 @@ jobs:
         env:
           STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
