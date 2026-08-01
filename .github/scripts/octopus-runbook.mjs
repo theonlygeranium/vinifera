@@ -185,7 +185,11 @@ export function configAsCodeRunbooksPath(projectId, gitRef) {
   if (!/^refs\/heads\/[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(gitRef)) {
     throw new Error("OCTOPUS_GIT_REF must be an exact refs/heads/* reference");
   }
-  return `projects/${projectId}/${encodeURIComponent(gitRef)}/runbooks`;
+  // Octopus CaC API requires the bare branch name in the path segment.
+  // e.g. refs/heads/main -> projects/{id}/main/runbooks
+  // encodeURIComponent produces refs%2Fheads%2Fmain which returns HTTP 404.
+  const branchName = gitRef.replace(/^refs\/heads\//, "");
+  return `projects/${projectId}/${branchName}/runbooks`;
 }
 
 export async function executeConfigAsCodeRunbook({
