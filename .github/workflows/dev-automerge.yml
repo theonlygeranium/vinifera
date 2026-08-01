@@ -118,15 +118,15 @@ jobs:
 
             local classification
             classification=$(BASE_SHA="$base_sha" HEAD_SHA="$head_sha" \
-              node --input-type=module <<'NODE'
-            import {
-              classifyDeliveryChange,
-              readChangedRecords,
-            } from "./.github/scripts/delivery-policy.mjs";
-            process.stdout.write(JSON.stringify(classifyDeliveryChange(
-              readChangedRecords(process.env.BASE_SHA, process.env.HEAD_SHA),
-            )));
-            NODE
+              node --input-type=module --eval '
+                import {
+                  classifyDeliveryChange,
+                  readChangedRecords,
+                } from "./.github/scripts/delivery-policy.mjs";
+                process.stdout.write(JSON.stringify(classifyDeliveryChange(
+                  readChangedRecords(process.env.BASE_SHA, process.env.HEAD_SHA),
+                )));
+              '
             )
 
             local protected_contexts
@@ -137,19 +137,19 @@ jobs:
             local required_contexts
             required_contexts=$(CONTRACT_CLASSIFICATION="$classification" \
               PROTECTED_CONTEXTS="$protected_contexts" \
-              node --input-type=module <<'NODE'
-            import {
-              readDeliveryRiskContract,
-              requiredAutomergeContexts,
-            } from "./.github/scripts/dev-automerge-policy.mjs";
-            const contract = readDeliveryRiskContract();
-            const classification = JSON.parse(process.env.CONTRACT_CLASSIFICATION);
-            process.stdout.write(JSON.stringify(requiredAutomergeContexts({
-              contract,
-              protectedContexts: JSON.parse(process.env.PROTECTED_CONTEXTS),
-              previewRequired: classification.previewRequired === true,
-            })));
-            NODE
+              node --input-type=module --eval '
+                import {
+                  readDeliveryRiskContract,
+                  requiredAutomergeContexts,
+                } from "./.github/scripts/dev-automerge-policy.mjs";
+                const contract = readDeliveryRiskContract();
+                const classification = JSON.parse(process.env.CONTRACT_CLASSIFICATION);
+                process.stdout.write(JSON.stringify(requiredAutomergeContexts({
+                  contract,
+                  protectedContexts: JSON.parse(process.env.PROTECTED_CONTEXTS),
+                  previewRequired: classification.previewRequired === true,
+                })));
+              '
             )
 
             local check_runs statuses context_states
@@ -254,16 +254,16 @@ jobs:
                 contexts: $contexts,
                 unresolvedThreads: $unresolved_threads
               }')
-            decision=$(AUTOMERGE_STATE="$state" node --input-type=module <<'NODE'
-            import {
-              evaluateAutomergeCandidate,
-              readDeliveryRiskContract,
-            } from "./.github/scripts/dev-automerge-policy.mjs";
-            process.stdout.write(JSON.stringify(evaluateAutomergeCandidate({
-              contract: readDeliveryRiskContract(),
-              ...JSON.parse(process.env.AUTOMERGE_STATE),
-            })));
-            NODE
+            decision=$(AUTOMERGE_STATE="$state" node --input-type=module --eval '
+              import {
+                evaluateAutomergeCandidate,
+                readDeliveryRiskContract,
+              } from "./.github/scripts/dev-automerge-policy.mjs";
+              process.stdout.write(JSON.stringify(evaluateAutomergeCandidate({
+                contract: readDeliveryRiskContract(),
+                ...JSON.parse(process.env.AUTOMERGE_STATE),
+              })));
+            '
             )
             {
               echo "## Trusted development auto-merge"
