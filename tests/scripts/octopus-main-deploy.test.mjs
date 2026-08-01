@@ -41,5 +41,9 @@ describe("main to development Octopus deployment contract", () => {
     expect(workflow).toContain("git_commit: ${{ github.sha }}");
     expect(workflow).toContain("environments: |\n            Development");
     expect(workflow).toContain("GitHubPAT:${{ secrets.GH_PAT_FOR_OCTOPUS }}");
+    expect(workflow).toContain("PRBranch:${{ github.ref_name }}");
+    expect(workflow).toContain("PRNumber:${{ github.run_number }}");
+    expect(workflow).toContain("ExpectedBaseSHA:${{ github.sha }}");
+    expect(workflow).toContain("ExpectedHeadSHA:${{ github.sha }}");
   });
 });
