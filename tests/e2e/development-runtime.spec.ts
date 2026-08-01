@@ -2,6 +2,8 @@ import { expect, request, test, type APIRequestContext } from "@playwright/test"
 
 const origin = process.env.DEV_RUNTIME_ORIGIN ?? "";
 const candidateSha = process.env.CANDIDATE_SHA ?? "";
+const runHostedDevelopmentRuntimeE2E =
+  process.env.RUN_HOSTED_DEVELOPMENT_RUNTIME_E2E === "true";
 const credentials = [
   {
     email: process.env.DEV_STAFF_A_EMAIL ?? "",
@@ -14,6 +16,11 @@ const credentials = [
 ];
 
 test.describe("hosted development runtime", () => {
+  test.skip(
+    !runHostedDevelopmentRuntimeE2E,
+    "Hosted development runtime verification runs only in the protected release lane.",
+  );
+
   test.beforeAll(() => {
     if (!origin) {
       throw new Error("DEV_RUNTIME_ORIGIN is required for hosted development verification.");

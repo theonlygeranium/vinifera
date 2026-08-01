@@ -125,6 +125,7 @@ describe("immutable release artifact", () => {
     expect(workflow).toContain("--no-bundle");
     expect(workflow).toContain("PRIOR_VERSION_ID");
     expect(workflow).toContain("development-runtime.spec.ts");
+    expect(workflow).toContain('RUN_HOSTED_DEVELOPMENT_RUNTIME_E2E: "true"');
     expect(workflow).not.toContain("--env production");
     expect(workflow).not.toContain("PRODUCTION_");
   });
