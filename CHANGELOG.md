@@ -48,6 +48,7 @@
   **Deployment impact:** Static asset only; no visible navigation, app route,
   API, provider, database, credential, billing, DNS, or activation-gate state
   changes.
+
 - Promotion smoke coverage now checks the documented branch path, manual
   promotion controls, staging Octopus requirement, production authorization
   boundary, and safe main-to-development Octopus deploy target so the delivery
@@ -161,6 +162,11 @@
   release operations. This PR itself performs no branch merge, environment
   promotion, provider activation, deployment, DNS change, database mutation, or
   production resource change.
+
+### Removed
+- Removed the temporary hidden promotion smoke artifact after the publishing
+  drill reached production and its marker was verified on the hosted production
+  surfaces.
 
 ### Fixed
 - Reconciled `staging` ancestry back into `dev` after the Octopus workflow
