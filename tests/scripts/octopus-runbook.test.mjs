@@ -1159,13 +1159,13 @@ describe("Octopus runbook bridge", () => {
     );
   });
 
-  it("builds an encoded Config-as-Code runbook path", () => {
+  it("builds a bare-branch Config-as-Code runbook path", () => {
     expect(
       configAsCodeRunbooksPath("Projects-1", "refs/heads/main"),
-    ).toBe("projects/Projects-1/refs%2Fheads%2Fmain/runbooks");
+    ).toBe("projects/Projects-1/main/runbooks");
     expect(() =>
       configAsCodeRunbooksPath("Projects-1", "main"),
-    ).toThrow("refs/heads");
+    ).toBe("projects/Projects-1/main/runbooks");
   });
 
   it("reports credential shape without exposing credential values", () => {
@@ -1269,7 +1269,7 @@ describe("Octopus runbook bridge", () => {
       if (path === "/api/Spaces-1/projects") {
         return jsonResponse({ Items: [{ Id: "Projects-1", Name: "Vinifera" }] });
       }
-      if (path.endsWith("/refs%2Fheads%2Fmain/runbooks")) {
+      if (path.endsWith("/main/runbooks")) {
         return jsonResponse({
           Items: [{ Name: "Security Audit", Slug: "security-audit" }],
         });
@@ -1315,7 +1315,7 @@ describe("Octopus runbook bridge", () => {
     ).resolves.toMatchObject({ state: "Success", taskId: "ServerTasks-1" });
     expect(
       calls.some(({ url }) =>
-        url.includes("/projects/Projects-1/refs%2Fheads%2Fmain/runbooks"),
+        url.includes("/projects/Projects-1/main/runbooks"),
       ),
     ).toBe(true);
     const runCall = calls.find(({ url }) =>
@@ -1402,7 +1402,7 @@ describe("Octopus runbook bridge", () => {
       }
       if (
         String(url).includes(
-          "/projects/Projects-1/refs%2Fheads%2Fmain/runbooks?",
+          "/projects/Projects-1/main/runbooks?",
         )
       ) {
         return jsonResponse({
@@ -1534,7 +1534,7 @@ describe("Octopus runbook bridge", () => {
       }
       if (
         requestUrl.includes(
-          "/projects/Projects-1/refs%2Fheads%2Fmain/runbooks?",
+          "/projects/Projects-1/main/runbooks?",
         )
       ) {
         return jsonResponse({
