@@ -122,6 +122,15 @@
   production resource change.
 
 ### Fixed
+- The main Octopus deployment workflow now rejects manual dispatches unless
+  they run from `refs/heads/main`, before checkout or Octopus/Cloudflare
+  credentialed steps execute. Cloudflare Access service-token values are scoped
+  to the proxy startup step instead of job-level environment, preserving the
+  trusted main-only deployment boundary while still allowing push and manual
+  main smoke runs to create and deploy an Octopus release to Development.
+  **Deployment impact:** Tightens the existing Octopus Development deploy
+  control only; no Worker, provider, database, DNS, billing, production, or
+  activation-gate state changes.
 - Nightly Octopus security-audit diagnostics now reuse the trusted PR bridge's
   credential-shape validation and safe HTTP response provenance, identifying
   the exact method/path and responder class for the current first-request 403
