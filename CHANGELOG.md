@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Added
+- Promotion smoke coverage now checks the documented branch path, manual
+  promotion controls, staging Octopus requirement, production authorization
+  boundary, and safe main-to-development Octopus deploy target so the delivery
+  workflow can be exercised end to end with a harmless test-only artifact.
+  **Deployment impact:** Adds CI contract coverage only; no application code,
+  hosted provider, database, DNS, billing, production, or activation-gate state
+  changes.
 - Prepared protected development deployment and consolidated release control:
   an unprivileged `dev` merge marker wakes a trusted default-branch controller
   that remains disabled until the isolated Worker, scoped protected
@@ -115,6 +122,21 @@
   production resource change.
 
 ### Fixed
+- Reconciled `staging` ancestry back into `dev` after the Octopus workflow
+  repair sequence so the next `dev → staging` promotion has a clean merge base
+  instead of re-conflicting on already-reviewed deployment workflow files.
+  **Deployment impact:** Branch-history repair and documentation only; no
+  runtime, hosted provider, database, DNS, billing, production, or
+  activation-gate state changes.
+- The main Octopus deployment workflow now rejects manual dispatches unless
+  they run from `refs/heads/main`, before checkout or Octopus/Cloudflare
+  credentialed steps execute. Cloudflare Access service-token values are scoped
+  to the proxy startup step instead of job-level environment, preserving the
+  trusted main-only deployment boundary while still allowing push and manual
+  main smoke runs to create and deploy an Octopus release to Development.
+  **Deployment impact:** Tightens the existing Octopus Development deploy
+  control only; no Worker, provider, database, DNS, billing, production, or
+  activation-gate state changes.
 - Nightly Octopus security-audit diagnostics now reuse the trusted PR bridge's
   credential-shape validation and safe HTTP response provenance, identifying
   the exact method/path and responder class for the current first-request 403

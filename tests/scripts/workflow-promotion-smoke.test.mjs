@@ -1,0 +1,66 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+const agentsGuide = readFileSync(
+  new URL("../../AGENTS.md", import.meta.url),
+  "utf8",
+);
+const workflowGuide = readFileSync(
+  new URL("../../docs/agent-workflow.md", import.meta.url),
+  "utf8",
+);
+const promotionWorkflow = readFileSync(
+  new URL("../../.github/workflows/promote-dev-to-staging.yml", import.meta.url),
+  "utf8",
+);
+const octopusPromotionWorkflow = readFileSync(
+  new URL(
+    "../../.github/workflows/octopus-pr-quality-gates.yml",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const mainDeployWorkflow = readFileSync(
+  new URL("../../.github/workflows/octopus-main-deploy.yml", import.meta.url),
+  "utf8",
+);
+const productionWorkflow = readFileSync(
+  new URL("../../.github/workflows/production-worker-release.yml", import.meta.url),
+  "utf8",
+);
+
+describe("promotion workflow smoke contract", () => {
+  it("keeps routine agent work entering through dev before promotion", () => {
+    expect(agentsGuide).toContain("All agent feature PRs target `dev` only");
+    expect(workflowGuide).toContain("Feature branch or PR to `dev`");
+    expect(promotionWorkflow).toContain("--head dev");
+    expect(promotionWorkflow).toContain("--base staging");
+    expect(promotionWorkflow).toContain("Review attempt: ${REVIEW_ATTEMPT}");
+  });
+
+  it("requires full CI and Octopus on promotion comparisons", () => {
+    expect(promotionWorkflow).toContain('"Type, test, build, and package"');
+    expect(promotionWorkflow).toContain('"Octopus PR Quality Gates"');
+    expect(octopusPromotionWorkflow).toContain(
+      "github.event.pull_request.base.ref == 'staging'",
+    );
+    expect(octopusPromotionWorkflow).toContain(
+      "github.event.pull_request.head.ref == 'dev'",
+    );
+    expect(octopusPromotionWorkflow).toContain(
+      "github.event.pull_request.base.ref == 'main'",
+    );
+    expect(octopusPromotionWorkflow).toContain(
+      "github.event.pull_request.head.ref == 'staging'",
+    );
+  });
+
+  it("leaves production Worker mutation manual while allowing safe main deploy smoke", () => {
+    expect(mainDeployWorkflow).toContain("workflow_dispatch:");
+    expect(mainDeployWorkflow).toContain("environments: |\n            Development");
+    expect(mainDeployWorkflow).toContain("GitHubPAT:${{ secrets.GH_PAT_FOR_OCTOPUS }}");
+    expect(productionWorkflow).toContain("workflow_dispatch:");
+    expect(productionWorkflow).toContain("name: production");
+    expect(productionWorkflow).not.toMatch(/\n\s+push:/);
+  });
+});

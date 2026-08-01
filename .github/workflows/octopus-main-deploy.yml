@@ -21,15 +21,19 @@ jobs:
       contents: read
       deployments: write
 
-    # Cloudflare Access service token — required for all Octopus API calls
-    # because octopus.schubert.life is behind a CF Access policy.
     env:
-      CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
-      CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
       CF_ACCESS_PROXY_PORT: "41809"
       OCTOPUS_PROXY_URL: http://127.0.0.1:41809
 
     steps:
+      - name: Require main ref for Octopus deployment
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error::Octopus main deployment must run from refs/heads/main."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -37,6 +41,8 @@ jobs:
 
       - name: Start Cloudflare Access proxy
         env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_TARGET_URL: ${{ secrets.OCTOPUS_URL }}
         run: |
