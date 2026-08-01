@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Reconciled current `main` ancestry back through `dev` so the protected
+  `dev → staging → main` promotion path can fast-forward through the audited
+  Octopus proxy, direct-push guard, promotion-control, and delivery-gate
+  fixes without reintroducing older split-history workflow variants.
+  **Deployment impact:** Branch history repair and release-control metadata
+  only; no application code, provider, DNS, database, billing, production,
+  hosted-data, credential, or activation-gate state changes.
 - Hardened delivery-control gates after the workflow smoke audit: the main
   direct-push guard now runs for privileged users and automation, the trusted
   `dev` automerge controller accepts required check-runs only when they belong
