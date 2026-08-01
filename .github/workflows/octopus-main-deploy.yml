@@ -20,6 +20,14 @@ jobs:
       contents: read
       deployments: write
 
+    # Cloudflare Access service token — required for all Octopus API calls
+    # because octopus.schubert.life is behind a CF Access policy.
+    # The Octopus CLI and official Actions pick these up automatically and
+    # add CF-Access-Client-Id / CF-Access-Client-Secret headers to every request.
+    env:
+      CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
