@@ -6,6 +6,12 @@
 
 ---
 
+> **Amended 2026-07-30:** The principal-orchestrator candidate-delivery ADR
+> supersedes the statement below that Octopus is mandatory for every pull
+> request. Octopus is required for promotion and explicitly labeled or
+> classified high-risk work. Routine `dev` candidates use `Dev fast checks`;
+> CodeRabbit is optional while unavailable or rate-limited.
+
 ## Context
 
 Vinifera used Greptile as its AI code review tool, configured as a required status check
@@ -42,9 +48,10 @@ now requires only:
 - `Type, test, build, and package`
 - `Block direct push to main`
 
-CodeRabbit remains active and unchanged.
+CodeRabbit remains optional advisory review while unavailable or rate-limited.
 
-Octopus is a mandatory workflow review gate for every pull request. The GitHub
+Octopus is a mandatory workflow review gate for promotion and explicitly
+classified or labeled high-risk pull requests. The GitHub
 workflow listens to `opened`, `synchronize`, `reopened`, and `ready_for_review`
 activity, plus `edited` retargeting, on PRs targeting `dev`, `staging`, or
 `main` and invokes the self-hosted

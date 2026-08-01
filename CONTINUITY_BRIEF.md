@@ -1,6 +1,6 @@
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-07-29
+**Last updated:** 2026-07-31
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
 
 ## Project identity
@@ -21,6 +21,13 @@ than the Worker JSON health contract, so the production application has not
 replaced that baseline. Version 0.5.0 contains the complete Phase 1–5
 connection-ready source architecture:
 
+- The trusted Octopus PR bridge reports credential-value-free diagnostics for
+  Access/API failures: visible-ASCII validation and character counts for the
+  three authentication headers, plus the Octopus hostname and sanitized
+  response provenance (`server`, `cf-ray` presence, media type, and redirect
+  hostname). It never logs secret values, response bodies, query strings, or
+  redirect paths. This preserves the trusted default-branch execution boundary
+  and changes no hosted activation gate.
 - Runtime signing/hash material is purpose-separated: rate-limit hashing and
   member-brand context signing require distinct, independently generated
   32-byte-or-longer secrets. Runtime configuration, staging activation, and
@@ -104,6 +111,93 @@ connection-ready source architecture:
 The Worker is connection-ready but must not replace the Pages custom-domain
 baseline until the hosted Supabase, Stripe, provider, DNS, physical-device, and
 store activation checks in the phase QA reports pass.
+
+## 2026-07-30 principal-orchestrator candidate delivery
+
+The owner accepted the candidate-based delivery model in
+`docs/decisions/2026-07-30-principal-orchestrator-candidate-delivery.md`.
+This source branch makes it canonical and implements its first bounded unit:
+
+- feature-branch pushes no longer trigger fast CI;
+- draft PRs record terminal `draft_not_candidate` failure without dependency,
+  build, test, browser, or preview work, preventing stale same-head success;
+- ready, non-draft new PR heads retain the required `Dev fast checks` name and
+  cancellable per-PR concurrency; exact manual candidates use the distinct
+  `Manual exact candidate checks` context and must dispatch from their head;
+- the classifier reports exact base/head, risk, surface, focused tests,
+  browser applicability, and preview applicability;
+- unknown paths are invalid, while authority-high-risk candidates require the
+  trusted `octopus-review-required` boundary before the aggregate can pass;
+- browser smoke runs only for frontend, routing, shared-client,
+  accessibility-sensitive, or explicitly browser-risk paths;
+- every candidate has an always-present `Feature preview decision`;
+- frontend candidates retain a prebuilt artifact for trusted
+  default-branch publication as exact-head `Frontend preview evidence`;
+- the privileged publisher independently reclassifies the live exact diff,
+  targets only preview branches of the non-production `vinifera-dev` Pages
+  project, and never executes PR-head source beside Cloudflare credentials,
+  trusts artifact applicability, targets the public `vinifera` project, or
+  accepts reserved environment branch names;
+- the Octopus bridge now uses Git-ref-qualified Config-as-Code routes and the
+  flat `runbooks/pr-quality-gates.ocl` resource layout that the live project
+  enumerates; five non-secret exact-PR inputs are prompted from Git-backed
+  variables while `GitHubPAT` remains database-backed and sensitive; and
+- review repairs are collected and batched for no more than two substantive
+  repair/re-review cycles.
+
+The pre-change external-control snapshot found zero open PRs, no rulesets, and
+only `main` protected. The owner-authorized non-production update now protects
+`dev` with strict `Dev fast checks`, PR-only updates, resolved conversations,
+linear history, administrator enforcement, and no force-push or deletion.
+Default Actions permissions are read-only and workflow tokens cannot approve
+reviews. `main`, `staging`, and protected environment settings were not
+changed; the exact before/after payloads and rollback procedure are recorded
+in `docs/build-specs/github-governance-snapshot-2026-07-30.md`.
+
+The trusted preview publisher cannot receive `workflow_run` events until the
+reviewed definition reaches the default branch. Therefore the direct
+Cloudflare Pages preview integration remains enabled as a bootstrap fallback.
+After one ready frontend candidate proves an immutable preview and one backend
+candidate proves non-applicability, disable automatic Pages preview
+deployments and then require `Frontend preview evidence`. Do not reverse that
+order.
+
+Current remote evidence on 2026-07-31 is `dev` at `55449cbe53e5`, `staging`
+at `c3b9df3dac84`, and `main` at `3a688968a1e3`, with no open pull requests.
+The principal-orchestrator candidate, trusted development auto-merge, and
+immutable release controls are source-complete on `dev` but remain inactive
+until their trusted controllers reach the default branch and their protected
+environments are provisioned.
+
+The original nightly Octopus failure (`30606684736`) was a first-request HTTP
+403. Redacted reproduction identified Cloudflare browser heuristics and stale
+repository credentials. The already-scoped service token was renewed, GitHub
+and the private vault were synchronized, a hostname-only rule disabled Browser
+Integrity Check for `octopus.schubert.life`, and zone Bot Fight Mode was
+disabled because this plan cannot bypass it for machine traffic. Access logs
+and direct probes now prove the non-identity policy reaches Octopus; Access and
+AI-bot controls remain active.
+
+The next trusted `main` rerun (`30626572282`) crossed that boundary and exposed
+HTTP 400 on the obsolete database-backed
+`/projects/Projects-1/runbooks` route. The pending repair uses the exact
+Config-as-Code `refs/heads/main` preview, snapshot-template, and grouped-run
+contract. A real local invocation queued and passed the Security Audit
+runbook. Scheduled GitHub execution remains pending until this trusted bridge
+repair reaches `main`; Pages checks remain static build evidence only, and
+Worker activation jobs remain disabled or skipped.
+
+PR #67 (`ci/octopus-audit-readiness-reconcile → dev`) was first reviewed at
+head `0a12bce`.
+Exact-head fast run `30627097438` passed. Trusted Octopus run `30627097321`
+crossed Access but failed because the main-ref inventory does not expose `PR
+Quality Gates`; the same exact review passed from the maintained `dev` ref.
+The PR remains human-review required and must not be treated as merge- or
+promotion-ready until the trusted main-ref status is green.
+
+This governance and CI work does not deploy a Worker, change DNS, activate a
+provider, mutate hosted data, enable billing, access production customer data,
+or mark any activation gate complete. All 20 gates below remain pending.
 
 ## 2026-07-29 two-speed delivery governance
 
@@ -338,6 +432,35 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   monitoring; `human-review-required` pauses mutation and `do-not-merge` is
   absolute. Standing owner authority can cover routine reversible delivery
   through protected controls but cannot bypass either label.
+- Risk-based development merge source is defined by
+  `.github/delivery-risk-contract.json`,
+  `.github/scripts/dev-automerge-policy.mjs`, and
+  `.github/workflows/dev-automerge.yml`. It accepts only current-base,
+  same-repository, low/medium-risk `dev` PRs with `codex-auto-merge`, exact
+  successful required/preview contexts, and zero unresolved threads, then
+  repeats the decision before exact-SHA squash merge. It remains inactive
+  until the trusted workflow reaches the default branch.
+- The pre-change GitHub configuration and rollback are recorded in
+  `docs/build-specs/github-governance-snapshot-2026-07-30.md`. `dev`
+  protection and read-only default Actions permissions are the intended live
+  non-production settings; production controls are unchanged.
+- Development Worker automation is source-complete but
+  `prepared_disabled`. `Development deployment candidate` is unprivileged;
+  `Development Worker release` runs trusted default-branch code, builds one
+  immutable prebuilt bundle/assets package, requires a known rollback version,
+  deploys only `vinifera-development`, verifies exact health/configuration,
+  staff/member/tenant boundaries and desktop/375 rendering, and rolls back on
+  failure. Activation blockers and rollback are in
+  `docs/runbooks/development-worker-release.md`.
+- `Package selected release candidate` packages one current `dev` head only
+  after the maintained `dev → staging` PR has exact full CI and Octopus
+  evidence. The protected staging and production upload paths consume that
+  exact manifest-bound bundle/assets package with `--no-bundle`; both remain
+  unactivated and no hosted artifact was uploaded.
+  `Delivery Control Center` maintains one low-noise GitHub issue and separates
+  implemented, CI-verified, deployed, and live-verified state.
+- The 20 pending activation gates are sequenced into private synthetic beta,
+  restricted live winery pilot, and GA without changing any gate status.
 - The repository README now displays the CodeRabbit pull-request review badge,
   making automated review coverage visible without changing application,
   deployment, provider, or activation behavior.

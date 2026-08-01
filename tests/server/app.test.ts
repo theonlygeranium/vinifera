@@ -191,6 +191,24 @@ function testApp(
 }
 
 describe("Phase 1 API", () => {
+  it("reports a sanitized exact runtime environment and revision", async () => {
+    const revision = "a".repeat(40);
+    const response = await request(
+      testApp(service(), {
+        APP_ENV: "development",
+        DEPLOY_GIT_SHA: revision,
+      }),
+    ).get("/api/health");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      environment: "development",
+      revision,
+      service: "vinifera-api",
+      status: "ok",
+    });
+  });
+
   it("blocks non-owner staff from owner-only billing operations", () => {
     expect(() =>
       assertStaffRole(

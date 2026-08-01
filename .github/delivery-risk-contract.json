@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "targetBranch": "dev",
+  "allowedRisks": ["low", "medium"],
+  "blockedRisks": ["high"],
+  "authorityLabel": "codex-auto-merge",
+  "emergencyLabels": ["human-review-required", "do-not-merge"],
+  "requiredContexts": ["Dev fast checks"],
+  "previewContext": "Frontend preview evidence",
+  "mergeMethod": "squash",
+  "sameRepositoryOnly": true,
+  "requireCurrentBase": true,
+  "requireResolvedThreads": true
+}

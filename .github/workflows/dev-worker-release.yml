@@ -1,0 +1,241 @@
+name: Development Worker release
+
+on:
+  workflow_run:
+    workflows: ["Development deployment candidate"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: vinifera-development-worker-release
+  cancel-in-progress: true
+
+jobs:
+  authorize:
+    name: Authorize exact development deployment
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      candidate_sha: ${{ steps.guard.outputs.candidate_sha }}
+      enabled: ${{ steps.guard.outputs.enabled }}
+    steps:
+      - name: Check out trusted default-branch controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Verify current dev and activation flag
+        id: guard
+        env:
+          CANDIDATE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha }}
+          DEPLOY_ENABLED: ${{ vars.DEV_WORKER_DEPLOY_ENABLED }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ "$CANDIDATE_CONCLUSION" != "success" \
+            || ! "$CANDIDATE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::Development candidate workflow did not pass exactly."
+            exit 1
+          fi
+          current_dev=$(gh api "repos/$REPOSITORY/git/ref/heads/dev" --jq '.object.sha')
+          if [[ "$current_dev" != "$CANDIDATE_SHA" ]]; then
+            echo "::error::Development candidate is stale."
+            exit 1
+          fi
+          enabled=false
+          if [[ "$DEPLOY_ENABLED" == "true" ]]; then enabled=true; fi
+          printf 'candidate_sha=%s\nenabled=%s\n' "$CANDIDATE_SHA" "$enabled" \
+            >> "$GITHUB_OUTPUT"
+          {
+            echo "## Development Worker release"
+            echo
+            echo "- Exact candidate: \`$CANDIDATE_SHA\`"
+            echo "- Mutation enabled: \`$enabled\`"
+            if [[ "$enabled" != "true" ]]; then
+              echo "- State: \`prepared_disabled\`"
+              echo "- Blocker: protected Worker target, runtime secrets, two QA tenants, and isolated origin are not yet activation-verified"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  package:
+    name: Package immutable development artifact
+    needs: authorize
+    if: needs.authorize.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact dev candidate without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.authorize.outputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Use repository Node.js pin and lockfile cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Build one immutable Worker and asset package
+        env:
+          CANDIDATE_SHA: ${{ needs.authorize.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+          mkdir -p release/worker release/dist
+          npx wrangler deploy --env development --dry-run \
+            --outdir release/worker
+          cp -R dist/. release/dist/
+          node scripts/release-artifact.mjs create \
+            "$CANDIDATE_SHA" \
+            release/worker/worker.js \
+            release/dist \
+            release/manifest.json
+
+      - name: Retain immutable release package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: development-release-${{ needs.authorize.outputs.candidate_sha }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 14
+
+  deploy:
+    name: Deploy and verify exact development artifact
+    needs: [authorize, package]
+    if: needs.authorize.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: development-worker
+    permissions:
+      actions: read
+      contents: read
+    env:
+      CANDIDATE_SHA: ${{ needs.authorize.outputs.candidate_sha }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.DEV_CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.DEV_CLOUDFLARE_API_TOKEN }}
+      DEV_RUNTIME_ORIGIN: ${{ vars.DEV_WORKER_ORIGIN }}
+      DEV_STAFF_A_EMAIL: ${{ secrets.DEV_STAFF_A_EMAIL }}
+      DEV_STAFF_A_PASSWORD: ${{ secrets.DEV_STAFF_A_PASSWORD }}
+      DEV_STAFF_B_EMAIL: ${{ secrets.DEV_STAFF_B_EMAIL }}
+      DEV_STAFF_B_PASSWORD: ${{ secrets.DEV_STAFF_B_PASSWORD }}
+      RUN_HOSTED_DEVELOPMENT_RUNTIME_E2E: "true"
+    steps:
+      - name: Check out trusted default-branch deployer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Use repository Node.js pin and lockfile cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Download exact prebuilt release package
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: development-release-${{ needs.authorize.outputs.candidate_sha }}
+          path: release
+
+      - name: Verify package, target, and rollback identity
+        run: |
+          set -euo pipefail
+          npm ci
+          node scripts/release-artifact.mjs verify \
+            "$CANDIDATE_SHA" \
+            release/worker/worker.js \
+            release/dist \
+            release/manifest.json
+          if [[ ! "$DEV_RUNTIME_ORIGIN" =~ ^https://vinifera-development\.[a-z0-9.-]+\.workers\.dev$ ]]; then
+            echo "::error::Development verification requires the isolated Worker origin."
+            exit 1
+          fi
+          npx wrangler deployments status --env development --json \
+            > "$RUNNER_TEMP/prior-deployment.json"
+          node scripts/production-release.mjs active-version \
+            "$RUNNER_TEMP/prior-deployment.json" \
+            "$RUNNER_TEMP/prior-version.txt"
+          prior_version=$(tr -d '\r\n' < "$RUNNER_TEMP/prior-version.txt")
+          if [[ ! "$prior_version" =~ ^[0-9a-f-]{36}$ ]]; then
+            echo "::error::A known active development rollback version is required."
+            exit 1
+          fi
+          echo "PRIOR_VERSION_ID=$prior_version" >> "$GITHUB_ENV"
+
+      - name: Upload the prebuilt version without rebuilding
+        run: |
+          set -euo pipefail
+          npx wrangler versions upload release/worker/worker.js \
+            --no-bundle \
+            --assets release/dist \
+            --env development \
+            --strict \
+            --var "APP_ENV:development" \
+            --var "APP_ORIGIN:$DEV_RUNTIME_ORIGIN" \
+            --var "ALLOWED_ORIGINS:$DEV_RUNTIME_ORIGIN,capacitor://localhost,https://localhost" \
+            --var "LIVE_BILLING_ENABLED:false" \
+            --var "DEPLOY_GIT_SHA:$CANDIDATE_SHA" \
+            --tag "git-$CANDIDATE_SHA" \
+            --message "vinifera development git_sha=$CANDIDATE_SHA artifact_sha256=$(jq -r '.artifactSha256' release/manifest.json)" \
+            | tee "$RUNNER_TEMP/upload.txt"
+          node scripts/production-release.mjs parse-upload \
+            "$RUNNER_TEMP/upload.txt" "$RUNNER_TEMP/upload.json"
+          version_id=$(jq -r '.versionId' "$RUNNER_TEMP/upload.json")
+          if [[ ! "$version_id" =~ ^[0-9a-f-]{36}$ ]]; then
+            echo "::error::Wrangler did not return an exact version ID."
+            exit 1
+          fi
+          echo "DEPLOYED_VERSION_ID=$version_id" >> "$GITHUB_ENV"
+          npx wrangler versions deploy "$version_id@100%" \
+            --env development -y
+
+      - name: Verify health, tenancy, auth boundaries, and responsive rendering
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          npx playwright test tests/e2e/development-runtime.spec.ts
+
+      - name: Roll back automatically when post-deploy verification fails
+        if: failure() && env.PRIOR_VERSION_ID != ''
+        run: |
+          npx wrangler rollback "$PRIOR_VERSION_ID" \
+            --env development \
+            --message "automatic rollback after failed verification for $CANDIDATE_SHA"
+
+      - name: Publish sanitized development evidence
+        if: success()
+        run: |
+          jq -n \
+            --arg artifact_sha256 "$(jq -r '.artifactSha256' release/manifest.json)" \
+            --arg candidate_sha "$CANDIDATE_SHA" \
+            --arg version_id "$DEPLOYED_VERSION_ID" \
+            '{
+              artifactSha256: $artifact_sha256,
+              candidateSha: $candidate_sha,
+              environment: "development",
+              liveVerified: true,
+              versionId: $version_id
+            }' > "$RUNNER_TEMP/development-evidence.json"
+
+      - name: Retain sanitized deployment evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: development-deployment-evidence-${{ needs.authorize.outputs.candidate_sha }}
+          path: ${{ runner.temp }}/development-evidence.json
+          if-no-files-found: ignore
+          retention-days: 30

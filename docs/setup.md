@@ -551,13 +551,13 @@ then runs the remaining test and build gates. This keeps validation reproducible
 from a fresh checkout while leaving the generated artifact untracked.
 
 The current credential-independent architecture gate passes generated Worker
-types, TypeScript, 448/448 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+types, TypeScript, 512/512 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
 3 199/199, Phase 4 158/158, Phase 5 513/513 embedded PostgreSQL/pgTAP
-assertions, and the integrated 145/145 Playwright suite with zero axe
-violations.
+assertions, and the integrated Playwright suite with 155 passed and three
+hosted-only cases skipped, with zero axe violations in executed cases.
 `test:e2e` is an alias of `qa:e2e`. Pages plus
 development, staging, and production Worker dry-run builds pass. The focused
-release controls pass 14/14, mobile-release controls 7/7, Stripe catalog
+release controls pass 15/15, mobile-release controls 7/7, Stripe catalog
 controls 16/16, and mobile identity passes. These are local architecture
 results, not service-connection or hosted exit evidence.
 
@@ -605,8 +605,9 @@ Additional manual workflows provide:
 - a target-hash-authorized, resumable credential-envelope rotation controller;
 - an independently authorized, default-deny Stripe live/test cutover and
   reversion controller;
-- protected production Worker bootstrap, immutable version upload/deploy,
-  15-capability custom-domain cutover, Worker rollback, and Pages restoration;
+- protected production Worker bootstrap, immutable version upload/deploy, and
+  Worker rollback without public-domain or Pages mutation; any legacy domain
+  cutover or Pages restoration remains a separately authorized control;
   and
 - protected signed Android/iOS builds with a separately confirmed Play
   internal/TestFlight upload.

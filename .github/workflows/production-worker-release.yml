@@ -28,6 +28,38 @@ on:
         description: Successful staging deployment workflow run ID for the reviewed staging head
         required: true
         type: string
+      artifact_sha256:
+        description: Immutable staged release artifact SHA-256
+        required: true
+        type: string
+      artifact_source_sha:
+        description: Exact certified dev commit used to build the immutable artifact
+        required: true
+        type: string
+      release_artifact_run_id:
+        description: Successful immutable release-package workflow run ID
+        required: true
+        type: string
+      risk_classification:
+        description: Release risk classification
+        required: true
+        type: choice
+        options:
+          - low
+          - medium
+          - high
+      release_summary:
+        description: Concise reviewed changes in this release
+        required: true
+        type: string
+      rollback_artifact:
+        description: Known rollback Worker version or artifact identity
+        required: true
+        type: string
+      outstanding_caveats:
+        description: Outstanding caveats, or "none"
+        required: true
+        type: string
       confirmation:
         description: Exact operation-specific confirmation phrase from the checked-in policy
         required: true
@@ -68,6 +100,13 @@ jobs:
       PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS: ${{ vars.PRODUCTION_MINIMUM_STAGING_SOAK_SECONDS }}
       PRODUCTION_ROLLBACK_GIT_SHA: ${{ inputs.rollback_git_sha }}
       STAGING_EVIDENCE_RUN_ID: ${{ inputs.staging_evidence_run_id }}
+      RELEASE_ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+      RELEASE_ARTIFACT_SOURCE_SHA: ${{ inputs.artifact_source_sha }}
+      RELEASE_ARTIFACT_RUN_ID: ${{ inputs.release_artifact_run_id }}
+      RELEASE_CAVEATS: ${{ inputs.outstanding_caveats }}
+      RELEASE_RISK: ${{ inputs.risk_classification }}
+      RELEASE_ROLLBACK_ARTIFACT: ${{ inputs.rollback_artifact }}
+      RELEASE_SUMMARY: ${{ inputs.release_summary }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       APNS_BUNDLE_ID: ${{ secrets.PRODUCTION_APNS_BUNDLE_ID }}
@@ -140,6 +179,38 @@ jobs:
       UNSUBSCRIBE_SIGNING_SECRET: ${{ secrets.PRODUCTION_UNSUBSCRIBE_SIGNING_SECRET }}
 
     steps:
+      - name: Summarize the one protected production decision
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_ARTIFACT_SHA256" =~ ^[0-9a-f]{64}$ \
+            || ! "$RELEASE_ARTIFACT_SOURCE_SHA" =~ ^[0-9a-f]{40}$ \
+            || ! "$RELEASE_ARTIFACT_RUN_ID" =~ ^[0-9]+$ \
+            || ! "$RELEASE_RISK" =~ ^(low|medium|high)$ \
+            || -z "${RELEASE_SUMMARY//[[:space:]]/}" \
+            || -z "${RELEASE_ROLLBACK_ARTIFACT//[[:space:]]/}" \
+            || -z "${RELEASE_CAVEATS//[[:space:]]/}" ]]; then
+            echo "::error::Protected production summary inputs are incomplete."
+            exit 1
+          fi
+          summary=${RELEASE_SUMMARY//$'\n'/ }
+          caveats=${RELEASE_CAVEATS//$'\n'/ }
+          rollback=${RELEASE_ROLLBACK_ARTIFACT//$'\n'/ }
+          {
+            echo "## Protected production decision"
+            echo
+            echo "- Release commit: \`$PRODUCTION_GIT_SHA\`"
+            echo "- Changes: $summary"
+            echo "- Risk: \`$RELEASE_RISK\`"
+            echo "- Full validation and staging evidence run: \`$STAGING_EVIDENCE_RUN_ID\`"
+            echo "- Immutable artifact SHA-256: \`$RELEASE_ARTIFACT_SHA256\`"
+            echo "- Artifact source commit: \`$RELEASE_ARTIFACT_SOURCE_SHA\`"
+            echo "- Artifact package run: \`$RELEASE_ARTIFACT_RUN_ID\`"
+            echo "- Production target: \`vinifera-production\`"
+            echo "- Rollback artifact: $rollback"
+            echo "- Outstanding caveats: $caveats"
+            echo "- Approval: protected \`production\` environment"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Check out the immutable release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -260,11 +331,36 @@ jobs:
             echo "The selected artifact tree is not identical to the reviewed staging tree." >&2
             exit 1
           fi
+          git fetch --no-tags origin "$RELEASE_ARTIFACT_SOURCE_SHA"
+          if [[ "$(git rev-parse "$RELEASE_ARTIFACT_SOURCE_SHA^{tree}")" \
+            != "$(git rev-parse "$PRODUCTION_ARTIFACT_GIT_SHA^{tree}")" ]]; then
+            echo "The immutable package source tree differs from the production release tree." >&2
+            exit 1
+          fi
+          package_run=$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_ARTIFACT_RUN_ID")
+          package_artifacts=$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_ARTIFACT_RUN_ID/artifacts?per_page=100")
+          if [[ "$(jq -r '.path' <<<"$package_run")" \
+              != ".github/workflows/release-candidate-package.yml" \
+            || "$(jq -r '.event' <<<"$package_run")" != "workflow_dispatch" \
+            || "$(jq -r '.head_branch' <<<"$package_run")" != "main" \
+            || "$(jq -r '.status' <<<"$package_run")" != "completed" \
+            || "$(jq -r '.conclusion' <<<"$package_run")" != "success" ]] \
+            || ! jq -e \
+              --arg name "release-candidate-$RELEASE_ARTIFACT_SOURCE_SHA" \
+              'any(.artifacts[]?; .name == $name and .expired == false)' \
+              <<<"$package_artifacts" >/dev/null; then
+            echo "Release artifact run is not the successful trusted package for this source." >&2
+            exit 1
+          fi
           staging_run=$(gh api \
             "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_EVIDENCE_RUN_ID")
           staging_jobs=$(gh api --paginate \
             "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_EVIDENCE_RUN_ID/jobs?per_page=100" \
             | jq --slurp '[.[].jobs[]]')
+          staging_artifacts=$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_EVIDENCE_RUN_ID/artifacts?per_page=100")
           if [[ "$(jq -r '.path' <<<"$staging_run")" != ".github/workflows/ci.yml" \
             || "$(jq -r '.event' <<<"$staging_run")" != "push" \
             || "$(jq -r '.head_branch' <<<"$staging_run")" != "staging" \
@@ -276,7 +372,10 @@ jobs:
               <<<"$staging_jobs" >/dev/null \
             || ! jq -e \
               'any(.[]; .name == "Deploy Worker when activated" and .conclusion == "success")' \
-              <<<"$staging_jobs" >/dev/null; then
+              <<<"$staging_jobs" >/dev/null \
+            || ! jq -e \
+              'any(.artifacts[]?; .name == "staging-runtime-evidence" and .expired == false)' \
+              <<<"$staging_artifacts" >/dev/null; then
             echo "Staging evidence is not a successful exact-head full validation and deployment." >&2
             exit 1
           fi
@@ -312,6 +411,55 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Download exact staging evidence
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.staging_evidence_run_id }}
+          name: staging-runtime-evidence
+          path: staging-evidence
+
+      - name: Bind staging evidence to the approved package
+        run: |
+          set -euo pipefail
+          jq -e \
+            --arg artifact_sha256 "$RELEASE_ARTIFACT_SHA256" \
+            --arg candidate_sha "$RELEASE_ARTIFACT_SOURCE_SHA" \
+            --arg package_run_id "$RELEASE_ARTIFACT_RUN_ID" \
+            '(.artifactSha256 == $artifact_sha256) and
+             (.candidateSha == $candidate_sha) and
+             (.environment == "staging") and
+             (.liveVerified == true) and
+             (.packageRunId == $package_run_id) and
+             (.versionId | test("^[0-9a-f-]{36}$"))' \
+            staging-evidence/vinifera-staging-release.json >/dev/null
+
+      - name: Download exact immutable release package
+        if: inputs.operation == 'bootstrap' || inputs.operation == 'upload-version'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.release_artifact_run_id }}
+          name: release-candidate-${{ inputs.artifact_source_sha }}
+          path: release
+
+      - name: Verify exact immutable release package
+        if: inputs.operation == 'bootstrap' || inputs.operation == 'upload-version'
+        run: |
+          set -euo pipefail
+          node scripts/release-artifact.mjs verify \
+            "$RELEASE_ARTIFACT_SOURCE_SHA" \
+            release/worker/worker.js \
+            release/dist \
+            release/manifest.json
+          actual_sha=$(jq -r '.artifactSha256' release/manifest.json)
+          if [[ "$actual_sha" != "$RELEASE_ARTIFACT_SHA256" ]]; then
+            echo "Immutable release artifact digest does not match approval input." >&2
+            exit 1
+          fi
+
       - name: Validate operation, target allowlist, and exact confirmation
         shell: bash
         run: |
@@ -339,12 +487,6 @@ jobs:
               exit 1
               ;;
           esac
-
-      - name: Build and validate production Worker configuration
-        run: |
-          set -euo pipefail
-          npm run build
-          npm run build:worker:production
 
       - name: Capture prior Worker and Pages state
         shell: bash
@@ -431,10 +573,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler deploy --env production --strict \
+          npx wrangler deploy release/worker/worker.js \
+            --no-bundle --assets release/dist --env production --strict \
             --secrets-file "$PRODUCTION_SECRET_FILE" \
+            --var "APP_ENV:production" \
+            --var "APP_ORIGIN:https://vinifera.edstratumlabs.ai" \
+            --var "ALLOWED_ORIGINS:https://vinifera.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+            --var "LIVE_BILLING_ENABLED:false" \
+            --var "DEPLOY_GIT_SHA:$PRODUCTION_GIT_SHA" \
             --tag "git-$PRODUCTION_GIT_SHA" \
-            --message "vinifera production bootstrap git_sha=$PRODUCTION_GIT_SHA" \
+            --message "vinifera production bootstrap git_sha=$PRODUCTION_GIT_SHA artifact_sha256=$RELEASE_ARTIFACT_SHA256" \
             | tee "$EVIDENCE_DIR/bootstrap-output.txt"
           npx wrangler deployments status --env production --json \
             > "$EVIDENCE_DIR/after-deployment.json"
@@ -451,10 +599,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler versions upload --env production --strict \
+          npx wrangler versions upload release/worker/worker.js \
+            --no-bundle --assets release/dist --env production --strict \
             --secrets-file "$PRODUCTION_SECRET_FILE" \
+            --var "APP_ENV:production" \
+            --var "APP_ORIGIN:https://vinifera.edstratumlabs.ai" \
+            --var "ALLOWED_ORIGINS:https://vinifera.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+            --var "LIVE_BILLING_ENABLED:false" \
+            --var "DEPLOY_GIT_SHA:$PRODUCTION_GIT_SHA" \
             --tag "git-$PRODUCTION_GIT_SHA" \
-            --message "vinifera production candidate git_sha=$PRODUCTION_GIT_SHA" \
+            --message "vinifera production candidate git_sha=$PRODUCTION_GIT_SHA artifact_sha256=$RELEASE_ARTIFACT_SHA256" \
             | tee "$EVIDENCE_DIR/upload-output.txt"
           node scripts/production-release.mjs parse-upload \
             "$EVIDENCE_DIR/upload-output.txt" "$EVIDENCE_DIR/upload.json"

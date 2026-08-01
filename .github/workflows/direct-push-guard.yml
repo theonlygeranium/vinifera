@@ -19,7 +19,6 @@ permissions:
 jobs:
   check-direct-push:
     name: Block direct push to main
-    if: ${{ !contains(github.actor, '[bot]') && github.actor != 'theonlygeranium' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

@@ -119,17 +119,73 @@ npm run build:mobile:ios
 
 The build emits code-split React assets, then copies `index.html`, `guide`, and
 `public/*` into `dist/`. Wrangler packages those assets with the Express Worker.
-GitHub-hosted CI uses Node 22.22.0, runs the Phase 2–5 database gates and browser
+GitHub-hosted CI uses Node 22.22.0, runs the Phase 1–5 database gates and browser
 QA, builds and lints Android debug plus minified release shells, conditionally
 applies migrations with Supabase CLI 2.109.1 plus linked pgTAP/RLS, and can
 deploy an isolated `vinifera-staging` Worker only after hashed target approval.
 Available runtime secrets are attached atomically to that staging version.
-A protected manual controller can later bootstrap and version the production
-Worker, move the custom domain only after the full configuration gate, and
-restore the retained Pages baseline. A separate protected workflow produces
+A protected manual controller can later bootstrap, upload, deploy, or roll
+back an immutable production Worker artifact without changing the public
+marketing/rollback domain. Domain cutover and Pages restoration remain a
+separate, explicitly authorized legacy control. A separate protected workflow produces
 signed Android/iOS artifacts and optionally uploads only to internal tracks.
 All three paths ship fail-closed until their scoped credentials, target hashes,
 and confirmations exist.
+
+### Candidate delivery
+
+Vinifera uses ready pull-request heads as development candidates. Local and
+draft work does not run required cloud CI. A non-draft PR to `dev` or a later
+non-draft head produces the always-present `Dev fast checks` result with
+explicit risk, surface, focused-test, browser, and preview decisions. Exact
+manual dispatches must run from the candidate head and report the distinct
+`Manual exact candidate checks` context.
+
+Browser/accessibility smoke and Pages preview assets are selected only for
+frontend, routing, shared-client, or accessibility-relevant changes. A trusted
+default-branch publisher independently reclassifies and revalidates the exact
+same-repository PR before uploading prebuilt frontend assets to preview
+branches of the non-production `vinifera-dev` Pages project and publishes
+`Frontend preview evidence`; it never executes PR-head code beside Cloudflare
+credentials or targets the public `vinifera` project. The existing direct
+Pages preview integration remains the bootstrap fallback until that publisher
+is promoted to `main` and verified, so this source change alone does not claim
+path-aware hosted preview activation.
+
+Unknown paths fail classification. Authority-high-risk changes require the
+trusted `octopus-review-required` boundary before fast validation can pass.
+
+Routine low- and medium-risk delivery may merge to `dev` only under explicit
+`codex-auto-merge` authority and immediate trusted revalidation. Promotion is a
+separate batched release candidate using `Type, test, build, and package` plus
+Octopus. Production, live billing, provider activation, credential rotation,
+DNS, destructive hosted data work, and emergency labels remain protected.
+
+The machine-readable authority boundary lives in
+`.github/delivery-risk-contract.json`. The trusted default-branch
+`Trusted development auto-merge` workflow independently reclassifies the live
+diff, unions canonical checks with live `dev` protection, requires successful
+preview evidence when applicable, checks all review threads, and repeats the
+full exact-head/base decision immediately before an exact-SHA squash merge.
+The source is present on `dev`; automatic execution remains inactive until the
+workflow is promoted to the repository default branch.
+
+After an authorized `dev` merge, an unprivileged marker can wake the trusted
+`Development Worker release` controller. The controller is currently
+`prepared_disabled`: it packages one prebuilt Worker/assets artifact, verifies
+its digest before a protected Cloudflare version upload, checks the exact
+runtime revision/environment plus auth/tenant/browser evidence, and
+automatically rolls back failed development verification. Activation requires
+the isolated development Worker, protected scoped credentials, a prior
+rollback version, and two synthetic QA tenants. The Pages prototype is not
+accepted as Worker evidence.
+
+The existing promotion controller maintains one `dev → staging` candidate.
+Full CI and Octopus certify the selected comparison once; the release packager
+then retains one immutable artifact for environment promotion without rebuild.
+Production remains the single protected `Production Worker release` entry and
+requires the reviewed summary, artifact, staging evidence, rollback identity,
+caveats, and environment approval.
 
 ### Routing
 
@@ -156,7 +212,7 @@ serve the React application instead.
 | Phase 3 retention | Lease-owned activation-safe email, rules scoring, immutable cancel-flow, tenant-scoped commands, snapshot-keyset loyalty, brand-local jobs, and 199 database assertions pass locally |
 | Phase 4 intelligence | Current-stack architecture passes 158 database assertions: brand-local real-fact analytics, source-qualified and actor-audited ML lifecycle, all-brand benchmark authorization, and fail-closed compliance/label binding; hosted real-data, model, cohort, and provider evidence remain gated |
 | Phase 5 scale | Version 0.5.0 source architecture is complete for connectors, multi-brand isolation, white label, and native shells; the Phase 5 QA report records architecture evidence and deferred hosted checks |
-| Release controls | Read-only readiness, Stripe test-catalog bootstrap, staging target guards, native hosted pgTAP, production Worker/Pages rollback control, and signed internal-store workflows are source-complete; credential-bound execution remains gated |
+| Release controls | Read-only readiness, Stripe test-catalog bootstrap, staging target guards, native hosted pgTAP, immutable Worker release/rollback control, and signed internal-store workflows are source-complete; credential-bound execution and any separate domain move remain gated |
 | Provider activation | Pending hosted Supabase, Stripe/provider test and live accounts, custom-domain DNS/certificates, APNs/FCM, signing, physical devices, and store tracks |
 | Public deployment | Pages continues serving the verified prototype until the Worker activation runbooks pass |
 

@@ -1,7 +1,7 @@
 # Two-speed delivery performance evidence
 
-**Date:** 2026-07-29
-**Branch:** `ci/two-speed-delivery`
+**Date:** 2026-07-31
+**Baseline:** `dev` at `55449cbe53e5982fab2085e07479cdc4b2b251a9`
 
 ## Evidence boundary
 
@@ -46,13 +46,13 @@ Local proxy measurements on the repository owner's Apple Silicon workstation:
 - browser/accessibility smoke: 15.3 seconds for 2/2 tests; and
 - production Vite build: under 1 second after dependency installation.
 
-The new GitHub cold-cache and warm-cache critical paths are **not yet
-measured**. GitHub only dispatches newly introduced event workflows after the
-reviewed workflow reaches the default branch; this task is constrained to one
-PR targeting `dev` and may not promote it. After the bounded
-`dev → staging → main` bootstrap, record one uncached and one cached
-`Dev fast checks` run here. The design target remains at most three minutes
-under normal cached conditions.
+Observed exact-head feature runs for PRs #64–#66 completed `Dev fast checks`
+successfully. The final PR #66 validation run `30528697926` completed in about
+1 minute 55 seconds, within the three-minute design target. The resulting
+`dev` merge at `55449cbe53e5` emitted successful unprivileged deployment
+candidate run `30528910996`; that marker is not a Worker deployment. The
+trusted preview, auto-merge, and Worker-release controllers remain inactive
+until their reviewed definitions reach `main`.
 
 The full-promotion duration is expected to remain near the measured 7-minute
 15-second full-quality baseline, with Android removed from non-mobile

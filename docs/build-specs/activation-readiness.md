@@ -1,6 +1,6 @@
 # Activation readiness
 
-**Last reviewed:** 2026-07-27 (BS-05)
+**Last reviewed:** 2026-07-31
 **Allowed statuses:** `pending`, `local-verified`, `live-passed`
 
 All 20 composite activation gates remain `pending`. BS-05 separately proves
@@ -20,6 +20,44 @@ Partial local evidence:
   denial; no provider-backed billing lifecycle.
 - Gate 15: two local organizations/default brands with staff isolation; no
   independent billing or hostname-derived member context.
+
+Current delivery evidence does not advance a gate: `dev` contains the
+principal-orchestrator and immutable release controllers, but they are not on
+the default branch; `development-worker` is not provisioned; and the latest
+trusted nightly Octopus rerun reaches the obsolete database-backed runbook
+route and returns HTTP 400. The repaired Config-as-Code bridge has passed a
+real operator invocation but still requires the normal `dev` and promotion
+path before scheduled execution uses it. Credential-independent QA can
+validate source, migration, tenant, browser, build, and fail-closed release
+contracts while all hosted/provider statuses remain `pending`.
+
+## Activation phases
+
+This grouping changes sequencing only. It does not change any composite gate
+status or weaken a gate's own exit criteria.
+
+### 1. Private production-like beta
+
+Synthetic/non-production data, no live billing, and no production customer
+access. Primary gates: 1 (database), 2 (isolated Worker), 3 (Auth), the
+non-billing isolation subset of 7, and the synthetic multi-brand subset of 15.
+Incomplete billing, shipping, communications, compliance, ML, benchmark,
+optional-provider, and mobile-store capabilities remain hidden or fail closed.
+
+### 2. Restricted live winery pilot
+
+Adds the independent controls required for real winery operations. Primary
+gates: 4–8, 10, 13–16, 19, and 20. Billing, email, fulfillment, compliance,
+imports, customer data, custom hostnames, and live cutover retain their
+separate evidence and approvals; completing a private beta does not imply any
+of them.
+
+### 3. General availability
+
+Adds remaining scale and distribution evidence. Primary gates: 9, 11, 12, 17,
+and 18, plus the GA-scale portions of analytics, integrations, and multi-brand
+evidence. ML, peer benchmarks, optional providers, physical devices, and app
+stores do not block the private web beta.
 
 | Gate | Description | Status | Evidence required for `live-passed` | Owner |
 |---:|---|---|---|---|

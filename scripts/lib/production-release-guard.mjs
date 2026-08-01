@@ -239,6 +239,7 @@ export function parseWranglerJson(output, label) {
 }
 
 export function assertVersionMatchesGitSha({
+  artifactSha256,
   gitSha,
   version,
   versionId,
@@ -250,13 +251,20 @@ export function assertVersionMatchesGitSha({
   }
   const tag = version.annotations?.["workers/tag"];
   const message = version.annotations?.["workers/message"];
+  const artifactDigest =
+    artifactSha256 === undefined || artifactSha256 === ""
+      ? null
+      : String(artifactSha256);
   if (
     tag !== `git-${expectedSha}` ||
     typeof message !== "string" ||
-    !message.includes(`git_sha=${expectedSha}`)
+    !message.includes(`git_sha=${expectedSha}`) ||
+    (artifactDigest !== null &&
+      (!/^[0-9a-f]{64}$/.test(artifactDigest) ||
+        !message.includes(`artifact_sha256=${artifactDigest}`)))
   ) {
     throw new Error(
-      "Worker version metadata does not match the approved immutable Git SHA.",
+      "Worker version metadata does not match the approved immutable Git SHA and artifact.",
     );
   }
 }

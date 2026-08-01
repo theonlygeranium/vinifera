@@ -419,8 +419,24 @@ describe("production release guards", () => {
   });
 
   it("binds version metadata and the sole active deployment to an immutable SHA", () => {
+    const artifactSha256 = "b".repeat(64);
     expect(() =>
       assertVersionMatchesGitSha({
+        artifactSha256,
+        gitSha,
+        version: {
+          annotations: {
+            "workers/message": `vinifera production git_sha=${gitSha} artifact_sha256=${artifactSha256}`,
+            "workers/tag": `git-${gitSha}`,
+          },
+          id: versionId,
+        },
+        versionId,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertVersionMatchesGitSha({
+        artifactSha256,
         gitSha,
         version: {
           annotations: {
@@ -431,7 +447,7 @@ describe("production release guards", () => {
         },
         versionId,
       }),
-    ).not.toThrow();
+    ).toThrow(/artifact/);
     expect(() =>
       assertActiveDeployment(
         { versions: [{ percentage: 100, version_id: versionId }] },
@@ -547,10 +563,16 @@ describe("production release workflow", () => {
     expect(workflow).toContain(
       "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
     );
-    expect(workflow).toContain("wrangler deploy --env production --strict");
     expect(workflow).toContain(
-      "wrangler versions upload --env production --strict",
+      "wrangler deploy release/worker/worker.js",
     );
+    expect(workflow).toContain(
+      "wrangler versions upload release/worker/worker.js",
+    );
+    expect(workflow).toContain("--no-bundle --assets release/dist");
+    expect(workflow).toContain("release_artifact_run_id:");
+    expect(workflow).toContain("artifact_source_sha:");
+    expect(workflow).toContain("release-artifact.mjs verify");
     expect(workflow).toContain("wrangler versions deploy");
     expect(workflow).toContain("wrangler rollback");
     expect(workflow).toContain('LIVE_BILLING_ENABLED: "false"');
