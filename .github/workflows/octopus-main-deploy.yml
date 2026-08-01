@@ -1,6 +1,7 @@
 name: Octopus Deploy — Main to Development
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -20,11 +21,10 @@ jobs:
       contents: read
       deployments: write
 
-    # Cloudflare Access service token — required because octopus.schubert.life
-    # is protected by a CF Access policy. Without these headers the Octopus API
-    # returns a login redirect (200 OK HTML) instead of a JSON response, which
-    # silently fails every CLI and Action-based Octopus call.
-    # These secrets are already present in the repo (used by octopus-pr-quality-gates.yml).
+    # Cloudflare Access service token — required for all Octopus API calls
+    # because octopus.schubert.life is behind a CF Access policy.
+    # The Octopus CLI and official Actions pick these up automatically and
+    # add CF-Access-Client-Id / CF-Access-Client-Secret headers to every request.
     env:
       CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
       CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
@@ -36,19 +36,21 @@ jobs:
           fetch-depth: 0
 
       - name: Install Octopus CLI 🐙
-        uses: OctopusDeploy/install-octopus-cli-action@v3
+        uses: OctopusDeploy/install-octopus-cli-action@v4
+        with:
+          version: "*"
 
-      - name: Log into Octopus Deploy
+      - name: Verify Octopus connectivity
         env:
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
           OCTOPUS_SPACE: Default
         run: |
-          echo "Octopus URL: $OCTOPUS_URL"
-          octopus account current
+          set -euo pipefail
+          octopus space list --output-format basic --no-prompt >/dev/null
 
       - name: Push Build Information 📦
-        uses: OctopusDeploy/push-build-information-action@v3
+        uses: OctopusDeploy/push-build-information-action@v4
         env:
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
@@ -57,9 +59,10 @@ jobs:
           packages: |
             Vinifera
           version: ${{ github.run_number }}.${{ github.sha }}
+          overwrite_mode: OverwriteExisting
 
       - name: Create Octopus Release 🚀
-        uses: OctopusDeploy/create-release-action@v3
+        uses: OctopusDeploy/create-release-action@v4
         id: create_release
         env:
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
@@ -68,11 +71,11 @@ jobs:
         with:
           project: Vinifera
           release_number: "${{ github.run_number }}-${{ github.sha }}"
-          git_ref: main
+          git_ref: ${{ github.ref }}
           git_commit: ${{ github.sha }}
 
       - name: Deploy to Development 🏗️
-        uses: OctopusDeploy/deploy-release-action@v3
+        uses: OctopusDeploy/deploy-release-action@v4
         env:
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}

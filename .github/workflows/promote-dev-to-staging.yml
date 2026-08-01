@@ -174,17 +174,11 @@ jobs:
         env:
           STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
           if [[ -z "${STAGING_SUPABASE_URL:-}" || -z "${STAGING_SUPABASE_ANON_KEY:-}" ]]; then
             echo "::error::STAGING_SUPABASE_URL and STAGING_SUPABASE_ANON_KEY must be configured."
-            exit 1
-          fi
-          if [[ -z "${CF_ACCESS_CLIENT_ID:-}" || -z "${CF_ACCESS_CLIENT_SECRET:-}" ]]; then
-            echo "::error::CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must be configured."
             exit 1
           fi
 
@@ -194,8 +188,6 @@ jobs:
             --retry-delay 5 \
             -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
-            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
             "${STAGING_SUPABASE_URL%/}/auth/v1/health" || printf "000")
 
           if [[ "$http_code" =~ ^2 ]]; then
@@ -459,15 +451,8 @@ jobs:
         env:
           STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
-
-          if [[ -z "${CF_ACCESS_CLIENT_ID:-}" || -z "${CF_ACCESS_CLIENT_SECRET:-}" ]]; then
-            echo "::error::CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET must be configured."
-            exit 1
-          fi
 
           http_code=$(curl -sS -o /dev/null -w "%{http_code}" \
             --max-time 15 \
@@ -475,8 +460,6 @@ jobs:
             --retry-delay 5 \
             -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
-            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
             "${STAGING_SUPABASE_URL%/}/auth/v1/health" || printf "000")
 
           if [[ "$http_code" =~ ^2 ]]; then
@@ -659,15 +642,38 @@ jobs:
             fi
           fi
 
-          if (( required_success == 0 || invalid_checks > 0 || octopus_success == 0 || invalid_statuses > 0 || unresolved > 0 )) \
-            || [[ "$ci_source_valid" != "true" || "$octopus_source_valid" != "true" ]]; then
-            echo "::error::Revalidation failed — required_success=$required_success invalid_checks=$invalid_checks octopus_success=$octopus_success invalid_statuses=$invalid_statuses unresolved=$unresolved ci_source_valid=$ci_source_valid octopus_source_valid=$octopus_source_valid"
+          if (( required_success == 0 || invalid_checks > 0 \
+            || octopus_success == 0 || invalid_statuses > 0 \
+            || unresolved > 0 )) \
+            || [[ "$ci_source_valid" != "true" \
+              || "$octopus_source_valid" != "true" ]]; then
+            echo "::error::Promotion gates changed after polling; readiness is no longer valid."
             exit 1
           fi
 
-          if [[ "$DRY_RUN" == "true" ]]; then
-            echo "### Dry run complete: ✅ all gates passed — merge not executed" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+          final_metadata=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json baseRefName,baseRefOid,headRefOid,labels,state)
+          final_sha=$(jq -r '.headRefOid' <<<"$final_metadata")
+          final_base_name=$(jq -r '.baseRefName' <<<"$final_metadata")
+          final_base_sha=$(jq -r '.baseRefOid' <<<"$final_metadata")
+          final_state=$(jq -r '.state' <<<"$final_metadata")
+          if [[ "$final_sha" != "$PR_SHA" \
+            || "$final_base_name" != "staging" \
+            || "$final_base_sha" != "$PR_BASE_SHA" \
+            || "$final_state" != "OPEN" ]] \
+            || jq -e \
+              'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+              <<<"$final_metadata" >/dev/null; then
+            echo "::error::PR closed, paused, or changed while readiness evidence was refreshed."
+            exit 1
           fi
 
-          echo "### Promotion ready: ✅ merge #$PR_NUMBER manually at ${STAGING_SUPABASE_URL:-staging}" >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::PR #$PR_NUMBER passed automated readiness at head ${PR_SHA:0:12} and base ${PR_BASE_SHA:0:12}; a human must re-check the current base and merge."
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "### Dry-run readiness passed: PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Ready for human merge: PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "- Captured head: \`${PR_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Captured staging base: \`${PR_BASE_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "> GitHub exposes an atomic expected-head merge guard but no expected-base guard; automation intentionally leaves the PR open." >> "$GITHUB_STEP_SUMMARY"
