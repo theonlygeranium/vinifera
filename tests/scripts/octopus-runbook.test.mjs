@@ -1163,9 +1163,9 @@ describe("Octopus runbook bridge", () => {
     expect(
       configAsCodeRunbooksPath("Projects-1", "refs/heads/main"),
     ).toBe("projects/Projects-1/main/runbooks");
-    expect(
+    expect(() =>
       configAsCodeRunbooksPath("Projects-1", "main"),
-    ).toBe("projects/Projects-1/main/runbooks");
+    ).toThrow("refs/heads");
   });
 
   it("reports credential shape without exposing credential values", () => {
