@@ -191,3 +191,16 @@ test("trusted workflow uses no PR-head checkout and revalidates before merge", (
   assert.match(publisher, /repos\/\$REPOSITORY\/dispatches/);
   assert.match(publisher, /event_type: \$event_type/);
 });
+
+test("trusted workflow binds required check-runs to the live PR base and head", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/dev-automerge.yml", import.meta.url),
+    "utf8",
+  );
+  assert.match(workflow, /--argjson pr_number "\$PR_NUMBER"/);
+  assert.match(workflow, /--arg base_sha "\$base_sha"/);
+  assert.match(workflow, /--arg head_sha "\$head_sha"/);
+  assert.match(workflow, /\.number == \$pr_number/);
+  assert.match(workflow, /\.base\.sha == \$base_sha/);
+  assert.match(workflow, /\.head\.sha == \$head_sha/);
+});

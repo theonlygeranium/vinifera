@@ -2,6 +2,8 @@ import { expect, request, test, type APIRequestContext } from "@playwright/test"
 
 const origin = process.env.DEV_RUNTIME_ORIGIN ?? "";
 const candidateSha = process.env.CANDIDATE_SHA ?? "";
+const runHostedDevelopmentRuntimeE2E =
+  process.env.RUN_HOSTED_DEVELOPMENT_RUNTIME_E2E === "true";
 const credentials = [
   {
     email: process.env.DEV_STAFF_A_EMAIL ?? "",
@@ -15,11 +17,21 @@ const credentials = [
 
 test.describe("hosted development runtime", () => {
   test.skip(
-    !origin ||
-      !/^[0-9a-f]{40}$/.test(candidateSha) ||
-      credentials.some(({ email, password }) => !email || !password),
-    "Protected development runtime credentials are required.",
+    !runHostedDevelopmentRuntimeE2E,
+    "Hosted development runtime verification runs only in the protected release lane.",
   );
+
+  test.beforeAll(() => {
+    if (!origin) {
+      throw new Error("DEV_RUNTIME_ORIGIN is required for hosted development verification.");
+    }
+    if (!/^[0-9a-f]{40}$/.test(candidateSha)) {
+      throw new Error("CANDIDATE_SHA must be an exact 40-character Git SHA.");
+    }
+    if (credentials.some(({ email, password }) => !email || !password)) {
+      throw new Error("Both protected development QA staff credentials are required.");
+    }
+  });
 
   test("proves exact health, auth, tenant denial, and member boundary", async () => {
     const publicApi = await request.newContext({ baseURL: origin });
