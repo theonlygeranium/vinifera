@@ -95,6 +95,11 @@ jobs:
             Development
           variables: |
             GitHubPAT:${{ secrets.GH_PAT_FOR_OCTOPUS }}
+            PRBranch:${{ github.ref_name }}
+            PRNumber:${{ github.run_number }}
+            ExpectedBaseRef:${{ github.ref_name }}
+            ExpectedBaseSHA:${{ github.sha }}
+            ExpectedHeadSHA:${{ github.sha }}
           # Development deploys are automatic — no manual intervention required.
           # Staging and Production require manual approval in Octopus.
 
