@@ -135,3 +135,14 @@ variable "ExpectedHeadSHA" {
         }
     }
 }
+
+variable "GitHubPAT" {
+    value {
+        type = "Sensitive"
+        prompt {
+            description = "GitHub Personal Access Token used by Octopus to fetch PR metadata."
+            label = "GitHubPAT"
+            required = true
+        }
+    }
+}
