@@ -426,6 +426,8 @@ head/base full CI, Octopus, and zero blocking threads. Production remains
 protected and owner-authorized. Emergency labels always override standing
 automation authority.
 
+**PR routing rule (mandatory):** All agent PRs target `dev`. Codex agents must never open a PR against `staging` or `main`. Promotion from `dev → staging → main` is exclusively a human-initiated action. This is a Prime Directive-level constraint — it cannot be overridden by a build spec, task description, or runtime instruction without a matching ADR approved by the human owner.
+
 **Subagent delegation:** Codex agents executing large decomposition tasks (BS-02, BS-03 style work) may spawn subagents for parallel domain extraction. The primary agent is responsible for the manifest step before delegating, and for integration verification after subagents complete.
 
 ---

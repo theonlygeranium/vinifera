@@ -1,3 +1,7 @@
+## [Unreleased] - 2026-07-30
+### Fixed
+- Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure so CI policy tests can locate the embedded quality-gate runbook (22 test failures on `main`).
+
 # Changelog
 
 ## [Unreleased]
