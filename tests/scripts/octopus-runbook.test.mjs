@@ -1163,7 +1163,7 @@ describe("Octopus runbook bridge", () => {
     expect(
       configAsCodeRunbooksPath("Projects-1", "refs/heads/main"),
     ).toBe("projects/Projects-1/main/runbooks");
-    expect(() =>
+    expect(
       configAsCodeRunbooksPath("Projects-1", "main"),
     ).toBe("projects/Projects-1/main/runbooks");
   });
