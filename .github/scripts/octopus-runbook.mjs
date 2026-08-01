@@ -193,7 +193,7 @@ export async function runRunbook({
     fetchImpl,
     spaceBase,
     authenticationHeaders,
-    `projects/${project.Id}/git/refs/heads/main/runbooks`,
+    `projects/${project.Id}/main/runbooks`,
     runbookName,
   );
   if (!runbook.PublishedRunbookSnapshotId) {
