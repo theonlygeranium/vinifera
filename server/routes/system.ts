@@ -32,7 +32,17 @@ export default function createSystemRouter(context: RouteContext): Router {
   const router = Router();
 
   router.get("/api/health", (_request, response) => {
-    data(response, { service: "vinifera-api", status: "ok" });
+    const environment = options.getEnv();
+    data(response, {
+      environment: environment.APP_ENV ?? "development",
+      revision:
+        environment.DEPLOY_GIT_SHA &&
+        /^[0-9a-f]{40}$/.test(environment.DEPLOY_GIT_SHA)
+          ? environment.DEPLOY_GIT_SHA
+          : null,
+      service: "vinifera-api",
+      status: "ok",
+    });
   });
 
   router.get("/api/health/configuration", (_request, response) => {

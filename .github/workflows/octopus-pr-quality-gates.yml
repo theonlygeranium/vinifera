@@ -115,7 +115,6 @@ jobs:
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
-          GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
           PR_BRANCH: ${{ needs.validate-source.outputs.branch }}

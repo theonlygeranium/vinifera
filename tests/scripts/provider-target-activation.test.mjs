@@ -104,7 +104,9 @@ describe("staging provider target activation policy", () => {
     expect(checkedIn.staging.shipCompliantSandboxOriginSha256).toEqual([]);
 
     const workflow = await readFile(".github/workflows/ci.yml", "utf8");
-    const deployment = workflow.indexOf("npx wrangler deploy --env staging");
+    const deployment = workflow.indexOf(
+      "npx wrangler versions upload release/worker/worker.js",
+    );
     for (const command of [
       "verify-target cloudflare",
       "verify-target cloudflare-zone",

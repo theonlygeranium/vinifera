@@ -7,6 +7,84 @@
 ## [Unreleased]
 
 ### Added
+- Prepared protected development deployment and consolidated release control:
+  an unprivileged `dev` merge marker wakes a trusted default-branch controller
+  that remains disabled until the isolated Worker, scoped protected
+  credentials, rollback version, and two synthetic QA tenants are verified.
+  When enabled, it builds one preprocessed Worker/assets package, verifies a
+  deterministic SHA-256 manifest, uploads the same bundle with Wrangler
+  `--no-bundle`, deploys one Cloudflare version, proves exact
+  revision/environment health, configuration readiness, staff authentication,
+  a tenant-scoped member journey, cross-tenant denial, the member-auth
+  boundary, desktop and 375-pixel rendering, and critical browser/server
+  errors, then
+  rolls back automatically on failure. The selected release-candidate
+  packager accepts only the current maintained `dev → staging` PR after full
+  CI and Octopus and retains one immutable artifact. Protected staging
+  resolves and verifies that exact package before a no-bundle version upload;
+  production bootstrap/upload requires the same package run, source tree, and
+  digest rather than rebuilding. The protected production entry now summarizes commit, changes,
+  risk, validation, staging evidence, artifact digest, target, rollback, and
+  caveats before its existing environment approval. One scheduled Delivery
+  Control Center issue separates implemented, CI-verified, deployed, and
+  live-verified state. The 20 pending activation gates are sequenced into
+  private synthetic beta, restricted live winery pilot, and GA without
+  changing any status. **Deployment impact:** Adds a distinct
+  `vinifera-development` Wrangler environment and protected workflow
+  definitions, but hosted mutation is disabled and no Worker version,
+  provider, credential, DNS, database, billing, production, or activation-gate
+  change occurs.
+- Risk-based autonomous delivery to `dev`: added the machine-readable
+  `.github/delivery-risk-contract.json`, a pure policy evaluator with contract
+  tests, and a trusted default-branch auto-merge workflow. The workflow
+  resolves one live same-repository PR, reclassifies the exact diff from
+  trusted code, requires current `dev` base/head identity,
+  `codex-auto-merge`, low/medium risk, every canonical and live protected
+  context, applicable `Frontend preview evidence`, and zero unresolved review
+  threads. It rejects drafts, forks, high/unknown risk, emergency labels,
+  missing/pending/skipped/neutral/cancelled/failed evidence, and paginated
+  review state, then repeats the complete decision immediately before an
+  exact-SHA squash merge. Successful trusted frontend publication wakes the
+  controller through an exact-identity repository dispatch because ordinary
+  token-created status events do not reliably trigger another workflow. The
+  GitHub governance snapshot defines reversible
+  `dev` PR protection and read-only default Actions permissions without
+  changing production controls. Trusted merge and preview publishers retain
+  their scoped checkout credentials only for authenticated private-repository
+  object fetches and never execute PR-head code. **Deployment impact:** Changes non-production
+  repository governance and prepares trusted automatic merges. The workflow
+  does not activate until it reaches the repository default branch and this
+  PR performs no deployment, provider activation, credential rotation, DNS
+  change, hosted-data mutation, production action, or activation-gate
+  completion.
+- Principal-orchestrator candidate delivery governance and fast CI: ready
+  pull-request heads now drive the exact `Dev fast checks` candidate while
+  feature pushes and draft WIP avoid expensive cloud validation. The
+  fail-closed classifier reports exact base/head, low/medium/high risk,
+  execution surface, focused tests, browser applicability, and preview
+  applicability; unknown paths are invalid and authority-high-risk candidates
+  require the trusted Octopus boundary. Backend, workflow, test-only, and documentation candidates
+  avoid Playwright unless a risk rule requires it. Every candidate records an
+  always-present `Feature preview decision`. Frontend candidates retain a
+  prebuilt Pages artifact for a trusted default-branch publisher that
+  independently reclassifies the live exact diff before publishing
+  `Frontend preview evidence` to preview branches of `vinifera-dev`, without
+  executing PR-head code beside Cloudflare credentials, trusting
+  artifact-supplied applicability, accepting reserved environment branch
+  names, or deploying to the public `vinifera` project. Applying or removing
+  `octopus-review-required` now retriggers the same exact candidate, and manual
+  candidates resolve that boundary from the one live exact-head PR rather than
+  an absent dispatch payload.
+  Manual exact-candidate evidence uses a distinct check context and must be
+  dispatched from the candidate head. Governance, prior delivery ADRs, the PR template,
+  continuity, workflow documentation, and contract tests now use one logical
+  PR changelog entry, batched findings, and at most two substantive
+  repair/re-review cycles. **Deployment impact:** Changes development CI and
+  defines a protected preview-publication transition. The direct Pages
+  integration remains enabled until the trusted publisher reaches `main` and
+  passes frontend/applicability bootstrap proofs. This PR performs no Worker or
+  production deployment, provider activation, DNS change, billing action,
+  credential rotation, hosted-data mutation, or activation-gate completion.
 - Two-speed development and release delivery: added the exact-diff
   `Dev fast checks` lane with focused tests, TypeScript/Worker validation,
   production builds, credential and whitespace checks, a mobile accessibility
@@ -37,6 +115,80 @@
   production resource change.
 
 ### Fixed
+- Nightly Octopus security-audit diagnostics now reuse the trusted PR bridge's
+  credential-shape validation and safe HTTP response provenance, identifying
+  the exact method/path and responder class for the current first-request 403
+  without logging credential values, response bodies, or query data. The
+  shared request path supplies a stable CI user-agent so Cloudflare does not
+  reject Node's default browser signature. The nightly runner now uses the Git
+  Config-as-Code `refs/heads/main` preview, snapshot-template, and grouped-run
+  endpoints instead of the obsolete database-backed runbook route, and it
+  shares one executor with the PR bridge for lookup, sensitive form resolution,
+  template validation, grouped submission, polling, and timeout cancellation. The
+  workflow pins the repository-standard checkout action, and focused tests
+  cover the Cloudflare-shaped rejection, request identity, and successful
+  Config-as-Code run. Current governance, setup,
+  architecture, rollback, activation, delivery-performance, and continuity
+  documentation now distinguishes the `dev`-only principal-orchestrator
+  controls, the inactive hosted boundary, the current branch revisions, and
+  the credential-independent rehearsal from deployment or activation proof.
+  The rehearsal passed 512 Vitest cases, all five database phases, deterministic
+  seed/reseed validation, 155 Playwright/axe cases with three hosted-only
+  skips, mobile identity and release contracts, compile-only Capacitor sync,
+  production-release contracts, Pages packaging, all three Worker dry runs,
+  and a zero-vulnerability production dependency audit.
+  Operationally, the existing Octopus service token was renewed and
+  synchronized to GitHub and the private vault. The stale audit-specific
+  GitHub credential was replaced in both locations with the separately
+  documented repository PAT after successful GitHub API validation. Browser
+  Integrity Check was
+  disabled only for the Octopus hostname and Bot Fight Mode was disabled on
+  `schubert.life` so CI can reach the still-required Access service-token
+  policy. A real Security Audit runbook invocation then passed. AI-bot
+  protection and the public `edstratumlabs.ai` zone were unchanged.
+  The zone-wide Bot Fight Mode change was owner-authorized for failed-Actions
+  remediation, affects proxied `*.schubert.life` hosts only, and has an
+  explicit API rollback to `fight_mode=true`; the Octopus-only Browser
+  Integrity Check rule remains independently reversible. Exact-head PR #67
+  fast CI and the `dev`-ref PR Quality Gates runbook passed, while the trusted
+  main-ref status remains blocked until `PR Quality Gates` is present on
+  `main` through the normal promotion path.
+  **Deployment impact:** Repairs the CI-to-Octopus access path and documents
+  its external Cloudflare/credential reconciliation. No Worker, Pages,
+  application provider, database, DNS, billing, branch promotion, or
+  activation-gate mutation occurs, and the public static prototype is
+  unchanged.
+- Octopus PR bridge failures now report secret-safe credential shape and HTTP
+  response provenance, distinguishing Cloudflare Access rejection from
+  Octopus API authorization without logging credential values, response
+  bodies, query strings, or redirect paths. Non-ASCII header credentials fail
+  before network access. **Deployment impact:** Trusted PR-review diagnostics
+  only; no application deployment, provider activation, DNS change, database
+  mutation, or production action occurs.
+- Restored the flat `.octopus/runbooks/pr-quality-gates.ocl` layout that
+  Octopus Config as Code actually loads, aligned contract tests to that
+  canonical path, and changed the trusted bridge from snapshot endpoints to
+  Git-ref-qualified preview/template/run-v1 endpoints. Config-as-Code now
+  defines the five non-secret exact-PR inputs as required prompts while the
+  GitHub PAT remains an Octopus database-backed sensitive prompt. The bridge
+  recognizes Octopus's `Octopus.ControlType` sensitive marker and submits the
+  PAT only through the masked form-value channel; it is never stored in Git or
+  logged. The runbook constructs GitHub's Basic `x-access-token` smart-HTTP
+  header in memory for the private-repository fetch and unsets it immediately;
+  GitHub API requests retain Bearer authentication. The prior nested path
+  passed local tests but left `PR Quality Gates` absent from every live
+  Git-backed runbook list. **Deployment impact:** Repairs trusted high-risk PR
+  review once the bridge, prompts, and flat OCL reach the default branch; no
+  application deployment, provider activation, DNS change, database mutation,
+  or production action occurs.
+- Octopus Rule 3 now requires a provider-token boundary and at least 16
+  credential payload characters, so ordinary identifiers such as
+  `pre_shipment` and `store_meta_attribution_touchpoint` no longer fail the
+  full-source scan while realistic `re_`, Stripe, EasyPost, and restricted-key
+  tokens remain blocking. Positive and negative embedded-runbook fixtures
+  cover both paths. **Deployment impact:** High-risk review precision only; no
+  application deployment, provider activation, DNS change, database mutation,
+  or production action occurs.
 - Review-gate permissions and Worker rollback authorization now fail closed
   without becoming unusable: Octopus can read PR metadata, promotion and
   production gates can read exact Actions run/job evidence, and rollback keeps

@@ -12,10 +12,14 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  configAsCodeRunbooksPath,
+  credentialShapeSummary,
   normalizeApiBase,
+  responseProvenance,
   resolveFormValues,
   runRunbook,
 } from "../../.github/scripts/octopus-runbook.mjs";
+import { runSecurityAudit } from "../../.github/scripts/octopus-security-audit.mjs";
 
 function jsonResponse(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -27,7 +31,7 @@ function jsonResponse(payload, status = 200) {
 function embeddedQualityChecker() {
   const qualityRunbook = readFileSync(
     new URL(
-      "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+      "../../.octopus/runbooks/pr-quality-gates.ocl",
       import.meta.url,
     ),
     "utf8",
@@ -46,7 +50,7 @@ function embeddedQualityChecker() {
 function embeddedRunbookStep(stepId) {
   const qualityRunbook = readFileSync(
     new URL(
-      "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+      "../../.octopus/runbooks/pr-quality-gates.ocl",
       import.meta.url,
     ),
     "utf8",
@@ -158,7 +162,7 @@ describe("Octopus runbook bridge", () => {
     );
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -166,12 +170,16 @@ describe("Octopus runbook bridge", () => {
 
     expect(workflow).not.toContain("Auto-Fix Suggestions");
     expect(workflow).not.toContain("PR Comment Bot");
+    expect(workflow).not.toContain("GH_PAT_FOR_OCTOPUS");
     expect(qualityRunbook).toContain("cancel_queued_tasks = false");
     expect(qualityRunbook).toContain("cancel_running_tasks = false");
-    expect(qualityRunbook).not.toMatch(/https:\/\/#\{GitHubPAT\}@github\.com/);
+    expect(qualityRunbook).not.toContain("#{GitHubPAT}");
     expect(qualityRunbook).not.toContain('-H "$AUTH_HEADER"');
     expect(qualityRunbook).not.toContain("git -c http.extraHeader");
-    expect(qualityRunbook).toContain("GIT_CONFIG_KEY_0=http.extraHeader");
+    expect(qualityRunbook).not.toContain("GIT_CONFIG_KEY_0=http.extraHeader");
+    expect(qualityRunbook).toContain(
+      'git fetch --quiet --no-tags --depth=100 origin "$BASE_SHA" "$HEAD_SHA"',
+    );
     expect(qualityRunbook).toContain("curl -fsS --config -");
     expect(qualityRunbook).toContain("git remote remove origin");
     expect(qualityRunbook).toContain(
@@ -196,7 +204,7 @@ describe("Octopus runbook bridge", () => {
   it("keeps every embedded Octopus Bash action syntactically valid", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -226,10 +234,54 @@ describe("Octopus runbook bridge", () => {
     }
   });
 
+  it("does not treat ordinary re_ substrings as provider credentials", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule3-safe-"));
+    try {
+      mkdirSync(join(fixture, "server", "services"), { recursive: true });
+      writeFileSync(
+        join(fixture, "server", "services", "safe.ts"),
+        [
+          'export const event = "pre_shipment";',
+          'export const operation = "store_meta_attribution_touchpoint";',
+          "",
+        ].join("\n"),
+      );
+      initializeGitFixture(fixture);
+      const result = runEmbeddedStep(
+        "rule-3-no-provider-secrets-in-source",
+        fixture,
+      );
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+      expect(result.stdout).toContain("PASS: Rule 3");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a boundary-delimited provider credential", () => {
+    const fixture = mkdtempSync(join(tmpdir(), "vinifera-octopus-rule3-leak-"));
+    try {
+      mkdirSync(join(fixture, "server", "services"), { recursive: true });
+      writeFileSync(
+        join(fixture, "server", "services", "unsafe.ts"),
+        'export const credential = "re_1234567890abcdefghijkl";\n',
+      );
+      initializeGitFixture(fixture);
+      const result = runEmbeddedStep(
+        "rule-3-no-provider-secrets-in-source",
+        fixture,
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain("FAIL:");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
   it("rejects an unscoped query added to a flat service file", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -304,7 +356,7 @@ describe("Octopus runbook bridge", () => {
   it("rejects a query whose tenant predicate is deleted", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -383,7 +435,7 @@ describe("Octopus runbook bridge", () => {
   it("binds tenant predicates to the individual changed query", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -461,7 +513,7 @@ describe("Octopus runbook bridge", () => {
   it("rejects a tenant predicate deleted from a later query assignment", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -548,7 +600,7 @@ describe("Octopus runbook bridge", () => {
   it("does not split a scoped query at a nested Array.from call", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -1044,10 +1096,10 @@ describe("Octopus runbook bridge", () => {
     expect(result.stdout).toContain("FAIL Rule 8");
   });
 
-  it("requires a changelog update in every commit", () => {
+  it("requires a changelog update in the aggregate PR diff", () => {
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",
@@ -1066,7 +1118,14 @@ describe("Octopus runbook bridge", () => {
     try {
       const commitDiffDirectory = join(fixture, "commit-diffs");
       mkdirSync(commitDiffDirectory);
-      writeFileSync(join(fixture, "pr.diff"), "");
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/src/client/example.ts b/src/client/example.ts",
+          "+++ b/src/client/example.ts",
+          "",
+        ].join("\n"),
+      );
       writeFileSync(
         join(commitDiffDirectory, "missing-changelog.diff"),
         [
@@ -1083,8 +1142,25 @@ describe("Octopus runbook bridge", () => {
       );
       expect(result.status).toBe(1);
       expect(result.stdout).toContain(
-        "FAIL Rule 9: missing-changelog: src/client/example.ts",
+        "FAIL Rule 9: PR diff: src/client/example.ts",
       );
+
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/src/client/example.ts b/src/client/example.ts",
+          "+++ b/src/client/example.ts",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "",
+        ].join("\n"),
+      );
+      const aggregateResult = spawnSync(
+        "python3",
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(aggregateResult.status).toBe(0);
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }
@@ -1103,6 +1179,187 @@ describe("Octopus runbook bridge", () => {
     expect(() => normalizeApiBase("http://octopus.example.test")).toThrow(
       "must use HTTPS",
     );
+  });
+
+  it("builds a bare-branch Config-as-Code runbook path", () => {
+    expect(
+      configAsCodeRunbooksPath("Projects-1", "refs/heads/main"),
+    ).toBe("projects/Projects-1/main/runbooks");
+    expect(() =>
+      configAsCodeRunbooksPath("Projects-1", "main"),
+    ).toThrow("refs/heads");
+  });
+
+  it("reports credential shape without exposing credential values", () => {
+    const summary = credentialShapeSummary({
+      CF_ACCESS_CLIENT_ID: "client-id.access",
+      CF_ACCESS_CLIENT_SECRET: "sensitive-value",
+      OCTOPUS_API_KEY: "API-EXAMPLE",
+      OCTOPUS_URL: "https://octopus.example.test",
+    });
+
+    expect(summary).toBe(
+      "Octopus credential shape accepted: cf-client-id-chars=16; " +
+        "cf-client-secret-chars=15; octopus-api-key-chars=11; " +
+        "octopus-host=octopus.example.test",
+    );
+    expect(summary).not.toContain("sensitive-value");
+    expect(() =>
+      credentialShapeSummary({
+        CF_ACCESS_CLIENT_ID: "client-id.access",
+        CF_ACCESS_CLIENT_SECRET: "curly\u201csecret",
+        OCTOPUS_API_KEY: "API-EXAMPLE",
+        OCTOPUS_URL: "https://octopus.example.test",
+      }),
+    ).toThrow("visible ASCII");
+  });
+
+  it("reports safe HTTP response provenance without response bodies", () => {
+    const response = new Response("private response body", {
+      status: 403,
+      headers: {
+        "CF-Ray": "fixture-ray",
+        "Content-Type": "text/html; charset=UTF-8",
+        Location:
+          "https://little-brook.cloudflareaccess.com/cdn-cgi/access/login",
+        Server: "cloudflare",
+      },
+    });
+
+    const provenance = responseProvenance(response);
+    expect(provenance).toBe(
+      "server=cloudflare; cf-ray=present; content-type=text/html; " +
+        "redirect-host=little-brook.cloudflareaccess.com",
+    );
+    expect(provenance).not.toContain("private response body");
+  });
+
+  it("localizes a nightly audit access failure without exposing credentials", async () => {
+    const log = vi.fn();
+    const fetchImpl = vi.fn(async () =>
+      new Response("private Cloudflare response", {
+        status: 403,
+        headers: {
+          "CF-Ray": "fixture-ray",
+          "Content-Type": "text/html; charset=UTF-8",
+          Server: "cloudflare",
+        },
+      }),
+    );
+
+    await expect(
+      runSecurityAudit({
+        environment: {
+          CF_ACCESS_CLIENT_ID: "access-client-id",
+          CF_ACCESS_CLIENT_SECRET: "access-client-secret",
+          OCTOPUS_API_KEY: "secret-api-key",
+          OCTOPUS_URL: "https://octopus.example.test",
+        },
+        fetchImpl,
+        log,
+      }),
+    ).rejects.toThrow(
+      "GET /api/spaces with HTTP 403 (server=cloudflare; cf-ray=present; " +
+        "content-type=text/html; redirect-host=absent)",
+    );
+    expect(log).toHaveBeenCalledWith(
+      "Octopus credential shape accepted: cf-client-id-chars=16; " +
+        "cf-client-secret-chars=20; octopus-api-key-chars=14; " +
+        "octopus-host=octopus.example.test",
+    );
+    expect(JSON.stringify(log.mock.calls)).not.toContain("access-client-secret");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("secret-api-key");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls[0][1]?.headers).toMatchObject({
+      "User-Agent": "Vinifera-GitHub-Actions/1.0",
+    });
+  });
+
+  it("runs the nightly audit through the Config-as-Code main reference", async () => {
+    const calls = [];
+    const fetchImpl = vi.fn(async (url, options = {}) => {
+      calls.push({ url: String(url), options });
+      const path = new URL(url).pathname;
+      if (path === "/api/spaces") {
+        return jsonResponse({ Items: [{ Id: "Spaces-1", Name: "Default" }] });
+      }
+      if (path === "/api/Spaces-1/environments") {
+        return jsonResponse({
+          Items: [{ Id: "Environments-1", Name: "Development" }],
+        });
+      }
+      if (path === "/api/Spaces-1/projects") {
+        return jsonResponse({ Items: [{ Id: "Projects-1", Name: "Vinifera" }] });
+      }
+      if (path.endsWith("/main/runbooks")) {
+        return jsonResponse({
+          Items: [{ Name: "Security Audit", Slug: "security-audit" }],
+        });
+      }
+      if (path.endsWith("/security-audit/runbookRuns/preview/Environments-1")) {
+        return jsonResponse({
+          Form: {
+            Elements: [
+              {
+                Name: "form-github-pat",
+                Control: { Name: "GitHubPAT", Sensitive: true, Required: true },
+              },
+            ],
+          },
+        });
+      }
+      if (path.endsWith("/security-audit/runbookSnapShotTemplate")) {
+        return jsonResponse({ Packages: [], GitResources: [] });
+      }
+      if (path.endsWith("/security-audit/run/v1")) {
+        return jsonResponse({
+          Resources: [{ Id: "RunbookRuns-1", TaskId: "ServerTasks-1" }],
+        });
+      }
+      if (path === "/api/tasks/ServerTasks-1") {
+        return jsonResponse({ State: "Success" });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    await expect(
+      runSecurityAudit({
+        environment: {
+          CF_ACCESS_CLIENT_ID: "access-client-id",
+          CF_ACCESS_CLIENT_SECRET: "access-client-secret",
+          GH_PAT_FOR_OCTOPUS: "github-token",
+          OCTOPUS_API_KEY: "secret-api-key",
+          OCTOPUS_URL: "https://octopus.example.test",
+        },
+        fetchImpl,
+        pollIntervalMs: 0,
+      }),
+    ).resolves.toMatchObject({ state: "Success", taskId: "ServerTasks-1" });
+    expect(
+      calls.some(({ url }) =>
+        url.includes("/projects/Projects-1/main/runbooks"),
+      ),
+    ).toBe(true);
+    const runCall = calls.find(({ url }) =>
+      url.endsWith("/security-audit/run/v1"),
+    );
+    expect(JSON.parse(runCall.options.body)).toMatchObject({
+      SelectedGitResources: [],
+      SelectedPackages: [],
+      Runs: [{ FormValues: { "form-github-pat": "github-token" } }],
+    });
+  });
+
+  it("packages every local module required by the nightly workflow", () => {
+    const workflow = readFileSync(
+      new URL(
+        "../../.github/workflows/octopus-security-audit.yml",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(workflow).toContain(".github/scripts/octopus-security-audit.mjs");
+    expect(workflow).toContain(".github/scripts/octopus-runbook.mjs");
   });
 
   it("maps prompted names to Octopus form element IDs and fails closed", () => {
@@ -1165,13 +1422,17 @@ describe("Octopus runbook bridge", () => {
           Items: [{ Id: "Projects-1", Name: "Vinifera" }],
         });
       }
-      if (String(url).includes("/projects/Projects-1/runbooks?")) {
+      if (
+        String(url).includes(
+          "/projects/Projects-1/main/runbooks?",
+        )
+      ) {
         return jsonResponse({
           Items: [
             {
               Id: "Runbooks-1",
               Name: "PR Quality Gates",
-              PublishedRunbookSnapshotId: "RunbookSnapshots-1",
+              Slug: "pr-quality-gates",
             },
           ],
         });
@@ -1184,30 +1445,31 @@ describe("Octopus runbook bridge", () => {
               { Name: "V-2", Control: { Name: "PRNumber", Required: true } },
               {
                 Name: "V-3",
-                Control: {
-                  Name: "GitHubPAT",
-                  Required: true,
-                  Type: "Sensitive",
-                },
-              },
-              {
-                Name: "V-4",
                 Control: { Name: "ExpectedHeadSHA", Required: true },
               },
               {
-                Name: "V-5",
+                Name: "V-4",
                 Control: { Name: "ExpectedBaseRef", Required: true },
               },
               {
-                Name: "V-6",
+                Name: "V-5",
                 Control: { Name: "ExpectedBaseSHA", Required: true },
+              },
+              {
+                Name: "V-6",
+                Control: { Name: "GitHubPAT", Sensitive: true, Required: true },
               },
             ],
           },
         });
       }
-      if (String(url).endsWith("/Spaces-1/runbookRuns")) {
-        return jsonResponse({ Id: "RunbookRuns-1", TaskId: "ServerTasks-1" });
+      if (String(url).endsWith("/runbookSnapShotTemplate")) {
+        return jsonResponse({ Packages: [], GitResources: [] });
+      }
+      if (String(url).endsWith("/pr-quality-gates/run/v1")) {
+        return jsonResponse({
+          Resources: [{ Id: "RunbookRuns-1", TaskId: "ServerTasks-1" }],
+        });
       }
       if (String(url).endsWith("/tasks/ServerTasks-1")) {
         return jsonResponse({ State: "Success" });
@@ -1222,7 +1484,6 @@ describe("Octopus runbook bridge", () => {
         environment: {
           CF_ACCESS_CLIENT_ID: "access-client-id",
           CF_ACCESS_CLIENT_SECRET: "access-client-secret",
-          GH_PAT_FOR_OCTOPUS: "secret-pat",
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
           PR_BRANCH: "fix/example",
@@ -1241,17 +1502,19 @@ describe("Octopus runbook bridge", () => {
       state: "Success",
     });
 
-    const post = calls.find(({ url }) => url.endsWith("/Spaces-1/runbookRuns"));
+    const post = calls.find(({ url }) =>
+      url.endsWith("/pr-quality-gates/run/v1"),
+    );
     const runRequest = JSON.parse(post.options.body);
-    expect(runRequest.RunbookSnapshotId).toBe("RunbookSnapshots-1");
-    expect(runRequest).not.toHaveProperty("RunbookSnapShotId");
-    expect(runRequest.FormValues).toEqual({
+    expect(runRequest.SelectedPackages).toEqual([]);
+    expect(runRequest.SelectedGitResources).toEqual([]);
+    expect(runRequest.Runs[0].FormValues).toEqual({
       "V-1": "fix/example",
       "V-2": "44",
-      "V-3": "secret-pat",
-      "V-4": "a".repeat(40),
-      "V-5": "dev",
-      "V-6": "b".repeat(40),
+      "V-3": "a".repeat(40),
+      "V-4": "dev",
+      "V-5": "b".repeat(40),
+      "V-6": "unused-stale-octopus-prompt",
     });
     expect(
       calls.every(
@@ -1283,13 +1546,17 @@ describe("Octopus runbook bridge", () => {
           Items: [{ Id: "Projects-1", Name: "Vinifera" }],
         });
       }
-      if (requestUrl.includes("/projects/Projects-1/runbooks?")) {
+      if (
+        requestUrl.includes(
+          "/projects/Projects-1/main/runbooks?",
+        )
+      ) {
         return jsonResponse({
           Items: [
             {
               Id: "Runbooks-1",
               Name: "PR Quality Gates",
-              PublishedRunbookSnapshotId: "RunbookSnapshots-1",
+              Slug: "pr-quality-gates",
             },
           ],
         });
@@ -1302,30 +1569,27 @@ describe("Octopus runbook bridge", () => {
               { Name: "V-2", Control: { Name: "PRNumber", Required: true } },
               {
                 Name: "V-3",
-                Control: {
-                  Name: "GitHubPAT",
-                  Required: true,
-                  Sensitive: true,
-                },
-              },
-              {
-                Name: "V-4",
                 Control: { Name: "ExpectedHeadSHA", Required: true },
               },
               {
-                Name: "V-5",
+                Name: "V-4",
                 Control: { Name: "ExpectedBaseRef", Required: true },
               },
               {
-                Name: "V-6",
+                Name: "V-5",
                 Control: { Name: "ExpectedBaseSHA", Required: true },
               },
             ],
           },
         });
       }
-      if (requestUrl.endsWith("/Spaces-1/runbookRuns")) {
-        return jsonResponse({ Id: "RunbookRuns-1", TaskId: "ServerTasks-1" });
+      if (requestUrl.endsWith("/runbookSnapShotTemplate")) {
+        return jsonResponse({ Packages: [], GitResources: [] });
+      }
+      if (requestUrl.endsWith("/pr-quality-gates/run/v1")) {
+        return jsonResponse({
+          Resources: [{ Id: "RunbookRuns-1", TaskId: "ServerTasks-1" }],
+        });
       }
       if (requestUrl.endsWith("/tasks/ServerTasks-1/cancel")) {
         return jsonResponse({}, 500);
@@ -1340,7 +1604,6 @@ describe("Octopus runbook bridge", () => {
         environment: {
           CF_ACCESS_CLIENT_ID: "access-client-id",
           CF_ACCESS_CLIENT_SECRET: "access-client-secret",
-          GH_PAT_FOR_OCTOPUS: "secret-pat",
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
           PR_BRANCH: "fix/example",
@@ -1355,7 +1618,10 @@ describe("Octopus runbook bridge", () => {
       }),
     ).rejects.toThrow("Octopus runbook timed out after -1ms");
     expect(log).toHaveBeenCalledWith(
-      "Failed to cancel Octopus task ServerTasks-1: Octopus API request failed with HTTP 500",
+      "Failed to cancel Octopus task ServerTasks-1: Octopus API request failed " +
+        "for POST /api/tasks/ServerTasks-1/cancel with HTTP 500 " +
+        "(server=absent; cf-ray=absent; content-type=application/json; " +
+        "redirect-host=absent)",
     );
   });
 });
@@ -1430,7 +1696,7 @@ describe("Octopus workflow trust boundary", () => {
     );
     const qualityRunbook = readFileSync(
       new URL(
-        "../../.octopus/runbooks/pr-quality-gates/runbook.ocl",
+        "../../.octopus/runbooks/pr-quality-gates.ocl",
         import.meta.url,
       ),
       "utf8",

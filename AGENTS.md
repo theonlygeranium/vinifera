@@ -46,7 +46,7 @@ The public custom domain continues to serve the verified static Cloudflare Pages
 5. **Update CHANGELOG.md once per logical PR or promotion.** The final reviewed diff must contain one consolidated `[Unreleased]` entry; intermediate WIP commits do not each add duplicate entries.
 6. **Preserve WCAG compliance.** All pages must pass axe-core with 0 WCAG 2.1 AA violations. Run the fast browser smoke for routine visual PRs and the complete Playwright/axe suite before promotion.
 7. **Test on mobile.** Every visual change must be verified at 375px viewport width. Touch targets must meet 44×44px (WCAG 2.5.5).
-8. **Own every PR through completion.** Opening a PR is not completion. Use an available wait or monitoring mechanism until the applicable exact-head checks and reviews pass and zero blocking review threads remain. Routine `dev` PRs require `Dev fast checks`, the independent exact-head feature-preview check (`Cloudflare Pages: vinifera` in the current project configuration), and its preview URLs; the `dev` branch deployment separately emits `Cloudflare Pages: vinifera-dev`. Promotions require `Type, test, build, and package` plus Octopus. CodeRabbit is optional and non-blocking while unavailable or rate-limited. Follow `docs/agent-workflow.md`.
+8. **Own every PR through completion.** Opening a PR is not completion. Use an available wait or monitoring mechanism until the applicable exact-head checks and reviews pass and zero blocking review threads remain. Routine ready `dev` candidates require `Dev fast checks`; frontend-relevant candidates also require exact-head `Frontend preview evidence`, while the same status reports policy-approved non-applicability for other surfaces. Promotions require `Type, test, build, and package` plus Octopus. Explicitly classified or labeled high-risk work also requires Octopus. CodeRabbit is optional and non-blocking while unavailable or rate-limited. Follow `docs/agent-workflow.md`.
 9. **Protect hosted activation.** Provider and environment mutations must run only through the applicable protected, fail-closed workflow under explicit task authority or a standing owner-approved automation contract. Production, live billing, destructive data operations, credential rotation, and DNS/domain ownership changes retain their independent confirmations and protection. `human-review-required` pauses automation and `do-not-merge` is absolute.
 10. **Respect tenant isolation.** Every database query that touches member, shipment, billing, or integration data must be scoped to `brand_id`. Missing `brand_id` predicates are a critical defect. Octopus is configured to flag these — always resolve them before merging.
 
@@ -85,7 +85,7 @@ vinifera/
 │   ├── decisions/          # Architectural Decision Records (ADRs)
 │   ├── build-specs/        # BS-01 through BS-06 specs and dispatch guide
 │   └── agent-workflow.md   # Branching, PR, and review loop rules
-├── .github/workflows/      # 12 CI/CD workflows (see Section 5)
+├── .github/workflows/      # 19 CI/CD workflows (see Section 5)
 ├── .octopus/               # Octopus architectural boundary rules
 ├── AGENTS.md               # YOU ARE HERE — agent collaboration guide
 ├── CONTINUITY_BRIEF.md     # Drop-in context for new agent sessions
@@ -146,7 +146,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 492/492 Vitest; 153/153 Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 512/512 Vitest; 155 passed Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -180,10 +180,16 @@ workflows under `.github/workflows/`:
 
 | Workflow file | Trigger | What it does |
 |--------------|---------|-------------|
-| `dev-fast.yml` | Feature pushes and PRs to `dev` | Fail-closed path classification, focused validation, browser smoke, and the always-present `Dev fast checks` aggregate |
+| `dev-fast.yml` | Ready PR candidates to `dev`, non-draft new heads, exact manual candidates | Fail-closed candidate/path classification, focused validation, path-aware browser smoke, preview packaging, the PR-only `Dev fast checks` aggregate, and distinct manual evidence |
+| `frontend-preview-publish.yml` | Completed development candidate workflow, trusted default-branch code | Revalidates the exact same-repository PR and publishes frontend assets or policy-approved non-applicability as `Frontend preview evidence` without executing PR-head code beside credentials |
+| `dev-automerge.yml` | Completed fast CI, preview dispatch, or authorized PR metadata change | Trusted default-branch exact-SHA squash merge for eligible low/medium-risk `dev` candidates |
+| `dev-deployment-candidate.yml` | Protected `dev` push | Records one unprivileged exact development deployment candidate |
+| `dev-worker-release.yml` | Completed development deployment candidate | Prepared-disabled trusted immutable Worker upload, deploy, hosted verification, evidence, and automatic rollback |
+| `release-candidate-package.yml` | Manual, trusted default branch | Packages one exact fully certified `dev → staging` candidate without environment rebuild |
+| `delivery-control-center.yml` | Scheduled, manual | Maintains one exception-oriented delivery status issue |
 | `ci.yml` | Promotion PRs, staging/main, manual, nightly | Full release validation, selective/nightly Android, and the exact `Type, test, build, and package` aggregate |
 | `direct-push-guard.yml` | Push to main | Enforces no direct commits reach main without a merged PR; fails closed |
-| `hosted-readiness.yml` | Manual, protected | Apply Supabase migrations + deploy isolated `vinifera-staging` Worker (credential-gated) |
+| `hosted-readiness.yml` | Manual, protected | Read-only credential and hosted-target readiness report; performs no migration or deployment |
 | `octopus-main-deploy.yml` | Push to main, manual | Reconcile trusted Octopus configuration after the default-branch bootstrap |
 | `octopus-pr-quality-gates.yml` | Promotion PRs and explicit high-risk review requests | Validate same-repository PR source and publish the trusted Octopus result for the exact PR/head/base/attempt |
 | `octopus-security-audit.yml` | Scheduled, manual | Run the trusted Octopus security audit |
@@ -238,17 +244,17 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 ## 6. Quality Assurance
 
-### Current verified test counts (PR #51 audit baseline)
+### Current verified test counts (2026-07-31 credential-independent baseline)
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 492 | `npm run check` |
+| Vitest unit/integration | 512 | `npm run check` |
 | Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |
 | Phase 4 DB (intelligence) | 158 assertions | `npm run qa:db:phase4` |
 | Phase 5 DB (scale) | 513 assertions | `npm run qa:db:phase5` |
-| Playwright E2E + axe-core | 153 | `npm run qa:e2e` |
+| Playwright E2E + axe-core | 155 passed, 3 hosted-only skipped | `npm run qa:e2e` |
 
 A PR may not merge if any of these counts decrease without a documented justification in the PR description. Test regressions are blocking defects.
 
@@ -298,6 +304,16 @@ feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
 **Agents MUST follow these routing rules without exception:**
 
 - **All agent feature PRs target `dev` only.** Never open a feature PR targeting `staging` or `main`.
+- General feature pushes and draft PRs are local/WIP activity, not cloud-CI
+  candidates. Mark one coherent head ready for review; batch findings and use
+  no more than two substantive repair/re-review cycles.
+- `codex-auto-merge` is standing owner authority only for a low- or medium-risk
+  same-repository PR to `dev` after trusted automation revalidates the live
+  head/base, exact required checks, applicable preview evidence, labels, and
+  zero blocking threads immediately before merge.
+- `.github/delivery-risk-contract.json` is the machine-readable merge
+  authority contract. Missing, skipped, neutral, pending, cancelled, stale, or
+  failed required evidence blocks merge. High-risk candidates never auto-merge.
 - A consolidated `dev → staging` promotion is started manually or by an
   explicitly owner-authorized workflow; it is never created after every push
   to `dev`. `promote-dev-to-staging.yml`:
@@ -358,9 +374,9 @@ When a release is verified stable:
 ## 8. Octopus and CodeRabbit Review Protocol
 
 **Octopus** is the required full-codebase review for every `dev → staging`
-promotion and for protected/high-risk manual review. It is not automatically
-run on every routine feature PR to `dev`; such PRs may request Octopus when
-their classifier or reviewer identifies high-risk work by applying
+promotion and for protected, explicitly classified, or labeled high-risk
+review. It is not automatically run on every routine feature PR to `dev`;
+high-risk PRs request Octopus by applying
 `octopus-review-required`. Removing the label or closing the PR cancels the
 attempt. Missing Octopus blocks promotion, but not routine preview iteration.
 
@@ -400,7 +416,9 @@ tests → fast CI and preview gate routine delivery → full CI and Octopus gate
 promotions. One primary agent owns each logical unit and may delegate bounded
 work while retaining integration responsibility.
 
-**PR routing rule (mandatory):** All agent feature PRs target `dev`. Codex agents must never open a feature PR against `staging` or `main`.
+**PR routing rule (mandatory):** All agent feature PRs target `dev`. Codex
+agents must never open a feature PR against `staging` or `main`. Promotion is
+a separate consolidated release-candidate operation.
 
 Readiness for `dev → staging` is initiated manually or through an explicitly
 owner-authorized workflow. It requires staging REST health twice, exact

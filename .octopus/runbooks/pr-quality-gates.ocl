@@ -32,8 +32,8 @@ process {
                     github_curl() {
                         local accept="$1"
                         shift
-                        printf 'header = "Authorization: Bearer %s"\nheader = "Accept: %s"\nheader = "X-GitHub-Api-Version: 2022-11-28"\n' \
-                            "#{GitHubPAT}" "$accept" \
+                        printf 'header = "Accept: %s"\nheader = "X-GitHub-Api-Version: 2022-11-28"\n' \
+                            "$accept" \
                             | curl -fsS --config - "$@"
                     }
                     PR_JSON=$(github_curl "application/vnd.github+json" \
@@ -85,10 +85,7 @@ print(data["base"]["sha"])
                     cd "$WORK_DIR"
                     git init --quiet
                     git remote add origin https://github.com/theonlygeranium/vinifera.git
-                    GIT_CONFIG_COUNT=1 \
-                    GIT_CONFIG_KEY_0=http.extraHeader \
-                    GIT_CONFIG_VALUE_0="Authorization: Bearer #{GitHubPAT}" \
-                        git fetch --quiet --no-tags --depth=100 origin "$BASE_SHA" "$HEAD_SHA"
+                    git fetch --quiet --no-tags --depth=100 origin "$BASE_SHA" "$HEAD_SHA"
                     MERGE_BASE_SHA=$(git merge-base "$BASE_SHA" "$HEAD_SHA") || {
                         echo "FAIL: unable to resolve pull request merge base"
                         exit 1
@@ -245,7 +242,7 @@ print(data["base"]["sha"])
 
         action {
             action_type = "Octopus.Script"
-            notes = "TypeScript source files must not contain string literals matching sk_live_, sk_test_, rk_live_, ep_test_, or re_ patterns."
+            notes = "TypeScript source files must not contain boundary-delimited provider credential patterns with plausible token lengths."
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
@@ -265,7 +262,7 @@ print(data["base"]["sha"])
                         printf '%s' "$output"
                     }
                     VIOLATIONS=$(tracked_grep -n -E \
-                        "(sk_live_|sk_test_|rk_live_|ep_test_|re_)[A-Za-z0-9_]+" \
+                        "(^|[^A-Za-z0-9_])(sk_live_|sk_test_|rk_live_|ep_test_|re_)[A-Za-z0-9_]{16,}" \
                         -- ":(glob)server/**/*.ts" ":(glob)src/**/*.ts")
                     [ -n "$VIOLATIONS" ] && echo "FAIL: $VIOLATIONS" && exit 1
                     echo "PASS: Rule 3"
@@ -281,7 +278,7 @@ print(data["base"]["sha"])
 
         action {
             action_type = "Octopus.Script"
-            notes = "Evaluate GitHub's merge-base-aware PR diff and per-commit diffs so input validation, auth, provider, idempotency, tenancy, changelog, and type rules fail closed without grandfathered baseline noise."
+            notes = "Evaluate GitHub's merge-base-aware PR diff so input validation, auth, provider, idempotency, tenancy, changelog, and type rules fail closed without grandfathered baseline noise."
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
@@ -730,20 +727,10 @@ for file_path, line_number, text in added:
     if re.search(r":[ \t]*any\b|\bas[ \t]+any\b", masked_text):
         failures.append(("Rule 10", location, text))
 
-for commit_diff in sorted(commit_diff_dir.glob("*.diff")):
-    commit_files = set()
-    for line in commit_diff.read_text(
-        encoding="utf-8", errors="replace"
-    ).splitlines():
-        if not line.startswith("diff --git "):
-            continue
-        parts = shlex.split(line)
-        if len(parts) >= 4 and parts[3].startswith("b/"):
-            commit_files.add(parts[3][2:])
-    if commit_files and "CHANGELOG.md" not in commit_files:
-        failures.append(
-            ("Rule 9", commit_diff.stem, ", ".join(sorted(commit_files)))
-        )
+if changed_files and "CHANGELOG.md" not in changed_files:
+    failures.append(
+        ("Rule 9", "PR diff", ", ".join(sorted(changed_files)))
+    )
 
 if failures:
     for rule, location, text in failures:
