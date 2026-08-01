@@ -7,6 +7,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Reconciled current `staging` ancestry back into `dev` after the hidden
+  promotion smoke artifact reached staging, preserving the subsequent
+  touch-target repair on `dev` while restoring a clean graph for the next
+  protected `dev → staging → main` promotion attempt. **Deployment impact:**
+  Branch history and documentation only; no application route, provider,
+  database, credential, billing, DNS, or activation-gate state changes.
 - Scoped hosted development runtime E2E to the protected development Worker
   release lane with an explicit opt-in marker, so local/full promotion
   Playwright QA does not fail on intentionally absent protected credentials
