@@ -7,6 +7,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Replaced indented Node heredocs in the trusted development auto-merge
+  controller with `node --eval` calls so the controller can revalidate and
+  merge eligible exact-head candidates instead of failing on Bash heredoc
+  parsing before its policy decision. **Deployment impact:** CI controller
+  repair only; no application route, provider, database, credential, billing,
+  DNS, or activation-gate state changes.
 - Reconciled current `staging` ancestry back into `dev` after the hidden
   promotion smoke artifact reached staging, preserving the subsequent
   touch-target repair on `dev` while restoring a clean graph for the next
