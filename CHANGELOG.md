@@ -122,6 +122,12 @@
   production resource change.
 
 ### Fixed
+- Reconciled `staging` ancestry back into `dev` after the Octopus workflow
+  repair sequence so the next `dev → staging` promotion has a clean merge base
+  instead of re-conflicting on already-reviewed deployment workflow files.
+  **Deployment impact:** Branch-history repair and documentation only; no
+  runtime, hosted provider, database, DNS, billing, production, or
+  activation-gate state changes.
 - The main Octopus deployment workflow now rejects manual dispatches unless
   they run from `refs/heads/main`, before checkout or Octopus/Cloudflare
   credentialed steps execute. Cloudflare Access service-token values are scoped
