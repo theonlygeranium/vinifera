@@ -38,6 +38,7 @@
   `public/vinifera-promotion-smoke-2026-08-01.html` so the
   protected `dev → staging → main` publishing workflow can be exercised with a
   harmless hidden asset before the artifact is removed through the same path.
+  The page includes standalone HTML landmarks for accessibility validation.
   **Deployment impact:** Static asset only; no visible navigation, app route,
   API, provider, database, credential, billing, DNS, or activation-gate state
   changes.
