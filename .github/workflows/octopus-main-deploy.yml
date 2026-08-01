@@ -23,11 +23,11 @@ jobs:
 
     # Cloudflare Access service token — required for all Octopus API calls
     # because octopus.schubert.life is behind a CF Access policy.
-    # The Octopus CLI and official Actions pick these up automatically and
-    # add CF-Access-Client-Id / CF-Access-Client-Secret headers to every request.
     env:
       CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
       CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
+      CF_ACCESS_PROXY_PORT: "41809"
+      OCTOPUS_PROXY_URL: http://127.0.0.1:41809
 
     steps:
       - name: Checkout repository
@@ -35,25 +35,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Octopus CLI 🐙
-        uses: OctopusDeploy/install-octopus-cli-action@v4
-        with:
-          version: "*"
-
-      - name: Verify Octopus connectivity
+      - name: Start Cloudflare Access proxy
         env:
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
-          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
-          OCTOPUS_SPACE: Default
+          OCTOPUS_TARGET_URL: ${{ secrets.OCTOPUS_URL }}
         run: |
           set -euo pipefail
-          octopus space list --output-format basic --no-prompt >/dev/null
+          node .github/scripts/cloudflare-access-proxy.mjs > "$RUNNER_TEMP/octopus-cf-access-proxy.log" 2>&1 &
+          echo "OCTOPUS_CF_ACCESS_PROXY_PID=$!" >> "$GITHUB_ENV"
+
+          for _ in {1..20}; do
+            if curl -fsS \
+              -H "X-Octopus-ApiKey: ${OCTOPUS_API_KEY}" \
+              "${OCTOPUS_PROXY_URL}/api" >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat "$RUNNER_TEMP/octopus-cf-access-proxy.log"
+          exit 1
 
       - name: Push Build Information 📦
         uses: OctopusDeploy/push-build-information-action@v4
         env:
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
-          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}
           OCTOPUS_SPACE: Default
         with:
           packages: |
@@ -66,7 +73,7 @@ jobs:
         id: create_release
         env:
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
-          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}
           OCTOPUS_SPACE: Default
         with:
           project: Vinifera
@@ -78,7 +85,7 @@ jobs:
         uses: OctopusDeploy/deploy-release-action@v4
         env:
           OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
-          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}
           OCTOPUS_SPACE: Default
         with:
           project: Vinifera
@@ -87,3 +94,10 @@ jobs:
             Development
           # Development deploys are automatic — no manual intervention required.
           # Staging and Production require manual approval in Octopus.
+
+      - name: Stop Cloudflare Access proxy
+        if: always()
+        run: |
+          if [[ -n "${OCTOPUS_CF_ACCESS_PROXY_PID:-}" ]]; then
+            kill "$OCTOPUS_CF_ACCESS_PROXY_PID" 2>/dev/null || true
+          fi
