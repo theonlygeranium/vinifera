@@ -22,6 +22,20 @@ describe("main to development Octopus deployment contract", () => {
     expect(workflow).toContain("Stop Cloudflare Access proxy");
   });
 
+  it("rejects manual dispatches from non-main refs before Octopus secrets are used", () => {
+    expect(workflow).toContain("Require main ref for Octopus deployment");
+    expect(workflow).toContain('[[ "${GITHUB_REF}" != "refs/heads/main" ]]');
+    expect(workflow).toMatch(
+      /Require main ref for Octopus deployment[\s\S]*?Checkout repository[\s\S]*?Start Cloudflare Access proxy/,
+    );
+    expect(workflow).toMatch(
+      /Start Cloudflare Access proxy[\s\S]*?CF_ACCESS_CLIENT_ID: \$\{\{ secrets\.OCTOPUS_CF_ACCESS_CLIENT_ID \}\}/,
+    );
+    expect(workflow).not.toMatch(
+      /jobs:[\s\S]*?env:[\s\S]*?CF_ACCESS_CLIENT_ID: \$\{\{ secrets\.OCTOPUS_CF_ACCESS_CLIENT_ID \}\}[\s\S]*?steps:/,
+    );
+  });
+
   it("uses current Octopus actions instead of the Node 20 v3 actions", () => {
     expect(workflow).toContain("OctopusDeploy/push-build-information-action@v4");
     expect(workflow).toContain("OctopusDeploy/create-release-action@v4");
