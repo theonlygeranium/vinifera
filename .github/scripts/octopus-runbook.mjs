@@ -34,7 +34,8 @@ async function requestJson(fetchImpl, url, authenticationHeaders, options = {}) 
   });
 
   if (!response.ok) {
-    throw new Error(`Octopus API request failed with HTTP ${response.status}`);
+    const errBody = await response.text().catch(() => '');
+    throw new Error(`Octopus API request failed with HTTP ${response.status}: ${errBody.slice(0, 500)}`);
   }
 
   if (response.status === 204) return null;
@@ -199,7 +200,7 @@ export async function runRunbook({
 
   const preview = await requestJson(
     fetchImpl,
-    `${spaceBase}/runbooks/${runbook.Id}/runbookRuns/preview/${octopusEnvironment.Id}`,
+    `${spaceBase}/runbooks/${runbook.Id}/runbookRuns/preview/${octopusEnvironment.Id}?runbookSnapshotId=${runbook.PublishedRunbookSnapshotId}`,
     authenticationHeaders,
   );
   const formValues = resolveFormValues(preview, {
