@@ -85,3 +85,62 @@ variable "LiteLLMEndpoint" {
 variable "LiteLLMModel" {
     value "writer/palmyra-x5" {}
 }
+variable "PRBranch" {
+    value "" {
+        prompt {
+            description = "The head branch of the pull request being reviewed."
+            label = "PR Branch"
+            required = true
+        }
+    }
+}
+
+variable "ExpectedBaseRef" {
+    value "" {
+        prompt {
+            description = "The base branch ref the pull request targets (e.g. staging)."
+            label = "Expected Base Ref"
+            required = true
+        }
+    }
+}
+
+variable "ExpectedBaseSHA" {
+    value "" {
+        prompt {
+            description = "The exact 40-character commit SHA of the base branch tip."
+            label = "Expected Base SHA"
+            required = true
+        }
+    }
+}
+
+variable "ExpectedHeadSHA" {
+    value "" {
+        prompt {
+            description = "The exact 40-character commit SHA of the PR head."
+            label = "Expected Head SHA"
+            required = true
+        }
+    }
+}
+
+variable "PRNumber" {
+    value "" {
+        prompt {
+            description = "The GitHub pull request number."
+            label = "PR Number"
+            required = true
+        }
+    }
+}
+
+variable "GitHubPAT" {
+    value "" {
+        prompt {
+            description = "GitHub Personal Access Token used by Octopus to fetch PR metadata."
+            label = "GitHub PAT"
+            required = true
+        }
+    }
+}
