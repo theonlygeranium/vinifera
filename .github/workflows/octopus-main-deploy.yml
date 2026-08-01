@@ -20,6 +20,15 @@ jobs:
       contents: read
       deployments: write
 
+    # Cloudflare Access service token — required because octopus.schubert.life
+    # is protected by a CF Access policy. Without these headers the Octopus API
+    # returns a login redirect (200 OK HTML) instead of a JSON response, which
+    # silently fails every CLI and Action-based Octopus call.
+    # These secrets are already present in the repo (used by octopus-pr-quality-gates.yml).
+    env:
+      CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
