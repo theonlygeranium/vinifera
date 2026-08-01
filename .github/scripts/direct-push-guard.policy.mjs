@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { findMergeEvidence, verifyMainPush } from "./direct-push-guard.mjs";
+
+const workflow = readFileSync(
+  new URL("../workflows/direct-push-guard.yml", import.meta.url),
+  "utf8",
+);
 
 const PUSHED_SHA = "a".repeat(40);
 const REPOSITORY = "theonlygeranium/vinifera";
@@ -36,6 +42,13 @@ function pushEnvironment(overrides = {}) {
     ...overrides,
   };
 }
+
+test("runs the main push audit for privileged users and automation too", () => {
+  assert.match(workflow, /name: Block direct push to main/);
+  assert.doesNotMatch(workflow, /github\.actor/);
+  assert.doesNotMatch(workflow, /contains\(github\.actor,\s*'\[bot\]'\)/);
+  assert.doesNotMatch(workflow, /theonlygeranium/);
+});
 
 test("accepts the exact recorded merge result for every GitHub merge strategy", () => {
   for (const strategy of ["merge commit", "squash", "rebase"]) {
@@ -180,7 +193,7 @@ test("retries missing merge evidence with an injected zero-delay wait", async ()
 
   assert.equal(evidence.number, 42);
   assert.equal(requests, 3);
-  assert.deepEqual(delays, [10_000, 10_000]);
+  assert.deepEqual(delays, [15_000, 15_000]);
 });
 
 test("retries a bounded GitHub request timeout and then accepts exact evidence", async () => {
@@ -224,7 +237,7 @@ test("retries a bounded GitHub request timeout and then accepts exact evidence",
   assert.equal(evidence.number, 42);
   assert.equal(requests, 2);
   assert.equal(signals.length, 2);
-  assert.deepEqual(delays, [10_000]);
+  assert.deepEqual(delays, [15_000]);
   assert.deepEqual(timeoutDurations, [25, 25]);
 });
 
@@ -267,11 +280,11 @@ test("keeps GitHub response parsing inside the bounded request timeout", async (
   const evidence = await evidencePromise;
   assert.equal(evidence.number, 42);
   assert.equal(requests, 2);
-  assert.deepEqual(delays, [10_000]);
+  assert.deepEqual(delays, [15_000]);
   assert.deepEqual(timeoutDurations, [25, 25]);
 });
 
-test("fails closed after three deterministic GitHub request timeouts", async () => {
+test("fails closed after six deterministic GitHub request timeouts", async () => {
   let requests = 0;
   const delays = [];
   const timeoutDurations = [];
@@ -296,12 +309,12 @@ test("fails closed after three deterministic GitHub request timeouts", async () 
         return requests;
       },
     }),
-    /requests timed out after 3 attempts/,
+    /requests timed out after 6 attempts/,
   );
 
-  assert.equal(requests, 3);
-  assert.deepEqual(delays, [10_000, 10_000]);
-  assert.deepEqual(timeoutDurations, [25, 25, 25]);
+  assert.equal(requests, 6);
+  assert.deepEqual(delays, [15_000, 15_000, 15_000, 15_000, 15_000]);
+  assert.deepEqual(timeoutDurations, [25, 25, 25, 25, 25, 25]);
 });
 
 test("rejects a direct push even when its commit message could be conventional", async () => {
@@ -316,7 +329,7 @@ test("rejects a direct push even when its commit message could be conventional",
       delayImplementation: async () => {},
       output: { log() {} },
     }),
-    /no merged pull request.*after 3 attempts/,
+    /no merged pull request.*after 6 attempts/,
   );
 });
 
