@@ -193,9 +193,8 @@ export async function runRunbook({
     fetchImpl,
     spaceBase,
     authenticationHeaders,
-    `projects/${project.Id}/runbooks`,
+    `projects/${project.Id}/git/refs%2Fheads%2Fmain/runbooks`,
     runbookName,
-    { gitRef: "main" },
   );
   if (!runbook.PublishedRunbookSnapshotId) {
     throw new Error(`Octopus runbook has no published snapshot: ${runbookName}`);
@@ -203,7 +202,7 @@ export async function runRunbook({
 
   const preview = await requestJson(
     fetchImpl,
-    `${spaceBase}/runbooks/${runbook.Id}/runbookRuns/preview/${octopusEnvironment.Id}?runbookSnapshotId=${runbook.PublishedRunbookSnapshotId}&gitRef=main`,
+    `${spaceBase}/runbooks/${runbook.Id}/runbookRuns/preview/${octopusEnvironment.Id}?runbookSnapshotId=${runbook.PublishedRunbookSnapshotId}&gitRef=refs%2Fheads%2Fmain`,
     authenticationHeaders,
   );
   const formValues = resolveFormValues(preview, {
