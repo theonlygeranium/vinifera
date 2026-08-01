@@ -7,6 +7,17 @@
 ## [Unreleased]
 
 ### Fixed
+- Replaced indented Node heredocs in the trusted development auto-merge
+  controller with `node --eval` calls so the controller can revalidate and
+  merge eligible exact-head candidates instead of failing on Bash heredoc
+  parsing before its policy decision. **Deployment impact:** CI controller
+  repair only; no application route, provider, database, credential, billing,
+  DNS, or activation-gate state changes. **Verification:** Ran
+  `npm run build:pages`, confirmed
+  `dist/vinifera-promotion-smoke-2026-08-01.html` is absent, and ran
+  `git diff --check`; the updated cleanup PR then passed Development fast
+  validation, Octopus PR Quality Gates, Cloudflare Pages preview publication,
+  and Frontend preview evidence at head `a0405daf7707b3e8029ac2498bb22ec9f35d688e`.
 - Reconciled current `staging` ancestry back into `dev` after the hidden
   promotion smoke artifact reached staging, preserving the subsequent
   touch-target repair on `dev` while restoring a clean graph for the next
@@ -39,6 +50,17 @@
   provider, DNS, database, billing, production, hosted-data, credential, or
   activation-gate state changes.
 
+### Removed
+- Removed the temporary hidden promotion smoke artifact at
+  `public/vinifera-promotion-smoke-2026-08-01.html` after the publishing drill
+  reached production and its marker was verified on `vinifera.pages.dev`,
+  `vinifera.edstratumlabs.ai`, and `vinifera-live.edstratumlabs.ai`.
+  **Deployment impact:** Static cleanup only; no visible navigation, provider,
+  database, credential, billing, DNS, or activation-gate state changes.
+  **Verification:** Ran `npm run build:pages`, confirmed
+  `dist/vinifera-promotion-smoke-2026-08-01.html` is absent, and ran
+  `git diff --check`.
+
 ### Added
 - Added an unlinked, noindex static promotion smoke artifact at
   `public/vinifera-promotion-smoke-2026-08-01.html` so the
@@ -48,6 +70,7 @@
   **Deployment impact:** Static asset only; no visible navigation, app route,
   API, provider, database, credential, billing, DNS, or activation-gate state
   changes.
+
 - Promotion smoke coverage now checks the documented branch path, manual
   promotion controls, staging Octopus requirement, production authorization
   boundary, and safe main-to-development Octopus deploy target so the delivery
