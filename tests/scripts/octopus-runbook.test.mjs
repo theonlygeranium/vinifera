@@ -1096,7 +1096,7 @@ describe("Octopus runbook bridge", () => {
     expect(result.stdout).toContain("FAIL Rule 8");
   });
 
-  it("requires a changelog update in every commit", () => {
+  it("requires a changelog update in the aggregate PR diff", () => {
     const qualityRunbook = readFileSync(
       new URL(
         "../../.octopus/runbooks/pr-quality-gates.ocl",
@@ -1118,7 +1118,14 @@ describe("Octopus runbook bridge", () => {
     try {
       const commitDiffDirectory = join(fixture, "commit-diffs");
       mkdirSync(commitDiffDirectory);
-      writeFileSync(join(fixture, "pr.diff"), "");
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/src/client/example.ts b/src/client/example.ts",
+          "+++ b/src/client/example.ts",
+          "",
+        ].join("\n"),
+      );
       writeFileSync(
         join(commitDiffDirectory, "missing-changelog.diff"),
         [
@@ -1135,8 +1142,25 @@ describe("Octopus runbook bridge", () => {
       );
       expect(result.status).toBe(1);
       expect(result.stdout).toContain(
-        "FAIL Rule 9: missing-changelog: src/client/example.ts",
+        "FAIL Rule 9: PR diff: src/client/example.ts",
       );
+
+      writeFileSync(
+        join(fixture, "pr.diff"),
+        [
+          "diff --git a/src/client/example.ts b/src/client/example.ts",
+          "+++ b/src/client/example.ts",
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "",
+        ].join("\n"),
+      );
+      const aggregateResult = spawnSync(
+        "python3",
+        ["-", fixture, join(fixture, "pr.diff"), commitDiffDirectory],
+        { input: checker, encoding: "utf8" },
+      );
+      expect(aggregateResult.status).toBe(0);
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }

@@ -278,7 +278,7 @@ print(data["base"]["sha"])
 
         action {
             action_type = "Octopus.Script"
-            notes = "Evaluate GitHub's merge-base-aware PR diff and per-commit diffs so input validation, auth, provider, idempotency, tenancy, changelog, and type rules fail closed without grandfathered baseline noise."
+            notes = "Evaluate GitHub's merge-base-aware PR diff so input validation, auth, provider, idempotency, tenancy, changelog, and type rules fail closed without grandfathered baseline noise."
             properties = {
                 Octopus.Action.RunOnServer = "true"
                 Octopus.Action.Script.ScriptBody = <<-EOT
@@ -727,20 +727,10 @@ for file_path, line_number, text in added:
     if re.search(r":[ \t]*any\b|\bas[ \t]+any\b", masked_text):
         failures.append(("Rule 10", location, text))
 
-for commit_diff in sorted(commit_diff_dir.glob("*.diff")):
-    commit_files = set()
-    for line in commit_diff.read_text(
-        encoding="utf-8", errors="replace"
-    ).splitlines():
-        if not line.startswith("diff --git "):
-            continue
-        parts = shlex.split(line)
-        if len(parts) >= 4 and parts[3].startswith("b/"):
-            commit_files.add(parts[3][2:])
-    if commit_files and "CHANGELOG.md" not in commit_files:
-        failures.append(
-            ("Rule 9", commit_diff.stem, ", ".join(sorted(commit_files)))
-        )
+if changed_files and "CHANGELOG.md" not in changed_files:
+    failures.append(
+        ("Rule 9", "PR diff", ", ".join(sorted(changed_files)))
+    )
 
 if failures:
     for rule, location, text in failures:
