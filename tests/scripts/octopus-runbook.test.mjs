@@ -1431,6 +1431,10 @@ describe("Octopus runbook bridge", () => {
                 Name: "V-5",
                 Control: { Name: "ExpectedBaseSHA", Required: true },
               },
+              {
+                Name: "V-6",
+                Control: { Name: "GitHubPAT", Sensitive: true, Required: true },
+              },
             ],
           },
         });
@@ -1486,6 +1490,7 @@ describe("Octopus runbook bridge", () => {
       "V-3": "a".repeat(40),
       "V-4": "dev",
       "V-5": "b".repeat(40),
+      "V-6": "unused-stale-octopus-prompt",
     });
     expect(
       calls.every(
