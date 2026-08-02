@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Treat preview metadata for not-yet-ready development candidates as
+  non-applicable instead of passing an empty JSON value to jq, preventing early
+  pull-request event races from leaving red `Feature preview decision` and
+  `Dev fast checks` runs. Removed hidden promotion-smoke HTML artifacts after
+  the end-to-end drill completed. **Deployment impact:** CI controller cleanup
+  and test-artifact removal only; no application route, provider, database,
+  credential, billing, DNS, Worker activation, or activation-gate state changes.
 - Treat trusted preview dispatches for closed or moved dev PRs as ineligible
   instead of failed, preventing successful fast auto-merges from leaving a late
   red repository-dispatch run. **Deployment impact:** CI controller repair

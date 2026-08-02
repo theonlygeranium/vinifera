@@ -446,10 +446,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p preview-candidate
+          candidate_eligible="${CANDIDATE_ELIGIBLE:-false}"
           jq -n \
             --argjson applicable "$APPLICABLE" \
             --arg base_sha "$BASE_SHA" \
-            --argjson candidate_eligible "$CANDIDATE_ELIGIBLE" \
+            --argjson candidate_eligible "$candidate_eligible" \
             --arg head_ref "$HEAD_REF" \
             --arg head_repository "$HEAD_REPOSITORY" \
             --arg head_sha "$HEAD_SHA" \
