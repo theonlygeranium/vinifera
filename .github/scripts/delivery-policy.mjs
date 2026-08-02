@@ -53,6 +53,13 @@ const WORKFLOW_PREFIXES = Object.freeze([
   ".octopus/",
 ]);
 
+const PROTECTED_ENVIRONMENT_BRANCHES = new Set(["dev", "staging", "main"]);
+
+const CI_SCRIPT_TEST_PREFIXES = Object.freeze([
+  ".github/scripts/",
+  "tests/scripts/",
+]);
+
 const TEST_PREFIXES = Object.freeze([
   "tests/",
 ]);
@@ -150,6 +157,19 @@ function isRoutinePath(path) {
   return (
     ROUTINE_FILES.has(path) ||
     ROUTINE_PREFIXES.some((prefix) => path.startsWith(prefix))
+  );
+}
+
+function isCiScriptTestPath(path) {
+  return CI_SCRIPT_TEST_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+function isProtectedReconcileContext({ baseRef = "", headRef = "" } = {}) {
+  return (
+    baseRef === "dev" &&
+    headRef !== baseRef &&
+    PROTECTED_ENVIRONMENT_BRANCHES.has(baseRef) &&
+    PROTECTED_ENVIRONMENT_BRANCHES.has(headRef)
   );
 }
 
@@ -275,7 +295,7 @@ export function readChangedRecords(baseSha, headSha, cwd = process.cwd()) {
   );
 }
 
-export function classifyDeliveryChange(records) {
+export function classifyDeliveryChange(records, context = {}) {
   if (!Array.isArray(records)) {
     return {
       classificationSucceeded: false,
@@ -349,6 +369,21 @@ export function classifyDeliveryChange(records) {
   const browserRequired = uniquePaths.some(isBrowserRelevantPath);
   const previewRequired = uniquePaths.some(isPreviewRelevantPath);
   const surface = deliverySurface(uniquePaths);
+
+  if (isProtectedReconcileContext(context)) {
+    return {
+      classificationSucceeded: true,
+      lane: "protected-reconcile",
+      reason: "protected_branch_reconcile",
+      mobileRequired: false,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "low",
+      surface,
+      paths: uniquePaths,
+    };
+  }
+
   if (
     records.every(
       ({ status, paths: recordPaths }) =>
@@ -383,6 +418,25 @@ export function classifyDeliveryChange(records) {
       previewRequired: true,
       risk: "low",
       surface: "frontend",
+      paths: uniquePaths,
+    };
+  }
+
+  if (
+    records.every(
+      ({ status, paths: recordPaths }) =>
+        !status.startsWith("D") && recordPaths.every(isCiScriptTestPath),
+    )
+  ) {
+    return {
+      classificationSucceeded: true,
+      lane: "ci-script-tested",
+      reason: "ci_script_test_allowlist_match",
+      mobileRequired: false,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "medium",
+      surface: "workflow",
       paths: uniquePaths,
     };
   }
@@ -431,6 +485,15 @@ export function classifyDeliveryChange(records) {
 export function selectFocusedTests(paths, lane) {
   if (lane === "noop") return [".github/scripts/delivery-policy.policy.mjs"];
   if (lane === "docs") return [".github/scripts/delivery-policy.policy.mjs"];
+  if (lane === "protected-reconcile") {
+    return [".github/scripts/delivery-policy.policy.mjs"];
+  }
+  if (lane === "ci-script-tested") {
+    return [
+      ".github/scripts/delivery-policy.policy.mjs",
+      "tests/scripts",
+    ];
+  }
   if (lane === "promotion-smoke") {
     return [
       ".github/scripts/delivery-policy.policy.mjs",
@@ -531,6 +594,16 @@ export function evaluateFastAggregate({
       reason: passed
         ? "promotion_smoke_passed"
         : "promotion_smoke_result_mismatch",
+    };
+  }
+  if (lane === "protected-reconcile" || lane === "ci-script-tested") {
+    const passed =
+      docsResult === "skipped" &&
+      checksResult === "success" &&
+      smokeResult === "skipped";
+    return {
+      passed,
+      reason: passed ? `${lane}_passed` : `${lane}_result_mismatch`,
     };
   }
   if (lane === "routine" || lane === "high-risk") {

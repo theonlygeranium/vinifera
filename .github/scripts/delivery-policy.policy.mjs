@@ -61,6 +61,42 @@ test("hidden promotion smoke artifacts select the smoke fast path", () => {
   assert.equal(isPromotionSmokePath("public/smoke.html"), false);
 });
 
+test("protected branch reconciles stay on a fast non-mutating lane", () => {
+  const result = classifyDeliveryChange(
+    [
+      record("M", ".github/workflows/frontend-preview-publish.yml"),
+      record("M", "src/client/App.tsx"),
+    ],
+    { baseRef: "dev", headRef: "main" },
+  );
+  assert.equal(result.classificationSucceeded, true);
+  assert.equal(result.lane, "protected-reconcile");
+  assert.equal(result.reason, "protected_branch_reconcile");
+  assert.equal(result.risk, "low");
+  assert.equal(result.browserRequired, false);
+  assert.equal(result.previewRequired, false);
+  assert.deepEqual(selectFocusedTests(result.paths, result.lane), [
+    ".github/scripts/delivery-policy.policy.mjs",
+  ]);
+});
+
+test("narrow CI script and script-test patches select focused CI coverage", () => {
+  const result = classifyDeliveryChange([
+    record("M", ".github/scripts/delivery-policy.mjs"),
+    record("M", "tests/scripts/two-speed-review-policy.test.mjs"),
+  ]);
+  assert.equal(result.classificationSucceeded, true);
+  assert.equal(result.lane, "ci-script-tested");
+  assert.equal(result.reason, "ci_script_test_allowlist_match");
+  assert.equal(result.risk, "medium");
+  assert.equal(result.browserRequired, false);
+  assert.equal(result.previewRequired, false);
+  assert.deepEqual(selectFocusedTests(result.paths, result.lane), [
+    ".github/scripts/delivery-policy.policy.mjs",
+    "tests/scripts",
+  ]);
+});
+
 test("candidate events distinguish draft WIP from coherent review heads", () => {
   assert.deepEqual(
     evaluateCandidateEvent({
@@ -322,6 +358,24 @@ test("fast aggregate accepts only the selected successful lane", () => {
     }).passed,
     true,
   );
+  for (const lane of ["protected-reconcile", "ci-script-tested"]) {
+    assert.equal(
+      evaluateFastAggregate({
+        candidateEligible: true,
+        candidateResult: "success",
+        classificationSucceeded: true,
+        lane,
+        classifyResult: "success",
+        docsResult: "skipped",
+        checksResult: "success",
+        smokeResult: "skipped",
+        previewDecisionResult: "success",
+        browserRequired: false,
+      }).passed,
+      true,
+      lane,
+    );
+  }
   assert.equal(
     evaluateFastAggregate({
       classificationSucceeded: true,
@@ -487,6 +541,10 @@ test("development workflow has candidate-only triggers and cancellable PR concur
   assert.match(workflow, /octopus-review-required/);
   assert.match(workflow, /commits\/\$HEAD_SHA\/pulls/);
   assert.match(workflow, /octopus_boundary_satisfied=\$\(gh api/);
+  assert.match(workflow, /PR_BASE_REF: \$\{\{ github\.event\.pull_request\.base\.ref \}\}/);
+  assert.match(workflow, /PR_HEAD_REF: \$\{\{ github\.event\.pull_request\.head\.ref \}\}/);
+  assert.match(workflow, /protected-reconcile/);
+  assert.match(workflow, /ci-script-tested/);
 });
 
 test("development workflow makes browser and preview work path-aware", () => {
@@ -537,7 +595,12 @@ test("trusted preview publisher never executes PR-head code beside credentials",
   );
   assert.match(
     workflow,
-    /applicable=false\\nbase_sha=%s\\nhead_ref=%s\\nhead_sha=%s\\npr_number=%s/,
+    /preview publication is not applicable/,
+  );
+  assert.match(workflow, /publish_status=false/);
+  assert.match(
+    workflow,
+    /publish_status=true\\napplicable=false\\nbase_sha=%s\\nhead_ref=%s\\nhead_sha=%s\\npr_number=%s/,
   );
   assert.match(workflow, /--project-name vinifera-dev/);
   assert.doesNotMatch(workflow, /--project-name vinifera(?:\s|\\)/);
