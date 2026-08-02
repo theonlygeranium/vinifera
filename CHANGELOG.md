@@ -14,6 +14,12 @@
   CI/release-control behavior only; no application route, provider, database,
   credential, billing, DNS, Worker activation, or activation-gate state
   changes.
+- Treat protected-branch reconciliation PRs as frontend-preview
+  non-applicable after live PR identity validation, avoiding failed trusted
+  preview publication runs for `main -> dev` policy reconciles. **Deployment
+  impact:** CI evidence publishing only; no application route, provider,
+  database, credential, billing, DNS, Worker activation, or activation-gate
+  state changes.
 - Streamlined routine publishing and promotion gates so hidden smoke artifacts
   and documentation-only promotions no longer run the full release pipeline:
   `ci.yml` now honors fast `docs` and `promotion-smoke` lanes on staging/main,

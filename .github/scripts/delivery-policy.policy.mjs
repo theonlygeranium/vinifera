@@ -531,6 +531,14 @@ test("trusted preview publisher never executes PR-head code beside credentials",
   assert.match(workflow, /classifyDeliveryChange/);
   assert.match(workflow, /readChangedRecords/);
   assert.match(workflow, /applicable" != "\$trusted_applicable/);
+  assert.match(
+    workflow,
+    /Protected environment branches do not receive frontend preview deployments/,
+  );
+  assert.match(
+    workflow,
+    /applicable=false\\nbase_sha=%s\\nhead_ref=%s\\nhead_sha=%s\\npr_number=%s/,
+  );
   assert.match(workflow, /--project-name vinifera-dev/);
   assert.doesNotMatch(workflow, /--project-name vinifera(?:\s|\\)/);
   assert.match(workflow, /\.vinifera-dev\.pages\.dev/);
