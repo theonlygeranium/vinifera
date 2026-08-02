@@ -16,7 +16,9 @@
   that canonical gate, exact Octopus evidence, staging REST probes, and no
   active requested-changes review, ignoring stale unresolved comment threads
   and unrelated optional check noise. Trusted dev auto-merge follows the same
-  active requested-changes rule. **Deployment impact:** CI/release-control
+  active requested-changes rule. The Octopus PR bridge also accepts timestamp
+  `Review attempt:` markers for manually opened promotion PRs, matching its
+  existing validation contract. **Deployment impact:** CI/release-control
   behavior only; no application route, provider, database, credential, billing,
   DNS, Worker activation, or activation-gate state changes.
 - Made the trusted development auto-merge controller tolerate GitHub branch
