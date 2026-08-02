@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Make trusted development auto-merge fail closed on malformed candidate
+  context evaluation instead of concluding success while skipping the merge.
+  The controller now uses portable jq object syntax for required-context state
+  resolution and explicitly propagates jq/Node evaluation failures. **Deployment
+  impact:** CI controller repair only; no application route, provider,
+  database, credential, billing, DNS, Worker activation, or activation-gate
+  state changes.
 - Treat pull requests that close before trusted frontend preview publication
   as preview non-applicable, preventing successful protected reconciles from
   leaving a late red `Frontend preview evidence` status after merge.
