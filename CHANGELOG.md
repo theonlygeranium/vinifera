@@ -7,6 +7,15 @@
 ## [Unreleased]
 
 ### Fixed
+- Made the trusted development auto-merge controller tolerate GitHub branch
+  protection context lookup denial by falling back to the versioned delivery
+  contract defaults only when the protected-context API response is unavailable
+  or malformed. This prevents a `Resource not accessible by integration`
+  response from being concatenated with fallback JSON and silently making an
+  otherwise eligible candidate unmergeable. **Deployment impact:** CI
+  controller repair only; no application route, provider, database,
+  credential, billing, DNS, Worker activation, or activation-gate state
+  changes.
 - Replaced indented Node heredocs in the trusted development auto-merge
   controller with `node --eval` calls so the controller can revalidate and
   merge eligible exact-head candidates instead of failing on Bash heredoc
@@ -62,6 +71,15 @@
   `git diff --check`.
 
 ### Added
+- Added an unlinked, noindex static promotion smoke artifact at
+  `public/vinifera-promotion-smoke-2026-08-02.html` so the protected
+  `dev -> staging -> main` publishing workflow can be exercised again with a
+  harmless hidden asset. The page uses semantic landmarks, contains no
+  navigation entry points or touch targets, and includes the unique
+  `VINIFERA_PROMOTION_SMOKE_2026_08_02_MARKER` marker for hosted
+  verification. **Deployment impact:** Static asset only; no visible
+  navigation, app route, API, provider, database, credential, billing, DNS,
+  Worker activation, or activation-gate state changes.
 - Added an unlinked, noindex static promotion smoke artifact at
   `public/vinifera-promotion-smoke-2026-08-01.html` so the
   protected `dev → staging → main` publishing workflow can be exercised with a

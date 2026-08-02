@@ -130,9 +130,17 @@ jobs:
             )
 
             local protected_contexts
-            protected_contexts=$(gh api \
+            if ! protected_contexts=$(gh api \
               "repos/$REPOSITORY/branches/dev/protection/required_status_checks" \
-              --jq '.contexts // []' 2>/dev/null || printf '[]')
+              --jq '.contexts // []' 2>/dev/null); then
+              echo "::notice::Could not read dev branch-protection contexts; using delivery contract defaults."
+              protected_contexts="[]"
+            fi
+            if ! jq -e 'type == "array" and all(.[]; type == "string")' \
+              <<<"$protected_contexts" >/dev/null; then
+              echo "::notice::Dev branch-protection contexts were not a string array; using delivery contract defaults."
+              protected_contexts="[]"
+            fi
 
             local required_contexts
             required_contexts=$(CONTRACT_CLASSIFICATION="$classification" \
