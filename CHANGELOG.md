@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Treat empty exact diffs from protected-branch ancestry reconciles as an
+  explicit `noop` validation lane, allowing `Vinifera Promotion Gate` to pass
+  only when every validation job is skipped instead of blocking production
+  promotions on no-op staging/main merge commits. **Deployment impact:**
+  CI/release-control behavior only; no application route, provider, database,
+  credential, billing, DNS, Worker activation, or activation-gate state
+  changes.
 - Streamlined routine publishing and promotion gates so hidden smoke artifacts
   and documentation-only promotions no longer run the full release pipeline:
   `ci.yml` now honors fast `docs` and `promotion-smoke` lanes on staging/main,

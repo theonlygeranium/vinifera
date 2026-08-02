@@ -220,9 +220,21 @@ test("fast aggregate requires the Octopus boundary for authority-high-risk work"
   );
 });
 
-test("malformed, unsupported, unsafe, and empty diffs are invalid", () => {
+test("empty diffs are explicit no-op deliveries", () => {
+  const result = classifyDeliveryChange([]);
+  assert.equal(result.classificationSucceeded, true);
+  assert.equal(result.lane, "noop");
+  assert.equal(result.reason, "empty_diff_noop");
+  assert.equal(result.risk, "low");
+  assert.equal(result.surface, "none");
+  assert.deepEqual(result.paths, []);
+  assert.deepEqual(selectFocusedTests([], "noop"), [
+    ".github/scripts/delivery-policy.policy.mjs",
+  ]);
+});
+
+test("malformed, unsupported, and unsafe diffs are invalid", () => {
   for (const records of [
-    [],
     null,
     [{}],
     [record("U", "README.md")],
@@ -271,6 +283,19 @@ test("focused tests reflect the changed domain", () => {
 });
 
 test("fast aggregate accepts only the selected successful lane", () => {
+  assert.deepEqual(
+    evaluateFastAggregate({
+      classificationSucceeded: true,
+      lane: "noop",
+      classifyResult: "success",
+      docsResult: "skipped",
+      checksResult: "skipped",
+      smokeResult: "skipped",
+      previewDecisionResult: "success",
+      browserRequired: false,
+    }),
+    { passed: true, reason: "noop_passed" },
+  );
   assert.deepEqual(
     evaluateFastAggregate({
       classificationSucceeded: true,
@@ -387,6 +412,18 @@ test("fast aggregate accepts only the selected successful lane", () => {
 });
 
 test("full aggregate rejects skipped required work and permits one mobile lane", () => {
+  assert.deepEqual(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
+      lane: "noop",
+      fullResult: "skipped",
+      mobileRequired: false,
+      mobileWebResult: "skipped",
+      androidResult: "skipped",
+    }),
+    { passed: true, reason: "noop_passed" },
+  );
   assert.equal(
     evaluateFullAggregate({
       classificationSucceeded: true,
