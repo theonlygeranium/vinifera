@@ -1301,6 +1301,10 @@ describe("Octopus runbook bridge", () => {
           Form: {
             Elements: [
               {
+                Name: "form-pr-branch",
+                Control: { Name: "PRBranch", Required: true },
+              },
+              {
                 Name: "form-github-pat",
                 Control: { Name: "GitHubPAT", Sensitive: true, Required: true },
               },
@@ -1327,6 +1331,7 @@ describe("Octopus runbook bridge", () => {
         environment: {
           CF_ACCESS_CLIENT_ID: "access-client-id",
           CF_ACCESS_CLIENT_SECRET: "access-client-secret",
+          GITHUB_REF_NAME: "main",
           GH_PAT_FOR_OCTOPUS: "github-token",
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
@@ -1346,7 +1351,14 @@ describe("Octopus runbook bridge", () => {
     expect(JSON.parse(runCall.options.body)).toMatchObject({
       SelectedGitResources: [],
       SelectedPackages: [],
-      Runs: [{ FormValues: { "form-github-pat": "github-token" } }],
+      Runs: [
+        {
+          FormValues: {
+            "form-github-pat": "github-token",
+            "form-pr-branch": "main",
+          },
+        },
+      ],
     });
   });
 
