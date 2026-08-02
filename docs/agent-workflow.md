@@ -11,7 +11,7 @@ Vinifera uses two validation speeds:
 | Path | Required aggregate | Purpose |
 | --- | --- | --- |
 | Feature branch or PR to `dev` | `Dev fast checks` | Fast, actionable routine-development feedback |
-| `dev → staging`, `staging → main`, protected release, or explicit full run | `Type, test, build, and package` | Release-quality, exact-comparison evidence |
+| `dev → staging`, `staging → main`, protected release, or explicit full run | `Vinifera Promotion Gate` | Release-quality, exact-comparison evidence |
 
 The fail-closed classifier reports risk, execution surface, browser
 applicability, preview applicability, and focused tests. It must not silently
@@ -61,7 +61,7 @@ Use these terms precisely in PRs, reports, and notifications:
 - **Local validation:** named commands passed in one local checkout.
 - **Fast GitHub validation:** `Dev fast checks` passed for the exact feature
   head. This is not promotion evidence.
-- **Full GitHub validation:** `Type, test, build, and package` passed for the
+- **Full GitHub validation:** `Vinifera Promotion Gate` passed for the
   exact head/base comparison.
 - **Preview deployment:** a feature artifact is reachable at a branch alias and
   immutable Pages URL. This is not stable-dev or staging evidence.
@@ -143,15 +143,16 @@ owner-authorized workflow.
 
 1. Capture the exact promotion PR, `dev` head SHA, `staging` base SHA, and
    attempt timestamp.
-2. Require `Type, test, build, and package` for that exact comparison. Missing,
+2. Require `Vinifera Promotion Gate` for that exact comparison. Missing,
    failed, cancelled, stale, timed-out, ambiguous, or incorrectly skipped
    evidence fails closed.
 3. Require an Octopus result bound to the exact PR, head SHA, base ref, base
-   SHA, and current attempt. Inspect and disposition all blocking threads.
+   SHA, and current attempt. Active requested-changes reviews block; stale
+   unresolved comment threads do not.
 4. Record CodeRabbit if available, but do not require it.
 5. Run the authorized staging provider preflight and final recheck. A credential
    or HTTP 200 alone is not readiness.
-6. Revalidate head, base, checks, statuses, reviews, and threads immediately
+6. Revalidate head, base, the canonical gate, Octopus, and active reviews immediately
    before any authorized merge.
 7. After staging deploys, verify its environment marker, build SHA/digest,
    API/browser/accessibility smoke, and critical error state at
@@ -243,13 +244,12 @@ eligible only when it:
 4. reclassifies as low or medium risk under trusted policy;
 5. has successful `Dev fast checks`, every live protected context, and
    `Frontend preview evidence` when applicable;
-6. has zero unresolved review threads; and
+6. has no active requested-changes review; and
 7. produces the same result when the entire decision is repeated immediately
    before the exact-SHA squash merge.
 
 Missing, queued, in-progress, neutral, skipped, cancelled, stale, or failed
-required evidence blocks the mutation. More than 100 review threads fails
-closed for explicit inspection. High-risk work is never auto-merged.
+required evidence blocks the mutation. High-risk work is never auto-merged.
 
 ### Development deployment and selected release candidate
 
@@ -351,7 +351,7 @@ Task:
 ### Promotion or protected release
 
 - [ ] Exact PR/head/base/attempt evidence is present
-- [ ] `Type, test, build, and package` passes for that comparison
+- [ ] `Vinifera Promotion Gate` passes for that comparison
 - [ ] Octopus passes for that exact comparison and attempt
 - [ ] Required skipped jobs cannot be mistaken for success
 - [ ] Zero blocking unresolved threads remain

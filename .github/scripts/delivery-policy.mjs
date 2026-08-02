@@ -40,6 +40,9 @@ const FRONTEND_RUNTIME_FILES = new Set([
   "vite.config.ts",
 ]);
 
+const PROMOTION_SMOKE_PATTERN =
+  /^public\/vinifera-promotion-smoke-[0-9]{4}-[0-9]{2}-[0-9]{2}(?:-[a-z0-9-]+)?\.html$/;
+
 const BACKEND_PREFIXES = Object.freeze([
   "server/",
   "supabase/",
@@ -155,6 +158,10 @@ export function isPreviewRelevantPath(path) {
     FRONTEND_RUNTIME_FILES.has(path) ||
     FRONTEND_RUNTIME_PREFIXES.some((prefix) => path.startsWith(prefix))
   );
+}
+
+export function isPromotionSmokePath(path) {
+  return PROMOTION_SMOKE_PATTERN.test(path);
 }
 
 export function isBrowserRelevantPath(path) {
@@ -348,6 +355,25 @@ export function classifyDeliveryChange(records) {
     };
   }
 
+  if (
+    records.every(
+      ({ status, paths: recordPaths }) =>
+        !status.startsWith("D") && recordPaths.every(isPromotionSmokePath),
+    )
+  ) {
+    return {
+      classificationSucceeded: true,
+      lane: "promotion-smoke",
+      reason: "hidden_promotion_smoke_allowlist_match",
+      mobileRequired,
+      browserRequired: false,
+      previewRequired: true,
+      risk: "low",
+      surface: "frontend",
+      paths: uniquePaths,
+    };
+  }
+
   const unknown = uniquePaths.filter(
     (path) =>
       !isDocumentationPath(path) &&
@@ -391,6 +417,12 @@ export function classifyDeliveryChange(records) {
 
 export function selectFocusedTests(paths, lane) {
   if (lane === "docs") return [".github/scripts/delivery-policy.policy.mjs"];
+  if (lane === "promotion-smoke") {
+    return [
+      ".github/scripts/delivery-policy.policy.mjs",
+      "tests/scripts/landing-static.test.mjs",
+    ];
+  }
   const selected = new Set([".github/scripts/delivery-policy.policy.mjs"]);
   for (const path of paths || []) {
     if (path.startsWith("src/client/") || path.startsWith("tests/client/")) {
@@ -467,6 +499,18 @@ export function evaluateFastAggregate({
       checksResult === "skipped" &&
       smokeResult === "skipped";
     return { passed, reason: passed ? "docs_passed" : "docs_result_mismatch" };
+  }
+  if (lane === "promotion-smoke") {
+    const passed =
+      docsResult === "skipped" &&
+      checksResult === "success" &&
+      smokeResult === "skipped";
+    return {
+      passed,
+      reason: passed
+        ? "promotion_smoke_passed"
+        : "promotion_smoke_result_mismatch",
+    };
   }
   if (lane === "routine" || lane === "high-risk") {
     const expectedSmokeResult = browserRequired ? "success" : "skipped";

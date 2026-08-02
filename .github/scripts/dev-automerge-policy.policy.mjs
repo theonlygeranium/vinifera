@@ -32,7 +32,7 @@ function candidate(overrides = {}) {
       previewRequired: false,
     },
     contexts: [{ name: "Dev fast checks", state: "success" }],
-    unresolvedThreads: 0,
+    activeChangesRequested: 0,
     ...overrides,
   };
 }
@@ -48,7 +48,7 @@ test("machine-readable contract retains all fail-closed boundaries", () => {
   ]);
   assert.equal(contract.sameRepositoryOnly, true);
   assert.equal(contract.requireCurrentBase, true);
-  assert.equal(contract.requireResolvedThreads, true);
+  assert.equal(contract.requireNoActiveChangesRequested, true);
 });
 
 test("eligible exact candidate may merge", () => {
@@ -127,11 +127,14 @@ test("authority, emergency labels, target, repository, and exact base fail close
   }
 });
 
-test("drafts, closed PRs, unresolved threads, pending, skipped, and failed checks block", () => {
+test("drafts, closed PRs, active requested changes, pending, skipped, and failed checks block", () => {
   for (const [expected, overrides] of [
     ["draft_pull_request", { pullRequest: { draft: true } }],
     ["pull_request_not_open", { pullRequest: { state: "closed" } }],
-    ["blocking_review_threads", { unresolvedThreads: 1 }],
+    [
+      "blocking_changes_requested_review",
+      { activeChangesRequested: 1 },
+    ],
     [
       "required_context_pending",
       { contexts: [{ name: "Dev fast checks", state: "pending" }] },
@@ -181,7 +184,7 @@ test("trusted workflow uses no PR-head checkout and revalidates before merge", (
   assert.match(workflow, /contents: write/);
   assert.match(workflow, /pull-requests: write/);
   assert.match(workflow, /readDeliveryRiskContract/);
-  assert.match(workflow, /reviewThreads\(first: 100\)/);
+  assert.match(workflow, /active_changes_requested/);
   assert.match(workflow, /Evaluate exact candidate again immediately before merge/);
   assert.match(workflow, /pulls\/\$PR_NUMBER\/merge/);
   assert.match(workflow, /Could not read dev branch-protection contexts/);

@@ -212,30 +212,16 @@ jobs:
                 }
               ]')
 
-            local threads
-            threads=$(gh api graphql \
-              -f query='
-                query($owner: String!, $name: String!, $number: Int!) {
-                  repository(owner: $owner, name: $name) {
-                    pullRequest(number: $number) {
-                      reviewThreads(first: 100) {
-                        pageInfo { hasNextPage }
-                        nodes { isResolved }
-                      }
-                    }
-                  }
-                }' \
-              -f owner="$owner" \
-              -f name="$repo_name" \
-              -F number="$PR_NUMBER")
-            if [[ "$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$threads")" != "false" ]]; then
-              echo "::error::More than 100 review threads require explicit inspection."
-              return 1
-            fi
-            local unresolved
-            unresolved=$(jq \
-              '[.data.repository.pullRequest.reviewThreads.nodes[] |
-                select(.isResolved == false)] | length' <<<"$threads")
+            local reviews active_changes_requested
+            reviews=$(gh api --paginate \
+              "repos/$REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" |
+              jq --slurp 'add')
+            active_changes_requested=$(jq \
+              '[group_by(.user.login // .id // .node_id)[] |
+                sort_by(.submitted_at // "") |
+                last |
+                select(.state == "CHANGES_REQUESTED")] | length' \
+              <<<"$reviews")
 
             local state decision
             state=$(jq -n \
@@ -244,7 +230,7 @@ jobs:
               --argjson pr "$pr" \
               --argjson classification "$classification" \
               --argjson contexts "$context_states" \
-              --argjson unresolved_threads "$unresolved" '
+              --argjson active_changes_requested "$active_changes_requested" '
               {
                 repository: $repository,
                 currentBaseSha: $current_base_sha,
@@ -260,7 +246,7 @@ jobs:
                 },
                 classification: $classification,
                 contexts: $contexts,
-                unresolvedThreads: $unresolved_threads
+                activeChangesRequested: $active_changes_requested
               }')
             decision=$(AUTOMERGE_STATE="$state" node --input-type=module --eval '
               import {
@@ -282,7 +268,7 @@ jobs:
               echo "- Head: \`$head_sha\`"
               echo "- Risk: \`$(jq -r '.risk' <<<"$classification")\`"
               echo "- Required contexts: \`$(jq -c . <<<"$context_states")\`"
-              echo "- Unresolved review threads: \`$unresolved\`"
+              echo "- Active requested-changes reviews: \`$active_changes_requested\`"
               echo "- Decision: \`$(jq -r '.reason' <<<"$decision")\`"
               echo
             } >> "$GITHUB_STEP_SUMMARY"

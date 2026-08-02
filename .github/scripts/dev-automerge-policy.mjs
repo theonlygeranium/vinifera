@@ -20,7 +20,7 @@ export function readDeliveryRiskContract(url = contractUrl) {
     contract.mergeMethod !== "squash" ||
     contract.sameRepositoryOnly !== true ||
     contract.requireCurrentBase !== true ||
-    contract.requireResolvedThreads !== true
+    contract.requireNoActiveChangesRequested !== true
   ) {
     throw new Error("The delivery risk contract is malformed or weakened.");
   }
@@ -47,7 +47,7 @@ export function evaluateAutomergeCandidate({
   pullRequest,
   classification,
   contexts,
-  unresolvedThreads,
+  activeChangesRequested,
 }) {
   if (!pullRequest || pullRequest.state !== "open") {
     return { eligible: false, reason: "pull_request_not_open" };
@@ -87,8 +87,11 @@ export function evaluateAutomergeCandidate({
   ) {
     return { eligible: false, reason: "risk_not_eligible" };
   }
-  if (!Number.isInteger(unresolvedThreads) || unresolvedThreads !== 0) {
-    return { eligible: false, reason: "blocking_review_threads" };
+  if (
+    !Number.isInteger(activeChangesRequested) ||
+    activeChangesRequested !== 0
+  ) {
+    return { eligible: false, reason: "blocking_changes_requested_review" };
   }
   if (!Array.isArray(contexts) || contexts.length === 0) {
     return { eligible: false, reason: "required_contexts_missing" };

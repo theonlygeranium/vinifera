@@ -38,8 +38,9 @@ describe("promotion workflow smoke contract", () => {
     expect(promotionWorkflow).toContain("Review attempt: ${REVIEW_ATTEMPT}");
   });
 
-  it("requires full CI and Octopus on promotion comparisons", () => {
-    expect(promotionWorkflow).toContain('"Type, test, build, and package"');
+  it("requires the canonical promotion gate and Octopus on promotion comparisons", () => {
+    expect(promotionWorkflow).toContain('"Vinifera Promotion Gate"');
+    expect(promotionWorkflow).toContain("active_changes_requested");
     expect(promotionWorkflow).toContain('"Octopus PR Quality Gates"');
     expect(octopusPromotionWorkflow).toContain(
       "github.event.pull_request.base.ref == 'staging'",
