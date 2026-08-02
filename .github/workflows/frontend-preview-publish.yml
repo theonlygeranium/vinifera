@@ -33,6 +33,7 @@ jobs:
 
       - name: Download unprivileged candidate artifact
         id: download
+        if: github.event.workflow_run.conclusion == 'success'
         continue-on-error: true
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
@@ -54,8 +55,15 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$WORKFLOW_CONCLUSION" != "success" ]]; then
-            echo "::error::Development fast validation did not succeed."
-            exit 1
+            echo "::notice::Development fast validation did not succeed; preview publication is not applicable."
+            printf 'publish_status=false\nhead_sha=%s\n' "$WORKFLOW_HEAD_SHA" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Frontend preview evidence"
+              echo
+              echo "- Policy: \`upstream_dev_validation_$WORKFLOW_CONCLUSION\`"
+              echo "- Exact head: \`$WORKFLOW_HEAD_SHA\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
           if [[ "$DOWNLOAD_OUTCOME" != "success" ]]; then
             echo "::error::The exact candidate artifact is unavailable."
@@ -119,7 +127,7 @@ jobs:
           fi
           if [[ "$head_ref" == "main" || "$head_ref" == "staging" || "$head_ref" == "dev" ]]; then
             echo "::notice::Protected environment branches do not receive frontend preview deployments."
-            printf 'applicable=false\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
+            printf 'publish_status=true\napplicable=false\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
               "$base_sha" "$head_ref" "$head_sha" "$pr_number" \
               >> "$GITHUB_OUTPUT"
             exit 0
@@ -153,7 +161,7 @@ jobs:
             exit 1
           fi
 
-          printf 'applicable=%s\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
+          printf 'publish_status=true\napplicable=%s\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
             "$trusted_applicable" "$base_sha" "$head_ref" "$head_sha" "$pr_number" \
             >> "$GITHUB_OUTPUT"
 
@@ -208,8 +216,13 @@ jobs:
           PR_NUMBER: ${{ steps.validate.outputs.pr_number }}
           BRANCH_URL: ${{ steps.deploy.outputs.branch_url }}
           IMMUTABLE_URL: ${{ steps.deploy.outputs.immutable_url }}
+          PUBLISH_STATUS: ${{ steps.validate.outputs.publish_status }}
         run: |
           set -euo pipefail
+          if [[ "$PUBLISH_STATUS" == "false" ]]; then
+            echo "::notice::Preview status publication skipped for non-success upstream validation."
+            exit 0
+          fi
           state=failure
           description="Preview evidence failed closed"
           if [[ "$VALIDATE_OUTCOME" == "success" && "$APPLICABLE" != "true" ]]; then
@@ -241,6 +254,7 @@ jobs:
           fi
 
       - name: Wake trusted development auto-merge
+        if: steps.validate.outputs.publish_status != 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ steps.validate.outputs.head_sha }}

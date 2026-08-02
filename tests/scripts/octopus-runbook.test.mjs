@@ -1749,7 +1749,8 @@ describe("Octopus workflow trust boundary", () => {
     expect(workflow.match(/persist-credentials: false/g)).toHaveLength(1);
     expect(
       workflow.match(/github\.event\.pull_request\.head\.sha/g),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
+    expect(workflow).toContain("protected-reconcile-status:");
     expect(workflow).toContain(
       "PR_SHA: ${{ github.event.pull_request.head.sha }}",
     );

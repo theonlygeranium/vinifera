@@ -7,6 +7,15 @@
 ## [Unreleased]
 
 ### Fixed
+- Added faster, explicit delivery-control paths for protected branch
+  reconciles and narrow CI-script/test patches. Development validation now
+  recognizes `protected-reconcile` and `ci-script-tested` lanes, avoids
+  unnecessary browser smoke and preview publication, suppresses redundant
+  preview failures for superseded dev runs, and publishes trusted Octopus
+  non-applicability for protected `main/staging -> dev` reconciles.
+  **Deployment impact:** CI/release-control behavior only; no application
+  route, provider, database, credential, billing, DNS, Worker activation, or
+  activation-gate state changes.
 - Treat empty exact diffs from protected-branch ancestry reconciles as an
   explicit `noop` validation lane, allowing `Vinifera Promotion Gate` to pass
   only when every validation job is skipped instead of blocking production

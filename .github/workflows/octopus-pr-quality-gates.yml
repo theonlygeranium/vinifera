@@ -23,6 +23,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  protected-reconcile-status:
+    name: Publish protected reconcile non-applicability
+    if: >-
+      github.event.pull_request.base.ref == 'dev' &&
+      (github.event.pull_request.head.ref == 'main' ||
+       github.event.pull_request.head.ref == 'staging' ||
+       github.event.pull_request.head.ref == 'dev') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.action != 'closed' &&
+      !contains(github.event.pull_request.labels.*.name, 'human-review-required') &&
+      !contains(github.event.pull_request.labels.*.name, 'do-not-merge')
+    runs-on: ubuntu-latest
+
+    permissions:
+      statuses: write
+
+    steps:
+      - name: Publish trusted non-applicability status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$PR_SHA" =~ ^[0-9a-f]{40}$ || ! "$PR_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Pull-request head and base must be exact commit SHAs."
+            exit 1
+          fi
+          gh api --method POST "repos/$REPO/statuses/$PR_SHA" \
+            -f state="success" \
+            -f context="Octopus PR Quality Gates" \
+            -f description="Not applicable protected reconcile PR #$PR_NUMBER $PR_HEAD_REF -> dev@${PR_BASE_SHA:0:12}" \
+            -f target_url="$TARGET_URL"
+
   validate-source:
     name: Validate trusted PR source
     if: >-
@@ -31,7 +69,10 @@ jobs:
       (github.event.pull_request.base.ref == 'main' &&
        github.event.pull_request.head.ref == 'staging') ||
        (github.event.pull_request.base.ref == 'dev' &&
-        contains(github.event.pull_request.labels.*.name, 'octopus-review-required'))) &&
+        contains(github.event.pull_request.labels.*.name, 'octopus-review-required') &&
+        github.event.pull_request.head.ref != 'main' &&
+        github.event.pull_request.head.ref != 'staging' &&
+        github.event.pull_request.head.ref != 'dev')) &&
        github.event.action != 'closed' &&
        !contains(github.event.pull_request.labels.*.name, 'human-review-required') &&
        !contains(github.event.pull_request.labels.*.name, 'do-not-merge')
