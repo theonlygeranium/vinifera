@@ -1305,6 +1305,22 @@ describe("Octopus runbook bridge", () => {
                 Control: { Name: "PRBranch", Required: true },
               },
               {
+                Name: "form-pr-number",
+                Control: { Name: "PRNumber", Required: true },
+              },
+              {
+                Name: "form-base-ref",
+                Control: { Name: "ExpectedBaseRef", Required: true },
+              },
+              {
+                Name: "form-base-sha",
+                Control: { Name: "ExpectedBaseSHA", Required: true },
+              },
+              {
+                Name: "form-head-sha",
+                Control: { Name: "ExpectedHeadSHA", Required: true },
+              },
+              {
                 Name: "form-github-pat",
                 Control: { Name: "GitHubPAT", Sensitive: true, Required: true },
               },
@@ -1332,6 +1348,7 @@ describe("Octopus runbook bridge", () => {
           CF_ACCESS_CLIENT_ID: "access-client-id",
           CF_ACCESS_CLIENT_SECRET: "access-client-secret",
           GITHUB_REF_NAME: "main",
+          GITHUB_SHA: "a".repeat(40),
           GH_PAT_FOR_OCTOPUS: "github-token",
           OCTOPUS_API_KEY: "secret-api-key",
           OCTOPUS_URL: "https://octopus.example.test",
@@ -1354,8 +1371,12 @@ describe("Octopus runbook bridge", () => {
       Runs: [
         {
           FormValues: {
+            "form-base-ref": "main",
+            "form-base-sha": "a".repeat(40),
             "form-github-pat": "github-token",
+            "form-head-sha": "a".repeat(40),
             "form-pr-branch": "main",
+            "form-pr-number": "0",
           },
         },
       ],
