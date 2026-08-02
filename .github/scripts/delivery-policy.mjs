@@ -43,6 +43,11 @@ const FRONTEND_RUNTIME_FILES = new Set([
 const PROMOTION_SMOKE_PATTERN =
   /^public\/vinifera-promotion-smoke-[0-9]{4}-[0-9]{2}-[0-9]{2}(?:-[a-z0-9-]+)?\.html$/;
 
+const STATIC_ROUTING_FILES = new Set([
+  "CHANGELOG.md",
+  "public/_redirects",
+]);
+
 const BACKEND_PREFIXES = Object.freeze([
   "server/",
   "supabase/",
@@ -182,6 +187,22 @@ export function isPreviewRelevantPath(path) {
 
 export function isPromotionSmokePath(path) {
   return PROMOTION_SMOKE_PATTERN.test(path);
+}
+
+function isPromotionSmokeCleanupPath(path) {
+  return isPromotionSmokePath(path) || path === "public/_redirects";
+}
+
+function isPromotionSmokeCleanupRecord({ status, paths }) {
+  if (status === "D") return paths.every(isPromotionSmokePath);
+  if (status === "M" || status === "A") {
+    return paths.every((path) => path === "public/_redirects");
+  }
+  return false;
+}
+
+export function isStaticRoutingPath(path) {
+  return STATIC_ROUTING_FILES.has(path);
 }
 
 export function isBrowserRelevantPath(path) {
@@ -423,6 +444,48 @@ export function classifyDeliveryChange(records, context = {}) {
   }
 
   if (
+    uniquePaths.includes("public/_redirects") &&
+    records.every(
+      ({ status, paths: recordPaths }) =>
+        !status.startsWith("D") && recordPaths.every(isStaticRoutingPath),
+    )
+  ) {
+    return {
+      classificationSucceeded: true,
+      lane: "static-routing",
+      reason: "static_routing_allowlist_match",
+      mobileRequired: false,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "medium",
+      surface: "frontend",
+      paths: uniquePaths,
+    };
+  }
+
+  if (
+    uniquePaths.includes("public/_redirects") &&
+    uniquePaths.some(isPromotionSmokePath) &&
+    uniquePaths.every(isPromotionSmokeCleanupPath) &&
+    records.some(({ status, paths: recordPaths }) =>
+      status === "D" && recordPaths.every(isPromotionSmokePath),
+    ) &&
+    records.every(isPromotionSmokeCleanupRecord)
+  ) {
+    return {
+      classificationSucceeded: true,
+      lane: "promotion-smoke-cleanup",
+      reason: "hidden_promotion_smoke_cleanup_allowlist_match",
+      mobileRequired: false,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "low",
+      surface: "frontend",
+      paths: uniquePaths,
+    };
+  }
+
+  if (
     records.every(
       ({ status, paths: recordPaths }) =>
         !status.startsWith("D") && recordPaths.every(isCiScriptTestPath),
@@ -495,6 +558,12 @@ export function selectFocusedTests(paths, lane) {
     ];
   }
   if (lane === "promotion-smoke") {
+    return [
+      ".github/scripts/delivery-policy.policy.mjs",
+      "tests/scripts/landing-static.test.mjs",
+    ];
+  }
+  if (lane === "static-routing" || lane === "promotion-smoke-cleanup") {
     return [
       ".github/scripts/delivery-policy.policy.mjs",
       "tests/scripts/landing-static.test.mjs",
@@ -596,7 +665,12 @@ export function evaluateFastAggregate({
         : "promotion_smoke_result_mismatch",
     };
   }
-  if (lane === "protected-reconcile" || lane === "ci-script-tested") {
+  if (
+    lane === "protected-reconcile" ||
+    lane === "ci-script-tested" ||
+    lane === "static-routing" ||
+    lane === "promotion-smoke-cleanup"
+  ) {
     const passed =
       docsResult === "skipped" &&
       checksResult === "success" &&
