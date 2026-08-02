@@ -7,6 +7,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Allow redirect-only protected-branch cleanup pushes to satisfy the
+  `static-routing` lane by validating promotion-smoke tombstones dynamically
+  instead of requiring a companion changelog diff or a hardcoded retired-slug
+  list. **Deployment impact:** CI/release-control behavior only; no
+  application route, provider, database, credential, billing, DNS, Worker
+  activation, or activation-gate state changes.
 - Added a dedicated `promotion-smoke-cleanup` validation lane for deleting
   hidden smoke artifacts when the matching extensionless redirect tombstone is
   added, keeping the final drill cleanup out of the full promotion suite while
