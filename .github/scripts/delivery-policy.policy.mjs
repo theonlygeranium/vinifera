@@ -564,6 +564,8 @@ test("development workflow makes browser and preview work path-aware", () => {
   assert.match(preview, /policy_approved_non_applicability/);
   assert.match(preview, /frontend-preview-candidate/);
   assert.match(preview, /Feature preview decision/);
+  assert.match(preview, /candidate_eligible="\$\{CANDIDATE_ELIGIBLE:-false\}"/);
+  assert.match(preview, /--argjson candidate_eligible "\$candidate_eligible"/);
 });
 
 test("trusted preview publisher never executes PR-head code beside credentials", () => {
