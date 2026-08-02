@@ -3,8 +3,12 @@ import { pathToFileURL } from "node:url";
 import { executeConfigAsCodeRunbook } from "./octopus-runbook.mjs";
 
 // ---------------------------------------------------------------------------
-// Security-audit-specific runner (no PR variables required)
+// Security-audit-specific runner
 // ---------------------------------------------------------------------------
+
+function resolveAuditBranch(values) {
+  return values.PR_BRANCH ?? values.GITHUB_REF_NAME ?? "main";
+}
 
 export async function runSecurityAudit({
   environment = process.env,
@@ -17,10 +21,15 @@ export async function runSecurityAudit({
   return executeConfigAsCodeRunbook({
     runbookName: "Security Audit",
     environment,
-    promptedValuesResolver: (_preview, values) =>
-      values.GH_PAT_FOR_OCTOPUS
-        ? { GitHubPAT: values.GH_PAT_FOR_OCTOPUS }
-        : {},
+    promptedValuesResolver: (_preview, values) => {
+      const promptedValues = {
+        PRBranch: resolveAuditBranch(values),
+      };
+      if (values.GH_PAT_FOR_OCTOPUS) {
+        promptedValues.GitHubPAT = values.GH_PAT_FOR_OCTOPUS;
+      }
+      return promptedValues;
+    },
     fetchImpl,
     sleep,
     pollIntervalMs,
