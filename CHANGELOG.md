@@ -7,6 +7,11 @@
 ## [Unreleased]
 
 ### Fixed
+- Treat trusted preview dispatches for closed or moved dev PRs as ineligible
+  instead of failed, preventing successful fast auto-merges from leaving a late
+  red repository-dispatch run. **Deployment impact:** CI controller repair
+  only; no application route, provider, database, credential, billing, DNS,
+  Worker activation, or activation-gate state changes.
 - Added promotion-smoke operator tooling for repeatable hidden artifact drills:
   branch-alignment preflight, production artifact-only preflight, deterministic
   hidden artifact generation, and hosted marker probing with extensionless
