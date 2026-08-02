@@ -103,6 +103,20 @@ test("hidden promotion smoke cleanup selects a bounded fast path", () => {
   ]);
 });
 
+test("promotion smoke cleanup accepts deletion when tombstone already exists", () => {
+  const result = classifyDeliveryChange([
+    record("D", "public/vinifera-promotion-smoke-2026-08-02-stale.html"),
+  ]);
+  assert.equal(result.classificationSucceeded, true);
+  assert.equal(result.lane, "promotion-smoke-cleanup");
+  assert.equal(
+    result.reason,
+    "hidden_promotion_smoke_cleanup_allowlist_match",
+  );
+  assert.equal(result.browserRequired, false);
+  assert.equal(result.previewRequired, false);
+});
+
 test("protected branch reconciles stay on a fast non-mutating lane", () => {
   const result = classifyDeliveryChange(
     [
