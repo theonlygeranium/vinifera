@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Allow promotion-smoke cleanup to delete a hidden smoke artifact when its
+  exact extensionless redirect tombstone already exists in `public/_redirects`,
+  preventing protected branch reconciles from leaving stale `.html` artifacts
+  or falling back to the full validation lane for cleanup-only diffs.
+  **Deployment impact:** CI/release-control behavior only; no application
+  route, provider, database, credential, billing, DNS, Worker activation, or
+  activation-gate state changes.
 - Allow redirect-only protected-branch cleanup pushes to satisfy the
   `static-routing` lane by validating promotion-smoke tombstones dynamically
   instead of requiring a companion changelog diff or a hardcoded retired-slug

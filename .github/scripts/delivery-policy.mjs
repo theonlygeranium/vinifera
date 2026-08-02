@@ -463,13 +463,13 @@ export function classifyDeliveryChange(records, context = {}) {
     };
   }
 
+  const hasPromotionSmokeDeletion = records.some(({ status, paths: recordPaths }) =>
+    status === "D" && recordPaths.every(isPromotionSmokePath),
+  );
   if (
-    uniquePaths.includes("public/_redirects") &&
     uniquePaths.some(isPromotionSmokePath) &&
     uniquePaths.every(isPromotionSmokeCleanupPath) &&
-    records.some(({ status, paths: recordPaths }) =>
-      status === "D" && recordPaths.every(isPromotionSmokePath),
-    ) &&
+    hasPromotionSmokeDeletion &&
     records.every(isPromotionSmokeCleanupRecord)
   ) {
     return {
