@@ -468,10 +468,6 @@ jobs:
             echo "::error::Promotion smoke cleanup must delete at least one hidden smoke artifact."
             exit 1
           fi
-          if ! printf '%s\n' "${cleanup_paths[@]}" | grep -qx 'public/_redirects'; then
-            echo "::error::Promotion smoke cleanup must include a redirect tombstone."
-            exit 1
-          fi
           if printf '%s\n' "${cleanup_paths[@]}" \
             | grep -Ev '^(public/_redirects|public/vinifera-promotion-smoke-[0-9]{4}-[0-9]{2}-[0-9]{2}(-[a-z0-9-]+)?\.html)$' \
             >/tmp/unexpected-cleanup-paths.txt; then
@@ -497,8 +493,9 @@ jobs:
               echo "::error::$artifact still exists after cleanup."
               exit 1
             fi
-            if ! grep -Eq "^\+/${slug}[[:space:]]+/[[:space:]]+302$" /tmp/redirects.diff; then
-              echo "::error::Missing exact redirect tombstone for $slug."
+            if ! grep -Eq "^\+/${slug}[[:space:]]+/[[:space:]]+302$" /tmp/redirects.diff \
+              && ! grep -Eq "^/${slug}[[:space:]]+/[[:space:]]+302$" public/_redirects; then
+              echo "::error::Missing exact redirect tombstone for $slug in the diff or resulting redirects file."
               exit 1
             fi
           done
