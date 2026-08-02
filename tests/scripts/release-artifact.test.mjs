@@ -135,7 +135,7 @@ describe("immutable release artifact", () => {
       ".github/workflows/release-candidate-package.yml",
       "utf8",
     );
-    expect(packager).toContain("Type, test, build, and package");
+    expect(packager).toContain("Vinifera Promotion Gate");
     expect(packager).toContain("Octopus PR Quality Gates");
     expect(packager).toContain("release-candidate-${{ needs.authorize.outputs.candidate_sha }}");
     expect(packager).toContain("release-artifact.mjs create");

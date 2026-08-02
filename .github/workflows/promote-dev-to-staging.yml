@@ -26,8 +26,8 @@ env:
     **Owner-authorized promotion:** dev → staging
 
     This PR was opened by an explicit workflow dispatch. Automation validates
-    the staging Supabase REST probes, required CI and review checks, and
-    unresolved-thread gate for the captured head and base. The final merge
+    the staging Supabase REST probes, canonical promotion gate, Octopus, and
+    active requested-changes review state for the captured head and base. The final merge
     remains human-triggered because GitHub's merge API cannot atomically require
     an expected base SHA.
 
@@ -201,7 +201,7 @@ jobs:
     name: Wait for promotion PR gates
     needs: [open-pr, staging-rest-pre]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     environment: promotion-control
     permissions:
       actions: read
@@ -210,7 +210,7 @@ jobs:
       statuses: read
 
     steps:
-      - name: Poll exact-head CI, review status, and threads
+      - name: Poll exact-head gate, Octopus, and active reviews
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GATE_REQUESTED_AT: ${{ needs.open-pr.outputs.gate_requested_at }}
@@ -222,9 +222,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          deadline=$(( $(date +%s) + 2400 ))
+          deadline=$(( $(date +%s) + 1500 ))
           required_checks=(
-            "Type, test, build, and package"
+            "Vinifera Promotion Gate"
           )
           promotion_checks='[
             "Open or update dev→staging PR",
@@ -236,7 +236,7 @@ jobs:
 
           while true; do
             if (( $(date +%s) > deadline )); then
-              echo "::error::Promotion gates timed out after 40 minutes."
+              echo "::error::Promotion gates timed out after 25 minutes."
               exit 1
             fi
 
@@ -294,35 +294,15 @@ jobs:
                 '[.[] | select(.created_at >= $gate_requested_at)]
                  | group_by(.context)
                  | map(sort_by(.created_at) | last)')
-            threads=$(gh api graphql \
-              -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved} pageInfo{hasNextPage}}}}}' \
-              -f owner="${REPO%%/*}" \
-              -f name="${REPO#*/}" \
-              -F number="$PR_NUMBER")
-            if [[ "$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$threads")" == "true" ]]; then
-              echo "::error::Review thread count exceeds the validated 100-thread page."
-              exit 1
-            fi
-            unresolved=$(jq \
-              '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length' \
-              <<<"$threads")
-            failed_checks=$(jq -r \
-              '[.[] |
-                select(.name | test("coderabbit"; "i") | not) |
-                select(.status == "completed" and (.conclusion | IN("success","skipped","neutral") | not)) |
-                .name] | join(", ")' \
-              <<<"$checks")
-            failed_statuses=$(jq -r \
-              '[.[] |
-                select(.context | test("coderabbit"; "i") | not) |
-                select(.state | IN("failure","error")) |
-                .context] | unique | join(", ")' \
-              <<<"$statuses")
-            if [[ -n "$failed_checks" || -n "$failed_statuses" ]]; then
-              echo "::error::Failed gates — checks: ${failed_checks:-none}; statuses: ${failed_statuses:-none}."
-              exit 1
-            fi
-
+            reviews=$(gh api --paginate \
+              "repos/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" |
+              jq --slurp 'add')
+            active_changes_requested=$(jq \
+              '[group_by(.user.login // .id // .node_id)[] |
+                sort_by(.submitted_at // "") |
+                last |
+                select(.state == "CHANGES_REQUESTED")] | length' \
+              <<<"$reviews")
             missing=()
             pending=()
             required_failed=()
@@ -356,7 +336,7 @@ jobs:
             ci_source_valid=false
             ci_candidate=$(jq -c \
               '[.[] |
-                select(.name == "Type, test, build, and package") |
+                select(.name == "Vinifera Promotion Gate") |
                 select(.app.slug == "github-actions")] | last // {}' \
               <<<"$checks")
             ci_details_url=$(jq -r '.details_url // ""' <<<"$ci_candidate")
@@ -372,7 +352,7 @@ jobs:
                 && "$(jq -r '.status' <<<"$ci_run")" == "completed" \
                 && "$(jq -r '.conclusion' <<<"$ci_run")" == "success" ]] \
                 && jq -e \
-                  'any(.[]; .name == "Type, test, build, and package" and .conclusion == "success")' \
+                  'any(.[]; .name == "Vinifera Promotion Gate" and .conclusion == "success")' \
                   <<<"$ci_jobs" >/dev/null; then
                 ci_source_valid=true
               fi
@@ -415,28 +395,20 @@ jobs:
               fi
             fi
             expected_octopus_description="Runbook completed PR #$PR_NUMBER staging@$PR_BASE_SHA attempt $REVIEW_ATTEMPT"
-            other_pending=$(jq \
-              '[.[] |
-                select(.name | test("coderabbit"; "i") | not) |
-                select(.status != "completed")] | length' <<<"$checks")
-            pending_statuses=$(jq \
-              '[.[] |
-                select(.context | test("coderabbit"; "i") | not) |
-                select(.state == "pending")] | length' <<<"$statuses")
 
-            echo "Required missing=${#missing[@]} pending=${#pending[@]} trusted_source=$ci_source_valid; Octopus=$octopus trusted_source=$octopus_source_valid ($octopus_description); other pending checks=$other_pending statuses=$pending_statuses; unresolved threads=$unresolved"
+            echo "Required missing=${#missing[@]} pending=${#pending[@]} trusted_source=$ci_source_valid; Octopus=$octopus trusted_source=$octopus_source_valid ($octopus_description); active changes requested reviews=$active_changes_requested"
 
             if (( ${#missing[@]} == 0 && ${#pending[@]} == 0 )) \
               && [[ "$ci_source_valid" == "true" ]] \
               && [[ "$octopus" == "success" ]] \
               && [[ "$octopus_source_valid" == "true" ]] \
               && [[ "$octopus_description" == "$expected_octopus_description" ]] \
-              && (( other_pending == 0 && pending_statuses == 0 && unresolved == 0 )); then
-              echo "### PR gates: ✅ exact-head CI, Octopus, and threads passed (CodeRabbit optional)" >> "$GITHUB_STEP_SUMMARY"
+              && (( active_changes_requested == 0 )); then
+              echo "### PR gates: ✅ exact-head promotion gate, Octopus, and active review state passed (CodeRabbit optional)" >> "$GITHUB_STEP_SUMMARY"
               break
             fi
 
-            sleep 20
+            sleep 15
           done
 
   staging-rest-pre-merge:
@@ -556,40 +528,28 @@ jobs:
               '[.[] | select(.created_at >= $gate_requested_at)]
                | group_by(.context)
                | map(sort_by(.created_at) | last)')
-          review_state=$(gh api graphql \
-            -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved} pageInfo{hasNextPage}}}}}' \
-            -f owner="${REPO%%/*}" \
-            -f name="${REPO#*/}" \
-            -F number="$PR_NUMBER")
-          if [[ "$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$review_state")" == "true" ]]; then
-            echo "::error::Review state exceeds the validated 100-item pages."
-            exit 1
-          fi
+          reviews=$(gh api --paginate \
+            "repos/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" |
+            jq --slurp 'add')
+          active_changes_requested=$(jq \
+            '[group_by(.user.login // .id // .node_id)[] |
+              sort_by(.submitted_at // "") |
+              last |
+              select(.state == "CHANGES_REQUESTED")] | length' \
+            <<<"$reviews")
 
           required_success=$(jq \
             '[.[] |
-              select(.name == "Type, test, build, and package") |
+              select(.name == "Vinifera Promotion Gate") |
               select(.app.slug == "github-actions") |
               select(.status == "completed" and .conclusion == "success")] | length' \
-            <<<"$checks")
-          invalid_checks=$(jq \
-            '[.[] |
-              select(.name | test("coderabbit"; "i") | not) |
-              select(.status != "completed" or (.conclusion | IN("success","skipped","neutral") | not))] | length' \
             <<<"$checks")
           octopus_success=$(jq --arg expected "Runbook completed PR #$PR_NUMBER staging@$PR_BASE_SHA attempt $REVIEW_ATTEMPT" \
             '[.[] | select(.context == "Octopus PR Quality Gates" and .state == "success" and .description == $expected)] | length' \
             <<<"$statuses")
-          invalid_statuses=$(jq \
-            '[.[] |
-              select(.context | test("coderabbit"; "i") | not) |
-              select(.state != "success")] | length' <<<"$statuses")
-          unresolved=$(jq \
-            '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length' \
-            <<<"$review_state")
           ci_candidate=$(jq -c \
             '[.[] |
-              select(.name == "Type, test, build, and package") |
+              select(.name == "Vinifera Promotion Gate") |
               select(.app.slug == "github-actions")] | last // {}' \
             <<<"$checks")
           ci_details_url=$(jq -r '.details_url // ""' <<<"$ci_candidate")
@@ -606,7 +566,7 @@ jobs:
               && "$(jq -r '.status' <<<"$ci_run")" == "completed" \
               && "$(jq -r '.conclusion' <<<"$ci_run")" == "success" ]] \
               && jq -e \
-                'any(.[]; .name == "Type, test, build, and package" and .conclusion == "success")' \
+                'any(.[]; .name == "Vinifera Promotion Gate" and .conclusion == "success")' \
                 <<<"$ci_jobs" >/dev/null; then
               ci_source_valid=true
             fi
@@ -642,9 +602,9 @@ jobs:
             fi
           fi
 
-          if (( required_success == 0 || invalid_checks > 0 \
-            || octopus_success == 0 || invalid_statuses > 0 \
-            || unresolved > 0 )) \
+          if (( required_success == 0 \
+            || octopus_success == 0 \
+            || active_changes_requested > 0 )) \
             || [[ "$ci_source_valid" != "true" \
               || "$octopus_source_valid" != "true" ]]; then
             echo "::error::Promotion gates changed after polling; readiness is no longer valid."

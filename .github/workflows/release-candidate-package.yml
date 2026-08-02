@@ -76,7 +76,7 @@ jobs:
             "repos/$REPOSITORY/commits/$CANDIDATE_SHA/statuses?per_page=100" |
             jq -s 'add')
           full=$(jq -r '
-            [.[] | select(.name == "Type, test, build, and package")] |
+            [.[] | select(.name == "Vinifera Promotion Gate")] |
             sort_by(.started_at // .created_at) | last |
             if .status == "completed" and .conclusion == "success"
             then "success" else "failure" end

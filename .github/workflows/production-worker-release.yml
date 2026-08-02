@@ -368,7 +368,7 @@ jobs:
             || "$(jq -r '.status' <<<"$staging_run")" != "completed" \
             || "$(jq -r '.conclusion' <<<"$staging_run")" != "success" ]] \
             || ! jq -e \
-              'any(.[]; .name == "Type, test, build, and package" and .conclusion == "success")' \
+              'any(.[]; .name == "Vinifera Promotion Gate" and .conclusion == "success")' \
               <<<"$staging_jobs" >/dev/null \
             || ! jq -e \
               'any(.[]; .name == "Deploy Worker when activated" and .conclusion == "success")' \

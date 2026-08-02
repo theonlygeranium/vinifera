@@ -46,7 +46,7 @@ The public custom domain continues to serve the verified static Cloudflare Pages
 5. **Update CHANGELOG.md once per logical PR or promotion.** The final reviewed diff must contain one consolidated `[Unreleased]` entry; intermediate WIP commits do not each add duplicate entries.
 6. **Preserve WCAG compliance.** All pages must pass axe-core with 0 WCAG 2.1 AA violations. Run the fast browser smoke for routine visual PRs and the complete Playwright/axe suite before promotion.
 7. **Test on mobile.** Every visual change must be verified at 375px viewport width. Touch targets must meet 44×44px (WCAG 2.5.5).
-8. **Own every PR through completion.** Opening a PR is not completion. Use an available wait or monitoring mechanism until the applicable exact-head checks and reviews pass and zero blocking review threads remain. Routine ready `dev` candidates require `Dev fast checks`; frontend-relevant candidates also require exact-head `Frontend preview evidence`, while the same status reports policy-approved non-applicability for other surfaces. Promotions require `Type, test, build, and package` plus Octopus. Explicitly classified or labeled high-risk work also requires Octopus. CodeRabbit is optional and non-blocking while unavailable or rate-limited. Follow `docs/agent-workflow.md`.
+8. **Own every PR through completion.** Opening a PR is not completion. Use an available wait or monitoring mechanism until the applicable exact-head checks and reviews pass and there are no active requested-changes reviews. Routine ready `dev` candidates require `Dev fast checks`; frontend-relevant candidates also require exact-head `Frontend preview evidence`, while the same status reports policy-approved non-applicability for other surfaces. Promotions require `Vinifera Promotion Gate` plus Octopus. Explicitly classified or labeled high-risk work also requires Octopus. CodeRabbit is optional and non-blocking while unavailable or rate-limited. Follow `docs/agent-workflow.md`.
 9. **Protect hosted activation.** Provider and environment mutations must run only through the applicable protected, fail-closed workflow under explicit task authority or a standing owner-approved automation contract. Production, live billing, destructive data operations, credential rotation, and DNS/domain ownership changes retain their independent confirmations and protection. `human-review-required` pauses automation and `do-not-merge` is absolute.
 10. **Respect tenant isolation.** Every database query that touches member, shipment, billing, or integration data must be scoped to `brand_id`. Missing `brand_id` predicates are a critical defect. Octopus is configured to flag these — always resolve them before merging.
 
@@ -187,7 +187,7 @@ workflows under `.github/workflows/`:
 | `dev-worker-release.yml` | Completed development deployment candidate | Prepared-disabled trusted immutable Worker upload, deploy, hosted verification, evidence, and automatic rollback |
 | `release-candidate-package.yml` | Manual, trusted default branch | Packages one exact fully certified `dev → staging` candidate without environment rebuild |
 | `delivery-control-center.yml` | Scheduled, manual | Maintains one exception-oriented delivery status issue |
-| `ci.yml` | Promotion PRs, staging/main, manual, nightly | Full release validation, selective/nightly Android, and the exact `Type, test, build, and package` aggregate |
+| `ci.yml` | Promotion PRs, staging/main, manual, nightly | Full release validation, selective/nightly Android, hidden promotion-smoke fast validation, and the exact `Vinifera Promotion Gate` aggregate |
 | `direct-push-guard.yml` | Push to main | Enforces no direct commits reach main without a merged PR; fails closed |
 | `hosted-readiness.yml` | Manual, protected | Read-only credential and hosted-target readiness report; performs no migration or deployment |
 | `octopus-main-deploy.yml` | Push to main, manual | Reconcile trusted Octopus configuration after the default-branch bootstrap |
@@ -231,7 +231,7 @@ Four Cloudflare Pages projects serve four distinct purposes:
 - **Fast GitHub validation:** the exact-head `Dev fast checks` aggregate for a
   feature PR. It is not promotion evidence.
 - **Full GitHub validation:** the exact-head/exact-base
-  `Type, test, build, and package` aggregate for a promotion or protected
+  `Vinifera Promotion Gate` aggregate for a promotion or protected
   release comparison.
 - **Preview deployment:** a branch alias plus immutable Pages deployment URL.
   It is not the stable dev environment and must not use production data.
@@ -310,7 +310,7 @@ feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
 - `codex-auto-merge` is standing owner authority only for a low- or medium-risk
   same-repository PR to `dev` after trusted automation revalidates the live
   head/base, exact required checks, applicable preview evidence, labels, and
-  zero blocking threads immediately before merge.
+  no active requested-changes reviews immediately before merge.
 - `.github/delivery-risk-contract.json` is the machine-readable merge
   authority contract. Missing, skipped, neutral, pending, cancelled, stale, or
   failed required evidence blocks merge. High-risk candidates never auto-merge.
@@ -321,11 +321,11 @@ feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
      event-producing token and captures the exact head, staging base, and
      readiness-attempt timestamp.
   2. Probes the configured staging Supabase REST endpoint — fails closed if it is unavailable.
-  3. Waits for the full aggregate, Octopus, all required checks/statuses,
-     and zero unresolved review threads produced for that exact comparison and
-     readiness attempt. CodeRabbit evidence may be recorded but is optional.
+  3. Waits for `Vinifera Promotion Gate`, Octopus, and no active
+     requested-changes review for that exact comparison and readiness attempt.
+     CodeRabbit evidence may be recorded but is optional.
   4. Re-probes staging Supabase REST immediately before reporting readiness.
-  5. Revalidates the captured head/base, checks, statuses, reviews, and threads
+  5. Revalidates the captured head/base, canonical gate, Octopus, and active reviews
      after the second probe before any authorized merge.
 - `staging → main` and production remain protected operations. They require
   explicit task authority or an owner-approved protected workflow, the full
@@ -422,7 +422,7 @@ a separate consolidated release-candidate operation.
 
 Readiness for `dev → staging` is initiated manually or through an explicitly
 owner-authorized workflow. It requires staging REST health twice, exact
-head/base full CI, Octopus, and zero blocking threads. Production remains
+head/base `Vinifera Promotion Gate`, Octopus, and no active requested-changes review. Production remains
 protected and owner-authorized. Emergency labels always override standing
 automation authority.
 

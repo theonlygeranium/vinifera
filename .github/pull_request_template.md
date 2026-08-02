@@ -16,7 +16,7 @@
 
 - [ ] Local validation — exact commands/results:
 - [ ] Fast GitHub validation — `Dev fast checks`:
-- [ ] Full GitHub validation — `Type, test, build, and package`:
+- [ ] Full GitHub validation — `Vinifera Promotion Gate`:
 - [ ] Preview deployment — branch alias:
 - [ ] Preview deployment — immutable URL:
 - [ ] Staging deployment — marker, SHA/digest, and API health:
