@@ -77,8 +77,9 @@ jobs:
               || "$(jq -r '.base.ref' <<<"$dispatched_pr")" != "dev" \
               || "$(jq -r '.head.sha' <<<"$dispatched_pr")" != "$DISPATCH_HEAD_SHA" \
               || "$(jq -r '.head.repo.full_name' <<<"$dispatched_pr")" != "$REPOSITORY" ]]; then
-              echo "::error::Preview dispatch does not match the live PR."
-              exit 1
+              echo "::notice::Preview dispatch no longer matches an open dev PR at this head."
+              echo "eligible=false" >> "$GITHUB_OUTPUT"
+              exit 0
             fi
           fi
           if [[ ! "$pr_number" =~ ^[1-9][0-9]*$ ]]; then
@@ -329,12 +330,16 @@ jobs:
           steps.evaluate.outputs.eligible == 'true' &&
           steps.evaluate.outcome == 'success'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           HEAD_SHA: ${{ steps.evaluate.outputs.head_sha }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::GH_PAT_FOR_OCTOPUS is required so the dev merge emits normal push workflows, including Development deployment candidate evidence."
+            exit 1
+          fi
           response=$(gh api \
             --method PUT \
             -H "Accept: application/vnd.github+json" \
