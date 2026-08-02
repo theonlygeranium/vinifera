@@ -133,12 +133,12 @@ jobs:
             if ! protected_contexts=$(gh api \
               "repos/$REPOSITORY/branches/dev/protection/required_status_checks" \
               --jq '.contexts // []' 2>/dev/null); then
-              echo "::notice::Could not read dev branch-protection contexts; using delivery contract defaults."
+              echo "::notice::Could not read dev branch-protection contexts; using delivery contract defaults." >&2
               protected_contexts="[]"
             fi
             if ! jq -e 'type == "array" and all(.[]; type == "string")' \
               <<<"$protected_contexts" >/dev/null; then
-              echo "::notice::Dev branch-protection contexts were not a string array; using delivery contract defaults."
+              echo "::notice::Dev branch-protection contexts were not a string array; using delivery contract defaults." >&2
               protected_contexts="[]"
             fi
 
