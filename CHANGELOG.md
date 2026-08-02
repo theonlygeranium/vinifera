@@ -7,6 +7,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Route retired extensionless promotion-smoke URLs away from cached static
+  smoke pages so artifact cleanup removes the public marker even when
+  Cloudflare Pages still has an older extensionless asset cached. **Deployment
+  impact:** static routing cleanup only; no application route, provider,
+  database, credential, billing, DNS, Worker activation, or activation-gate
+  state changes.
 - Treat preview metadata for not-yet-ready development candidates as
   non-applicable instead of passing an empty JSON value to jq, preventing early
   pull-request event races from leaving red `Feature preview decision` and
