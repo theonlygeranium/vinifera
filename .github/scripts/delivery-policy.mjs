@@ -40,6 +40,9 @@ const FRONTEND_RUNTIME_FILES = new Set([
   "vite.config.ts",
 ]);
 
+const PROMOTION_SMOKE_PATTERN =
+  /^public\/vinifera-promotion-smoke-[0-9]{4}-[0-9]{2}-[0-9]{2}(?:-[a-z0-9-]+)?\.html$/;
+
 const BACKEND_PREFIXES = Object.freeze([
   "server/",
   "supabase/",
@@ -157,6 +160,10 @@ export function isPreviewRelevantPath(path) {
   );
 }
 
+export function isPromotionSmokePath(path) {
+  return PROMOTION_SMOKE_PATTERN.test(path);
+}
+
 export function isBrowserRelevantPath(path) {
   return (
     isPreviewRelevantPath(path) ||
@@ -269,16 +276,29 @@ export function readChangedRecords(baseSha, headSha, cwd = process.cwd()) {
 }
 
 export function classifyDeliveryChange(records) {
-  if (!Array.isArray(records) || records.length === 0) {
+  if (!Array.isArray(records)) {
     return {
       classificationSucceeded: false,
       lane: "invalid",
-      reason: "empty_or_missing_diff",
+      reason: "malformed_diff_record",
       mobileRequired: false,
       browserRequired: false,
       previewRequired: false,
       risk: "high",
       surface: "unknown",
+      paths: [],
+    };
+  }
+  if (records.length === 0) {
+    return {
+      classificationSucceeded: true,
+      lane: "noop",
+      reason: "empty_diff_noop",
+      mobileRequired: false,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "low",
+      surface: "none",
       paths: [],
     };
   }
@@ -348,6 +368,25 @@ export function classifyDeliveryChange(records) {
     };
   }
 
+  if (
+    records.every(
+      ({ status, paths: recordPaths }) =>
+        !status.startsWith("D") && recordPaths.every(isPromotionSmokePath),
+    )
+  ) {
+    return {
+      classificationSucceeded: true,
+      lane: "promotion-smoke",
+      reason: "hidden_promotion_smoke_allowlist_match",
+      mobileRequired,
+      browserRequired: false,
+      previewRequired: true,
+      risk: "low",
+      surface: "frontend",
+      paths: uniquePaths,
+    };
+  }
+
   const unknown = uniquePaths.filter(
     (path) =>
       !isDocumentationPath(path) &&
@@ -390,7 +429,14 @@ export function classifyDeliveryChange(records) {
 }
 
 export function selectFocusedTests(paths, lane) {
+  if (lane === "noop") return [".github/scripts/delivery-policy.policy.mjs"];
   if (lane === "docs") return [".github/scripts/delivery-policy.policy.mjs"];
+  if (lane === "promotion-smoke") {
+    return [
+      ".github/scripts/delivery-policy.policy.mjs",
+      "tests/scripts/landing-static.test.mjs",
+    ];
+  }
   const selected = new Set([".github/scripts/delivery-policy.policy.mjs"]);
   for (const path of paths || []) {
     if (path.startsWith("src/client/") || path.startsWith("tests/client/")) {
@@ -468,6 +514,25 @@ export function evaluateFastAggregate({
       smokeResult === "skipped";
     return { passed, reason: passed ? "docs_passed" : "docs_result_mismatch" };
   }
+  if (lane === "noop") {
+    const passed =
+      docsResult === "skipped" &&
+      checksResult === "skipped" &&
+      smokeResult === "skipped";
+    return { passed, reason: passed ? "noop_passed" : "noop_result_mismatch" };
+  }
+  if (lane === "promotion-smoke") {
+    const passed =
+      docsResult === "skipped" &&
+      checksResult === "success" &&
+      smokeResult === "skipped";
+    return {
+      passed,
+      reason: passed
+        ? "promotion_smoke_passed"
+        : "promotion_smoke_result_mismatch",
+    };
+  }
   if (lane === "routine" || lane === "high-risk") {
     const expectedSmokeResult = browserRequired ? "success" : "skipped";
     const passed =
@@ -485,6 +550,7 @@ export function evaluateFastAggregate({
 export function evaluateFullAggregate({
   classificationSucceeded,
   classifyResult,
+  lane = "full",
   fullResult,
   mobileRequired,
   mobileWebResult,
@@ -492,6 +558,13 @@ export function evaluateFullAggregate({
 }) {
   if (classifyResult !== "success" || classificationSucceeded !== true) {
     return { passed: false, reason: "classification_failed" };
+  }
+  if (lane === "noop") {
+    const passed =
+      fullResult === "skipped" &&
+      mobileWebResult === "skipped" &&
+      androidResult === "skipped";
+    return { passed, reason: passed ? "noop_passed" : "noop_result_mismatch" };
   }
   if (fullResult !== "success") {
     return { passed: false, reason: "full_validation_not_successful" };

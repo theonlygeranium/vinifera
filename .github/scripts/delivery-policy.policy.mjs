@@ -9,6 +9,7 @@ import {
   isAuthorityHighRiskPath,
   isBrowserRelevantPath,
   isHighRiskPath,
+  isPromotionSmokePath,
   isPreviewRelevantPath,
   parseNameStatusZ,
   selectFocusedTests,
@@ -32,14 +33,32 @@ test("routine frontend changes select the fast routine lane", () => {
 
 test("documentation-only changes select the documentation lane", () => {
   const result = classifyDeliveryChange([
-      record("M", "README.md"),
-      record("A", "docs/runbooks/fast-ci.md"),
-    ]);
+    record("M", "README.md"),
+    record("A", "docs/runbooks/fast-ci.md"),
+  ]);
   assert.equal(result.lane, "docs");
   assert.equal(result.risk, "low");
   assert.equal(result.surface, "docs");
   assert.equal(result.browserRequired, false);
   assert.equal(result.previewRequired, false);
+});
+
+test("hidden promotion smoke artifacts select the smoke fast path", () => {
+  const result = classifyDeliveryChange([
+    record("A", "public/vinifera-promotion-smoke-2026-08-02.html"),
+  ]);
+  assert.equal(result.classificationSucceeded, true);
+  assert.equal(result.lane, "promotion-smoke");
+  assert.equal(result.reason, "hidden_promotion_smoke_allowlist_match");
+  assert.equal(result.risk, "low");
+  assert.equal(result.surface, "frontend");
+  assert.equal(result.browserRequired, false);
+  assert.equal(result.previewRequired, true);
+  assert.equal(
+    isPromotionSmokePath("public/vinifera-promotion-smoke-2026-08-02-extra.html"),
+    true,
+  );
+  assert.equal(isPromotionSmokePath("public/smoke.html"), false);
 });
 
 test("candidate events distinguish draft WIP from coherent review heads", () => {
@@ -201,9 +220,21 @@ test("fast aggregate requires the Octopus boundary for authority-high-risk work"
   );
 });
 
-test("malformed, unsupported, unsafe, and empty diffs are invalid", () => {
+test("empty diffs are explicit no-op deliveries", () => {
+  const result = classifyDeliveryChange([]);
+  assert.equal(result.classificationSucceeded, true);
+  assert.equal(result.lane, "noop");
+  assert.equal(result.reason, "empty_diff_noop");
+  assert.equal(result.risk, "low");
+  assert.equal(result.surface, "none");
+  assert.deepEqual(result.paths, []);
+  assert.deepEqual(selectFocusedTests([], "noop"), [
+    ".github/scripts/delivery-policy.policy.mjs",
+  ]);
+});
+
+test("malformed, unsupported, and unsafe diffs are invalid", () => {
   for (const records of [
-    [],
     null,
     [{}],
     [record("U", "README.md")],
@@ -252,6 +283,32 @@ test("focused tests reflect the changed domain", () => {
 });
 
 test("fast aggregate accepts only the selected successful lane", () => {
+  assert.deepEqual(
+    evaluateFastAggregate({
+      classificationSucceeded: true,
+      lane: "noop",
+      classifyResult: "success",
+      docsResult: "skipped",
+      checksResult: "skipped",
+      smokeResult: "skipped",
+      previewDecisionResult: "success",
+      browserRequired: false,
+    }),
+    { passed: true, reason: "noop_passed" },
+  );
+  assert.deepEqual(
+    evaluateFastAggregate({
+      classificationSucceeded: true,
+      lane: "promotion-smoke",
+      classifyResult: "success",
+      docsResult: "skipped",
+      checksResult: "success",
+      smokeResult: "skipped",
+      previewDecisionResult: "success",
+      browserRequired: false,
+    }),
+    { passed: true, reason: "promotion_smoke_passed" },
+  );
   assert.equal(
     evaluateFastAggregate({
       classificationSucceeded: true,
@@ -355,6 +412,18 @@ test("fast aggregate accepts only the selected successful lane", () => {
 });
 
 test("full aggregate rejects skipped required work and permits one mobile lane", () => {
+  assert.deepEqual(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
+      lane: "noop",
+      fullResult: "skipped",
+      mobileRequired: false,
+      mobileWebResult: "skipped",
+      androidResult: "skipped",
+    }),
+    { passed: true, reason: "noop_passed" },
+  );
   assert.equal(
     evaluateFullAggregate({
       classificationSucceeded: true,
@@ -478,7 +547,9 @@ test("full workflow excludes dev pushes and retains promotion-grade coverage", (
   assert.match(workflow, /push:\n\s+branches: \[staging, main\]/);
   assert.doesNotMatch(workflow, /branches: \[dev(?:,|\])/);
   assert.match(workflow, /schedule:\n\s+- cron:/);
-  assert.match(workflow, /name: Type, test, build, and package/);
+  assert.match(workflow, /name: Vinifera Promotion Gate/);
+  assert.match(workflow, /promotion-smoke/);
+  assert.match(workflow, /Hidden promotion smoke validation/);
   for (const command of [
     "npm run qa:db:phase1",
     "npm run qa:db:phase2",

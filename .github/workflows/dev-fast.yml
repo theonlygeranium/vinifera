@@ -260,7 +260,9 @@ jobs:
     needs: classify
     if: >-
       needs.classify.outputs.classification_succeeded == 'true' &&
-      (needs.classify.outputs.lane == 'routine' || needs.classify.outputs.lane == 'high-risk')
+      (needs.classify.outputs.lane == 'routine' ||
+       needs.classify.outputs.lane == 'high-risk' ||
+       needs.classify.outputs.lane == 'promotion-smoke')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:

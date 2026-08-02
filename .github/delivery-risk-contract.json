@@ -10,5 +10,5 @@
   "mergeMethod": "squash",
   "sameRepositoryOnly": true,
   "requireCurrentBase": true,
-  "requireResolvedThreads": true
+  "requireNoActiveChangesRequested": true
 }
