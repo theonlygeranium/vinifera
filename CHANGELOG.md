@@ -7,6 +7,15 @@
 ## [Unreleased]
 
 ### Fixed
+- Added promotion-smoke operator tooling for repeatable hidden artifact drills:
+  branch-alignment preflight, production artifact-only preflight, deterministic
+  hidden artifact generation, and hosted marker probing with extensionless
+  redirect and propagation retries. Trusted development auto-merge now uses the
+  event-producing promotion token for the final merge so downstream dev push
+  evidence, including `Development deployment candidate`, is emitted for
+  automerged candidates. **Deployment impact:** CI/release-control behavior
+  only; no application route, provider, database, credential, billing, DNS,
+  Worker activation, or activation-gate state changes.
 - Make trusted development auto-merge fail closed on malformed candidate
   context evaluation instead of concluding success while skipping the merge.
   The controller now uses portable jq object syntax for required-context state
