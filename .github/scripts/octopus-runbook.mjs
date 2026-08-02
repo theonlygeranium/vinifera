@@ -315,7 +315,7 @@ export async function executeConfigAsCodeRunbook({
     throw new Error("Octopus runbook response did not include a task ID");
   }
 
-  log(`Octopus runbook queued: ${runbookName}`);
+  log(`Octopus runbook queued: ${runbookName} task=${run.TaskId}`);
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const task = await requestJson(
@@ -324,11 +324,11 @@ export async function executeConfigAsCodeRunbook({
       authenticationHeaders,
     );
     if (task.State === "Success") {
-      log(`Octopus runbook passed: ${runbookName}`);
+      log(`Octopus runbook passed: ${runbookName} task=${run.TaskId}`);
       return { runId: run.Id, taskId: run.TaskId, state: task.State };
     }
     if (TERMINAL_FAILURE_STATES.has(task.State)) {
-      throw new Error(`Octopus runbook ended in state: ${task.State}`);
+      throw new Error(`Octopus runbook ended in state: ${task.State} task=${run.TaskId}`);
     }
     await sleep(pollIntervalMs);
   }
