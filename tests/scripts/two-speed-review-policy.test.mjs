@@ -43,6 +43,34 @@ describe("two-speed Octopus review policy", () => {
     expect(workflow).toContain("needs.validate-source.result != 'skipped'");
   });
 
+  it("publishes a success status instead of running Octopus for protected branch reconciles", () => {
+    expect(workflow).toContain("protected-reconcile-status:");
+    expect(workflow).toContain(
+      "Publish protected reconcile non-applicability",
+    );
+    expect(workflow).toContain(
+      "github.event.pull_request.base.ref == 'dev'",
+    );
+    expect(workflow).toContain(
+      "github.event.pull_request.head.ref == 'main'",
+    );
+    expect(workflow).toContain(
+      "github.event.pull_request.head.ref == 'staging'",
+    );
+    expect(workflow).toContain(
+      'description="Not applicable protected reconcile PR #$PR_NUMBER $PR_HEAD_REF -> dev@${PR_BASE_SHA:0:12}"',
+    );
+    expect(workflow).toContain(
+      "github.event.pull_request.head.ref != 'main'",
+    );
+    expect(workflow).toContain(
+      "github.event.pull_request.head.ref != 'staging'",
+    );
+    expect(workflow).toContain(
+      "github.event.pull_request.head.ref != 'dev'",
+    );
+  });
+
   it("runs secret-bearing review from trusted default-branch code only", () => {
     expect(workflow).toContain(
       "ref: ${{ github.event.repository.default_branch }}",
