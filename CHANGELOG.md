@@ -15,7 +15,19 @@
   otherwise eligible candidate unmergeable. **Deployment impact:** CI
   controller repair only; no application route, provider, database,
   credential, billing, DNS, Worker activation, or activation-gate state
-  changes.
+  changes. **Verification:** Ran
+  `node --test .github/scripts/dev-automerge-policy.policy.mjs`,
+  `npm run build:pages`, and `git diff --check`; then promoted hidden artifact
+  `public/vinifera-promotion-smoke-2026-08-02.html` through dev PR #103,
+  staging PR #104, and production PR #105 with exact-head Full promotion
+  validation, Octopus PR Quality Gates, Direct Push Guard where applicable,
+  staging URL marker checks, and production URL marker checks.
+- Kept trusted development auto-merge fallback notices out of the captured
+  candidate decision channel by writing the branch-protection fallback notices
+  to stderr, and documented the fallback authorization in the principal
+  orchestrator ADR. **Deployment impact:** CI controller policy record only; no
+  application route, provider, database, credential, billing, DNS, Worker
+  activation, or activation-gate state changes.
 - Replaced indented Node heredocs in the trusted development auto-merge
   controller with `node --eval` calls so the controller can revalidate and
   merge eligible exact-head candidates instead of failing on Bash heredoc
