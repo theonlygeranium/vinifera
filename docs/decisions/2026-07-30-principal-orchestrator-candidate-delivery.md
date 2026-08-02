@@ -162,6 +162,16 @@ emergency labels, missing authority, non-success terminal states, and
 unresolved review threads, then repeats the entire evaluation immediately
 before an exact-SHA squash merge.
 
+If GitHub denies the trusted controller access to the live branch-protection
+contexts, the controller falls back to the versioned delivery contract and
+prints the fallback notice outside its captured decision channel. The fallback
+is intentionally fail-closed around the repository-owned contract: missing
+canonical checks, failed preview evidence, high-risk diffs, emergency labels,
+stale bases, drafts, and unresolved review threads still block mutation. The
+replacement control is that the contract remains reviewed in the same protected
+delivery path as the controller, and any live-context API denial is visible in
+the workflow log for follow-up without corrupting the exact-head decision value.
+
 ### 6. Keep release and production boundaries protected
 
 Routine development does not start a promotion. One maintained release
