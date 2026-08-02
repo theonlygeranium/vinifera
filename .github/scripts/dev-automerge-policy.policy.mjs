@@ -189,6 +189,15 @@ test("trusted workflow uses no PR-head checkout and revalidates before merge", (
   assert.match(workflow, /pulls\/\$PR_NUMBER\/merge/);
   assert.match(workflow, /Could not read dev branch-protection contexts/);
   assert.match(workflow, /protected_contexts="\[\]"/);
+  assert.match(workflow, /state: \(\s*if \$name == "Dev fast checks"/s);
+  assert.match(workflow, /def dev_fast_component_pending:/);
+  assert.match(workflow, /\$name == "Dev fast checks" and dev_fast_component_pending/);
+  assert.match(workflow, /for attempt in \{1\.\.12\}/);
+  assert.match(workflow, /INELIGIBLE:required_context_pending/);
+  assert.match(workflow, /sleep 10/);
+  assert.match(workflow, /\]'\) \|\| return 1/);
+  assert.match(workflow, /active_changes_requested=.*\|\| return 1/s);
+  assert.match(workflow, /decision=.*\|\| return 1/s);
   const publisher = readFileSync(
     new URL("../workflows/frontend-preview-publish.yml", import.meta.url),
     "utf8",
