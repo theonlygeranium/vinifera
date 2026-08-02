@@ -200,7 +200,7 @@ jobs:
                 ) as $status |
                 {
                   name: $name,
-                  state:
+                  state: (
                     if $run != null then ($run | check_state)
                     elif $status != null then
                       (if $status.state == "success" then "success"
@@ -209,8 +209,9 @@ jobs:
                        end)
                     else "missing"
                     end
+                  )
                 }
-              ]')
+              ]') || return 1
 
             local reviews active_changes_requested
             reviews=$(gh api --paginate \
@@ -221,7 +222,7 @@ jobs:
                 sort_by(.submitted_at // "") |
                 last |
                 select(.state == "CHANGES_REQUESTED")] | length' \
-              <<<"$reviews")
+              <<<"$reviews") || return 1
 
             local state decision
             state=$(jq -n \
@@ -247,7 +248,7 @@ jobs:
                 classification: $classification,
                 contexts: $contexts,
                 activeChangesRequested: $active_changes_requested
-              }')
+              }') || return 1
             decision=$(AUTOMERGE_STATE="$state" node --input-type=module --eval '
               import {
                 evaluateAutomergeCandidate,
@@ -258,7 +259,7 @@ jobs:
                 ...JSON.parse(process.env.AUTOMERGE_STATE),
               })));
             '
-            )
+            ) || return 1
             {
               echo "## Trusted development auto-merge"
               echo

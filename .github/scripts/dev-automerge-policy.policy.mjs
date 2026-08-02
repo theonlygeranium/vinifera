@@ -189,6 +189,10 @@ test("trusted workflow uses no PR-head checkout and revalidates before merge", (
   assert.match(workflow, /pulls\/\$PR_NUMBER\/merge/);
   assert.match(workflow, /Could not read dev branch-protection contexts/);
   assert.match(workflow, /protected_contexts="\[\]"/);
+  assert.match(workflow, /state: \(\s*if \$run != null then/s);
+  assert.match(workflow, /\]'\) \|\| return 1/);
+  assert.match(workflow, /active_changes_requested=.*\|\| return 1/s);
+  assert.match(workflow, /decision=.*\|\| return 1/s);
   const publisher = readFileSync(
     new URL("../workflows/frontend-preview-publish.yml", import.meta.url),
     "utf8",
