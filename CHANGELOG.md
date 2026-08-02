@@ -7,6 +7,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Treat pull requests that close before trusted frontend preview publication
+  as preview non-applicable, preventing successful protected reconciles from
+  leaving a late red `Frontend preview evidence` status after merge.
+  **Deployment impact:** CI evidence publishing only; no application route,
+  provider, database, credential, billing, DNS, Worker activation, or
+  activation-gate state changes.
 - Added faster, explicit delivery-control paths for protected branch
   reconciles and narrow CI-script/test patches. Development validation now
   recognizes `protected-reconcile` and `ci-script-tested` lanes, avoids
