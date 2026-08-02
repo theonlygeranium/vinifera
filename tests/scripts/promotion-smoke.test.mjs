@@ -119,8 +119,34 @@ describe("promotion smoke tooling", () => {
       mainRef: "main",
     });
     expect(result.passed).toBe(false);
-    expect(result.reason).toBe("environment_branch_tree_drift");
+    expect(result.reason).toBe("environment_branch_tree_or_mergeability_drift");
     expect(result.devToStaging[0].paths).toEqual(["dev-only.txt"]);
+  });
+
+  it("fails start preflight when stale ancestry would make promotion conflict", () => {
+    const root = fixtureRepo();
+    process.chdir(root);
+    git(root, ["switch", "-q", "staging"]);
+    execFileSync("sh", ["-c", "printf 'staging\\n' > CHANGELOG.md"], {
+      cwd: root,
+    });
+    git(root, ["add", "."]);
+    git(root, ["commit", "-q", "-m", "staging changelog"]);
+
+    git(root, ["switch", "-q", "dev"]);
+    execFileSync("sh", ["-c", "printf 'dev\\n' > CHANGELOG.md"], {
+      cwd: root,
+    });
+    git(root, ["add", "."]);
+    git(root, ["commit", "-q", "-m", "dev changelog"]);
+
+    const result = evaluateStartPreflight({
+      devRef: "dev",
+      stagingRef: "staging",
+      mainRef: "main",
+    });
+    expect(result.passed).toBe(false);
+    expect(result.devIntoStaging.reason).toBe("merge_tree_conflict");
   });
 
   it("allows production preflight only for hidden smoke artifact diffs", () => {
