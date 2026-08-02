@@ -27,7 +27,23 @@
   to stderr, and documented the fallback authorization in the principal
   orchestrator ADR. **Deployment impact:** CI controller policy record only; no
   application route, provider, database, credential, billing, DNS, Worker
-  activation, or activation-gate state changes.
+  activation, or activation-gate state changes. **Verification:** Ran
+  `node --test .github/scripts/dev-automerge-policy.policy.mjs`,
+  `npm run build:pages`, and `git diff --check` locally for PR #106; PR #106
+  then passed Development fast validation, Frontend preview evidence, and
+  Octopus PR Quality Gates at head `ffc3f75ce1c4`.
+- Added a separate second-pass promotion verification record for the
+  auto-merge stderr repair and hidden artifact drill. **Deployment impact:**
+  Audit trail only; no application route, provider, database, credential,
+  billing, DNS, Worker activation, or activation-gate state changes.
+  **Verification:** PR #107 passed the `dev → staging` promotion controller
+  readiness workflow, staging Supabase pre-flight and pre-merge probes,
+  exact-head Full promotion validation, Octopus PR Quality Gates, no unresolved
+  review threads, and staging push Full promotion validation at merge
+  `956425679a45`. PR #108 passed Direct Push Guard, Octopus PR Quality Gates,
+  and exact-head Full promotion validation; production hidden-artifact URL
+  checks stayed green on `vinifera.pages.dev`, `vinifera.edstratumlabs.ai`, and
+  `vinifera-live.edstratumlabs.ai`.
 - Replaced indented Node heredocs in the trusted development auto-merge
   controller with `node --eval` calls so the controller can revalidate and
   merge eligible exact-head candidates instead of failing on Bash heredoc
