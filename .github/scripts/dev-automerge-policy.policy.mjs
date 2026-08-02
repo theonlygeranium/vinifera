@@ -189,6 +189,10 @@ test("trusted workflow uses no PR-head checkout and revalidates before merge", (
   assert.match(workflow, /pulls\/\$PR_NUMBER\/merge/);
   assert.match(workflow, /Could not read dev branch-protection contexts/);
   assert.match(workflow, /protected_contexts="\[\]"/);
+  assert.match(
+    workflow,
+    /Preview dispatch no longer matches an open dev PR at this head\.[\s\S]*eligible=false[\s\S]*exit 0/,
+  );
   assert.match(workflow, /state: \(\s*if \$name == "Dev fast checks"/s);
   assert.match(workflow, /def dev_fast_component_pending:/);
   assert.match(workflow, /\$name == "Dev fast checks" and dev_fast_component_pending/);
