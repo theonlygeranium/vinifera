@@ -93,10 +93,6 @@ jobs:
           artifact_repository=$(jq -r '.repository' "$metadata")
 
           git check-ref-format --branch "$head_ref" >/dev/null
-          if [[ "$head_ref" == "main" || "$head_ref" == "staging" || "$head_ref" == "dev" ]]; then
-            echo "::error::Protected environment branches cannot be used as preview branches."
-            exit 1
-          fi
           if [[ "$artifact_repository" != "$REPOSITORY" \
             || "$head_repository" != "$REPOSITORY" \
             || "$head_sha" != "$WORKFLOW_HEAD_SHA" ]]; then
@@ -120,6 +116,13 @@ jobs:
             <<<"$pr" >/dev/null; then
             echo "::error::An emergency label blocks preview mutation."
             exit 1
+          fi
+          if [[ "$head_ref" == "main" || "$head_ref" == "staging" || "$head_ref" == "dev" ]]; then
+            echo "::notice::Protected environment branches do not receive frontend preview deployments."
+            printf 'applicable=false\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
+              "$base_sha" "$head_ref" "$head_sha" "$pr_number" \
+              >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"
           trusted_applicable=$(BASE_SHA="$base_sha" HEAD_SHA="$head_sha" \
