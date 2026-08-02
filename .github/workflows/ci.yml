@@ -114,7 +114,8 @@ jobs:
             classification.lane === "noop" ||
             classification.lane === "docs" ||
             classification.lane === "promotion-smoke" ||
-            classification.lane === "static-routing"
+            classification.lane === "static-routing" ||
+            classification.lane === "promotion-smoke-cleanup"
               ? classification.lane
               : "full";
           appendFileSync(
@@ -371,8 +372,8 @@ jobs:
           });
           NODE
 
-          mapfile -t changed_paths < <(jq -r '.[]' <<<"$PATHS_JSON")
-          printf '%s\n' "${changed_paths[@]}" | sort > /tmp/static-routing-paths.txt
+          mapfile -t routing_paths < <(jq -r '.[]' <<<"$PATHS_JSON")
+          printf '%s\n' "${routing_paths[@]}" | sort > /tmp/static-routing-paths.txt
           cat > /tmp/static-routing-allowed-paths.txt <<'EOF'
           CHANGELOG.md
           public/_redirects
@@ -406,6 +407,117 @@ jobs:
             echo
             echo "- Exact base SHA: \`$BASE_SHA\`"
             echo "- Exact head SHA: \`$HEAD_SHA\`"
+            echo "- Result: \`pass\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  promotion_smoke_cleanup_validation:
+    name: Promotion smoke cleanup validation
+    needs: classify
+    if: needs.classify.outputs.classification_succeeded == 'true' && needs.classify.outputs.lane == 'promotion-smoke-cleanup'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out exact pull request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch exact pull request base
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
+
+      - name: Use repository Node.js pin
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate promotion smoke cleanup contract
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+          PATHS_JSON: ${{ needs.classify.outputs.paths_json }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          node --test .github/scripts/delivery-policy.policy.mjs
+          node --input-type=module <<'NODE'
+          import { scanDiffForSecrets } from "./.github/scripts/docs-ci-policy.mjs";
+          scanDiffForSecrets({
+            baseSha: process.env.BASE_SHA,
+            headSha: process.env.HEAD_SHA,
+          });
+          NODE
+
+          mapfile -t cleanup_paths < <(jq -r '.[]' <<<"$PATHS_JSON")
+          if ! printf '%s\n' "${cleanup_paths[@]}" \
+            | grep -Eq '^public/vinifera-promotion-smoke-[0-9]{4}-[0-9]{2}-[0-9]{2}(-[a-z0-9-]+)?\.html$'; then
+            echo "::error::Promotion smoke cleanup must delete at least one hidden smoke artifact."
+            exit 1
+          fi
+          if ! printf '%s\n' "${cleanup_paths[@]}" | grep -qx 'public/_redirects'; then
+            echo "::error::Promotion smoke cleanup must include a redirect tombstone."
+            exit 1
+          fi
+          if printf '%s\n' "${cleanup_paths[@]}" \
+            | grep -Ev '^(public/_redirects|public/vinifera-promotion-smoke-[0-9]{4}-[0-9]{2}-[0-9]{2}(-[a-z0-9-]+)?\.html)$' \
+            >/tmp/unexpected-cleanup-paths.txt; then
+            echo "::error::Promotion smoke cleanup lane only permits smoke artifacts and public/_redirects."
+            cat /tmp/unexpected-cleanup-paths.txt
+            exit 1
+          fi
+
+          mapfile -t deleted_artifacts < <(
+            git diff --name-status "$BASE_SHA" "$HEAD_SHA" -- public \
+              | awk '$1 == "D" && $2 ~ /^public\/vinifera-promotion-smoke-[0-9]{4}-[0-9]{2}-[0-9]{2}(-[a-z0-9-]+)?\.html$/ { print $2 }'
+          )
+          if (( ${#deleted_artifacts[@]} == 0 )); then
+            echo "::error::No deleted hidden smoke artifact found in the exact diff."
+            exit 1
+          fi
+
+          git diff --unified=0 "$BASE_SHA" "$HEAD_SHA" -- public/_redirects > /tmp/redirects.diff
+          for artifact in "${deleted_artifacts[@]}"; do
+            slug="${artifact#public/}"
+            slug="${slug%.html}"
+            if [[ -e "$artifact" ]]; then
+              echo "::error::$artifact still exists after cleanup."
+              exit 1
+            fi
+            if ! grep -Eq "^\+/${slug}[[:space:]]+/[[:space:]]+302$" /tmp/redirects.diff; then
+              echo "::error::Missing exact redirect tombstone for $slug."
+              exit 1
+            fi
+          done
+          if grep -E '^[+-][^+-]' /tmp/redirects.diff \
+            | grep -Ev '^\+/vinifera-promotion-smoke-[0-9]{4}-[0-9]{2}-[0-9]{2}(-[a-z0-9-]+)?[[:space:]]+/[[:space:]]+302$' \
+            >/tmp/unexpected-cleanup-redirect-lines.txt; then
+            echo "::error::Cleanup redirects may only add exact promotion-smoke tombstones."
+            cat /tmp/unexpected-cleanup-redirect-lines.txt
+            exit 1
+          fi
+
+          npm run build:pages
+          test -f dist/_redirects
+          for artifact in "${deleted_artifacts[@]}"; do
+            slug="${artifact#public/}"
+            slug="${slug%.html}"
+            grep -Eq "^/${slug}[[:space:]]+/[[:space:]]+302$" dist/_redirects
+          done
+
+          {
+            echo "## Promotion smoke cleanup validation"
+            echo
+            echo "- Exact base SHA: \`$BASE_SHA\`"
+            echo "- Exact head SHA: \`$HEAD_SHA\`"
+            echo "- Deleted artifacts: \`${deleted_artifacts[*]}\`"
             echo "- Result: \`pass\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -623,6 +735,7 @@ jobs:
         docs_validation,
         promotion_smoke_validation,
         static_routing_validation,
+        promotion_smoke_cleanup_validation,
         full_quality,
         mobile_web,
         mobile_android,
@@ -639,6 +752,7 @@ jobs:
           DOCS_RESULT: ${{ needs.docs_validation.result }}
           PROMOTION_SMOKE_RESULT: ${{ needs.promotion_smoke_validation.result }}
           STATIC_ROUTING_RESULT: ${{ needs.static_routing_validation.result }}
+          PROMOTION_SMOKE_CLEANUP_RESULT: ${{ needs.promotion_smoke_cleanup_validation.result }}
           FULL_RESULT: ${{ needs.full_quality.result }}
           MOBILE_REQUIRED: ${{ needs.classify.outputs.mobile_required }}
           MOBILE_WEB_RESULT: ${{ needs.mobile_web.result }}
@@ -658,6 +772,7 @@ jobs:
             echo "- Documentation job: \`${DOCS_RESULT}\`"
             echo "- Promotion smoke job: \`${PROMOTION_SMOKE_RESULT}\`"
             echo "- Static routing job: \`${STATIC_ROUTING_RESULT}\`"
+            echo "- Promotion smoke cleanup job: \`${PROMOTION_SMOKE_CLEANUP_RESULT}\`"
             echo "- Full quality job: \`${FULL_RESULT}\`"
             echo "- Android required: \`${MOBILE_REQUIRED:-missing}\`"
             echo "- Shared mobile web job: \`${MOBILE_WEB_RESULT}\`"
@@ -675,6 +790,7 @@ jobs:
               if [[ "$DOCS_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_RESULT" != "skipped" ||
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
+                    "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -686,6 +802,7 @@ jobs:
               if [[ "$DOCS_RESULT" != "success" ||
                     "$PROMOTION_SMOKE_RESULT" != "skipped" ||
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
+                    "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -697,6 +814,7 @@ jobs:
               if [[ "$DOCS_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_RESULT" != "success" ||
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
+                    "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -708,6 +826,7 @@ jobs:
               if [[ "$DOCS_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_RESULT" != "skipped" ||
                     "$STATIC_ROUTING_RESULT" != "success" ||
+                    "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -715,10 +834,23 @@ jobs:
                 exit 1
               fi
               ;;
+            promotion-smoke-cleanup)
+              if [[ "$DOCS_RESULT" != "skipped" ||
+                    "$PROMOTION_SMOKE_RESULT" != "skipped" ||
+                    "$STATIC_ROUTING_RESULT" != "skipped" ||
+                    "$PROMOTION_SMOKE_CLEANUP_RESULT" != "success" ||
+                    "$FULL_RESULT" != "skipped" ||
+                    "$MOBILE_WEB_RESULT" != "skipped" ||
+                    "$MOBILE_RESULT" != "skipped" ]]; then
+                echo "::error::Promotion smoke cleanup lane did not run exclusively and pass."
+                exit 1
+              fi
+              ;;
             full)
               if [[ "$DOCS_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_RESULT" != "skipped" ||
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
+                    "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "success" ]]; then
                 echo "::error::Full quality lane did not run exclusively and pass."
                 exit 1

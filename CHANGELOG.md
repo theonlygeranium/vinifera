@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Added a dedicated `promotion-smoke-cleanup` validation lane for deleting
+  hidden smoke artifacts when the matching extensionless redirect tombstone is
+  added, keeping the final drill cleanup out of the full promotion suite while
+  still proving the artifact disappeared and the tombstone is present.
+  **Deployment impact:** CI/release-control behavior only; no application
+  route, provider, database, credential, billing, DNS, Worker activation, or
+  activation-gate state changes.
 - Added a dedicated `static-routing` validation lane for reviewed
   `public/_redirects` smoke-route tombstones, preventing tiny cache-retirement
   route changes from falling into the 7-minute full promotion lane on staging
