@@ -10,6 +10,18 @@ function resolveAuditBranch(values) {
   return values.PR_BRANCH ?? values.GITHUB_REF_NAME ?? "main";
 }
 
+function hasPrompt(preview, promptName) {
+  return preview?.Form?.Elements?.some(
+    (element) => element?.Control?.Name === promptName,
+  );
+}
+
+function addPromptIfPresent(preview, promptedValues, promptName, value) {
+  if (hasPrompt(preview, promptName)) {
+    promptedValues[promptName] = value;
+  }
+}
+
 export async function runSecurityAudit({
   environment = process.env,
   fetchImpl = fetch,
@@ -21,10 +33,15 @@ export async function runSecurityAudit({
   return executeConfigAsCodeRunbook({
     runbookName: "Security Audit",
     environment,
-    promptedValuesResolver: (_preview, values) => {
-      const promptedValues = {
-        PRBranch: resolveAuditBranch(values),
-      };
+    promptedValuesResolver: (preview, values) => {
+      const branch = resolveAuditBranch(values);
+      const sha = values.GITHUB_SHA ?? "0".repeat(40);
+      const promptedValues = {};
+      addPromptIfPresent(preview, promptedValues, "PRBranch", branch);
+      addPromptIfPresent(preview, promptedValues, "PRNumber", "0");
+      addPromptIfPresent(preview, promptedValues, "ExpectedBaseRef", branch);
+      addPromptIfPresent(preview, promptedValues, "ExpectedBaseSHA", sha);
+      addPromptIfPresent(preview, promptedValues, "ExpectedHeadSHA", sha);
       if (values.GH_PAT_FOR_OCTOPUS) {
         promptedValues.GitHubPAT = values.GH_PAT_FOR_OCTOPUS;
       }
