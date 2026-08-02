@@ -268,6 +268,7 @@ jobs:
       (needs.classify.outputs.lane == 'routine' ||
        needs.classify.outputs.lane == 'high-risk' ||
        needs.classify.outputs.lane == 'promotion-smoke' ||
+       needs.classify.outputs.lane == 'static-routing' ||
        needs.classify.outputs.lane == 'protected-reconcile' ||
        needs.classify.outputs.lane == 'ci-script-tested')
     runs-on: ubuntu-latest
