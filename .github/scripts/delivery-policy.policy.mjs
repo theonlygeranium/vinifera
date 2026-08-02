@@ -597,6 +597,10 @@ test("trusted preview publisher never executes PR-head code beside credentials",
     workflow,
     /preview publication is not applicable/,
   );
+  assert.match(
+    workflow,
+    /Pull request closed before preview publication/,
+  );
   assert.match(workflow, /publish_status=false/);
   assert.match(
     workflow,

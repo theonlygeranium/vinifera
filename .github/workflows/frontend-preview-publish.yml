@@ -109,6 +109,11 @@ jobs:
           fi
 
           pr=$(gh api "repos/$REPOSITORY/pulls/$pr_number")
+          if [[ "$(jq -r '.state' <<<"$pr")" != "open" ]]; then
+            echo "::notice::Pull request closed before preview publication; preview publication is not applicable."
+            printf 'publish_status=false\nhead_sha=%s\n' "$head_sha" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [[ "$(jq -r '.state' <<<"$pr")" != "open" \
             || "$(jq -r '.base.ref' <<<"$pr")" != "dev" \
             || "$(jq -r '.base.sha' <<<"$pr")" != "$base_sha" \
