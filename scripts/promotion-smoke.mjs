@@ -132,6 +132,19 @@ export function readDiffRecords(baseRef, headRef) {
   return parseNameStatusZ(output);
 }
 
+function mergeable(baseRef, headRef) {
+  try {
+    git(["merge-tree", "--write-tree", baseRef, headRef]);
+    return { mergeable: true, reason: "merge_tree_clean" };
+  } catch (error) {
+    return {
+      mergeable: false,
+      reason: "merge_tree_conflict",
+      details: error.stderr?.toString?.() || error.message,
+    };
+  }
+}
+
 function formatRecords(records) {
   return records
     .map(({ status, paths }) => `${status}\t${paths.join("\t")}`)
@@ -145,12 +158,22 @@ export function evaluateStartPreflight({
 } = {}) {
   const devToStaging = readDiffRecords(stagingRef, devRef);
   const stagingToMain = readDiffRecords(mainRef, stagingRef);
-  const passed = devToStaging.length === 0 && stagingToMain.length === 0;
+  const devIntoStaging = mergeable(stagingRef, devRef);
+  const stagingIntoMain = mergeable(mainRef, stagingRef);
+  const passed =
+    devToStaging.length === 0 &&
+    stagingToMain.length === 0 &&
+    devIntoStaging.mergeable &&
+    stagingIntoMain.mergeable;
   return {
     passed,
     devToStaging,
+    devIntoStaging,
     stagingToMain,
-    reason: passed ? "branches_tree_aligned" : "environment_branch_tree_drift",
+    stagingIntoMain,
+    reason: passed
+      ? "branches_tree_and_merge_bases_aligned"
+      : "environment_branch_tree_or_mergeability_drift",
   };
 }
 
@@ -159,14 +182,19 @@ export function evaluateProductionPreflight({
   mainRef = "origin/main",
 } = {}) {
   const records = readDiffRecords(mainRef, stagingRef);
+  const stagingIntoMain = mergeable(mainRef, stagingRef);
   const classification = classifyDeliveryChange(records);
   return {
     passed:
+      stagingIntoMain.mergeable &&
       classification.classificationSucceeded &&
       classification.lane === "promotion-smoke",
     records,
+    stagingIntoMain,
     classification,
-    reason: classification.reason,
+    reason: stagingIntoMain.mergeable
+      ? classification.reason
+      : stagingIntoMain.reason,
   };
 }
 
@@ -180,6 +208,8 @@ function summarizePreflight(result, mode) {
   const lines = [`Promotion smoke ${mode} preflight: ${result.passed ? "pass" : "fail"}`];
   lines.push(`Reason: ${result.reason}`);
   if ("devToStaging" in result) {
+    lines.push(`Dev into staging merge-tree: ${result.devIntoStaging.reason}`);
+    lines.push(`Staging into main merge-tree: ${result.stagingIntoMain.reason}`);
     if (result.devToStaging.length > 0) {
       lines.push("\nDiff staging..dev:");
       lines.push(formatRecords(result.devToStaging));
@@ -189,6 +219,7 @@ function summarizePreflight(result, mode) {
       lines.push(formatRecords(result.stagingToMain));
     }
   } else {
+    lines.push(`Staging into main merge-tree: ${result.stagingIntoMain.reason}`);
     lines.push(`Lane: ${result.classification.lane}`);
     lines.push(`Paths: ${result.classification.paths.join(", ") || "(none)"}`);
     if (result.records.length > 0) {
