@@ -329,12 +329,16 @@ jobs:
           steps.evaluate.outputs.eligible == 'true' &&
           steps.evaluate.outcome == 'success'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           HEAD_SHA: ${{ steps.evaluate.outputs.head_sha }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "::error::GH_PAT_FOR_OCTOPUS is required so the dev merge emits normal push workflows, including Development deployment candidate evidence."
+            exit 1
+          fi
           response=$(gh api \
             --method PUT \
             -H "Accept: application/vnd.github+json" \
