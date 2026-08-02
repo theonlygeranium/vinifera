@@ -34,7 +34,7 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).not.toContain('--label "automated-promotion"');
   });
 
-  it("requires fresh exact-comparison aggregate and Octopus evidence", () => {
+  it("requires fresh exact-comparison promotion gate and Octopus evidence", () => {
     for (const job of ["wait-for-gates", "ready"]) {
       expect(workflow).toMatch(
         new RegExp(
@@ -42,7 +42,7 @@ describe("dev to staging promotion contract", () => {
         ),
       );
     }
-    expect(workflow).toContain('"Type, test, build, and package"');
+    expect(workflow).toContain('"Vinifera Promotion Gate"');
     expect(workflow).toContain('.context == "Octopus PR Quality Gates"');
     expect(workflow).toContain(
       'expected_octopus_description="Runbook completed PR #$PR_NUMBER staging@$PR_BASE_SHA attempt $REVIEW_ATTEMPT"',
@@ -72,11 +72,12 @@ describe("dev to staging promotion contract", () => {
     );
   });
 
-  it("fails closed on unresolved threads and treats CodeRabbit as optional", () => {
-    expect(workflow).toContain("reviewThreads(first:100)");
-    expect(workflow).toContain("pageInfo{hasNextPage}");
-    expect(workflow).toContain("unresolved == 0");
-    expect(workflow).toContain('test("coderabbit"; "i") | not');
+  it("fails closed on active requested-changes reviews and treats CodeRabbit as optional", () => {
+    expect(workflow).toContain("active_changes_requested");
+    expect(workflow).toContain('select(.state == "CHANGES_REQUESTED")');
+    expect(workflow).not.toContain("reviewThreads(first:100)");
+    expect(workflow).not.toContain("unresolved == 0");
+    expect(workflow).not.toContain('test("coderabbit"; "i") | not');
     expect(workflow).toContain("(CodeRabbit optional)");
     expect(workflow).toContain("human-review-required");
     expect(workflow).toContain("do-not-merge");

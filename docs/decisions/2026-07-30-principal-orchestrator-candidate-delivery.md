@@ -45,8 +45,9 @@ CI.
 
 The exact PR aggregate remains `Dev fast checks`. Manual evidence uses the
 distinct `Manual exact candidate checks` context so a dispatch cannot satisfy
-the protected PR context. The protected full aggregate remains
-`Type, test, build, and package` without changes to its name or release purpose.
+the protected PR context. The protected promotion aggregate is
+`Vinifera Promotion Gate`, which is the single GitHub Actions status promotion
+automation and branch protection should require.
 
 ### 2. Classify risk and execution surface separately
 
@@ -159,18 +160,26 @@ the successful frontend publisher's exact-identity repository dispatch, and
 relevant PR metadata changes. It
 reclassifies the live diff, rejects forks, stale bases, drafts, high risk,
 emergency labels, missing authority, non-success terminal states, and
-unresolved review threads, then repeats the entire evaluation immediately
-before an exact-SHA squash merge.
+active requested-changes reviews, then repeats the entire evaluation
+immediately before an exact-SHA squash merge. Unresolved comment threads remain
+review evidence but do not block trusted low/medium-risk automation unless the
+latest review state is `CHANGES_REQUESTED`.
 
 If GitHub denies the trusted controller access to the live branch-protection
 contexts, the controller falls back to the versioned delivery contract and
 prints the fallback notice outside its captured decision channel. The fallback
 is intentionally fail-closed around the repository-owned contract: missing
 canonical checks, failed preview evidence, high-risk diffs, emergency labels,
-stale bases, drafts, and unresolved review threads still block mutation. The
+stale bases, drafts, and active requested-changes reviews still block mutation. The
 replacement control is that the contract remains reviewed in the same protected
 delivery path as the controller, and any live-context API denial is visible in
 the workflow log for follow-up without corrupting the exact-head decision value.
+
+Promotion PRs similarly use `Vinifera Promotion Gate` plus exact Octopus
+evidence as the canonical release check set. The controller ignores unrelated
+optional check noise and stale unresolved comment threads, but fails closed on
+an active requested-changes review, emergency labels, head/base drift, stale
+gate evidence, or an Octopus result not bound to the captured attempt.
 
 ### 6. Keep release and production boundaries protected
 
@@ -247,7 +256,7 @@ advanced by source completeness.
 - Parse every changed workflow and run `actionlint` when available.
 - Run the repository action-policy and workflow contract suites.
 - Run `git diff --check` and the complete diff secret scan.
-- Confirm `Dev fast checks` and `Type, test, build, and package` retain their
+- Confirm `Dev fast checks` and `Vinifera Promotion Gate` retain their
   exact names.
 - Confirm the trusted publisher checks out only the default branch and exposes
   Cloudflare credentials only to the upload step.
