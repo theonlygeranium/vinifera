@@ -14,6 +14,13 @@
   impact:** CI controller repair only; no application route, provider,
   database, credential, billing, DNS, Worker activation, or activation-gate
   state changes.
+- Make trusted development auto-merge wait for freshly-triggered development
+  validation components before calling the GitHub merge API, avoiding a race
+  where label-triggered automerge can see an older successful `Dev fast checks`
+  run while branch protection is still expecting the new one. **Deployment
+  impact:** CI controller repair only; no application route, provider,
+  database, credential, billing, DNS, Worker activation, or activation-gate
+  state changes.
 - Treat pull requests that close before trusted frontend preview publication
   as preview non-applicable, preventing successful protected reconciles from
   leaving a late red `Frontend preview evidence` status after merge.

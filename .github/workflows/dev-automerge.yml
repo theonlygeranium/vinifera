@@ -181,6 +181,19 @@ jobs:
                 elif .conclusion == "success" then "success"
                 else (.conclusion // "failure")
                 end;
+              def dev_fast_component_pending:
+                any($runs[];
+                  (.name as $run_name |
+                    ([
+                      "Select coherent PR candidate",
+                      "Classify development change",
+                      "Fast documentation validation",
+                      "Fast type, build, and focused tests",
+                      "Browser smoke",
+                      "Feature preview decision",
+                      "Dev fast checks"
+                    ] | index($run_name)) != null) and
+                  .status != "completed");
               [
                 $required[] as $name |
                 (
@@ -201,7 +214,8 @@ jobs:
                 {
                   name: $name,
                   state: (
-                    if $run != null then ($run | check_state)
+                    if $name == "Dev fast checks" and dev_fast_component_pending then "pending"
+                    elif $run != null then ($run | check_state)
                     elif $status != null then
                       (if $status.state == "success" then "success"
                        elif $status.state == "pending" then "pending"
@@ -280,7 +294,15 @@ jobs:
             printf '%s\n' "$head_sha"
           }
 
-          initial=$(evaluate_candidate "initial")
+          initial=""
+          for attempt in {1..12}; do
+            initial=$(evaluate_candidate "initial-attempt-$attempt")
+            if [[ "$initial" != "INELIGIBLE:required_context_pending" ]]; then
+              break
+            fi
+            echo "::notice::Required contexts are still pending; retrying exact candidate evaluation."
+            sleep 10
+          done
           if [[ "$initial" == INELIGIBLE:* ]]; then
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Candidate is not auto-merge eligible: ${initial#INELIGIBLE:}"
