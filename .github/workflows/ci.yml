@@ -111,6 +111,7 @@ jobs:
             process.env.FULL_MOBILE === "true" ||
             classification.mobileRequired === true;
           const validationLane =
+            classification.lane === "noop" ||
             classification.lane === "docs" ||
             classification.lane === "promotion-smoke"
               ? classification.lane
@@ -582,6 +583,16 @@ jobs:
           fi
 
           case "$LANE" in
+            noop)
+              if [[ "$DOCS_RESULT" != "skipped" ||
+                    "$PROMOTION_SMOKE_RESULT" != "skipped" ||
+                    "$FULL_RESULT" != "skipped" ||
+                    "$MOBILE_WEB_RESULT" != "skipped" ||
+                    "$MOBILE_RESULT" != "skipped" ]]; then
+                echo "::error::No-op lane unexpectedly ran validation work."
+                exit 1
+              fi
+              ;;
             docs)
               if [[ "$DOCS_RESULT" != "success" ||
                     "$PROMOTION_SMOKE_RESULT" != "skipped" ||
