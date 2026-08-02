@@ -189,6 +189,18 @@ export function isPromotionSmokePath(path) {
   return PROMOTION_SMOKE_PATTERN.test(path);
 }
 
+function isPromotionSmokeCleanupPath(path) {
+  return isPromotionSmokePath(path) || path === "public/_redirects";
+}
+
+function isPromotionSmokeCleanupRecord({ status, paths }) {
+  if (status === "D") return paths.every(isPromotionSmokePath);
+  if (status === "M" || status === "A") {
+    return paths.every((path) => path === "public/_redirects");
+  }
+  return false;
+}
+
 export function isStaticRoutingPath(path) {
   return STATIC_ROUTING_FILES.has(path);
 }
@@ -452,6 +464,28 @@ export function classifyDeliveryChange(records, context = {}) {
   }
 
   if (
+    uniquePaths.includes("public/_redirects") &&
+    uniquePaths.some(isPromotionSmokePath) &&
+    uniquePaths.every(isPromotionSmokeCleanupPath) &&
+    records.some(({ status, paths: recordPaths }) =>
+      status === "D" && recordPaths.every(isPromotionSmokePath),
+    ) &&
+    records.every(isPromotionSmokeCleanupRecord)
+  ) {
+    return {
+      classificationSucceeded: true,
+      lane: "promotion-smoke-cleanup",
+      reason: "hidden_promotion_smoke_cleanup_allowlist_match",
+      mobileRequired: false,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "low",
+      surface: "frontend",
+      paths: uniquePaths,
+    };
+  }
+
+  if (
     records.every(
       ({ status, paths: recordPaths }) =>
         !status.startsWith("D") && recordPaths.every(isCiScriptTestPath),
@@ -529,7 +563,7 @@ export function selectFocusedTests(paths, lane) {
       "tests/scripts/landing-static.test.mjs",
     ];
   }
-  if (lane === "static-routing") {
+  if (lane === "static-routing" || lane === "promotion-smoke-cleanup") {
     return [
       ".github/scripts/delivery-policy.policy.mjs",
       "tests/scripts/landing-static.test.mjs",
@@ -634,7 +668,8 @@ export function evaluateFastAggregate({
   if (
     lane === "protected-reconcile" ||
     lane === "ci-script-tested" ||
-    lane === "static-routing"
+    lane === "static-routing" ||
+    lane === "promotion-smoke-cleanup"
   ) {
     const passed =
       docsResult === "skipped" &&

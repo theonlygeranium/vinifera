@@ -82,6 +82,27 @@ test("retired smoke redirects select the static routing fast path", () => {
   ]);
 });
 
+test("hidden promotion smoke cleanup selects a bounded fast path", () => {
+  const result = classifyDeliveryChange([
+    record("D", "public/vinifera-promotion-smoke-2026-08-02-speed.html"),
+    record("M", "public/_redirects"),
+  ]);
+  assert.equal(result.classificationSucceeded, true);
+  assert.equal(result.lane, "promotion-smoke-cleanup");
+  assert.equal(
+    result.reason,
+    "hidden_promotion_smoke_cleanup_allowlist_match",
+  );
+  assert.equal(result.risk, "low");
+  assert.equal(result.surface, "frontend");
+  assert.equal(result.browserRequired, false);
+  assert.equal(result.previewRequired, false);
+  assert.deepEqual(selectFocusedTests(result.paths, result.lane), [
+    ".github/scripts/delivery-policy.policy.mjs",
+    "tests/scripts/landing-static.test.mjs",
+  ]);
+});
+
 test("protected branch reconciles stay on a fast non-mutating lane", () => {
   const result = classifyDeliveryChange(
     [
@@ -379,7 +400,12 @@ test("fast aggregate accepts only the selected successful lane", () => {
     }).passed,
     true,
   );
-  for (const lane of ["protected-reconcile", "ci-script-tested", "static-routing"]) {
+  for (const lane of [
+    "protected-reconcile",
+    "ci-script-tested",
+    "static-routing",
+    "promotion-smoke-cleanup",
+  ]) {
     assert.equal(
       evaluateFastAggregate({
         candidateEligible: true,
@@ -515,6 +541,18 @@ test("full aggregate rejects skipped required work and permits one mobile lane",
     evaluateFullAggregate({
       classificationSucceeded: true,
       classifyResult: "success",
+      lane: "promotion-smoke-cleanup",
+      fullResult: "skipped",
+      mobileRequired: false,
+      mobileWebResult: "skipped",
+      androidResult: "skipped",
+    }).passed,
+    false,
+  );
+  assert.equal(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
       fullResult: "success",
       mobileRequired: false,
       mobileWebResult: "success",
@@ -579,6 +617,7 @@ test("development workflow has candidate-only triggers and cancellable PR concur
   assert.match(workflow, /protected-reconcile/);
   assert.match(workflow, /ci-script-tested/);
   assert.match(workflow, /static-routing/);
+  assert.match(workflow, /promotion-smoke-cleanup/);
 });
 
 test("development workflow makes browser and preview work path-aware", () => {
@@ -663,6 +702,8 @@ test("full workflow excludes dev pushes and retains promotion-grade coverage", (
   assert.match(workflow, /Hidden promotion smoke validation/);
   assert.match(workflow, /static-routing/);
   assert.match(workflow, /Static routing validation/);
+  assert.match(workflow, /promotion-smoke-cleanup/);
+  assert.match(workflow, /Promotion smoke cleanup validation/);
   for (const command of [
     "npm run qa:db:phase1",
     "npm run qa:db:phase2",
