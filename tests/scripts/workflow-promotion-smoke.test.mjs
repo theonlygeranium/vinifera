@@ -54,6 +54,9 @@ describe("promotion workflow smoke contract", () => {
     expect(octopusPromotionWorkflow).toContain(
       "github.event.pull_request.head.ref == 'staging'",
     );
+    expect(octopusPromotionWorkflow).toContain(
+      "Review attempt: ([0-9]+\\.[0-9]+|[0-9]{4}-[0-9]{2}-[0-9]{2}T",
+    );
   });
 
   it("leaves production Worker mutation manual while allowing safe main deploy smoke", () => {
