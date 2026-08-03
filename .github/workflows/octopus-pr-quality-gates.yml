@@ -110,8 +110,11 @@ jobs:
           review_attempt="$EVENT_ATTEMPT"
           attempt_marker_required="false"
           if [[ "$PR_BASE_REF" == "staging" && "$PR_BRANCH" == "dev" ]]; then
-            review_attempt=$(sed -nE 's/^Review attempt: ([0-9]+\.[0-9]+|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)$/\1/p' <<<"$PR_BODY" | tail -1)
-            attempt_marker_required="true"
+            body_review_attempt=$(sed -nE 's/^Review attempt: ([0-9]+\.[0-9]+|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)$/\1/p' <<<"$PR_BODY" | tail -1)
+            if [[ -n "$body_review_attempt" ]]; then
+              review_attempt="$body_review_attempt"
+              attempt_marker_required="true"
+            fi
           fi
           if [[ ! "$review_attempt" =~ ^([0-9]+\.[0-9]+|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)$ ]]; then
             echo "::error::Pull-request review attempt is not a supported exact identifier."
