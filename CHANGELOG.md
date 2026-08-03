@@ -7,6 +7,15 @@
 ## [Unreleased]
 
 ### Fixed
+- Added a staging-only `operator-tooling-tested` fast lane for repository
+  operator helpers and npm-script-only `package.json` changes, preventing
+  dev→staging promotions of promotion tooling from falling into full package
+  and Android validation. The lane validates exact path scope, requires
+  `CHANGELOG.md`, rejects dependency or install metadata changes, and maps
+  back to full validation for production/main. **Deployment impact:**
+  staging CI/release-control behavior only; no application route, provider,
+  database, credential, billing, DNS, Worker activation, or activation-gate
+  state changes.
 - Added a protected-branch `release-control-tested` lane for narrow workflow,
   trusted controller, and script-test changes so staging/main promotions can
   validate release-control tooling with focused policy and script tests instead
