@@ -606,14 +606,14 @@ jobs:
               exit 1
             fi
             if printf '%s\n' "${release_paths[@]}" | grep -qx 'package.json'; then
-              BASE_SHA="$BASE_SHA" HEAD_SHA="$HEAD_SHA" node --input-type=module <<'NODE'
-              import { validateOperatorPackageJson } from "./.github/scripts/operator-tooling-policy.mjs";
-              const result = validateOperatorPackageJson({
-                baseSha: process.env.BASE_SHA,
-                headSha: process.env.HEAD_SHA,
-              });
-              console.log(`Validated operator package scripts: ${result.changedScripts.join(", ") || "(none)"}`);
-              NODE
+              BASE_SHA="$BASE_SHA" HEAD_SHA="$HEAD_SHA" node --input-type=module -e '
+                import { validateOperatorPackageJson } from "./.github/scripts/operator-tooling-policy.mjs";
+                const result = validateOperatorPackageJson({
+                  baseSha: process.env.BASE_SHA,
+                  headSha: process.env.HEAD_SHA,
+                });
+                console.log(`Validated operator package scripts: ${result.changedScripts.join(", ") || "(none)"}`);
+              '
             fi
           else
             echo "::error::Unexpected focused release-control lane: $LANE"
