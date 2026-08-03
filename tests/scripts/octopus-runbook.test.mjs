@@ -1739,8 +1739,15 @@ describe("Octopus workflow trust boundary", () => {
     expect(workflow).toMatch(
       /quality-gates:[\s\S]*?permissions:\n\s+contents: read\n\s+pull-requests: read\n\s+statuses: write/,
     );
-    for (const event of ["opened", "labeled", "unlabeled", "closed"]) {
-      expect(workflow).toMatch(new RegExp(`\\b${event},?`));
+    const triggerTypes = workflow.slice(
+      workflow.indexOf("    types:"),
+      workflow.indexOf("concurrency:"),
+    );
+    for (const event of ["opened", "labeled"]) {
+      expect(triggerTypes).toMatch(new RegExp(`\\b${event},?`));
+    }
+    for (const event of ["unlabeled", "closed"]) {
+      expect(triggerTypes).not.toMatch(new RegExp(`\\b${event},?`));
     }
     expect(workflow).not.toContain("\n  pull_request:");
     expect(workflow).toContain(
