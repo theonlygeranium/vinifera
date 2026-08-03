@@ -7,6 +7,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Replaced the dev `operator-tooling-tested` package-script guard heredoc with
+  a `node -e` invocation matching staging, preventing indentation-sensitive
+  workflow syntax failures and keeping dev→staging smoke promotions on the
+  intended fast lane. **Deployment impact:** CI/release-control behavior only;
+  no application route, provider, database, credential, billing, DNS, Worker
+  activation, or activation-gate state changes.
 - Added a staging-only `operator-tooling-tested` fast lane for repository
   operator helpers and npm-script-only `package.json` changes, preventing
   dev→staging promotions of promotion tooling from falling into full package
