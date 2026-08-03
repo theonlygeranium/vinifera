@@ -19,6 +19,7 @@ const DEFAULT_PROBE_URLS = Object.freeze([
 
 function git(args, options = {}) {
   return execFileSync("git", args, {
+    cwd: options.cwd,
     encoding: options.encoding ?? "utf8",
     stdio: options.stdio ?? ["ignore", "pipe", "pipe"],
   });
@@ -130,6 +131,18 @@ export function readDiffRecords(baseRef, headRef) {
     encoding: "buffer",
   });
   return parseNameStatusZ(output);
+}
+
+function readStagedDiffRecords(repositoryRoot = process.cwd()) {
+  const output = git(["diff", "--cached", "--name-status", "-z", "-M", "-C"], {
+    cwd: repositoryRoot,
+    encoding: "buffer",
+  });
+  return parseNameStatusZ(output);
+}
+
+function checkCleanWhitespace(repositoryRoot = process.cwd()) {
+  git(["diff", "--check"], { cwd: repositoryRoot, stdio: "pipe" });
 }
 
 function mergeable(baseRef, headRef) {
@@ -317,6 +330,61 @@ export async function probeHostedArtifact({
   };
 }
 
+export function runLocalDrill({
+  date,
+  suffix,
+  build = true,
+  stage = true,
+  repositoryRoot = process.cwd(),
+} = {}) {
+  const created = createArtifact({ date, suffix, repositoryRoot });
+  const html = readFileSync(resolve(repositoryRoot, created.path), "utf8");
+  const metadata = {
+    markerFound: html.includes(created.marker),
+    noindexFound: /<meta[^>]+name=["']robots["'][^>]+noindex/i.test(html),
+    nofollowFound: /<meta[^>]+name=["']robots["'][^>]+nofollow/i.test(html),
+  };
+  checkCleanWhitespace(repositoryRoot);
+  if (build) {
+    execFileSync("npm", ["run", "build:pages"], {
+      cwd: repositoryRoot,
+      stdio: "inherit",
+    });
+  }
+  if (stage) {
+    git(["add", created.path], { cwd: repositoryRoot, stdio: "ignore" });
+  }
+  const records = stage ? readStagedDiffRecords(repositoryRoot) : [];
+  const classification = stage
+    ? classifyDeliveryChange(records)
+    : {
+        classificationSucceeded: false,
+        lane: "unclassified",
+        reason: "drill_not_staged",
+        paths: [],
+      };
+  return {
+    ...created,
+    metadata,
+    buildRan: build,
+    staged: stage,
+    records,
+    classification,
+    passed:
+      metadata.markerFound &&
+      metadata.noindexFound &&
+      metadata.nofollowFound &&
+      (!stage ||
+        (classification.classificationSucceeded &&
+          classification.lane === "promotion-smoke")),
+    nextSteps: [
+      `git commit -m "test(promotion): add ${normalizeSuffix(suffix)} smoke artifact"`,
+      `git push -u origin smoke/${normalizeSuffix(suffix)}`,
+      "open a PR to dev and expect the promotion-smoke fast lane",
+    ],
+  };
+}
+
 function parseOptions(argv) {
   const options = {};
   for (let index = 0; index < argv.length; index += 1) {
@@ -347,6 +415,18 @@ async function main(argv) {
       suffix: normalizeSuffix(options.suffix),
     });
     process.stdout.write(`${JSON.stringify(created, null, 2)}\n`);
+    return;
+  }
+
+  if (command === "drill") {
+    const result = runLocalDrill({
+      date: normalizeDate(options.date),
+      suffix: normalizeSuffix(options.suffix),
+      build: options.build !== "false" && options.no_build !== true,
+      stage: options.stage !== "false" && options.no_stage !== true,
+    });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (!result.passed) process.exitCode = 1;
     return;
   }
 
@@ -396,7 +476,7 @@ async function main(argv) {
   }
 
   throw new Error(
-    "Usage: promotion-smoke.mjs create|preflight-start|preflight-production|probe [--fetch] ...",
+    "Usage: promotion-smoke.mjs create|drill|preflight-start|preflight-production|probe [--fetch] ...",
   );
 }
 
