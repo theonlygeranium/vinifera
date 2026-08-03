@@ -7,6 +7,15 @@
 ## [Unreleased]
 
 ### Fixed
+- Added repository-native promotion smoke helpers for fast, repeatable
+  operator drills: hosted marker probing, compact Actions status summaries,
+  local delivery-policy CLI classification, and a single `drill` command that
+  creates and validates hidden smoke artifacts before PR work begins. Octopus
+  runbook failures now include task IDs in trusted-bridge logs once this
+  controller update reaches protected branches. **Deployment impact:**
+  CI/release-control observability and operator tooling only; no application
+  route, provider, database, credential, billing, DNS, Worker activation, or
+  activation-gate state changes.
 - Allow promotion-smoke cleanup to delete a hidden smoke artifact when its
   exact extensionless redirect tombstone already exists in `public/_redirects`,
   preventing protected branch reconciles from leaving stale `.html` artifacts
