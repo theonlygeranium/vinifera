@@ -115,7 +115,8 @@ jobs:
             classification.lane === "docs" ||
             classification.lane === "promotion-smoke" ||
             classification.lane === "static-routing" ||
-            classification.lane === "promotion-smoke-cleanup"
+            classification.lane === "promotion-smoke-cleanup" ||
+            classification.lane === "release-control-tested"
               ? classification.lane
               : "full";
           appendFileSync(
@@ -524,6 +525,75 @@ jobs:
             echo "- Result: \`pass\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  release_control_validation:
+    name: Release-control focused validation
+    needs: classify
+    if: needs.classify.outputs.classification_succeeded == 'true' && needs.classify.outputs.lane == 'release-control-tested'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact validation head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch exact validation base
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
+
+      - name: Use repository Node.js pin
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate release-control fast lane
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+          PATHS_JSON: ${{ needs.classify.outputs.paths_json }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          node --test .github/scripts/delivery-policy.policy.mjs
+          npx vitest run tests/scripts --reporter verbose --testTimeout 10000
+          node --input-type=module <<'NODE'
+          import { scanDiffForSecrets } from "./.github/scripts/docs-ci-policy.mjs";
+          scanDiffForSecrets({
+            baseSha: process.env.BASE_SHA,
+            headSha: process.env.HEAD_SHA,
+          });
+          NODE
+
+          mapfile -t release_paths < <(jq -r '.[]' <<<"$PATHS_JSON")
+          if ! printf '%s\n' "${release_paths[@]}" | grep -qx 'CHANGELOG.md'; then
+            echo "::error::Release-control fast lane requires CHANGELOG.md."
+            exit 1
+          fi
+          if printf '%s\n' "${release_paths[@]}" \
+            | grep -Ev '^(\.github/(pull_request_template\.md|scripts/.*|workflows/.*)|CHANGELOG\.md|tests/scripts/.*)$' \
+            >/tmp/unexpected-release-control-paths.txt; then
+            echo "::error::Release-control fast lane only permits trusted workflow/controller paths plus tests/scripts and CHANGELOG.md."
+            cat /tmp/unexpected-release-control-paths.txt
+            exit 1
+          fi
+
+          {
+            echo "## Release-control focused validation"
+            echo
+            echo "- Exact base SHA: \`$BASE_SHA\`"
+            echo "- Exact head SHA: \`$HEAD_SHA\`"
+            echo "- Selected lane: \`release-control-tested\`"
+            echo "- Result: \`pass\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   full_quality:
     name: Full type, test, build, and package
     needs: classify
@@ -739,6 +809,7 @@ jobs:
         promotion_smoke_validation,
         static_routing_validation,
         promotion_smoke_cleanup_validation,
+        release_control_validation,
         full_quality,
         mobile_web,
         mobile_android,
@@ -756,6 +827,7 @@ jobs:
           PROMOTION_SMOKE_RESULT: ${{ needs.promotion_smoke_validation.result }}
           STATIC_ROUTING_RESULT: ${{ needs.static_routing_validation.result }}
           PROMOTION_SMOKE_CLEANUP_RESULT: ${{ needs.promotion_smoke_cleanup_validation.result }}
+          RELEASE_CONTROL_RESULT: ${{ needs.release_control_validation.result }}
           FULL_RESULT: ${{ needs.full_quality.result }}
           MOBILE_REQUIRED: ${{ needs.classify.outputs.mobile_required }}
           MOBILE_WEB_RESULT: ${{ needs.mobile_web.result }}
@@ -776,6 +848,7 @@ jobs:
             echo "- Promotion smoke job: \`${PROMOTION_SMOKE_RESULT}\`"
             echo "- Static routing job: \`${STATIC_ROUTING_RESULT}\`"
             echo "- Promotion smoke cleanup job: \`${PROMOTION_SMOKE_CLEANUP_RESULT}\`"
+            echo "- Release-control focused job: \`${RELEASE_CONTROL_RESULT}\`"
             echo "- Full quality job: \`${FULL_RESULT}\`"
             echo "- Android required: \`${MOBILE_REQUIRED:-missing}\`"
             echo "- Shared mobile web job: \`${MOBILE_WEB_RESULT}\`"
@@ -794,6 +867,7 @@ jobs:
                     "$PROMOTION_SMOKE_RESULT" != "skipped" ||
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
+                    "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -806,6 +880,7 @@ jobs:
                     "$PROMOTION_SMOKE_RESULT" != "skipped" ||
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
+                    "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -818,6 +893,7 @@ jobs:
                     "$PROMOTION_SMOKE_RESULT" != "success" ||
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
+                    "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -830,6 +906,7 @@ jobs:
                     "$PROMOTION_SMOKE_RESULT" != "skipped" ||
                     "$STATIC_ROUTING_RESULT" != "success" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
+                    "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -842,10 +919,24 @@ jobs:
                     "$PROMOTION_SMOKE_RESULT" != "skipped" ||
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "success" ||
+                    "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
                 echo "::error::Promotion smoke cleanup lane did not run exclusively and pass."
+                exit 1
+              fi
+              ;;
+            release-control-tested)
+              if [[ "$DOCS_RESULT" != "skipped" ||
+                    "$PROMOTION_SMOKE_RESULT" != "skipped" ||
+                    "$STATIC_ROUTING_RESULT" != "skipped" ||
+                    "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
+                    "$RELEASE_CONTROL_RESULT" != "success" ||
+                    "$FULL_RESULT" != "skipped" ||
+                    "$MOBILE_WEB_RESULT" != "skipped" ||
+                    "$MOBILE_RESULT" != "skipped" ]]; then
+                echo "::error::Release-control fast lane did not run exclusively and pass."
                 exit 1
               fi
               ;;
@@ -854,6 +945,7 @@ jobs:
                     "$PROMOTION_SMOKE_RESULT" != "skipped" ||
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
+                    "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "success" ]]; then
                 echo "::error::Full quality lane did not run exclusively and pass."
                 exit 1

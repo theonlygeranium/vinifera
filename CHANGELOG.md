@@ -7,6 +7,16 @@
 ## [Unreleased]
 
 ### Fixed
+- Added a protected-branch `release-control-tested` lane for narrow workflow,
+  trusted controller, and script-test changes so staging/main promotions can
+  validate release-control tooling with focused policy and script tests instead
+  of the full app, browser, and Android package suite. Release-control fast
+  lane changes now fail classification without `CHANGELOG.md`, and Octopus PR
+  review triggers no longer fire on unlabeled or closed events that only
+  produced skipped noise during promotions. **Deployment impact:**
+  CI/release-control behavior only; no application route, provider, database,
+  credential, billing, DNS, Worker activation, or activation-gate state
+  changes.
 - Added repository-native promotion smoke helpers for fast, repeatable
   operator drills: hosted marker probing, compact Actions status summaries,
   local delivery-policy CLI classification, and a single `drill` command that

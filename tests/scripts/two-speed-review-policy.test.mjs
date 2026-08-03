@@ -33,9 +33,13 @@ describe("two-speed Octopus review policy", () => {
   });
 
   it("offers an explicit persistent label request for high-risk dev PRs", () => {
-    for (const event of ["labeled", "unlabeled", "closed"]) {
-      expect(workflow).toMatch(new RegExp(`\\b${event},?`));
-    }
+    const triggerTypes = workflow.slice(
+      workflow.indexOf("    types:"),
+      workflow.indexOf("concurrency:"),
+    );
+    expect(triggerTypes).toMatch(/\blabeled,?/);
+    expect(triggerTypes).not.toMatch(/\bunlabeled,?/);
+    expect(triggerTypes).not.toMatch(/\bclosed,?/);
     expect(workflow).toContain(
       "contains(github.event.pull_request.labels.*.name, 'octopus-review-required')",
     );

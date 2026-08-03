@@ -66,6 +66,17 @@ const CI_SCRIPT_TEST_PREFIXES = Object.freeze([
   "tests/scripts/",
 ]);
 
+const RELEASE_CONTROL_FASTLANE_FILES = new Set([
+  ".github/pull_request_template.md",
+  "CHANGELOG.md",
+]);
+
+const RELEASE_CONTROL_FASTLANE_PREFIXES = Object.freeze([
+  ".github/scripts/",
+  ".github/workflows/",
+  "tests/scripts/",
+]);
+
 const TEST_PREFIXES = Object.freeze([
   "tests/",
 ]);
@@ -168,6 +179,22 @@ function isRoutinePath(path) {
 
 function isCiScriptTestPath(path) {
   return CI_SCRIPT_TEST_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+function isReleaseControlFastlanePath(path) {
+  return (
+    RELEASE_CONTROL_FASTLANE_FILES.has(path) ||
+    RELEASE_CONTROL_FASTLANE_PREFIXES.some((prefix) => path.startsWith(prefix))
+  );
+}
+
+function hasChangelogUpdate(records) {
+  return records.some(
+    ({ status, paths }) =>
+      !status.startsWith("D") &&
+      paths.length === 1 &&
+      paths[0] === "CHANGELOG.md",
+  );
 }
 
 function isProtectedReconcileContext({ baseRef = "", headRef = "" } = {}) {
@@ -551,6 +578,41 @@ export function classifyDeliveryChange(records, context = {}) {
     };
   }
 
+  if (
+    (hasChangelogUpdate(records) ||
+      uniquePaths.some((path) => path.startsWith(".github/workflows/"))) &&
+    records.every(
+      ({ status, paths: recordPaths }) =>
+        !status.startsWith("D") &&
+        recordPaths.every(isReleaseControlFastlanePath),
+    )
+  ) {
+    if (!hasChangelogUpdate(records)) {
+      return {
+        classificationSucceeded: false,
+        lane: "invalid",
+        reason: "release_control_fastlane_missing_changelog",
+        mobileRequired: false,
+        browserRequired: false,
+        previewRequired: false,
+        risk: "high",
+        surface: "workflow",
+        paths: uniquePaths,
+      };
+    }
+    return {
+      classificationSucceeded: true,
+      lane: "release-control-tested",
+      reason: "release_control_fastlane_allowlist_match",
+      mobileRequired: false,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "medium",
+      surface: "workflow",
+      paths: uniquePaths,
+    };
+  }
+
   const unknown = uniquePaths.filter(
     (path) =>
       !isDocumentationPath(path) &&
@@ -599,6 +661,12 @@ export function selectFocusedTests(paths, lane) {
     return [".github/scripts/delivery-policy.policy.mjs"];
   }
   if (lane === "ci-script-tested") {
+    return [
+      ".github/scripts/delivery-policy.policy.mjs",
+      "tests/scripts",
+    ];
+  }
+  if (lane === "release-control-tested") {
     return [
       ".github/scripts/delivery-policy.policy.mjs",
       "tests/scripts",
@@ -715,6 +783,7 @@ export function evaluateFastAggregate({
   if (
     lane === "protected-reconcile" ||
     lane === "ci-script-tested" ||
+    lane === "release-control-tested" ||
     lane === "static-routing" ||
     lane === "promotion-smoke-cleanup"
   ) {
@@ -745,6 +814,7 @@ export function evaluateFullAggregate({
   classificationSucceeded,
   classifyResult,
   lane = "full",
+  releaseControlResult = "skipped",
   fullResult,
   mobileRequired,
   mobileWebResult,
@@ -756,9 +826,23 @@ export function evaluateFullAggregate({
   if (lane === "noop") {
     const passed =
       fullResult === "skipped" &&
+      releaseControlResult === "skipped" &&
       mobileWebResult === "skipped" &&
       androidResult === "skipped";
     return { passed, reason: passed ? "noop_passed" : "noop_result_mismatch" };
+  }
+  if (lane === "release-control-tested") {
+    const passed =
+      releaseControlResult === "success" &&
+      fullResult === "skipped" &&
+      mobileWebResult === "skipped" &&
+      androidResult === "skipped";
+    return {
+      passed,
+      reason: passed
+        ? "release_control_tested_passed"
+        : "release_control_tested_result_mismatch",
+    };
   }
   if (fullResult !== "success") {
     return { passed: false, reason: "full_validation_not_successful" };
