@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 const ROOT_DOCUMENTATION = new Set([
   "AGENTS.md",
@@ -314,6 +315,52 @@ export function readChangedRecords(baseSha, headSha, cwd = process.cwd()) {
       { cwd, encoding: "buffer", stdio: ["ignore", "pipe", "pipe"] },
     ),
   );
+}
+
+function readChangedRecordsFromRefs(baseRef, headRef, cwd = process.cwd()) {
+  const baseSha = execFileSync("git", ["rev-parse", "--verify", `${baseRef}^{commit}`], {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+  const headSha = execFileSync("git", ["rev-parse", "--verify", `${headRef}^{commit}`], {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+  return {
+    baseSha,
+    headSha,
+    records: readChangedRecords(baseSha, headSha, cwd),
+  };
+}
+
+function readIndexRecords(cwd = process.cwd()) {
+  return parseNameStatusZ(
+    execFileSync("git", ["diff", "--cached", "--name-status", "-z", "-M", "-C"], {
+      cwd,
+      encoding: "buffer",
+      stdio: ["ignore", "pipe", "pipe"],
+    }),
+  );
+}
+
+function readWorkingTreeRecords(cwd = process.cwd()) {
+  return parseNameStatusZ(
+    execFileSync("git", ["diff", "--name-status", "-z", "-M", "-C"], {
+      cwd,
+      encoding: "buffer",
+      stdio: ["ignore", "pipe", "pipe"],
+    }),
+  );
+}
+
+function readUntrackedPaths(cwd = process.cwd()) {
+  return execFileSync("git", ["ls-files", "--others", "--exclude-standard"], {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).split("\n").filter(Boolean);
 }
 
 export function classifyDeliveryChange(records, context = {}) {
@@ -723,4 +770,123 @@ export function evaluateFullAggregate({
     passed,
     reason: passed ? "full_lane_passed" : "mobile_lane_result_mismatch",
   };
+}
+
+function parseCliArgs(argv) {
+  const options = {};
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (!arg.startsWith("--")) {
+      throw new Error(`Unexpected argument: ${arg}`);
+    }
+    const key = arg.slice(2).replaceAll("-", "_");
+    const next = argv[index + 1];
+    if (!next || next.startsWith("--")) {
+      options[key] = true;
+    } else {
+      options[key] = next;
+      index += 1;
+    }
+  }
+  return options;
+}
+
+function cliUsage() {
+  return [
+    "Usage:",
+    "  delivery-policy.mjs --base <ref> --head <ref> [--base-ref <name>] [--head-ref <name>] [--format json]",
+    "  delivery-policy.mjs --staged [--format json]",
+    "  delivery-policy.mjs --working-tree [--format json]",
+    "",
+    "Notes:",
+    "  Untracked files are invisible to --base/--head and --working-tree until staged.",
+  ].join("\n");
+}
+
+function printClassification(result, format) {
+  if (format === "json") {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write([
+    `Lane: ${result.classification.lane}`,
+    `Reason: ${result.classification.reason}`,
+    `Risk: ${result.classification.risk}`,
+    `Surface: ${result.classification.surface}`,
+    `Paths: ${result.classification.paths.join(", ") || "(none)"}`,
+    result.warnings.length > 0 ? `Warnings: ${result.warnings.join("; ")}` : "",
+  ].filter(Boolean).join("\n") + "\n");
+}
+
+async function main(argv) {
+  const options = parseCliArgs(argv);
+  if (options.help) {
+    process.stdout.write(`${cliUsage()}\n`);
+    return;
+  }
+
+  const modeCount = Number(Boolean(options.staged)) +
+    Number(Boolean(options.working_tree)) +
+    Number(Boolean(options.base || options.head));
+  if (modeCount !== 1) {
+    throw new Error(`${cliUsage()}\n\nSelect exactly one diff mode.`);
+  }
+
+  let records;
+  const warnings = [];
+  const untrackedPaths = readUntrackedPaths();
+  let baseSha = null;
+  let headSha = null;
+  let mode = "refs";
+
+  if (options.staged) {
+    mode = "staged";
+    records = readIndexRecords();
+    if (untrackedPaths.length > 0) {
+      warnings.push(`untracked_files_not_in_staged_diff:${untrackedPaths.join(",")}`);
+    }
+  } else if (options.working_tree) {
+    mode = "working-tree";
+    records = readWorkingTreeRecords();
+    if (untrackedPaths.length > 0) {
+      warnings.push(`untracked_files_not_in_working_tree_diff:${untrackedPaths.join(",")}`);
+    }
+  } else {
+    if (!options.base || !options.head) {
+      throw new Error(`${cliUsage()}\n\n--base and --head are required together.`);
+    }
+    const resolved = readChangedRecordsFromRefs(options.base, options.head);
+    ({ records, baseSha, headSha } = resolved);
+    if (untrackedPaths.length > 0) {
+      warnings.push(`untracked_files_not_in_ref_diff:${untrackedPaths.join(",")}`);
+    }
+  }
+
+  if (records.length === 0 && untrackedPaths.length > 0) {
+    warnings.push("empty_tracked_diff_with_untracked_files");
+  }
+
+  const classification = classifyDeliveryChange(records, {
+    baseRef: options.base_ref,
+    headRef: options.head_ref,
+  });
+  const result = {
+    mode,
+    base: options.base || null,
+    head: options.head || null,
+    baseSha,
+    headSha,
+    records,
+    classification,
+    warnings,
+  };
+  printClassification(result, options.format);
+  if (!classification.classificationSucceeded) process.exitCode = 1;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main(process.argv.slice(2)).catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
 }

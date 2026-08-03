@@ -1559,7 +1559,7 @@ describe("Octopus runbook bridge", () => {
       ),
     ).toBe(true);
     expect(log).toHaveBeenCalledWith(
-      "Octopus runbook passed: PR Quality Gates",
+      "Octopus runbook passed: PR Quality Gates task=ServerTasks-1",
     );
   });
 
