@@ -180,13 +180,48 @@ test("release-control workflow patches require changelog and select focused cove
   assert.equal(result.previewRequired, false);
   assert.deepEqual(selectFocusedTests(result.paths, result.lane), [
     ".github/scripts/delivery-policy.policy.mjs",
+    ".github/scripts/operator-tooling-policy.policy.mjs",
+    "tests/scripts",
+  ]);
+});
+
+test("operator tooling patches require changelog and select focused coverage", () => {
+  const missingChangelog = classifyDeliveryChange([
+    record("M", "package.json"),
+    record("M", "scripts/promotion-smoke.mjs"),
+    record("M", "tests/scripts/promotion-smoke.test.mjs"),
+  ]);
+  assert.equal(missingChangelog.classificationSucceeded, false);
+  assert.equal(missingChangelog.lane, "invalid");
+  assert.equal(
+    missingChangelog.reason,
+    "operator_tooling_fastlane_missing_changelog",
+  );
+
+  const result = classifyDeliveryChange([
+    record("M", ".github/workflows/ci.yml"),
+    record("M", "package.json"),
+    record("M", "scripts/promotion-smoke.mjs"),
+    record("M", "tests/scripts/promotion-smoke.test.mjs"),
+    record("M", "CHANGELOG.md"),
+  ]);
+  assert.equal(result.classificationSucceeded, true);
+  assert.equal(result.lane, "operator-tooling-tested");
+  assert.equal(result.reason, "operator_tooling_fastlane_allowlist_match");
+  assert.equal(result.risk, "medium");
+  assert.equal(result.mobileRequired, false);
+  assert.equal(result.browserRequired, false);
+  assert.equal(result.previewRequired, false);
+  assert.deepEqual(selectFocusedTests(result.paths, result.lane), [
+    ".github/scripts/delivery-policy.policy.mjs",
+    ".github/scripts/operator-tooling-policy.policy.mjs",
     "tests/scripts",
   ]);
 
   assert.equal(
     classifyDeliveryChange([
-      record("M", ".github/workflows/ci.yml"),
       record("M", "package.json"),
+      record("M", "scripts/production-release.mjs"),
       record("M", "CHANGELOG.md"),
     ]).lane,
     "high-risk",
@@ -469,6 +504,8 @@ test("fast aggregate accepts only the selected successful lane", () => {
   for (const lane of [
     "protected-reconcile",
     "ci-script-tested",
+    "release-control-tested",
+    "operator-tooling-tested",
     "static-routing",
     "promotion-smoke-cleanup",
   ]) {
@@ -607,6 +644,22 @@ test("full aggregate rejects skipped required work and permits one mobile lane",
       reason: "release_control_tested_passed",
     },
   );
+  assert.deepEqual(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
+      lane: "operator-tooling-tested",
+      releaseControlResult: "success",
+      fullResult: "skipped",
+      mobileRequired: false,
+      mobileWebResult: "skipped",
+      androidResult: "skipped",
+    }),
+    {
+      passed: true,
+      reason: "operator_tooling_tested_passed",
+    },
+  );
   assert.equal(
     evaluateFullAggregate({
       classificationSucceeded: true,
@@ -712,6 +765,7 @@ test("development workflow has candidate-only triggers and cancellable PR concur
   assert.match(workflow, /protected-reconcile/);
   assert.match(workflow, /ci-script-tested/);
   assert.match(workflow, /release-control-tested/);
+  assert.match(workflow, /operator-tooling-tested/);
   assert.match(workflow, /static-routing/);
   assert.match(workflow, /promotion-smoke-cleanup/);
 });
@@ -801,9 +855,12 @@ test("full workflow excludes dev pushes and retains promotion-grade coverage", (
   assert.match(workflow, /promotion-smoke-cleanup/);
   assert.match(workflow, /Promotion smoke cleanup validation/);
   assert.match(workflow, /release-control-tested/);
+  assert.match(workflow, /operator-tooling-tested/);
+  assert.match(workflow, /operator-tooling-policy\.policy\.mjs/);
+  assert.match(workflow, /validateOperatorPackageJson/);
   assert.match(workflow, /Release-control focused validation/);
   assert.match(workflow, /RELEASE_CONTROL_RESULT.*needs\.release_control_validation\.result/);
-  assert.match(workflow, /Release-control fast lane did not run exclusively and pass/);
+  assert.match(workflow, /Focused release-control fast lane did not run exclusively and pass/);
   for (const command of [
     "npm run qa:db:phase1",
     "npm run qa:db:phase2",

@@ -51,6 +51,8 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_REF: ${{ github.ref }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           EVENT_SHA: ${{ github.sha }}
@@ -110,13 +112,17 @@ jobs:
             process.env.EVENT_NAME === "schedule" ||
             process.env.FULL_MOBILE === "true" ||
             classification.mobileRequired === true;
+          const stagingFastContext =
+            process.env.PR_BASE_REF === "staging" ||
+            process.env.EVENT_REF === "refs/heads/staging";
           const validationLane =
             classification.lane === "noop" ||
             classification.lane === "docs" ||
             classification.lane === "promotion-smoke" ||
             classification.lane === "static-routing" ||
             classification.lane === "promotion-smoke-cleanup" ||
-            classification.lane === "release-control-tested"
+            classification.lane === "release-control-tested" ||
+            (classification.lane === "operator-tooling-tested" && stagingFastContext)
               ? classification.lane
               : "full";
           appendFileSync(
@@ -528,7 +534,10 @@ jobs:
   release_control_validation:
     name: Release-control focused validation
     needs: classify
-    if: needs.classify.outputs.classification_succeeded == 'true' && needs.classify.outputs.lane == 'release-control-tested'
+    if: >-
+      needs.classify.outputs.classification_succeeded == 'true' &&
+      (needs.classify.outputs.lane == 'release-control-tested' ||
+       needs.classify.outputs.lane == 'operator-tooling-tested')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -558,11 +567,13 @@ jobs:
         env:
           BASE_SHA: ${{ needs.classify.outputs.base_sha }}
           HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+          LANE: ${{ needs.classify.outputs.lane }}
           PATHS_JSON: ${{ needs.classify.outputs.paths_json }}
         run: |
           set -euo pipefail
           git diff --check "$BASE_SHA" "$HEAD_SHA"
           node --test .github/scripts/delivery-policy.policy.mjs
+          node --test .github/scripts/operator-tooling-policy.policy.mjs
           npx vitest run tests/scripts --reporter verbose --testTimeout 10000
           node --input-type=module <<'NODE'
           import { scanDiffForSecrets } from "./.github/scripts/docs-ci-policy.mjs";
@@ -577,11 +588,35 @@ jobs:
             echo "::error::Release-control fast lane requires CHANGELOG.md."
             exit 1
           fi
-          if printf '%s\n' "${release_paths[@]}" \
-            | grep -Ev '^(\.github/(pull_request_template\.md|scripts/.*|workflows/.*)|CHANGELOG\.md|tests/scripts/.*)$' \
-            >/tmp/unexpected-release-control-paths.txt; then
-            echo "::error::Release-control fast lane only permits trusted workflow/controller paths plus tests/scripts and CHANGELOG.md."
-            cat /tmp/unexpected-release-control-paths.txt
+
+          if [[ "$LANE" == "release-control-tested" ]]; then
+            if printf '%s\n' "${release_paths[@]}" \
+              | grep -Ev '^(\.github/(pull_request_template\.md|scripts/.*|workflows/.*)|CHANGELOG\.md|tests/scripts/.*)$' \
+              >/tmp/unexpected-release-control-paths.txt; then
+              echo "::error::Release-control fast lane only permits trusted workflow/controller paths plus tests/scripts and CHANGELOG.md."
+              cat /tmp/unexpected-release-control-paths.txt
+              exit 1
+            fi
+          elif [[ "$LANE" == "operator-tooling-tested" ]]; then
+            if printf '%s\n' "${release_paths[@]}" \
+              | grep -Ev '^(\.github/(pull_request_template\.md|scripts/.*|workflows/.*)|CHANGELOG\.md|package\.json|scripts/(actions-promotion-status|hosted-marker-probe|promotion-smoke)\.mjs|tests/scripts/.*)$' \
+              >/tmp/unexpected-operator-tooling-paths.txt; then
+              echo "::error::Operator tooling fast lane only permits trusted controller/operator tooling paths."
+              cat /tmp/unexpected-operator-tooling-paths.txt
+              exit 1
+            fi
+            if printf '%s\n' "${release_paths[@]}" | grep -qx 'package.json'; then
+              BASE_SHA="$BASE_SHA" HEAD_SHA="$HEAD_SHA" node --input-type=module -e '
+                import { validateOperatorPackageJson } from "./.github/scripts/operator-tooling-policy.mjs";
+                const result = validateOperatorPackageJson({
+                  baseSha: process.env.BASE_SHA,
+                  headSha: process.env.HEAD_SHA,
+                });
+                console.log(`Validated operator package scripts: ${result.changedScripts.join(", ") || "(none)"}`);
+              '
+            fi
+          else
+            echo "::error::Unexpected focused release-control lane: $LANE"
             exit 1
           fi
 
@@ -590,7 +625,7 @@ jobs:
             echo
             echo "- Exact base SHA: \`$BASE_SHA\`"
             echo "- Exact head SHA: \`$HEAD_SHA\`"
-            echo "- Selected lane: \`release-control-tested\`"
+            echo "- Selected lane: \`$LANE\`"
             echo "- Result: \`pass\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -630,6 +665,7 @@ jobs:
         run: |
           node --test .github/scripts/docs-ci-policy.policy.mjs
           node --test .github/scripts/delivery-policy.policy.mjs
+          node --test .github/scripts/operator-tooling-policy.policy.mjs
 
       - name: Check exact diff whitespace and credential patterns
         env:
@@ -927,7 +963,7 @@ jobs:
                 exit 1
               fi
               ;;
-            release-control-tested)
+            release-control-tested|operator-tooling-tested)
               if [[ "$DOCS_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_RESULT" != "skipped" ||
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
@@ -936,7 +972,7 @@ jobs:
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
-                echo "::error::Release-control fast lane did not run exclusively and pass."
+                echo "::error::Focused release-control fast lane did not run exclusively and pass."
                 exit 1
               fi
               ;;
