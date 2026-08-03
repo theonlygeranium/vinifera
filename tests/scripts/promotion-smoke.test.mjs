@@ -12,7 +12,9 @@ import {
   evaluateStartPreflight,
   markerFor,
   probeHostedArtifact,
+  runLocalDrill,
 } from "../../scripts/promotion-smoke.mjs";
+import { probeHostedMarker } from "../../scripts/hosted-marker-probe.mjs";
 
 const sourceSha = "a".repeat(40);
 const originalCwd = process.cwd();
@@ -95,6 +97,54 @@ describe("promotion smoke tooling", () => {
     expect(() => artifactPathFor({ date: "2026-08-02", suffix: "Bad" })).toThrow(
       /lowercase/,
     );
+  });
+
+  it("runs a local drill that stages and classifies the smoke artifact", () => {
+    const root = fixtureRepo();
+    process.chdir(root);
+    const result = runLocalDrill({
+      date: "2026-08-02",
+      suffix: "local-drill",
+      build: false,
+      repositoryRoot: root,
+    });
+    expect(result.passed).toBe(true);
+    expect(result.staged).toBe(true);
+    expect(result.classification.lane).toBe("promotion-smoke");
+    expect(result.records).toEqual([
+      {
+        status: "A",
+        paths: ["public/vinifera-promotion-smoke-2026-08-02-local-drill.html"],
+      },
+    ]);
+    expect(git(root, ["diff", "--cached", "--name-only"]).trim()).toBe(
+      "public/vinifera-promotion-smoke-2026-08-02-local-drill.html",
+    );
+  });
+
+  it("prints staged classifier JSON instead of silently succeeding", () => {
+    const root = fixtureRepo();
+    process.chdir(root);
+    createArtifact({
+      date: "2026-08-02",
+      suffix: "cli-json",
+      repositoryRoot: root,
+    });
+    git(root, ["add", "."]);
+    const output = execFileSync(
+      "node",
+      [
+        join(originalCwd, ".github/scripts/delivery-policy.mjs"),
+        "--staged",
+        "--format",
+        "json",
+      ],
+      { cwd: root, encoding: "utf8" },
+    );
+    const parsed = JSON.parse(output);
+    expect(parsed.mode).toBe("staged");
+    expect(parsed.records).toHaveLength(1);
+    expect(parsed.classification.lane).toBe("promotion-smoke");
   });
 
   it("fails start preflight when protected environment branch trees drift", () => {
@@ -197,6 +247,35 @@ describe("promotion smoke tooling", () => {
     expect(result.found[0].markerFound).toBe(true);
     expect(result.found[0].noindexFound).toBe(true);
     expect(result.found[0].nofollowFound).toBe(true);
+  });
+
+  it("repo hosted marker probe requires every origin for presence", async () => {
+    const marker = markerFor({ date: "2026-08-02", suffix: "probe-all" });
+    const html = artifactHtml({ date: "2026-08-02", suffix: "probe-all" });
+    const withMarker = await serve({
+      "/vinifera-promotion-smoke-2026-08-02-probe-all": html,
+    });
+    const withoutMarker = await serve({});
+    const parsed = await probeHostedMarker({
+      slug: "vinifera-promotion-smoke-2026-08-02-probe-all",
+      marker,
+      origins: [withMarker, withoutMarker],
+      expect: "present",
+      deadlineMs: 1,
+      intervalMs: 1,
+    });
+    expect(parsed.passed).toBe(false);
+    expect(parsed.missingOrigins).toContain(withoutMarker);
+
+    const absent = await probeHostedMarker({
+      slug: "vinifera-promotion-smoke-2026-08-02-missing",
+      marker,
+      origins: [withMarker, withoutMarker],
+      expect: "absent",
+      deadlineMs: 1,
+      intervalMs: 1,
+    });
+    expect(absent.passed).toBe(true);
   });
 
   it("keeps dev automerge merges event-producing for downstream dev evidence", () => {
