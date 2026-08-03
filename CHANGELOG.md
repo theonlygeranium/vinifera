@@ -7,6 +7,29 @@
 ## [Unreleased]
 
 ### Fixed
+- Let Octopus PR Quality Gates fall back to GitHub's exact pull-request
+  `updated_at` timestamp when a direct `dev`→`staging` promotion PR does not
+  include a `Review attempt:` marker, while still honoring and rechecking the
+  marker when one is present. This prevents missing body boilerplate from
+  creating immediate failed Octopus runs. **Deployment impact:**
+  CI/release-control behavior only; no application route, provider, database,
+  credential, billing, DNS, Worker activation, or activation-gate state
+  changes.
+- Replaced the dev `operator-tooling-tested` package-script guard heredoc with
+  a `node -e` invocation matching staging, preventing indentation-sensitive
+  workflow syntax failures and keeping dev→staging smoke promotions on the
+  intended fast lane. **Deployment impact:** CI/release-control behavior only;
+  no application route, provider, database, credential, billing, DNS, Worker
+  activation, or activation-gate state changes.
+- Added a staging-only `operator-tooling-tested` fast lane for repository
+  operator helpers and npm-script-only `package.json` changes, preventing
+  dev→staging promotions of promotion tooling from falling into full package
+  and Android validation. The lane validates exact path scope, requires
+  `CHANGELOG.md`, rejects dependency or install metadata changes, and maps
+  back to full validation for production/main. **Deployment impact:**
+  staging CI/release-control behavior only; no application route, provider,
+  database, credential, billing, DNS, Worker activation, or activation-gate
+  state changes.
 - Added a protected-branch `release-control-tested` lane for narrow workflow,
   trusted controller, and script-test changes so staging/main promotions can
   validate release-control tooling with focused policy and script tests instead

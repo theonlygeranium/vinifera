@@ -57,6 +57,15 @@ describe("promotion workflow smoke contract", () => {
     expect(octopusPromotionWorkflow).toContain(
       "Review attempt: ([0-9]+\\.[0-9]+|[0-9]{4}-[0-9]{2}-[0-9]{2}T",
     );
+    expect(octopusPromotionWorkflow).toContain(
+      'body_review_attempt=$(sed -nE',
+    );
+    expect(octopusPromotionWorkflow).toContain(
+      'if [[ -n "$body_review_attempt" ]]; then',
+    );
+    expect(octopusPromotionWorkflow).toContain(
+      'attempt_marker_required="true"',
+    );
   });
 
   it("leaves production Worker mutation manual while allowing safe main deploy smoke", () => {
