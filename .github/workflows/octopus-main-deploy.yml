@@ -11,6 +11,8 @@ on:
       - "docs/**"
       - ".github/**"
       - ".octopus/**"
+      - "public/_redirects"
+      - "public/vinifera-promotion-smoke-*.html"
 
 jobs:
   create-and-deploy:

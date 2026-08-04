@@ -7,6 +7,14 @@
 ## [Unreleased]
 
 ### Fixed
+- Stop the Octopus main development deployment workflow from running on hidden
+  promotion-smoke HTML artifacts and `public/_redirects` tombstone-only
+  cleanup changes; document the Cloudflare Access OTP diagnosis and the
+  Octopus OIDC/service-token optimization path. **Deployment impact:**
+  CI/release-control behavior and Octopus deploy noise reduction only; no
+  application route, provider, database, credential, billing, DNS, Worker
+  activation, production/mobile approval-gate, or Cloudflare Access policy
+  state changes.
 - Let the `release-control-tested` fast lane include companion documentation
   updates for workflow/controller changes, preventing safe controller
   promotions with `AGENTS.md` or ADR evidence from falling back to the full app
