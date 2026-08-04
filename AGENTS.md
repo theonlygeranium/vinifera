@@ -189,13 +189,13 @@ workflows under `.github/workflows/`:
 | `delivery-control-center.yml` | Scheduled, manual | Maintains one exception-oriented delivery status issue |
 | `ci.yml` | Promotion PRs, staging/main, manual, nightly | Full release validation, selective/nightly Android, hidden promotion-smoke fast validation, and the exact `Vinifera Promotion Gate` aggregate |
 | `direct-push-guard.yml` | Push to main | Enforces no direct commits reach main without a merged PR; fails closed |
-| `hosted-readiness.yml` | Manual, protected | Read-only credential and hosted-target readiness report; performs no migration or deployment |
+| `hosted-readiness.yml` | Manual, unprotected | Read-only credential and hosted-target readiness report; performs no migration or deployment |
 | `octopus-main-deploy.yml` | Push to main, manual | Reconcile trusted Octopus configuration after the default-branch bootstrap |
 | `octopus-pr-quality-gates.yml` | Promotion PRs and explicit high-risk review requests | Validate same-repository PR source and publish the trusted Octopus result for the exact PR/head/base/attempt |
 | `octopus-security-audit.yml` | Scheduled, manual | Run the trusted Octopus security audit |
 | `production-worker-release.yml` | Manual, protected | Bootstrap, upload, deploy, or roll back the production Worker without domain/Pages mutation (credential-gated) |
-| `promote-dev-to-staging.yml` | Manual/owner-authorized | Open/update and validate a consolidated `dev` to `staging` promotion; never starts after every `dev` push |
-| `stripe-test-catalog.yml` | Manual, protected | Stripe test Price catalog bootstrap and reconciliation |
+| `promote-dev-to-staging.yml` | Manual/owner-authorized | Open/update, validate, and auto-merge a consolidated `dev` to `staging` promotion unless dry-run or explicitly disabled; never starts after every `dev` push |
+| `stripe-test-catalog.yml` | Manual, mixed | Stripe test Price catalog probe/verify without reviewer approval; bootstrap remains staging-protected |
 | `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
 | `credential-envelope-rotation.yml` | Manual, protected | Rotate encrypted credential envelopes |
 | `mobile-release.yml` | Manual, protected | Signed iOS/Android artifacts for TestFlight and Play internal tracks |
@@ -294,7 +294,7 @@ The repository operates a mandatory three-tier promotion pipeline:
 ```
 feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
                               ↓
-                        promote-dev-to-staging.yml   (manual/owner-authorized full gate)
+                        promote-dev-to-staging.yml   (manual/owner-authorized full gate + auto-merge)
                               ↓
                         staging                →  vinifera-staging.edstratumlabs.ai  (protected validation)
                               ↓
@@ -324,9 +324,10 @@ feature/* branches  →  PR to dev          →  vinifera-dev.edstratumlabs.ai
   3. Waits for `Vinifera Promotion Gate`, Octopus, and no active
      requested-changes review for that exact comparison and readiness attempt.
      CodeRabbit evidence may be recorded but is optional.
-  4. Re-probes staging Supabase REST immediately before reporting readiness.
+  4. Re-probes staging Supabase REST immediately before merge readiness.
   5. Revalidates the captured head/base, canonical gate, Octopus, and active reviews
-     after the second probe before any authorized merge.
+     after the second probe, then squash-merges with the exact captured head
+     unless `dry_run=true`, `auto_merge=false`, or an emergency label/review gate blocks it.
 - `staging → main` and production remain protected operations. They require
   explicit task authority or an owner-approved protected workflow, the full
   release gate, staging soak/health evidence, an identical reviewed artifact
