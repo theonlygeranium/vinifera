@@ -7,6 +7,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Strip upstream `Transfer-Encoding` from buffered Cloudflare Access proxy
+  responses before setting `Content-Length`, preventing Node/undici parse errors
+  during Octopus OIDC discovery. **Deployment impact:** CI/release-control
+  authentication behavior only; no application route, provider, database,
+  billing, DNS, Worker activation, production/mobile approval-gate, or
+  Cloudflare Access policy state changes.
 - Rewrite the self-hosted Octopus OIDC discovery `token_endpoint` inside the
   Cloudflare Access proxy so `OctopusDeploy/login@v2` exchanges GitHub OIDC
   tokens through the runner-local proxy instead of following Octopus's internal
