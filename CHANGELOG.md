@@ -10,7 +10,8 @@
 - Let the `release-control-tested` fast lane include companion documentation
   updates for workflow/controller changes, preventing safe controller
   promotions with `AGENTS.md` or ADR evidence from falling back to the full app
-  and mobile validation lane. **Deployment impact:** CI/release-control
+  and mobile validation lane, and align the protected-branch CI allowlist with
+  that classifier rule. **Deployment impact:** CI/release-control
   classification behavior only; no application route, provider, database,
   credential, billing, DNS, Worker activation, or production/mobile
   approval-gate state changes.

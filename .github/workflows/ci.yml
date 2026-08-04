@@ -591,9 +591,9 @@ jobs:
 
           if [[ "$LANE" == "release-control-tested" ]]; then
             if printf '%s\n' "${release_paths[@]}" \
-              | grep -Ev '^(\.github/(pull_request_template\.md|scripts/.*|workflows/.*)|CHANGELOG\.md|tests/scripts/.*)$' \
+              | grep -Ev '^(\.github/(pull_request_template\.md|scripts/.*|workflows/.*)|AGENTS\.md|CHANGELOG\.md|docs/.*\.md|tests/scripts/.*)$' \
               >/tmp/unexpected-release-control-paths.txt; then
-              echo "::error::Release-control fast lane only permits trusted workflow/controller paths plus tests/scripts and CHANGELOG.md."
+              echo "::error::Release-control fast lane only permits trusted workflow/controller paths, companion docs, tests/scripts, and CHANGELOG.md."
               cat /tmp/unexpected-release-control-paths.txt
               exit 1
             fi
