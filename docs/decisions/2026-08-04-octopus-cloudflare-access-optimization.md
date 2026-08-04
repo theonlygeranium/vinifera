@@ -119,7 +119,7 @@ Octopus OIDC is active for:
 - `.github/workflows/octopus-main-deploy.yml`;
 - `.github/workflows/octopus-pr-quality-gates.yml`.
 
-The workflows use `OctopusDeploy/login@v1` with `id-token: write` and pass the
+The workflows use `OctopusDeploy/login@v2` with `id-token: write` and pass the
 OIDC `access_token` output to downstream Octopus calls. The shared
 `.github/scripts/octopus-runbook.mjs` bridge accepts either
 `OCTOPUS_ACCESS_TOKEN` or `OCTOPUS_API_KEY`, preferring the bearer access token

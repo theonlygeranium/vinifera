@@ -7,7 +7,7 @@
 ## [Unreleased]
 
 ### Fixed
-- Correct the Octopus OIDC migration to use the `OctopusDeploy/login@v1`
+- Correct the Octopus OIDC migration to use the `OctopusDeploy/login@v2`
   `access_token` output instead of the API-key output, and let the shared
   Octopus runbook bridge authenticate with either an OIDC bearer token or the
   legacy API key. **Deployment impact:** CI/release-control authentication
