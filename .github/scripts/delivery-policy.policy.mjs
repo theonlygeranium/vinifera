@@ -861,6 +861,10 @@ test("full workflow excludes dev pushes and retains promotion-grade coverage", (
   assert.match(workflow, /operator-tooling-policy\.policy\.mjs/);
   assert.match(workflow, /validateOperatorPackageJson/);
   assert.match(workflow, /Release-control focused validation/);
+  assert.match(
+    workflow,
+    /AGENTS\\\.md\|CHANGELOG\\\.md\|docs\/\.\*\\\.md\|tests\/scripts\/\.\*/,
+  );
   assert.match(workflow, /RELEASE_CONTROL_RESULT.*needs\.release_control_validation\.result/);
   assert.match(workflow, /Focused release-control fast lane did not run exclusively and pass/);
   for (const command of [
