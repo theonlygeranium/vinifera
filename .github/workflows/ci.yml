@@ -122,6 +122,7 @@ jobs:
             classification.lane === "static-routing" ||
             classification.lane === "promotion-smoke-cleanup" ||
             classification.lane === "ci-script-tested" ||
+            classification.lane === "dependency-tooling-tested" ||
             classification.lane === "release-control-tested" ||
             (classification.lane === "operator-tooling-tested" && stagingFastContext)
               ? classification.lane
@@ -631,6 +632,108 @@ jobs:
             echo "- Result: \`pass\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  dependency_tooling_validation:
+    name: Dependency tooling validation
+    needs: classify
+    if: needs.classify.outputs.classification_succeeded == 'true' && needs.classify.outputs.lane == 'dependency-tooling-tested'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out exact validation head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch exact validation base
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
+
+      - name: Use repository Node.js pin
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Export base package manifest
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: git show "$BASE_SHA:package.json" > "$RUNNER_TEMP/base-package.json"
+
+      - name: Validate dependency tooling fast lane
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+          PATHS_JSON: ${{ needs.classify.outputs.paths_json }}
+          MOBILE_BUILD_PROFILE: compile-only
+          MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "false"
+          VITE_MOBILE_API_ORIGIN: https://unconfigured.invalid
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA" "$HEAD_SHA"
+          node --test .github/scripts/delivery-policy.policy.mjs
+          node --test .github/scripts/operator-tooling-policy.policy.mjs
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          import { scanDiffForSecrets } from "./.github/scripts/docs-ci-policy.mjs";
+          import { validateDependencyToolingPackageJsonChange } from "./.github/scripts/delivery-policy.mjs";
+
+          const paths = JSON.parse(process.env.PATHS_JSON || "[]");
+          scanDiffForSecrets({
+            baseSha: process.env.BASE_SHA,
+            headSha: process.env.HEAD_SHA,
+          });
+          const changedPackageJson = paths.includes("package.json");
+          const changedPackageLock = paths.includes("package-lock.json");
+          if (changedPackageJson) {
+            const before = JSON.parse(
+              readFileSync(
+                new URL("base-package.json", `file://${process.env.RUNNER_TEMP}/`),
+                "utf8",
+              ),
+            );
+            const after = JSON.parse(readFileSync("package.json", "utf8"));
+            const result = validateDependencyToolingPackageJsonChange({
+              beforePackageJson: before,
+              afterPackageJson: after,
+            });
+            if (!result.valid) {
+              throw new Error(
+                `Dependency tooling lane only permits package dependency/toolchain keys; rejected: ${result.disallowedKeys.join(", ")}`,
+              );
+            }
+            const lockRequired = result.changedKeys.some((key) =>
+              ["dependencies", "devDependencies", "optionalDependencies", "overrides", "peerDependencies"].includes(key),
+            );
+            if (lockRequired && !changedPackageLock) {
+              throw new Error("Dependency graph changes must include package-lock.json.");
+            }
+            console.log(`Validated package.json keys: ${result.changedKeys.join(", ") || "(none)"}`);
+          }
+          NODE
+          npm audit --audit-level=moderate
+          npm run typecheck
+          npm run build
+          npm run build:worker
+          npm run build:mobile:web
+
+          {
+            echo "## Dependency tooling validation"
+            echo
+            echo "- Exact base SHA: \`$BASE_SHA\`"
+            echo "- Exact head SHA: \`$HEAD_SHA\`"
+            echo "- Selected lane: \`dependency-tooling-tested\`"
+            echo "- Checks executed: \`npm ci\`, \`git diff --check\`, policy tests, credential scan, \`npm audit\`, \`npm run typecheck\`, \`npm run build\`, \`npm run build:worker\`, \`npm run build:mobile:web\`"
+            echo "- Skipped by design: database architecture checks, browser QA, Android package assembly"
+            echo "- Result: \`pass\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   full_quality:
     name: Full type, test, build, and package
     needs: classify
@@ -709,6 +812,14 @@ jobs:
 
       - name: Validate Worker bundle
         run: npm run build:worker
+
+      - name: Restore Playwright browser cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -848,6 +959,7 @@ jobs:
         static_routing_validation,
         promotion_smoke_cleanup_validation,
         release_control_validation,
+        dependency_tooling_validation,
         full_quality,
         mobile_web,
         mobile_android,
@@ -866,6 +978,7 @@ jobs:
           STATIC_ROUTING_RESULT: ${{ needs.static_routing_validation.result }}
           PROMOTION_SMOKE_CLEANUP_RESULT: ${{ needs.promotion_smoke_cleanup_validation.result }}
           RELEASE_CONTROL_RESULT: ${{ needs.release_control_validation.result }}
+          DEPENDENCY_TOOLING_RESULT: ${{ needs.dependency_tooling_validation.result }}
           FULL_RESULT: ${{ needs.full_quality.result }}
           MOBILE_REQUIRED: ${{ needs.classify.outputs.mobile_required }}
           MOBILE_WEB_RESULT: ${{ needs.mobile_web.result }}
@@ -887,6 +1000,7 @@ jobs:
             echo "- Static routing job: \`${STATIC_ROUTING_RESULT}\`"
             echo "- Promotion smoke cleanup job: \`${PROMOTION_SMOKE_CLEANUP_RESULT}\`"
             echo "- Release-control focused job: \`${RELEASE_CONTROL_RESULT}\`"
+            echo "- Dependency tooling job: \`${DEPENDENCY_TOOLING_RESULT}\`"
             echo "- Full quality job: \`${FULL_RESULT}\`"
             echo "- Android required: \`${MOBILE_REQUIRED:-missing}\`"
             echo "- Shared mobile web job: \`${MOBILE_WEB_RESULT}\`"
@@ -906,6 +1020,7 @@ jobs:
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
+                    "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -919,6 +1034,7 @@ jobs:
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
+                    "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -932,6 +1048,7 @@ jobs:
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
+                    "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -945,6 +1062,7 @@ jobs:
                     "$STATIC_ROUTING_RESULT" != "success" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
+                    "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -958,6 +1076,7 @@ jobs:
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "success" ||
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
+                    "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
@@ -971,10 +1090,25 @@ jobs:
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
                     "$RELEASE_CONTROL_RESULT" != "success" ||
+                    "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
                 echo "::error::Focused release-control fast lane did not run exclusively and pass."
+                exit 1
+              fi
+              ;;
+            dependency-tooling-tested)
+              if [[ "$DOCS_RESULT" != "skipped" ||
+                    "$PROMOTION_SMOKE_RESULT" != "skipped" ||
+                    "$STATIC_ROUTING_RESULT" != "skipped" ||
+                    "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
+                    "$RELEASE_CONTROL_RESULT" != "skipped" ||
+                    "$DEPENDENCY_TOOLING_RESULT" != "success" ||
+                    "$FULL_RESULT" != "skipped" ||
+                    "$MOBILE_WEB_RESULT" != "skipped" ||
+                    "$MOBILE_RESULT" != "skipped" ]]; then
+                echo "::error::Dependency tooling fast lane did not run exclusively and pass."
                 exit 1
               fi
               ;;
@@ -984,6 +1118,7 @@ jobs:
                     "$STATIC_ROUTING_RESULT" != "skipped" ||
                     "$PROMOTION_SMOKE_CLEANUP_RESULT" != "skipped" ||
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
+                    "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "success" ]]; then
                 echo "::error::Full quality lane did not run exclusively and pass."
                 exit 1

@@ -12,6 +12,8 @@ on:
       - ".github/**"
       - ".octopus/**"
       - "tests/**"
+      - "package.json"
+      - "package-lock.json"
       - "public/_redirects"
       - "public/vinifera-promotion-smoke-*.html"
 

@@ -361,10 +361,13 @@ the Worker bundle. Protected promotion CI classifies documentation, smoke,
 static-routing, cleanup, release-control, and CI-script-only diffs before
 starting heavy jobs so controller fixes do not invoke package, browser, mobile
 web, or Android validation unless the diff actually requires it. Dependency
-metadata changes remain full-validation work, but Android is selected only for
-native/mobile paths or an explicit `full_mobile` dispatch. A separate Java
-21/API 36 job synchronizes,
-lints, and assembles Android debug and R8-minified release shells. On the
+and package-toolchain metadata changes with a changelog use the
+`dependency-tooling-tested` lane, which runs lockfile install, moderate audit,
+policy tests, typecheck, app build, Worker build, and shared mobile web build
+without database architecture checks, browser QA, or Android assembly. Android
+is selected only for native/mobile paths or an explicit `full_mobile` dispatch.
+A separate Java 21/API 36 job synchronizes, lints, and assembles Android debug
+and R8-minified release shells. On the
 protected `staging` branch, CI can conditionally apply migrations with pinned
 Supabase CLI 2.109.1, then runs
 the linked native pgTAP/RLS suite. Optional deployment targets the isolated

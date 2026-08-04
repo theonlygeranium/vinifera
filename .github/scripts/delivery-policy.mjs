@@ -92,6 +92,22 @@ const OPERATOR_TOOLING_PREFIXES = Object.freeze([
   "tests/scripts/",
 ]);
 
+const DEPENDENCY_TOOLING_FILES = new Set([
+  "CHANGELOG.md",
+  "package-lock.json",
+  "package.json",
+]);
+
+const DEPENDENCY_TOOLING_PACKAGE_KEYS = new Set([
+  "dependencies",
+  "devDependencies",
+  "engines",
+  "optionalDependencies",
+  "overrides",
+  "packageManager",
+  "peerDependencies",
+]);
+
 const TEST_PREFIXES = Object.freeze([
   "tests/",
 ]);
@@ -207,6 +223,10 @@ function isOperatorToolingPath(path) {
     OPERATOR_TOOLING_FILES.has(path) ||
     OPERATOR_TOOLING_PREFIXES.some((prefix) => path.startsWith(prefix))
   );
+}
+
+function isDependencyToolingPath(path) {
+  return DEPENDENCY_TOOLING_FILES.has(path) || isDocumentationPath(path);
 }
 
 function hasChangelogUpdate(records) {
@@ -341,6 +361,36 @@ export function parseNameStatusZ(buffer) {
     index += pathCount;
   }
   return records;
+}
+
+export function changedTopLevelPackageKeys(beforePackageJson, afterPackageJson) {
+  const beforeKeys = Object.keys(beforePackageJson || {});
+  const afterKeys = Object.keys(afterPackageJson || {});
+  const keys = new Set([...beforeKeys, ...afterKeys]);
+  return [...keys]
+    .filter((key) =>
+      JSON.stringify(beforePackageJson?.[key]) !==
+        JSON.stringify(afterPackageJson?.[key]),
+    )
+    .sort();
+}
+
+export function validateDependencyToolingPackageJsonChange({
+  beforePackageJson,
+  afterPackageJson,
+}) {
+  const changedKeys = changedTopLevelPackageKeys(
+    beforePackageJson,
+    afterPackageJson,
+  );
+  const disallowedKeys = changedKeys.filter(
+    (key) => !DEPENDENCY_TOOLING_PACKAGE_KEYS.has(key),
+  );
+  return {
+    changedKeys,
+    disallowedKeys,
+    valid: disallowedKeys.length === 0,
+  };
 }
 
 export function readChangedRecords(baseSha, headSha, cwd = process.cwd()) {
@@ -635,6 +685,40 @@ export function classifyDeliveryChange(records, context = {}) {
   }
 
   if (
+    uniquePaths.some((path) => path === "package.json" || path === "package-lock.json") &&
+    records.every(
+      ({ status, paths: recordPaths }) =>
+        !status.startsWith("D") &&
+        recordPaths.every(isDependencyToolingPath),
+    )
+  ) {
+    if (!hasChangelogUpdate(records)) {
+      return {
+        classificationSucceeded: false,
+        lane: "invalid",
+        reason: "dependency_tooling_fastlane_missing_changelog",
+        mobileRequired: false,
+        browserRequired: false,
+        previewRequired: false,
+        risk: "high",
+        surface: "workflow",
+        paths: uniquePaths,
+      };
+    }
+    return {
+      classificationSucceeded: true,
+      lane: "dependency-tooling-tested",
+      reason: "dependency_tooling_fastlane_allowlist_match",
+      mobileRequired: false,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "medium",
+      surface: "workflow",
+      paths: uniquePaths,
+    };
+  }
+
+  if (
     (hasChangelogUpdate(records) ||
       uniquePaths.some((path) => path.startsWith(".github/workflows/"))) &&
     records.every(
@@ -733,6 +817,12 @@ export function selectFocusedTests(paths, lane) {
     return [
       ".github/scripts/delivery-policy.policy.mjs",
       ".github/scripts/operator-tooling-policy.policy.mjs",
+      "tests/scripts",
+    ];
+  }
+  if (lane === "dependency-tooling-tested") {
+    return [
+      ".github/scripts/delivery-policy.policy.mjs",
       "tests/scripts",
     ];
   }
@@ -847,6 +937,7 @@ export function evaluateFastAggregate({
   if (
     lane === "protected-reconcile" ||
     lane === "ci-script-tested" ||
+    lane === "dependency-tooling-tested" ||
     lane === "release-control-tested" ||
     lane === "operator-tooling-tested" ||
     lane === "static-routing" ||
@@ -880,6 +971,7 @@ export function evaluateFullAggregate({
   classifyResult,
   lane = "full",
   releaseControlResult = "skipped",
+  dependencyToolingResult = "skipped",
   fullResult,
   mobileRequired,
   mobileWebResult,
@@ -892,6 +984,7 @@ export function evaluateFullAggregate({
     const passed =
       fullResult === "skipped" &&
       releaseControlResult === "skipped" &&
+      dependencyToolingResult === "skipped" &&
       mobileWebResult === "skipped" &&
       androidResult === "skipped";
     return { passed, reason: passed ? "noop_passed" : "noop_result_mismatch" };
@@ -899,6 +992,7 @@ export function evaluateFullAggregate({
   if (lane === "ci-script-tested" || lane === "release-control-tested") {
     const passed =
       releaseControlResult === "success" &&
+      dependencyToolingResult === "skipped" &&
       fullResult === "skipped" &&
       mobileWebResult === "skipped" &&
       androidResult === "skipped";
@@ -912,6 +1006,7 @@ export function evaluateFullAggregate({
   if (lane === "operator-tooling-tested") {
     const passed =
       releaseControlResult === "success" &&
+      dependencyToolingResult === "skipped" &&
       fullResult === "skipped" &&
       mobileWebResult === "skipped" &&
       androidResult === "skipped";
@@ -922,8 +1017,25 @@ export function evaluateFullAggregate({
         : "operator_tooling_tested_result_mismatch",
     };
   }
+  if (lane === "dependency-tooling-tested") {
+    const passed =
+      dependencyToolingResult === "success" &&
+      releaseControlResult === "skipped" &&
+      fullResult === "skipped" &&
+      mobileWebResult === "skipped" &&
+      androidResult === "skipped";
+    return {
+      passed,
+      reason: passed
+        ? "dependency_tooling_tested_passed"
+        : "dependency_tooling_tested_result_mismatch",
+    };
+  }
   if (fullResult !== "success") {
     return { passed: false, reason: "full_validation_not_successful" };
+  }
+  if (releaseControlResult !== "skipped" || dependencyToolingResult !== "skipped") {
+    return { passed: false, reason: "focused_lane_result_mismatch" };
   }
   const passed = mobileRequired
     ? androidResult === "success" && mobileWebResult === "skipped"
