@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Restore Octopus main deploy and PR quality-gate workflows to the verified
+  `OctopusDeploy/login@v2` API-key path through the Cloudflare Access proxy
+  after the OIDC service-account exchange reached Octopus but was rejected by
+  the self-hosted identity matcher. **Deployment impact:** CI/release-control
+  authentication behavior only; no application route, provider, database,
+  billing, DNS, Worker activation, production/mobile approval-gate, or
+  Cloudflare Access policy state changes.
 - Strip upstream `Transfer-Encoding` from buffered Cloudflare Access proxy
   responses before setting `Content-Length`, preventing Node/undici parse errors
   during Octopus OIDC discovery. **Deployment impact:** CI/release-control
