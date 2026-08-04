@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Rewrite the self-hosted Octopus OIDC discovery `token_endpoint` inside the
+  Cloudflare Access proxy so `OctopusDeploy/login@v2` exchanges GitHub OIDC
+  tokens through the runner-local proxy instead of following Octopus's internal
+  `localhost:8080` advertisement. **Deployment impact:** CI/release-control
+  authentication behavior only; no application route, provider, database,
+  billing, DNS, Worker activation, production/mobile approval-gate, or
+  Cloudflare Access policy state changes.
 - Correct the Octopus OIDC migration to use the `OctopusDeploy/login@v2`
   `access_token` output instead of the API-key output, and let the shared
   Octopus runbook bridge authenticate with either an OIDC bearer token or the
