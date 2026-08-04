@@ -74,7 +74,7 @@ jobs:
       - name: Push Build Information 📦
         uses: OctopusDeploy/push-build-information-action@v4
         env:
-          OCTOPUS_API_KEY: ${{ steps.octopus_login.outputs.api_key }}
+          OCTOPUS_ACCESS_TOKEN: ${{ steps.octopus_login.outputs.access_token }}
           OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}
           OCTOPUS_SPACE: Default
         with:
@@ -87,7 +87,7 @@ jobs:
         uses: OctopusDeploy/create-release-action@v4
         id: create_release
         env:
-          OCTOPUS_API_KEY: ${{ steps.octopus_login.outputs.api_key }}
+          OCTOPUS_ACCESS_TOKEN: ${{ steps.octopus_login.outputs.access_token }}
           OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}
           OCTOPUS_SPACE: Default
         with:
@@ -100,7 +100,7 @@ jobs:
         uses: OctopusDeploy/deploy-release-action@v4
         env:
           GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
-          OCTOPUS_API_KEY: ${{ steps.octopus_login.outputs.api_key }}
+          OCTOPUS_ACCESS_TOKEN: ${{ steps.octopus_login.outputs.access_token }}
           OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}
           OCTOPUS_SPACE: Default
         with:

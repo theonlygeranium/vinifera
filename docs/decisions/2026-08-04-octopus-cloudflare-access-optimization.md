@@ -66,9 +66,9 @@ Primary references:
    browser traffic matches `Browser Bypass - Octopus self-auth`, then Octopus
    owns human authentication; GitHub Actions traffic can still use the
    `vinifera-github-actions-service-token` non-identity policy.
-4. Treat Octopus OIDC as the next credential-hardening improvement. The repo can
-   adopt `OctopusDeploy/login` after an Octopus service account OIDC identity is
-   created and the service account ID is stored as a GitHub secret.
+4. Use Octopus OIDC for the main deployment and PR quality gate workflows now
+   that the `vinifera-gha` service account identity exists and
+   `OCTOPUS_SERVICE_ACCOUNT_ID` is stored as a repository secret.
 5. Keep production Worker releases manual. Fast dev/staging visibility should
    not turn production deployment into an accidental push side effect.
 
@@ -112,20 +112,26 @@ manually dispatched. It verifies:
 This probe is intentionally lightweight and does not create Octopus releases,
 deploy Workers, apply migrations, or mutate Cloudflare policy.
 
-## OIDC Migration Preparation
+## OIDC Migration State
 
-Octopus OIDC remains a future credential-hardening improvement. Implementing it
-requires human/admin setup outside this repository:
+Octopus OIDC is active for:
 
-- create or choose an Octopus service account for GitHub Actions OIDC;
-- configure the OIDC identity in Octopus for `theonlygeranium/vinifera`;
-- add the resulting service account identifier as a GitHub secret, for example
-  `OCTOPUS_SERVICE_ACCOUNT_ID`;
-- then replace API-key login in Octopus workflows with `OctopusDeploy/login`
-  and `id-token: write`.
+- `.github/workflows/octopus-main-deploy.yml`;
+- `.github/workflows/octopus-pr-quality-gates.yml`.
+
+The workflows use `OctopusDeploy/login@v1` with `id-token: write` and pass the
+OIDC `access_token` output to downstream Octopus calls. The shared
+`.github/scripts/octopus-runbook.mjs` bridge accepts either
+`OCTOPUS_ACCESS_TOKEN` or `OCTOPUS_API_KEY`, preferring the bearer access token
+when both are present.
 
 Do not remove `OCTOPUS_API_KEY` until every Octopus workflow has been migrated
-and a scheduled/manual smoke run proves OIDC authentication works.
+and scheduled/manual smoke runs prove OIDC authentication works everywhere. As
+of this decision, `OCTOPUS_API_KEY` is still used by:
+
+- `.github/workflows/octopus-security-audit.yml`;
+- `.github/workflows/octopus-access-smoke.yml`, which intentionally verifies the
+  legacy API-key path until a separate OIDC smoke path is added.
 
 ## Branch Hygiene
 
