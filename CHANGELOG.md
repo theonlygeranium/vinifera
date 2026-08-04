@@ -7,6 +7,18 @@
 ## [Unreleased]
 
 ### Fixed
+- Keep protected-branch `ci-script-tested` controller/script patches on the
+  focused release-control lane instead of escalating to full package, browser,
+  and Android validation; pin the two remaining Octopus checkout steps to the
+  repo's maintained checkout action and restore a zero-vulnerability production
+  dependency audit with targeted `brace-expansion` and `undici` overrides.
+  Dependency metadata changes remain high-risk/full-validation work, but no
+  longer force Android unless native/mobile paths change or `full_mobile` is
+  explicitly dispatched.
+  **Deployment impact:** CI/release-control classification, action-runtime
+  hygiene, and dependency-audit stability only; no application route, provider,
+  database, credential, billing, DNS, Worker activation, Cloudflare Access
+  policy, or production/mobile approval-gate state changes.
 - Restore Octopus main deploy and PR quality-gate workflows to the verified
   `OctopusDeploy/login@v2` API-key path through the Cloudflare Access proxy
   after the OIDC service-account exchange reached Octopus but was rejected by

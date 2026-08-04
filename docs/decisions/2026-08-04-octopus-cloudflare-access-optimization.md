@@ -66,9 +66,11 @@ Primary references:
    browser traffic matches `Browser Bypass - Octopus self-auth`, then Octopus
    owns human authentication; GitHub Actions traffic can still use the
    `vinifera-github-actions-service-token` non-identity policy.
-4. Use Octopus OIDC for the main deployment and PR quality gate workflows now
-   that the `vinifera-gha` service account identity exists and
-   `OCTOPUS_SERVICE_ACCOUNT_ID` is stored as a repository secret.
+4. Keep the main deployment and PR quality gate workflows on the verified
+   API-key login path through the Cloudflare Access proxy. Keep the
+   `vinifera-gha` OIDC service account identity and
+   `OCTOPUS_SERVICE_ACCOUNT_ID` secret available only for a standalone future
+   smoke test until Octopus accepts the GitHub Actions assertion repeatedly.
 5. Keep production Worker releases manual. Fast dev/staging visibility should
    not turn production deployment into an accidental push side effect.
 
@@ -78,6 +80,16 @@ Primary references:
   - `public/vinifera-promotion-smoke-*.html`
   - `public/_redirects`
 - `tests/scripts/workflow-promotion-smoke.test.mjs` asserts this trigger guard.
+- Protected-branch `ci-script-tested` changes run through the same focused
+  release-control job as workflow/controller patches, so script-only policy
+  fixes do not invoke the full app, browser, mobile web, or Android lanes.
+- `npm audit --omit=dev --audit-level=moderate` remains in the full lane. The
+  current lockfile clears it with targeted overrides for transitive
+  `brace-expansion` and `undici`; do not relax the audit gate to hide Wrangler
+  or Miniflare advisories.
+- `package.json` and `package-lock.json` stay high-risk and full-lane, but do
+  not automatically select Android. Use explicit `full_mobile=true` or touch a
+  native/mobile path when a dependency update must prove Android assembly.
 
 ## Current Operator State
 

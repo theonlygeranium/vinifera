@@ -354,10 +354,16 @@ supabase/migrations/* ──────── Supabase CLI ───── host
 dist/ + capacitor.config.json ─ Capacitor ──────── iOS / Android projects
 ```
 
-GitHub-hosted CI uses Node 22.22.0 to install the lockfile, audit dependencies,
-verify generated Worker binding types, type-check, run service/browser tests
-and Phase 1–5 database gates, build assets, and validate the Worker bundle. A
-separate Java 21/API 36 job synchronizes,
+GitHub-hosted CI uses Node 22.22.0 to install the lockfile, audit production
+dependencies, verify generated Worker binding types, type-check, run
+service/browser tests and Phase 1–5 database gates, build assets, and validate
+the Worker bundle. Protected promotion CI classifies documentation, smoke,
+static-routing, cleanup, release-control, and CI-script-only diffs before
+starting heavy jobs so controller fixes do not invoke package, browser, mobile
+web, or Android validation unless the diff actually requires it. Dependency
+metadata changes remain full-validation work, but Android is selected only for
+native/mobile paths or an explicit `full_mobile` dispatch. A separate Java
+21/API 36 job synchronizes,
 lints, and assembles Android debug and R8-minified release shells. On the
 protected `staging` branch, CI can conditionally apply migrations with pinned
 Supabase CLI 2.109.1, then runs

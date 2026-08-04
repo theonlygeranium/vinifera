@@ -131,8 +131,6 @@ const MOBILE_PREFIXES = Object.freeze([
 
 const MOBILE_FILES = new Set([
   "capacitor.config.json",
-  "package-lock.json",
-  "package.json",
   "scripts/prepare-capacitor.mjs",
 ]);
 
@@ -898,7 +896,7 @@ export function evaluateFullAggregate({
       androidResult === "skipped";
     return { passed, reason: passed ? "noop_passed" : "noop_result_mismatch" };
   }
-  if (lane === "release-control-tested") {
+  if (lane === "ci-script-tested" || lane === "release-control-tested") {
     const passed =
       releaseControlResult === "success" &&
       fullResult === "skipped" &&
@@ -907,8 +905,8 @@ export function evaluateFullAggregate({
     return {
       passed,
       reason: passed
-        ? "release_control_tested_passed"
-        : "release_control_tested_result_mismatch",
+        ? `${lane.replaceAll("-", "_")}_passed`
+        : `${lane.replaceAll("-", "_")}_result_mismatch`,
     };
   }
   if (lane === "operator-tooling-tested") {
