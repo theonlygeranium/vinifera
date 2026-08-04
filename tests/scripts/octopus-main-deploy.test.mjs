@@ -12,6 +12,8 @@ describe("main to development Octopus deployment contract", () => {
     expect(workflow).toMatch(/push:\n\s+branches:\n\s+- main/);
     expect(workflow).toContain('"**.md"');
     expect(workflow).toContain('".github/**"');
+    expect(workflow).toContain('"package.json"');
+    expect(workflow).toContain('"package-lock.json"');
   });
 
   it("routes Octopus traffic through the Cloudflare Access proxy", () => {

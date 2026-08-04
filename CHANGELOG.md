@@ -7,6 +7,16 @@
 ## [Unreleased]
 
 ### Fixed
+- Add a protected-branch `dependency-tooling-tested` lane for package
+  dependency and toolchain metadata changes so `package.json`/`package-lock.json`
+  updates validate audit, typecheck, app build, Worker build, and shared mobile
+  web output without running database architecture checks, browser QA, Android
+  assembly, or Octopus Development releases for package-only main merges.
+  Playwright's browser cache is restored for the remaining full browser-QA lane.
+  **Deployment impact:** CI/release-control performance and package governance
+  only; no application route, provider, database, credential, billing, DNS,
+  Worker activation, production/mobile approval-gate, or Cloudflare Access
+  policy state changes.
 - Keep protected-branch `ci-script-tested` controller/script patches on the
   focused release-control lane instead of escalating to full package, browser,
   and Android validation; pin the two remaining Octopus checkout steps to the

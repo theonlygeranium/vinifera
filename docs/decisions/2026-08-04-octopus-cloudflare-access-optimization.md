@@ -5,9 +5,10 @@ Date: 2026-08-04
 ## Context
 
 Vinifera now uses fast promotion lanes for hidden HTML smoke artifacts,
-cleanup, static routing, and release-control changes. The latest end-to-end
-smoke drill proved that GitHub validation no longer selects the full package,
-mobile web, or Android jobs for those paths.
+cleanup, static routing, release-control changes, and package dependency or
+toolchain metadata changes. The latest end-to-end smoke drill proved that
+GitHub validation no longer selects the full package, browser, mobile web, or
+Android jobs for smoke, cleanup, routing, and controller paths.
 
 Octopus still has two separate roles:
 
@@ -57,8 +58,9 @@ Primary references:
 ## Decision
 
 1. Do not run `Octopus Deploy - Main to Development` for hidden promotion-smoke
-   HTML artifacts or `public/_redirects` tombstone-only changes. These are
-   Cloudflare Pages/static-routing proofs, not application deployments.
+   HTML artifacts, `public/_redirects` tombstone-only changes, or package-only
+   dependency/toolchain metadata changes. These are Cloudflare Pages,
+   static-routing, or CI governance proofs, not application deployments.
 2. Keep Cloudflare Access service-token authentication for GitHub Actions and
    other machine clients that call Octopus.
 3. Keep the interactive Cloudflare OTP requirement removed for
@@ -79,6 +81,8 @@ Primary references:
 - `.github/workflows/octopus-main-deploy.yml` ignores:
   - `public/vinifera-promotion-smoke-*.html`
   - `public/_redirects`
+  - `package.json`
+  - `package-lock.json`
 - `tests/scripts/workflow-promotion-smoke.test.mjs` asserts this trigger guard.
 - Protected-branch `ci-script-tested` changes run through the same focused
   release-control job as workflow/controller patches, so script-only policy
@@ -87,9 +91,17 @@ Primary references:
   current lockfile clears it with targeted overrides for transitive
   `brace-expansion` and `undici`; do not relax the audit gate to hide Wrangler
   or Miniflare advisories.
-- `package.json` and `package-lock.json` stay high-risk and full-lane, but do
-  not automatically select Android. Use explicit `full_mobile=true` or touch a
-  native/mobile path when a dependency update must prove Android assembly.
+- `package.json` and `package-lock.json` changes with `CHANGELOG.md` now select
+  `dependency-tooling-tested` when every changed path is package metadata or
+  documentation. That lane validates lockfile install, moderate audit,
+  classifier policy, credential scan, typecheck, app build, Worker build, and
+  shared mobile web output while skipping database architecture checks, browser
+  QA, Android assembly, and Octopus Development releases.
+- Full browser QA restores the Playwright Chromium cache before installing
+  browser dependencies, reducing repeated full-lane setup time while keeping
+  the full lane available for real app/browser risk.
+- Use explicit `full_mobile=true` or touch a native/mobile path when a
+  dependency update must prove Android assembly.
 
 ## Current Operator State
 
