@@ -7,6 +7,14 @@
 ## [Unreleased]
 
 ### Fixed
+- Add a scheduled/manual Octopus access smoke workflow that verifies the
+  browser bypass, Octopus-native authentication boundary, and GitHub Actions
+  machine credential path without creating releases or deploying application
+  artifacts; update the Octopus/Cloudflare ADR with the confirmed Access policy
+  shape, OIDC migration prerequisites, and branch hygiene guidance.
+  **Deployment impact:** CI/release-control observability only; no application
+  route, provider, database, billing, DNS, Worker activation,
+  production/mobile approval-gate, or Cloudflare Access policy state changes.
 - Stop the Octopus main development deployment workflow from running on hidden
   promotion-smoke HTML artifacts and `public/_redirects` tombstone-only
   cleanup changes; document the Cloudflare Access OTP diagnosis and the
