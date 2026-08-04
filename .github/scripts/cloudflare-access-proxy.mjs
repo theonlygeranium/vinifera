@@ -36,6 +36,15 @@ export function rewriteOctopusOidcDiscovery({
   return Buffer.from(JSON.stringify(discovery));
 }
 
+export function proxyResponseHeaders(upstreamHeaders, body) {
+  const responseHeaders = new Headers(upstreamHeaders);
+  responseHeaders.delete("content-encoding");
+  responseHeaders.delete("content-length");
+  responseHeaders.delete("transfer-encoding");
+  responseHeaders.set("content-length", String(body.length));
+  return responseHeaders;
+}
+
 function requestBody(request) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -78,9 +87,6 @@ export function createCloudflareAccessProxy({
             : incomingBody,
         redirect: "manual",
       });
-      const responseHeaders = new Headers(upstream.headers);
-      responseHeaders.delete("content-encoding");
-      responseHeaders.delete("content-length");
       const responseBody = Buffer.from(await upstream.arrayBuffer());
       const outgoingBody = rewriteOctopusOidcDiscovery({
         body: responseBody,
@@ -90,9 +96,9 @@ export function createCloudflareAccessProxy({
             `http://${request.headers.host ?? `127.0.0.1:${process.env.CF_ACCESS_PROXY_PORT ?? "41809"}`}`,
           ),
         requestUrl: request.url ?? "/",
-        responseHeaders,
+        responseHeaders: upstream.headers,
       });
-      responseHeaders.set("content-length", String(outgoingBody.length));
+      const responseHeaders = proxyResponseHeaders(upstream.headers, outgoingBody);
       response.writeHead(
         upstream.status,
         Object.fromEntries(responseHeaders.entries()),

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { rewriteOctopusOidcDiscovery } from "../../.github/scripts/cloudflare-access-proxy.mjs";
+import {
+  proxyResponseHeaders,
+  rewriteOctopusOidcDiscovery,
+} from "../../.github/scripts/cloudflare-access-proxy.mjs";
 
 describe("Cloudflare Access Octopus proxy", () => {
   it("rewrites Octopus OIDC discovery token endpoints back through the local proxy", () => {
@@ -35,5 +38,22 @@ describe("Cloudflare Access Octopus proxy", () => {
     });
 
     expect(rewritten).toEqual(body);
+  });
+
+  it("removes upstream transfer headers when returning a buffered response", () => {
+    const headers = proxyResponseHeaders(
+      new Headers({
+        "content-encoding": "gzip",
+        "content-length": "999",
+        "content-type": "application/json",
+        "transfer-encoding": "chunked",
+      }),
+      Buffer.from("{}"),
+    );
+
+    expect(headers.get("content-encoding")).toBeNull();
+    expect(headers.get("transfer-encoding")).toBeNull();
+    expect(headers.get("content-length")).toBe("2");
+    expect(headers.get("content-type")).toBe("application/json");
   });
 });
