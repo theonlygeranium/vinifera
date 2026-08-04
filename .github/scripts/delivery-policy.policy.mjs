@@ -436,14 +436,13 @@ test("NUL parser preserves rename paths and rejects truncation", () => {
   assert.throws(() => parseNameStatusZ(Buffer.from("R100\0docs/a.md\0")));
 });
 
-test("mobile selection covers native, Capacitor, shared mobile web, and dependencies", () => {
+test("mobile selection covers native, Capacitor, and shared mobile web paths", () => {
   for (const path of [
     "android/app/build.gradle",
     "ios/App/Info.plist",
     "mobile/app-identity.json",
     "src/client/mobile/session.ts",
     "capacitor.config.json",
-    "package-lock.json",
   ]) {
     assert.equal(
       classifyDeliveryChange([record("M", path)]).mobileRequired,
@@ -451,6 +450,17 @@ test("mobile selection covers native, Capacitor, shared mobile web, and dependen
       path,
     );
   }
+  const packageLockOnly = classifyDeliveryChange([record("M", "package-lock.json")]);
+  assert.equal(packageLockOnly.lane, "high-risk");
+  assert.equal(packageLockOnly.mobileRequired, false);
+
+  const packageGovernanceChange = classifyDeliveryChange([
+    record("M", "package.json"),
+    record("M", "package-lock.json"),
+    record("M", "CHANGELOG.md"),
+  ]);
+  assert.equal(packageGovernanceChange.lane, "high-risk");
+  assert.equal(packageGovernanceChange.mobileRequired, false);
 });
 
 test("focused tests reflect the changed domain", () => {
@@ -634,6 +644,22 @@ test("full aggregate rejects skipped required work and permits one mobile lane",
     evaluateFullAggregate({
       classificationSucceeded: true,
       classifyResult: "success",
+      lane: "ci-script-tested",
+      releaseControlResult: "success",
+      fullResult: "skipped",
+      mobileRequired: false,
+      mobileWebResult: "skipped",
+      androidResult: "skipped",
+    }),
+    {
+      passed: true,
+      reason: "ci_script_tested_passed",
+    },
+  );
+  assert.deepEqual(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
       lane: "release-control-tested",
       releaseControlResult: "success",
       fullResult: "skipped",
@@ -661,6 +687,19 @@ test("full aggregate rejects skipped required work and permits one mobile lane",
       passed: true,
       reason: "operator_tooling_tested_passed",
     },
+  );
+  assert.equal(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
+      lane: "ci-script-tested",
+      releaseControlResult: "skipped",
+      fullResult: "success",
+      mobileRequired: false,
+      mobileWebResult: "success",
+      androidResult: "skipped",
+    }).passed,
+    false,
   );
   assert.equal(
     evaluateFullAggregate({

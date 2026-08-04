@@ -121,6 +121,7 @@ jobs:
             classification.lane === "promotion-smoke" ||
             classification.lane === "static-routing" ||
             classification.lane === "promotion-smoke-cleanup" ||
+            classification.lane === "ci-script-tested" ||
             classification.lane === "release-control-tested" ||
             (classification.lane === "operator-tooling-tested" && stagingFastContext)
               ? classification.lane
@@ -536,7 +537,8 @@ jobs:
     needs: classify
     if: >-
       needs.classify.outputs.classification_succeeded == 'true' &&
-      (needs.classify.outputs.lane == 'release-control-tested' ||
+      (needs.classify.outputs.lane == 'ci-script-tested' ||
+       needs.classify.outputs.lane == 'release-control-tested' ||
        needs.classify.outputs.lane == 'operator-tooling-tested')
     runs-on: ubuntu-latest
     timeout-minutes: 10
