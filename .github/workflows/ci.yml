@@ -36,6 +36,8 @@ jobs:
       base_sha: ${{ steps.classify.outputs.base_sha }}
       head_sha: ${{ steps.classify.outputs.head_sha }}
       mobile_required: ${{ steps.classify.outputs.mobile_required }}
+      browser_required: ${{ steps.classify.outputs.browser_required }}
+      database_required: ${{ steps.classify.outputs.database_required }}
       paths_json: ${{ steps.classify.outputs.paths_json }}
     steps:
       - name: Check out exact validation head
@@ -136,6 +138,8 @@ jobs:
               `base_sha=${process.env.BASE_SHA}`,
               `head_sha=${process.env.HEAD_SHA}`,
               `mobile_required=${mobileRequired}`,
+              `browser_required=${classification.browserRequired === true}`,
+              `database_required=${classification.databaseRequired === true}`,
               `paths_json=${JSON.stringify(classification.paths)}`,
               "",
             ].join("\n"),
@@ -150,6 +154,8 @@ jobs:
               `- Classification succeeded: \`${classification.classificationSucceeded}\``,
               `- Selected lane: \`${validationLane}\``,
               `- Android required: \`${mobileRequired}\``,
+              `- Browser QA required: \`${classification.browserRequired === true}\``,
+              `- Database QA required: \`${classification.databaseRequired === true}\``,
               `- Changed paths: ${classification.paths.map((path) => `\`${path}\``).join(", ") || "(none)"}`,
               "",
             ].join("\n"),
@@ -798,6 +804,44 @@ jobs:
       - name: Run unit and integration tests
         run: npm test
 
+      - name: Build static assets
+        run: npm run build
+
+      - name: Validate Worker bundle
+        run: npm run build:worker
+
+      - name: Validate Pages rollback artifact
+        run: |
+          npm run build:pages
+          test -f dist/app
+          grep -q "Fall 2026 Club Release" dist/app
+
+  database_architecture:
+    name: Database architecture validation
+    needs: classify
+    if: >-
+      needs.classify.outputs.classification_succeeded == 'true' &&
+      needs.classify.outputs.lane == 'full' &&
+      needs.classify.outputs.database_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          persist-credentials: false
+
+      - name: Use repository Node.js pin and lockfile cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
       - name: Verify Phase 1 through Phase 5 database architecture
         run: |
           npm run qa:db:phase1
@@ -807,11 +851,28 @@ jobs:
           npm run qa:db:phase5
           npm run qa:local-seed
 
-      - name: Build static assets
-        run: npm run build
+  browser_qa:
+    name: Browser QA
+    needs: classify
+    if: >-
+      needs.classify.outputs.classification_succeeded == 'true' &&
+      needs.classify.outputs.lane == 'full' &&
+      needs.classify.outputs.browser_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.classify.outputs.head_sha }}
+          persist-credentials: false
 
-      - name: Validate Worker bundle
-        run: npm run build:worker
+      - name: Use repository Node.js pin and lockfile cache
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Restore Playwright browser cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -821,8 +882,10 @@ jobs:
           restore-keys: |
             playwright-${{ runner.os }}-
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install locked dependencies and Chromium
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
 
       - name: Run browser QA
         run: npm run qa:e2e
@@ -837,12 +900,6 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 90
-
-      - name: Validate Pages rollback artifact
-        run: |
-          npm run build:pages
-          test -f dist/app
-          grep -q "Fall 2026 Club Release" dist/app
 
   mobile_web:
     name: Validate shared mobile web bundle
@@ -961,6 +1018,8 @@ jobs:
         release_control_validation,
         dependency_tooling_validation,
         full_quality,
+        database_architecture,
+        browser_qa,
         mobile_web,
         mobile_android,
       ]
@@ -980,6 +1039,10 @@ jobs:
           RELEASE_CONTROL_RESULT: ${{ needs.release_control_validation.result }}
           DEPENDENCY_TOOLING_RESULT: ${{ needs.dependency_tooling_validation.result }}
           FULL_RESULT: ${{ needs.full_quality.result }}
+          DATABASE_REQUIRED: ${{ needs.classify.outputs.database_required }}
+          DATABASE_RESULT: ${{ needs.database_architecture.result }}
+          BROWSER_REQUIRED: ${{ needs.classify.outputs.browser_required }}
+          BROWSER_RESULT: ${{ needs.browser_qa.result }}
           MOBILE_REQUIRED: ${{ needs.classify.outputs.mobile_required }}
           MOBILE_WEB_RESULT: ${{ needs.mobile_web.result }}
           MOBILE_RESULT: ${{ needs.mobile_android.result }}
@@ -1002,6 +1065,10 @@ jobs:
             echo "- Release-control focused job: \`${RELEASE_CONTROL_RESULT}\`"
             echo "- Dependency tooling job: \`${DEPENDENCY_TOOLING_RESULT}\`"
             echo "- Full quality job: \`${FULL_RESULT}\`"
+            echo "- Database QA required: \`${DATABASE_REQUIRED:-missing}\`"
+            echo "- Database architecture job: \`${DATABASE_RESULT}\`"
+            echo "- Browser QA required: \`${BROWSER_REQUIRED:-missing}\`"
+            echo "- Browser QA job: \`${BROWSER_RESULT}\`"
             echo "- Android required: \`${MOBILE_REQUIRED:-missing}\`"
             echo "- Shared mobile web job: \`${MOBILE_WEB_RESULT}\`"
             echo "- Android job: \`${MOBILE_RESULT}\`"
@@ -1022,6 +1089,8 @@ jobs:
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
+                    "$DATABASE_RESULT" != "skipped" ||
+                    "$BROWSER_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
                 echo "::error::No-op lane unexpectedly ran validation work."
@@ -1036,6 +1105,8 @@ jobs:
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
+                    "$DATABASE_RESULT" != "skipped" ||
+                    "$BROWSER_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
                 echo "::error::Documentation lane did not run exclusively and pass."
@@ -1050,6 +1121,8 @@ jobs:
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
+                    "$DATABASE_RESULT" != "skipped" ||
+                    "$BROWSER_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
                 echo "::error::Promotion smoke lane did not run exclusively and pass."
@@ -1064,6 +1137,8 @@ jobs:
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
+                    "$DATABASE_RESULT" != "skipped" ||
+                    "$BROWSER_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
                 echo "::error::Static routing lane did not run exclusively and pass."
@@ -1078,6 +1153,8 @@ jobs:
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
+                    "$DATABASE_RESULT" != "skipped" ||
+                    "$BROWSER_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
                 echo "::error::Promotion smoke cleanup lane did not run exclusively and pass."
@@ -1092,6 +1169,8 @@ jobs:
                     "$RELEASE_CONTROL_RESULT" != "success" ||
                     "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "skipped" ||
+                    "$DATABASE_RESULT" != "skipped" ||
+                    "$BROWSER_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
                 echo "::error::Focused release-control fast lane did not run exclusively and pass."
@@ -1106,6 +1185,8 @@ jobs:
                     "$RELEASE_CONTROL_RESULT" != "skipped" ||
                     "$DEPENDENCY_TOOLING_RESULT" != "success" ||
                     "$FULL_RESULT" != "skipped" ||
+                    "$DATABASE_RESULT" != "skipped" ||
+                    "$BROWSER_RESULT" != "skipped" ||
                     "$MOBILE_WEB_RESULT" != "skipped" ||
                     "$MOBILE_RESULT" != "skipped" ]]; then
                 echo "::error::Dependency tooling fast lane did not run exclusively and pass."
@@ -1121,6 +1202,34 @@ jobs:
                     "$DEPENDENCY_TOOLING_RESULT" != "skipped" ||
                     "$FULL_RESULT" != "success" ]]; then
                 echo "::error::Full quality lane did not run exclusively and pass."
+                exit 1
+              fi
+              if [[ "$DATABASE_REQUIRED" == "true" ]]; then
+                if [[ "$DATABASE_RESULT" != "success" ]]; then
+                  echo "::error::Required database architecture validation did not run and pass."
+                  exit 1
+                fi
+              elif [[ "$DATABASE_REQUIRED" == "false" ]]; then
+                if [[ "$DATABASE_RESULT" != "skipped" ]]; then
+                  echo "::error::Database architecture validation ran for a path that does not require it."
+                  exit 1
+                fi
+              else
+                echo "::error::Database selection is missing or ambiguous."
+                exit 1
+              fi
+              if [[ "$BROWSER_REQUIRED" == "true" ]]; then
+                if [[ "$BROWSER_RESULT" != "success" ]]; then
+                  echo "::error::Required browser QA did not run and pass."
+                  exit 1
+                fi
+              elif [[ "$BROWSER_REQUIRED" == "false" ]]; then
+                if [[ "$BROWSER_RESULT" != "skipped" ]]; then
+                  echo "::error::Browser QA ran for a path that does not require it."
+                  exit 1
+                fi
+              else
+                echo "::error::Browser selection is missing or ambiguous."
                 exit 1
               fi
               if [[ "$MOBILE_REQUIRED" == "true" ]]; then

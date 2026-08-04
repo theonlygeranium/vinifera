@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Split protected full-lane browser QA and database architecture checks into
+  path-aware jobs so full validation still runs the common app/package gate but
+  only pays for Playwright or Phase 1-5 database checks when the exact diff
+  touches browser- or database-relevant paths. **Deployment impact:**
+  CI/release-control performance only; no application route, provider,
+  database, credential, billing, DNS, Worker activation, production/mobile
+  approval-gate, or Cloudflare Access policy state changes.
 - Pin the npm package manager metadata so dependency/toolchain promotion tests
   can prove the `dependency-tooling-tested` lane without touching application
   runtime code. **Deployment impact:** package-manager metadata only; no
