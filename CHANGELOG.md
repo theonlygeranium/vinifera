@@ -7,6 +7,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Pin the npm package manager metadata so dependency/toolchain promotion tests
+  can prove the `dependency-tooling-tested` lane without touching application
+  runtime code. **Deployment impact:** package-manager metadata only; no
+  application route, provider, database, credential, billing, DNS, Worker
+  activation, production/mobile approval-gate, or Cloudflare Access policy
+  state changes.
 - Add a protected-branch `dependency-tooling-tested` lane for package
   dependency and toolchain metadata changes so `package.json`/`package-lock.json`
   updates validate audit, typecheck, app build, Worker build, and shared mobile
