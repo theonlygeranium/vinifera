@@ -112,18 +112,21 @@ manually dispatched. It verifies:
 This probe is intentionally lightweight and does not create Octopus releases,
 deploy Workers, apply migrations, or mutate Cloudflare policy.
 
-## OIDC Migration State
+## Octopus Authentication State
 
-Octopus OIDC is active for:
+The production workflow path remains API-key authentication through the
+Cloudflare Access proxy for:
 
 - `.github/workflows/octopus-main-deploy.yml`;
 - `.github/workflows/octopus-pr-quality-gates.yml`.
 
-The workflows use `OctopusDeploy/login@v2` with `id-token: write` and pass the
-OIDC `access_token` output to downstream Octopus calls. The shared
-`.github/scripts/octopus-runbook.mjs` bridge accepts either
+Both workflows use `OctopusDeploy/login@v2` with `api_key` and pass
+`OCTOPUS_API_KEY` to downstream Octopus calls. This is the verified production
+path until Octopus accepts the GitHub Actions OIDC service-account identity.
+The shared `.github/scripts/octopus-runbook.mjs` bridge still accepts either
 `OCTOPUS_ACCESS_TOKEN` or `OCTOPUS_API_KEY`, preferring the bearer access token
-when both are present.
+when both are present, so a future OIDC retry does not need another runbook
+bridge change.
 
 The self-hosted Octopus instance advertises its OIDC token endpoint as
 `http://localhost:8080/token/v1` in `/.well-known/openid-configuration`. GitHub
@@ -133,12 +136,11 @@ runner-local proxy URL. Do not remove that rewrite unless Octopus is reconfigure
 to advertise the externally reachable `octopus.schubert.life` endpoint.
 
 Do not remove `OCTOPUS_API_KEY` until every Octopus workflow has been migrated
-and scheduled/manual smoke runs prove OIDC authentication works everywhere. As
-of this decision, `OCTOPUS_API_KEY` is still used by:
-
-- `.github/workflows/octopus-security-audit.yml`;
-- `.github/workflows/octopus-access-smoke.yml`, which intentionally verifies the
-  legacy API-key path until a separate OIDC smoke path is added.
+and scheduled/manual smoke runs prove OIDC authentication works everywhere.
+The 2026-08-04 OIDC trial reached Octopus through the proxy but Octopus rejected
+the GitHub assertion even after API-visible service-account OIDC identities were
+created. Treat OIDC as a follow-up hardening item, not the deployment-critical
+path.
 
 ## Branch Hygiene
 
