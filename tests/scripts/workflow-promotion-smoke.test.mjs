@@ -72,6 +72,7 @@ describe("promotion workflow smoke contract", () => {
     expect(mainDeployWorkflow).toContain("workflow_dispatch:");
     expect(mainDeployWorkflow).toContain("environments: |\n            Development");
     expect(mainDeployWorkflow).toContain("GitHubPAT:${{ secrets.GH_PAT_FOR_OCTOPUS }}");
+    expect(mainDeployWorkflow).toContain("tests/**");
     expect(mainDeployWorkflow).toContain("public/vinifera-promotion-smoke-*.html");
     expect(mainDeployWorkflow).toContain("public/_redirects");
     expect(productionWorkflow).toContain("workflow_dispatch:");
