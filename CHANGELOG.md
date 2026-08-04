@@ -7,6 +7,14 @@
 ## [Unreleased]
 
 ### Fixed
+- Auto-merge owner-authorized `dev` to `staging` promotions after exact
+  head/base, CI, Octopus, Supabase, label, and active-review revalidation;
+  remove staging reviewer approval from the read-only hosted readiness probe;
+  and route Stripe catalog `probe`/`verify` operations through unprotected
+  `promotion-control` while keeping catalog `bootstrap`, production, and
+  mobile release gates protected. **Deployment impact:** CI/release-control
+  behavior only; no application route, provider, database, credential, billing,
+  DNS, Worker activation, or production/mobile approval-gate state changes.
 - Let Octopus PR Quality Gates fall back to GitHub's exact pull-request
   `updated_at` timestamp when a direct `dev`→`staging` promotion PR does not
   include a `Review attempt:` marker, while still honoring and rechecking the
