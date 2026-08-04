@@ -125,6 +125,13 @@ OIDC `access_token` output to downstream Octopus calls. The shared
 `OCTOPUS_ACCESS_TOKEN` or `OCTOPUS_API_KEY`, preferring the bearer access token
 when both are present.
 
+The self-hosted Octopus instance advertises its OIDC token endpoint as
+`http://localhost:8080/token/v1` in `/.well-known/openid-configuration`. GitHub
+Actions cannot reach that container-local address, so the Cloudflare Access
+proxy rewrites only the discovery document's `token_endpoint` back to the
+runner-local proxy URL. Do not remove that rewrite unless Octopus is reconfigured
+to advertise the externally reachable `octopus.schubert.life` endpoint.
+
 Do not remove `OCTOPUS_API_KEY` until every Octopus workflow has been migrated
 and scheduled/manual smoke runs prove OIDC authentication works everywhere. As
 of this decision, `OCTOPUS_API_KEY` is still used by:
