@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Let the `release-control-tested` fast lane include companion documentation
+  updates for workflow/controller changes, preventing safe controller
+  promotions with `AGENTS.md` or ADR evidence from falling back to the full app
+  and mobile validation lane. **Deployment impact:** CI/release-control
+  classification behavior only; no application route, provider, database,
+  credential, billing, DNS, Worker activation, or production/mobile
+  approval-gate state changes.
 - Auto-merge owner-authorized `dev` to `staging` promotions after exact
   head/base, CI, Octopus, Supabase, label, and active-review revalidation;
   remove staging reviewer approval from the read-only hosted readiness probe;

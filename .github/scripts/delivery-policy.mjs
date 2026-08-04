@@ -199,6 +199,7 @@ function isCiScriptTestPath(path) {
 function isReleaseControlFastlanePath(path) {
   return (
     RELEASE_CONTROL_FASTLANE_FILES.has(path) ||
+    isDocumentationPath(path) ||
     RELEASE_CONTROL_FASTLANE_PREFIXES.some((prefix) => path.startsWith(prefix))
   );
 }
