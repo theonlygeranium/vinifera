@@ -491,6 +491,9 @@ describe("Stripe test catalog workflow source", () => {
     expect(workflow).toContain("contents: read");
     expect(workflow).toContain("deployments: none");
     expect(workflow).toContain("cancel-in-progress: false");
+    expect(workflow).toContain(
+      "name: ${{ inputs.operation == 'bootstrap' && 'staging' || 'promotion-control' }}",
+    );
     expect(workflow).toContain('[[ "$GITHUB_REF" == "refs/heads/staging" ]]');
     expect(workflow).toContain('"$(git rev-parse origin/staging)"');
     expect(workflow).not.toContain(

@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
-      name: staging
+      name: ${{ inputs.operation == 'bootstrap' && 'staging' || 'promotion-control' }}
       deployment: false
     steps:
       - name: Validate canonical source target

@@ -22,12 +22,24 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).toContain(
       "An owner-authorized promotion reason is required.",
     );
+    expect(workflow).toMatch(
+      /auto_merge:\n\s+description:[^\n]+\n\s+required: false\n\s+default: "true"/,
+    );
   });
 
   it("opens an event-producing PR before provider gates", () => {
     expect(
-      workflow.match(/GH_TOKEN: \$\{\{ secrets\.GH_PAT_FOR_OCTOPUS \}\}/g),
+      workflow.match(/^\s+GH_TOKEN: \$\{\{ secrets\.GH_PAT_FOR_OCTOPUS \}\}/gm),
     ).toHaveLength(1);
+    expect(workflow).toContain(
+      "MERGE_GH_TOKEN: ${{ secrets.GH_PAT_FOR_OCTOPUS }}",
+    );
+    expect(workflow).toContain(
+      "GH_PAT_FOR_OCTOPUS is required to open the PR and trigger pull_request CI.",
+    );
+    expect(workflow).toContain(
+      "GH_PAT_FOR_OCTOPUS is required for event-producing promotion merges.",
+    );
     expect(workflow).toMatch(
       /staging-rest-pre:[\s\S]*?needs: open-pr[\s\S]*?STAGING_SUPABASE_URL/,
     );
@@ -90,9 +102,11 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).not.toContain("coderabbit_reviews");
   });
 
-  it("revalidates evidence and never merges", () => {
-    expect(workflow).toContain("name: Report promotion readiness");
-    expect(workflow).toContain("name: Revalidate complete promotion readiness");
+  it("revalidates evidence and auto-merges unless dry-run or disabled", () => {
+    expect(workflow).toContain("name: Revalidate and merge promotion");
+    expect(workflow).toContain(
+      "name: Revalidate complete promotion readiness and merge",
+    );
     expect(workflow).toContain(
       "Promotion gates changed after polling; readiness is no longer valid.",
     );
@@ -101,7 +115,15 @@ describe("dev to staging promotion contract", () => {
     );
     expect(workflow).toContain("final_metadata");
     expect(workflow).toContain('[[ "$final_sha" != "$PR_SHA"');
-    expect(workflow).not.toContain("gh pr merge");
-    expect(workflow).not.toContain("--match-head-commit");
+    expect(workflow).toContain('AUTO_MERGE: ${{ github.event.inputs.auto_merge }}');
+    expect(workflow).toContain('if [[ "$DRY_RUN" == "true" ]]; then');
+    expect(workflow).toContain('if [[ "$AUTO_MERGE" != "true" ]]; then');
+    expect(workflow).toContain(
+      "GH_PAT_FOR_OCTOPUS is required for event-producing promotion merges.",
+    );
+    expect(workflow).toContain('GH_TOKEN="$MERGE_GH_TOKEN" gh api');
+    expect(workflow).toContain('"repos/$REPO/pulls/$PR_NUMBER/merge"');
+    expect(workflow).toContain('-f sha="$PR_SHA"');
+    expect(workflow).toContain("Staging did not advance to the returned promotion merge SHA.");
   });
 });

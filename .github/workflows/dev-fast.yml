@@ -272,7 +272,8 @@ jobs:
        needs.classify.outputs.lane == 'promotion-smoke-cleanup' ||
        needs.classify.outputs.lane == 'protected-reconcile' ||
        needs.classify.outputs.lane == 'ci-script-tested' ||
-       needs.classify.outputs.lane == 'release-control-tested')
+       needs.classify.outputs.lane == 'release-control-tested' ||
+       needs.classify.outputs.lane == 'operator-tooling-tested')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
