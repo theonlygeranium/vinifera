@@ -11,6 +11,7 @@ on:
       - "docs/**"
       - ".github/**"
       - ".octopus/**"
+      - "tests/**"
       - "public/_redirects"
       - "public/vinifera-promotion-smoke-*.html"
 
