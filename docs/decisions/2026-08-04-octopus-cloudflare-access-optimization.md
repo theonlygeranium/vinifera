@@ -38,8 +38,10 @@ application or policy, not by Octopus.
 - Runbooks are the right Octopus primitive for repeatable operational checks,
   maintenance, audits, and emergency tasks.
 - Cloudflare Access service-token policies are the right pattern for GitHub
-  Actions and other machine clients. Broad bypass policies disable Access
-  security controls and request logging and should not be used persistently.
+  Actions and other machine clients. For `octopus.schubert.life`, the browser
+  bypass policy is intentionally scoped to the Octopus hostname so Octopus can
+  own human authentication while the Access application still hosts the
+  non-identity service-token path for automation.
 
 Primary references:
 
@@ -59,10 +61,11 @@ Primary references:
    Cloudflare Pages/static-routing proofs, not application deployments.
 2. Keep Cloudflare Access service-token authentication for GitHub Actions and
    other machine clients that call Octopus.
-3. Remove or narrow the interactive Cloudflare OTP requirement for
-   `octopus.schubert.life` in Cloudflare Zero Trust. The preferred model is:
-   browser traffic reaches the normal Octopus login page directly, while
-   automation continues to authenticate with the existing Service Auth policy.
+3. Keep the interactive Cloudflare OTP requirement removed for
+   `octopus.schubert.life`. The intended Cloudflare Access policy shape is:
+   browser traffic matches `Browser Bypass - Octopus self-auth`, then Octopus
+   owns human authentication; GitHub Actions traffic can still use the
+   `vinifera-github-actions-service-token` non-identity policy.
 4. Treat Octopus OIDC as the next credential-hardening improvement. The repo can
    adopt `OctopusDeploy/login` after an Octopus service account OIDC identity is
    created and the service account ID is stored as a GitHub secret.
@@ -76,15 +79,59 @@ Primary references:
   - `public/_redirects`
 - `tests/scripts/workflow-promotion-smoke.test.mjs` asserts this trigger guard.
 
-## Remaining Operator Action
+## Current Operator State
 
-Cloudflare Access policy changes are outside this repository. Use the
-Cloudflare dashboard or API with a token that has `Access: Apps and Policies
-Write` to inspect the Access application matching `octopus.schubert.life`.
+Cloudflare Access policy state is managed outside this repository. As of the
+2026-08-04 verification, `octopus.schubert.life` has the intended two-policy
+shape:
 
-Target result:
+- browser users match `Browser Bypass - Octopus self-auth`, with decision
+  `bypass`;
+- GitHub Actions can use `vinifera-github-actions-service-token`, with decision
+  `non_identity`;
+- the former Cloudflare OTP allow policy for the Octopus hostname remains
+  removed.
 
-- no interactive OTP wall before the Octopus login page;
-- no persistent broad `bypass everyone` policy for automation;
-- Service Auth remains available for `OCTOPUS_CF_ACCESS_CLIENT_ID` and
-  `OCTOPUS_CF_ACCESS_CLIENT_SECRET` used by GitHub Actions.
+The Cloudflare Access application object must stay registered even though
+browser users bypass it. The application object hosts the GitHub Actions
+service-token policy, and its `/.well-known/cloudflare-access-protected-resource/`
+metadata endpoint is expected while that object exists.
+
+## Regression Probe
+
+`.github/workflows/octopus-access-smoke.yml` runs every six hours and can be
+manually dispatched. It verifies:
+
+- `/` redirects to `/app`, not to `cloudflareaccess.com`;
+- `/app` returns the Octopus app shell;
+- `/api` returns Octopus API metadata;
+- `/api/users/me` returns Octopus-native `401` JSON without an API key;
+- the existing Cloudflare Access and Octopus secrets can authenticate to
+  `/api/users/me` in GitHub Actions.
+
+This probe is intentionally lightweight and does not create Octopus releases,
+deploy Workers, apply migrations, or mutate Cloudflare policy.
+
+## OIDC Migration Preparation
+
+Octopus OIDC remains a future credential-hardening improvement. Implementing it
+requires human/admin setup outside this repository:
+
+- create or choose an Octopus service account for GitHub Actions OIDC;
+- configure the OIDC identity in Octopus for `theonlygeranium/vinifera`;
+- add the resulting service account identifier as a GitHub secret, for example
+  `OCTOPUS_SERVICE_ACCOUNT_ID`;
+- then replace API-key login in Octopus workflows with `OctopusDeploy/login`
+  and `id-token: write`.
+
+Do not remove `OCTOPUS_API_KEY` until every Octopus workflow has been migrated
+and a scheduled/manual smoke run proves OIDC authentication works.
+
+## Branch Hygiene
+
+`dev`, `staging`, and `main` can intentionally diverge during smoke artifact
+creation, cleanup, and protected-branch promotion bookkeeping. For narrow
+release-control patches that only affect `main` behavior, branch from
+`origin/main` and target `main` directly to avoid dragging unrelated `dev`
+history into the diff. For feature/application work, keep using the normal
+feature-to-`dev`, `dev`-to-`staging`, `staging`-to-`main` path.
