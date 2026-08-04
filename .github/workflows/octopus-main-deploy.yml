@@ -66,7 +66,7 @@ jobs:
 
       - name: Login to Octopus Deploy (OIDC) 🔑
         id: octopus_login
-        uses: OctopusDeploy/login@v1
+        uses: OctopusDeploy/login@v2
         with:
           server: ${{ env.OCTOPUS_PROXY_URL }}
           service_account_id: ${{ secrets.OCTOPUS_SERVICE_ACCOUNT_ID }}
