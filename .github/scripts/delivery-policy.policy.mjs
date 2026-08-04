@@ -170,6 +170,8 @@ test("release-control workflow patches require changelog and select focused cove
     record("M", ".github/workflows/ci.yml"),
     record("M", ".github/scripts/delivery-policy.mjs"),
     record("M", "tests/scripts/workflow-promotion-smoke.test.mjs"),
+    record("M", "AGENTS.md"),
+    record("M", "docs/decisions/2026-07-28-automated-dev-staging-promotion.md"),
     record("M", "CHANGELOG.md"),
   ]);
   assert.equal(result.classificationSucceeded, true);
