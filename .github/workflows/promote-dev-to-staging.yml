@@ -8,11 +8,17 @@ on:
         required: true
         type: string
       dry_run:
-        description: "Dry run — open PR and evaluate gates without merging"
+        description: "Dry run - open PR and evaluate gates without merging"
         required: false
         default: "false"
         type: choice
         options: ["false", "true"]
+      auto_merge:
+        description: "Automatically merge after exact-head/base gates pass"
+        required: false
+        default: "true"
+        type: choice
+        options: ["true", "false"]
 
 concurrency:
   group: vinifera-promote-dev-to-staging
@@ -27,9 +33,9 @@ env:
 
     This PR was opened by an explicit workflow dispatch. Automation validates
     the staging Supabase REST probes, canonical promotion gate, Octopus, and
-    active requested-changes review state for the captured head and base. The final merge
-    remains human-triggered because GitHub's merge API cannot atomically require
-    an expected base SHA.
+    active requested-changes review state for the captured head and base. When
+    auto-merge is enabled, automation revalidates the exact comparison
+    immediately before merging the captured head.
 
     > **staging → main** is a human-only gate and is never automated.
 
@@ -231,7 +237,7 @@ jobs:
             "Staging Supabase REST pre-flight",
             "Wait for promotion PR gates",
             "Staging Supabase REST pre-merge re-check",
-            "Report promotion readiness"
+            "Revalidate and merge promotion"
           ]'
 
           while true; do
@@ -442,7 +448,7 @@ jobs:
           fi
 
   ready:
-    name: Report promotion readiness
+    name: Revalidate and merge promotion
     needs: [open-pr, wait-for-gates, staging-rest-pre-merge]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -454,11 +460,13 @@ jobs:
       statuses: read
 
     steps:
-      - name: Revalidate complete promotion readiness
+      - name: Revalidate complete promotion readiness and merge
         env:
+          AUTO_MERGE: ${{ github.event.inputs.auto_merge }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
           GATE_REQUESTED_AT: ${{ needs.open-pr.outputs.gate_requested_at }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MERGE_GH_TOKEN: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
           PR_BASE_SHA: ${{ needs.open-pr.outputs.pr_base_sha }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ needs.open-pr.outputs.pr_number }}
@@ -628,12 +636,53 @@ jobs:
             exit 1
           fi
 
-          echo "::notice::PR #$PR_NUMBER passed automated readiness at head ${PR_SHA:0:12} and base ${PR_BASE_SHA:0:12}; a human must re-check the current base and merge."
+          echo "::notice::PR #$PR_NUMBER passed automated readiness at head ${PR_SHA:0:12} and base ${PR_BASE_SHA:0:12}."
           if [[ "$DRY_RUN" == "true" ]]; then
             echo "### Dry-run readiness passed: PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "### Ready for human merge: PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Captured head: \`${PR_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Captured staging base: \`${PR_BASE_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Auto-merge: \`skipped by dry_run=true\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
+
+          if [[ "$AUTO_MERGE" != "true" ]]; then
+            echo "### Ready for manual merge: PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Captured head: \`${PR_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Captured staging base: \`${PR_BASE_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Auto-merge: \`disabled by input\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [[ -z "${MERGE_GH_TOKEN:-}" ]]; then
+            echo "::error::GH_PAT_FOR_OCTOPUS is required for event-producing promotion merges."
+            exit 1
+          fi
+
+          merge_response=$(GH_TOKEN="$MERGE_GH_TOKEN" gh api \
+            --method PUT \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$REPO/pulls/$PR_NUMBER/merge" \
+            -f merge_method=squash \
+            -f sha="$PR_SHA")
+          if [[ "$(jq -r '.merged' <<<"$merge_response")" != "true" ]]; then
+            echo "::error::GitHub rejected the exact-head promotion merge."
+            exit 1
+          fi
+
+          merged_sha=$(jq -r '.sha // ""' <<<"$merge_response")
+          if [[ ! "$merged_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Promotion merge response did not include an exact merge SHA."
+            exit 1
+          fi
+          live_staging_sha=$(gh api "repos/$REPO/git/ref/heads/staging" --jq '.object.sha')
+          if [[ "$live_staging_sha" != "$merged_sha" ]]; then
+            echo "::error::Staging did not advance to the returned promotion merge SHA."
+            exit 1
+          fi
+
+          echo "### Auto-merged promotion PR #$PR_NUMBER" >> "$GITHUB_STEP_SUMMARY"
           echo "- Captured head: \`${PR_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Captured staging base: \`${PR_BASE_SHA:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "> GitHub exposes an atomic expected-head merge guard but no expected-base guard; automation intentionally leaves the PR open." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Merge commit: \`${merged_sha:0:12}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Merge guard: \`exact head SHA after exact base revalidation\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Merged PR #$PR_NUMBER into staging at $merged_sha."

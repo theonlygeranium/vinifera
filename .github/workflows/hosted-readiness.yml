@@ -16,9 +16,6 @@ jobs:
     name: Read-only hosted readiness
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment:
-      name: staging
-      deployment: false
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
