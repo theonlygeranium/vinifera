@@ -356,12 +356,15 @@ dist/ + capacitor.config.json ─ Capacitor ──────── iOS / Andro
 
 GitHub-hosted CI uses Node 22.22.0 to install the lockfile, audit production
 dependencies, verify generated Worker binding types, type-check, run
-service/browser tests and Phase 1–5 database gates, build assets, and validate
-the Worker bundle. Protected promotion CI classifies documentation, smoke,
-static-routing, cleanup, release-control, and CI-script-only diffs before
-starting heavy jobs so controller fixes do not invoke package, browser, mobile
-web, or Android validation unless the diff actually requires it. Dependency
-and package-toolchain metadata changes with a changelog use the
+service tests, build assets, and validate the Worker bundle. Protected
+promotion CI classifies documentation, smoke, static-routing, cleanup,
+release-control, and CI-script-only diffs before starting heavy jobs so
+controller fixes do not invoke package, browser, database, mobile web, or
+Android validation unless the diff actually requires it. Full-lane browser QA
+and Phase 1-5 database architecture checks are separate path-aware jobs, so a
+backend-only diff does not pay for Playwright and a browser-only diff does not
+pay for database architecture gates. Dependency and package-toolchain metadata
+changes with a changelog use the
 `dependency-tooling-tested` lane, which runs lockfile install, moderate audit,
 policy tests, typecheck, app build, Worker build, and shared mobile web build
 without database architecture checks, browser QA, or Android assembly. Android

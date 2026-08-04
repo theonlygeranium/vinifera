@@ -283,6 +283,20 @@ export function isBrowserRelevantPath(path) {
   );
 }
 
+export function isDatabaseRelevantPath(path) {
+  return (
+    path.startsWith("server/") ||
+    path.startsWith("supabase/") ||
+    path.startsWith("tests/server/") ||
+    path === "wrangler.jsonc" ||
+    path === "scripts/verify-local-seed.mjs" ||
+    /^scripts\/verify-phase[1-5]-db\.mjs$/.test(path) ||
+    /(^|[-_/])(database|db|migration|pgtap|rls|supabase)([-_/.]|$)/i.test(
+      path,
+    )
+  );
+}
+
 function deliverySurface(paths) {
   if (paths.every(isDocumentationPath)) return "docs";
   const surfaces = new Set();
@@ -533,6 +547,7 @@ export function classifyDeliveryChange(records, context = {}) {
   const uniquePaths = [...new Set(paths)];
   const mobileRequired = uniquePaths.some(isMobilePath);
   const browserRequired = uniquePaths.some(isBrowserRelevantPath);
+  const databaseRequired = uniquePaths.some(isDatabaseRelevantPath);
   const previewRequired = uniquePaths.some(isPreviewRelevantPath);
   const surface = deliverySurface(uniquePaths);
 
@@ -787,6 +802,7 @@ export function classifyDeliveryChange(records, context = {}) {
       : "routine_allowlist_match",
     mobileRequired,
     browserRequired,
+    databaseRequired,
     previewRequired,
     risk: authorityHighRisk ? "high" : "medium",
     surface,
@@ -973,6 +989,10 @@ export function evaluateFullAggregate({
   releaseControlResult = "skipped",
   dependencyToolingResult = "skipped",
   fullResult,
+  databaseRequired = true,
+  databaseResult = "skipped",
+  browserRequired = true,
+  browserResult = "skipped",
   mobileRequired,
   mobileWebResult,
   androidResult,
@@ -985,6 +1005,8 @@ export function evaluateFullAggregate({
       fullResult === "skipped" &&
       releaseControlResult === "skipped" &&
       dependencyToolingResult === "skipped" &&
+      databaseResult === "skipped" &&
+      browserResult === "skipped" &&
       mobileWebResult === "skipped" &&
       androidResult === "skipped";
     return { passed, reason: passed ? "noop_passed" : "noop_result_mismatch" };
@@ -994,6 +1016,8 @@ export function evaluateFullAggregate({
       releaseControlResult === "success" &&
       dependencyToolingResult === "skipped" &&
       fullResult === "skipped" &&
+      databaseResult === "skipped" &&
+      browserResult === "skipped" &&
       mobileWebResult === "skipped" &&
       androidResult === "skipped";
     return {
@@ -1008,6 +1032,8 @@ export function evaluateFullAggregate({
       releaseControlResult === "success" &&
       dependencyToolingResult === "skipped" &&
       fullResult === "skipped" &&
+      databaseResult === "skipped" &&
+      browserResult === "skipped" &&
       mobileWebResult === "skipped" &&
       androidResult === "skipped";
     return {
@@ -1022,6 +1048,8 @@ export function evaluateFullAggregate({
       dependencyToolingResult === "success" &&
       releaseControlResult === "skipped" &&
       fullResult === "skipped" &&
+      databaseResult === "skipped" &&
+      browserResult === "skipped" &&
       mobileWebResult === "skipped" &&
       androidResult === "skipped";
     return {
@@ -1036,6 +1064,18 @@ export function evaluateFullAggregate({
   }
   if (releaseControlResult !== "skipped" || dependencyToolingResult !== "skipped") {
     return { passed: false, reason: "focused_lane_result_mismatch" };
+  }
+  const databasePassed = databaseRequired
+    ? databaseResult === "success"
+    : databaseResult === "skipped";
+  if (!databasePassed) {
+    return { passed: false, reason: "database_lane_result_mismatch" };
+  }
+  const browserPassed = browserRequired
+    ? browserResult === "success"
+    : browserResult === "skipped";
+  if (!browserPassed) {
+    return { passed: false, reason: "browser_lane_result_mismatch" };
   }
   const passed = mobileRequired
     ? androidResult === "success" && mobileWebResult === "skipped"

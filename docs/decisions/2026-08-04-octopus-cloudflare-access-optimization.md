@@ -100,6 +100,11 @@ Primary references:
 - Full browser QA restores the Playwright Chromium cache before installing
   browser dependencies, reducing repeated full-lane setup time while keeping
   the full lane available for real app/browser risk.
+- Full-lane browser QA and Phase 1-5 database architecture checks are separate
+  path-aware jobs. Browser QA runs only when the exact diff touches frontend,
+  e2e, Playwright, accessibility, or static asset paths. Database architecture
+  checks run only when the exact diff touches server, Supabase, DB verifier,
+  local seed, `wrangler.jsonc`, or database/RLS/migration-named paths.
 - Use explicit `full_mobile=true` or touch a native/mobile path when a
   dependency update must prove Android assembly.
 
