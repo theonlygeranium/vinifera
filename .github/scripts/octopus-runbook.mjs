@@ -166,8 +166,14 @@ export function credentialShapeSummary(environment) {
   const credentials = [
     ["cf-client-id", environment.CF_ACCESS_CLIENT_ID],
     ["cf-client-secret", environment.CF_ACCESS_CLIENT_SECRET],
-    ["octopus-api-key", environment.OCTOPUS_API_KEY],
   ];
+  if (environment.OCTOPUS_ACCESS_TOKEN) {
+    credentials.push(["octopus-access-token", environment.OCTOPUS_ACCESS_TOKEN]);
+  } else if (environment.OCTOPUS_API_KEY) {
+    credentials.push(["octopus-api-key", environment.OCTOPUS_API_KEY]);
+  } else {
+    throw new Error("Missing Octopus credential: OCTOPUS_ACCESS_TOKEN or OCTOPUS_API_KEY");
+  }
   const summaries = credentials.map(([name, value]) => {
     if (!/^[\x21-\x7e]+$/.test(value)) {
       throw new Error(`${name} must contain visible ASCII characters only`);
@@ -176,6 +182,21 @@ export function credentialShapeSummary(environment) {
   });
   summaries.push(`octopus-host=${new URL(environment.OCTOPUS_URL).hostname}`);
   return `Octopus credential shape accepted: ${summaries.join("; ")}`;
+}
+
+export function octopusAuthenticationHeaders(environment) {
+  const headers = {
+    "CF-Access-Client-Id": environment.CF_ACCESS_CLIENT_ID,
+    "CF-Access-Client-Secret": environment.CF_ACCESS_CLIENT_SECRET,
+  };
+  if (environment.OCTOPUS_ACCESS_TOKEN) {
+    headers.Authorization = `Bearer ${environment.OCTOPUS_ACCESS_TOKEN}`;
+  } else if (environment.OCTOPUS_API_KEY) {
+    headers["X-Octopus-ApiKey"] = environment.OCTOPUS_API_KEY;
+  } else {
+    throw new Error("Missing Octopus credential: OCTOPUS_ACCESS_TOKEN or OCTOPUS_API_KEY");
+  }
+  return headers;
 }
 
 export function configAsCodeRunbooksPath(projectId, gitRef) {
@@ -208,7 +229,6 @@ export async function executeConfigAsCodeRunbook({
   const required = [
     "CF_ACCESS_CLIENT_ID",
     "CF_ACCESS_CLIENT_SECRET",
-    "OCTOPUS_API_KEY",
     "OCTOPUS_URL",
     ...requiredEnvironment,
   ];
@@ -222,11 +242,7 @@ export async function executeConfigAsCodeRunbook({
 
   log(credentialShapeSummary(environment));
   const apiBase = normalizeApiBase(environment.OCTOPUS_URL);
-  const authenticationHeaders = {
-    "CF-Access-Client-Id": environment.CF_ACCESS_CLIENT_ID,
-    "CF-Access-Client-Secret": environment.CF_ACCESS_CLIENT_SECRET,
-    "X-Octopus-ApiKey": environment.OCTOPUS_API_KEY,
-  };
+  const authenticationHeaders = octopusAuthenticationHeaders(environment);
   const space = await findByName(
     fetchImpl,
     apiBase,

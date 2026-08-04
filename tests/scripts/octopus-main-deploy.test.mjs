@@ -18,7 +18,15 @@ describe("main to development Octopus deployment contract", () => {
     expect(workflow).toContain("node .github/scripts/cloudflare-access-proxy.mjs");
     expect(workflow).toContain("OCTOPUS_TARGET_URL: ${{ secrets.OCTOPUS_URL }}");
     expect(workflow).toContain("OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}");
-    expect(workflow).toContain("X-Octopus-ApiKey: ${OCTOPUS_API_KEY}");
+    expect(workflow).toContain("OctopusDeploy/login@v1");
+    expect(workflow).toContain("id-token: write");
+    expect(workflow).toContain(
+      "service_account_id: ${{ secrets.OCTOPUS_SERVICE_ACCOUNT_ID }}",
+    );
+    expect(workflow).toContain(
+      "OCTOPUS_ACCESS_TOKEN: ${{ steps.octopus_login.outputs.access_token }}",
+    );
+    expect(workflow).not.toContain("steps.octopus_login.outputs.api_key");
     expect(workflow).toContain("Stop Cloudflare Access proxy");
   });
 

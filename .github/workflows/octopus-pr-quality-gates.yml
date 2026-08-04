@@ -165,7 +165,7 @@ jobs:
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
-          OCTOPUS_API_KEY: ${{ steps.octopus_login.outputs.api_key }}
+          OCTOPUS_ACCESS_TOKEN: ${{ steps.octopus_login.outputs.access_token }}
           OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
           PR_BRANCH: ${{ needs.validate-source.outputs.branch }}
           PR_EXPECTED_BASE_REF: ${{ github.event.pull_request.base.ref }}

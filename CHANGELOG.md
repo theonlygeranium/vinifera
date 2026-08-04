@@ -7,6 +7,13 @@
 ## [Unreleased]
 
 ### Fixed
+- Correct the Octopus OIDC migration to use the `OctopusDeploy/login@v1`
+  `access_token` output instead of the API-key output, and let the shared
+  Octopus runbook bridge authenticate with either an OIDC bearer token or the
+  legacy API key. **Deployment impact:** CI/release-control authentication
+  behavior only; no application route, provider, database, billing, DNS, Worker
+  activation, production/mobile approval-gate, or Cloudflare Access policy
+  state changes.
 - Add a scheduled/manual Octopus access smoke workflow that verifies the
   browser bypass, Octopus-native authentication boundary, and GitHub Actions
   machine credential path without creating releases or deploying application

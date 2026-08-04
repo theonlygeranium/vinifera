@@ -86,6 +86,15 @@ describe("two-speed Octopus review policy", () => {
     expect(workflow).toContain(
       'run: node .github/scripts/octopus-runbook.mjs "PR Quality Gates"',
     );
+    expect(workflow).toContain("OctopusDeploy/login@v1");
+    expect(workflow).toContain("id-token: write");
+    expect(workflow).toContain(
+      "service_account_id: ${{ secrets.OCTOPUS_SERVICE_ACCOUNT_ID }}",
+    );
+    expect(workflow).toContain(
+      "OCTOPUS_ACCESS_TOKEN: ${{ steps.octopus_login.outputs.access_token }}",
+    );
+    expect(workflow).not.toContain("steps.octopus_login.outputs.api_key");
     expect(workflow).not.toMatch(/\bnpm (ci|install|run)\b/);
   });
 
