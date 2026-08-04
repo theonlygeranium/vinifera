@@ -36,7 +36,8 @@ GitHub exposes an expected-head input (`sha` / `--match-head-commit`) but no
 expected-base input. A target-branch advance between the last read and the
 merge could therefore merge an unattested comparison. Under the owner's
 standing authority to patch all validated issues, this ADR is safety-amended:
-automation prepares and validates the PR, but a human performs the merge.
+automation prepares, validates, revalidates, and may merge the PR with
+GitHub's exact-head guard after confirming the captured base has not changed.
 
 ---
 
@@ -55,17 +56,18 @@ promotion work.
 | 1. Staging REST pre-flight | HTTP probe to `STAGING_SUPABASE_URL/rest/v1/` | Fail closed — PR remains open |
 | 2. PR quality gates | Require aggregate CI, Octopus, all required registered statuses, and zero unresolved threads on the captured head; record CodeRabbit when available | Fail closed — PR remains open for human inspection |
 | 3. Staging REST readiness re-check | Same probe immediately before readiness reporting | Fail closed — guards against mid-run provider degradation |
-| 4. Readiness report | Revalidate the captured head/base, CI, statuses, reviews, and threads after the second probe | PR remains open for a human merge |
-| 5. Dry-run override | `workflow_dispatch` input `dry_run=true` | Runs the same evidence validation, records dry-run readiness, and leaves the PR open |
+| 4. Merge readiness | Revalidate the captured head/base, CI, statuses, reviews, and threads after the second probe | Squash-merge the exact captured head when auto-merge is enabled |
+| 5. Dry-run/manual override | `workflow_dispatch` input `dry_run=true` or `auto_merge=false` | Runs the same evidence validation, records readiness, and leaves the PR open |
 
-On success or failure, the PR remains **open**. Before merging, the human must
-confirm that the current head and base still match the successful readiness
-report.
+On success, the PR is auto-merged by default after the workflow confirms that
+the current head and base still match the successful readiness evidence. Dry-run
+and `auto_merge=false` paths leave the PR open for manual inspection.
 
 ### What does NOT change
 
-- Both environment-branch merges are human-initiated. No workflow merges to
-  `staging` or touches `main` automatically.
+- `dev → staging` may auto-merge only through the owner-authorized promotion
+  workflow after exact evidence revalidation. No workflow touches `main`
+  automatically.
 - Agents NEVER commit directly to `staging` or `main`.
 - Agents NEVER open a PR from a feature branch directly to `staging` or `main`.
 - All agent-authored feature PRs still target `dev` only.
@@ -119,11 +121,12 @@ from becoming eligible merely because it starts late. Check runs and commit
 statuses are fully paginated before evaluation. The
 required aggregate must conclude `success`; non-required jobs that GitHub
 intentionally concludes `skipped` or `neutral` do not block readiness. The
-workflow intentionally contains no merge command because GitHub documents only
-an expected-head merge guard and no expected-base guard. Normal and dry-run
-paths share the same final evidence revalidation after the second provider
-probe. Head/base reads bracket that evidence refresh so readiness is not
-reported if either revision changes while the APIs are queried.
+workflow uses GitHub's expected-head merge guard only after separately
+revalidating the captured staging base immediately before the merge call.
+Normal and dry-run paths share the same final evidence revalidation after the
+second provider probe. Head/base reads bracket that evidence refresh so the
+promotion is not merged or reported ready if either revision changes while the
+APIs are queried.
 
 ---
 
@@ -131,8 +134,8 @@ reported if either revision changes while the APIs are queried.
 
 - Promotion latency depends on the full CI and automated-review duration; no
   fixed completion time is guaranteed.
-- A human must revalidate and merge the `dev → staging` PR after automation
-  reports readiness.
+- A human merge is no longer required for normal `dev → staging` promotions;
+  manual merge remains available through `auto_merge=false` or `dry_run=true`.
 - The human owner retains full control of the `staging → main` gate and all production deployments.
 - `STAGING_SUPABASE_URL` and `STAGING_SUPABASE_ANON_KEY` must be present in the
   repository's Actions secrets for the probe to function. As of this decision's

@@ -77,6 +77,21 @@ const RELEASE_CONTROL_FASTLANE_PREFIXES = Object.freeze([
   "tests/scripts/",
 ]);
 
+const OPERATOR_TOOLING_FILES = new Set([
+  ".github/pull_request_template.md",
+  "CHANGELOG.md",
+  "package.json",
+  "scripts/actions-promotion-status.mjs",
+  "scripts/hosted-marker-probe.mjs",
+  "scripts/promotion-smoke.mjs",
+]);
+
+const OPERATOR_TOOLING_PREFIXES = Object.freeze([
+  ".github/scripts/",
+  ".github/workflows/",
+  "tests/scripts/",
+]);
+
 const TEST_PREFIXES = Object.freeze([
   "tests/",
 ]);
@@ -184,7 +199,15 @@ function isCiScriptTestPath(path) {
 function isReleaseControlFastlanePath(path) {
   return (
     RELEASE_CONTROL_FASTLANE_FILES.has(path) ||
+    isDocumentationPath(path) ||
     RELEASE_CONTROL_FASTLANE_PREFIXES.some((prefix) => path.startsWith(prefix))
+  );
+}
+
+function isOperatorToolingPath(path) {
+  return (
+    OPERATOR_TOOLING_FILES.has(path) ||
+    OPERATOR_TOOLING_PREFIXES.some((prefix) => path.startsWith(prefix))
   );
 }
 
@@ -579,6 +602,41 @@ export function classifyDeliveryChange(records, context = {}) {
   }
 
   if (
+    (uniquePaths.includes("package.json") ||
+      uniquePaths.some((path) => path.startsWith("scripts/"))) &&
+    records.every(
+      ({ status, paths: recordPaths }) =>
+        !status.startsWith("D") &&
+        recordPaths.every(isOperatorToolingPath),
+    )
+  ) {
+    if (!hasChangelogUpdate(records)) {
+      return {
+        classificationSucceeded: false,
+        lane: "invalid",
+        reason: "operator_tooling_fastlane_missing_changelog",
+        mobileRequired: false,
+        browserRequired: false,
+        previewRequired: false,
+        risk: "high",
+        surface: "workflow",
+        paths: uniquePaths,
+      };
+    }
+    return {
+      classificationSucceeded: true,
+      lane: "operator-tooling-tested",
+      reason: "operator_tooling_fastlane_allowlist_match",
+      mobileRequired: false,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "medium",
+      surface: "workflow",
+      paths: uniquePaths,
+    };
+  }
+
+  if (
     (hasChangelogUpdate(records) ||
       uniquePaths.some((path) => path.startsWith(".github/workflows/"))) &&
     records.every(
@@ -669,6 +727,14 @@ export function selectFocusedTests(paths, lane) {
   if (lane === "release-control-tested") {
     return [
       ".github/scripts/delivery-policy.policy.mjs",
+      ".github/scripts/operator-tooling-policy.policy.mjs",
+      "tests/scripts",
+    ];
+  }
+  if (lane === "operator-tooling-tested") {
+    return [
+      ".github/scripts/delivery-policy.policy.mjs",
+      ".github/scripts/operator-tooling-policy.policy.mjs",
       "tests/scripts",
     ];
   }
@@ -784,6 +850,7 @@ export function evaluateFastAggregate({
     lane === "protected-reconcile" ||
     lane === "ci-script-tested" ||
     lane === "release-control-tested" ||
+    lane === "operator-tooling-tested" ||
     lane === "static-routing" ||
     lane === "promotion-smoke-cleanup"
   ) {
@@ -842,6 +909,19 @@ export function evaluateFullAggregate({
       reason: passed
         ? "release_control_tested_passed"
         : "release_control_tested_result_mismatch",
+    };
+  }
+  if (lane === "operator-tooling-tested") {
+    const passed =
+      releaseControlResult === "success" &&
+      fullResult === "skipped" &&
+      mobileWebResult === "skipped" &&
+      androidResult === "skipped";
+    return {
+      passed,
+      reason: passed
+        ? "operator_tooling_tested_passed"
+        : "operator_tooling_tested_result_mismatch",
     };
   }
   if (fullResult !== "success") {
