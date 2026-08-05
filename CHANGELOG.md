@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 ### Fixed
+- Conclude OIDC service-account migration investigation: `OctopusDeploy/login@v2` OIDC exchange targets `localhost:8080/token/v1`, a sidecar provisioned only on Octopus Cloud-hosted runners. Self-hosted Octopus with GitHub-hosted runners cannot satisfy this requirement. Reverted both `octopus-main-deploy.yml` and `octopus-pr-quality-gates.yml` to the verified `api_key:` login path; retained `vinifera-gha` service account, dedicated Octopus team (`Teams-21`), Build Server role (`ScopedUserRoles-21`), and `OCTOPUS_SERVICE_ACCOUNT_ID` secret as prerequisites for a future attempt when a compatible token-exchange mechanism ships. **Deployment impact:** CI/release-control authentication behavior only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 - Split protected full-lane browser QA and database architecture checks into
   path-aware jobs so full validation still runs the common app/package gate but
   only pays for Playwright or Phase 1-5 database checks when the exact diff
