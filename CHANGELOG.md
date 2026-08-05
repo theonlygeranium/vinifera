@@ -27,6 +27,12 @@
   only; no application route, provider, database, credential, billing, DNS,
   Worker activation, production/mobile approval-gate, or Cloudflare Access
   policy state changes.
+- Align `staging` package metadata with the verified `dev` dependency/tooling
+  state so future dev-to-staging promotions do not carry stale lockfile or
+  package-manager drift. **Deployment impact:** package-manager metadata only;
+  no application route, provider, database, credential, billing, DNS, Worker
+  activation, production/mobile approval-gate, or Cloudflare Access policy
+  state changes.
 - Add a protected-branch `dependency-tooling-tested` lane for package
   dependency and toolchain metadata changes so `package.json`/`package-lock.json`
   updates validate audit, typecheck, app build, Worker build, and shared mobile
