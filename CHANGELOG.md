@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- Resolve 15 pgTAP test failures on staging database: add migration 023 (87 missing FK indexes across all phases), update 4 stale test files for renamed constraints/indexes, RPC signature change, and service-role-only security boundary. pgTAP suite now passes 258/258. **Deployment impact:** database schema (87 new non-unique indexes) and test files only; no application route, provider, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
+
 ### Changed
 - Reconcile Octopus↔Cloudflare deployment model (ADR: `2026-08-05-octopus-cloudflare-deployment-reconciliation.md`). Correct `AppHealthUrl` in `.octopus/variables.ocl` from `http://localhost:3000/health` to the real Worker health endpoint `https://vinifera-development.jeff-f69.workers.dev/health`. Deprecate PM2 `restart-application` step in `.octopus/deployment_process.ocl`, replacing it with a `verify-worker-health` evidence probe that checks the deployed Cloudflare Worker; merge the former `smoke-test` step into the probe. Reduce `.github/workflows/octopus-main-deploy.yml` to evidence-only — remove the non-functional "Deploy to Development" step and keep Octopus release creation as an audit record. Octopus now serves as review/orchestration and release-audit ledger; GitHub Actions owns Worker deployment via Wrangler. **Deployment impact:** CI/release-control and Octopus process configuration only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
