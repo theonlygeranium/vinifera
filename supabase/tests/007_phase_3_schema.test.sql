@@ -122,9 +122,9 @@ select ok(
   exists (
     select 1 from pg_catalog.pg_constraint
     where conrelid = 'public.email_log'::regclass
-      and conname = 'email_log_test_recipient_consistent'
+      and conname = 'email_log_recipient_consistent'
   ),
-  'test email rows require staff and exclude member identity'
+  'email rows have consistent recipient identity'
 );
 select ok(
   exists (
@@ -274,9 +274,9 @@ select ok(
   exists (
     select 1 from pg_catalog.pg_constraint
     where conrelid = 'public.loyalty_ledger'::regclass
-      and conname = 'loyalty_ledger_org_idempotency_key'
+      and conname = 'loyalty_ledger_org_brand_idempotency_key'
   ),
-  'loyalty ledger operations are exact-once'
+  'loyalty ledger operations are exact-once with brand scope'
 );
 select ok(
   exists (
@@ -366,19 +366,19 @@ select ok(
 );
 select ok(
   has_function_privilege(
-    'authenticated',
+    'service_role',
     'public.start_cancel_flow(uuid,uuid,uuid)',
     'execute'
   ),
-  'authenticated staff and members can enter cancel flow'
+  'service role can enter cancel flow'
 );
 select ok(
   has_function_privilege(
-    'authenticated',
+    'service_role',
     'public.reserve_loyalty_discount(uuid,uuid,uuid,integer,text,uuid)',
     'execute'
   ),
-  'authenticated members can reserve their own points'
+  'service role can reserve loyalty points'
 );
 select ok(
   not has_function_privilege(

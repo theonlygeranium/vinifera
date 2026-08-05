@@ -344,7 +344,7 @@ select is(
     select count(*)::integer
     from (
       values
-        ('public.get_integration_runtime(uuid,public.integration_type,uuid)'),
+        ('public.get_integration_runtime(uuid,public.integration_type,uuid,boolean)'),
         ('public.append_audit_entry(uuid,uuid,uuid,text,text,uuid,jsonb)'),
         ('public.record_analytics_event(uuid,uuid,uuid,text,jsonb,text,timestamp with time zone)'),
         ('public.complete_member_import(uuid,uuid,text,jsonb,uuid)'),
@@ -374,7 +374,7 @@ select ok(
     )
     from (
       values
-        ('public.get_integration_runtime(uuid,public.integration_type,uuid)'),
+        ('public.get_integration_runtime(uuid,public.integration_type,uuid,boolean)'),
         ('public.append_audit_entry(uuid,uuid,uuid,text,text,uuid,jsonb)'),
         ('public.record_analytics_event(uuid,uuid,uuid,text,jsonb,text,timestamp with time zone)'),
         ('public.complete_member_import(uuid,uuid,text,jsonb,uuid)'),
