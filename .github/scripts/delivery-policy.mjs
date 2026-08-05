@@ -92,6 +92,22 @@ const OPERATOR_TOOLING_PREFIXES = Object.freeze([
   "tests/scripts/",
 ]);
 
+const DEPENDENCY_TOOLING_FILES = new Set([
+  "CHANGELOG.md",
+  "package-lock.json",
+  "package.json",
+]);
+
+const DEPENDENCY_TOOLING_PACKAGE_KEYS = new Set([
+  "dependencies",
+  "devDependencies",
+  "engines",
+  "optionalDependencies",
+  "overrides",
+  "packageManager",
+  "peerDependencies",
+]);
+
 const TEST_PREFIXES = Object.freeze([
   "tests/",
 ]);
@@ -131,8 +147,6 @@ const MOBILE_PREFIXES = Object.freeze([
 
 const MOBILE_FILES = new Set([
   "capacitor.config.json",
-  "package-lock.json",
-  "package.json",
   "scripts/prepare-capacitor.mjs",
 ]);
 
@@ -211,6 +225,10 @@ function isOperatorToolingPath(path) {
   );
 }
 
+function isDependencyToolingPath(path) {
+  return DEPENDENCY_TOOLING_FILES.has(path) || isDocumentationPath(path);
+}
+
 function hasChangelogUpdate(records) {
   return records.some(
     ({ status, paths }) =>
@@ -262,6 +280,20 @@ export function isBrowserRelevantPath(path) {
     path === "tests/e2e/smoke.spec.ts" ||
     path === "playwright.config.ts" ||
     /(^|[-_/])(a11y|accessibility|wcag)([-_/.]|$)/i.test(path)
+  );
+}
+
+export function isDatabaseRelevantPath(path) {
+  return (
+    path.startsWith("server/") ||
+    path.startsWith("supabase/") ||
+    path.startsWith("tests/server/") ||
+    path === "wrangler.jsonc" ||
+    path === "scripts/verify-local-seed.mjs" ||
+    /^scripts\/verify-phase[1-5]-db\.mjs$/.test(path) ||
+    /(^|[-_/])(database|db|migration|pgtap|rls|supabase)([-_/.]|$)/i.test(
+      path,
+    )
   );
 }
 
@@ -343,6 +375,36 @@ export function parseNameStatusZ(buffer) {
     index += pathCount;
   }
   return records;
+}
+
+export function changedTopLevelPackageKeys(beforePackageJson, afterPackageJson) {
+  const beforeKeys = Object.keys(beforePackageJson || {});
+  const afterKeys = Object.keys(afterPackageJson || {});
+  const keys = new Set([...beforeKeys, ...afterKeys]);
+  return [...keys]
+    .filter((key) =>
+      JSON.stringify(beforePackageJson?.[key]) !==
+        JSON.stringify(afterPackageJson?.[key]),
+    )
+    .sort();
+}
+
+export function validateDependencyToolingPackageJsonChange({
+  beforePackageJson,
+  afterPackageJson,
+}) {
+  const changedKeys = changedTopLevelPackageKeys(
+    beforePackageJson,
+    afterPackageJson,
+  );
+  const disallowedKeys = changedKeys.filter(
+    (key) => !DEPENDENCY_TOOLING_PACKAGE_KEYS.has(key),
+  );
+  return {
+    changedKeys,
+    disallowedKeys,
+    valid: disallowedKeys.length === 0,
+  };
 }
 
 export function readChangedRecords(baseSha, headSha, cwd = process.cwd()) {
@@ -485,6 +547,7 @@ export function classifyDeliveryChange(records, context = {}) {
   const uniquePaths = [...new Set(paths)];
   const mobileRequired = uniquePaths.some(isMobilePath);
   const browserRequired = uniquePaths.some(isBrowserRelevantPath);
+  const databaseRequired = uniquePaths.some(isDatabaseRelevantPath);
   const previewRequired = uniquePaths.some(isPreviewRelevantPath);
   const surface = deliverySurface(uniquePaths);
 
@@ -637,6 +700,40 @@ export function classifyDeliveryChange(records, context = {}) {
   }
 
   if (
+    uniquePaths.some((path) => path === "package.json" || path === "package-lock.json") &&
+    records.every(
+      ({ status, paths: recordPaths }) =>
+        !status.startsWith("D") &&
+        recordPaths.every(isDependencyToolingPath),
+    )
+  ) {
+    if (!hasChangelogUpdate(records)) {
+      return {
+        classificationSucceeded: false,
+        lane: "invalid",
+        reason: "dependency_tooling_fastlane_missing_changelog",
+        mobileRequired: false,
+        browserRequired: false,
+        previewRequired: false,
+        risk: "high",
+        surface: "workflow",
+        paths: uniquePaths,
+      };
+    }
+    return {
+      classificationSucceeded: true,
+      lane: "dependency-tooling-tested",
+      reason: "dependency_tooling_fastlane_allowlist_match",
+      mobileRequired: false,
+      browserRequired: false,
+      previewRequired: false,
+      risk: "medium",
+      surface: "workflow",
+      paths: uniquePaths,
+    };
+  }
+
+  if (
     (hasChangelogUpdate(records) ||
       uniquePaths.some((path) => path.startsWith(".github/workflows/"))) &&
     records.every(
@@ -705,6 +802,7 @@ export function classifyDeliveryChange(records, context = {}) {
       : "routine_allowlist_match",
     mobileRequired,
     browserRequired,
+    databaseRequired,
     previewRequired,
     risk: authorityHighRisk ? "high" : "medium",
     surface,
@@ -735,6 +833,12 @@ export function selectFocusedTests(paths, lane) {
     return [
       ".github/scripts/delivery-policy.policy.mjs",
       ".github/scripts/operator-tooling-policy.policy.mjs",
+      "tests/scripts",
+    ];
+  }
+  if (lane === "dependency-tooling-tested") {
+    return [
+      ".github/scripts/delivery-policy.policy.mjs",
       "tests/scripts",
     ];
   }
@@ -849,6 +953,7 @@ export function evaluateFastAggregate({
   if (
     lane === "protected-reconcile" ||
     lane === "ci-script-tested" ||
+    lane === "dependency-tooling-tested" ||
     lane === "release-control-tested" ||
     lane === "operator-tooling-tested" ||
     lane === "static-routing" ||
@@ -882,7 +987,12 @@ export function evaluateFullAggregate({
   classifyResult,
   lane = "full",
   releaseControlResult = "skipped",
+  dependencyToolingResult = "skipped",
   fullResult,
+  databaseRequired = true,
+  databaseResult = "skipped",
+  browserRequired = true,
+  browserResult = "skipped",
   mobileRequired,
   mobileWebResult,
   androidResult,
@@ -894,27 +1004,36 @@ export function evaluateFullAggregate({
     const passed =
       fullResult === "skipped" &&
       releaseControlResult === "skipped" &&
+      dependencyToolingResult === "skipped" &&
+      databaseResult === "skipped" &&
+      browserResult === "skipped" &&
       mobileWebResult === "skipped" &&
       androidResult === "skipped";
     return { passed, reason: passed ? "noop_passed" : "noop_result_mismatch" };
   }
-  if (lane === "release-control-tested") {
+  if (lane === "ci-script-tested" || lane === "release-control-tested") {
     const passed =
       releaseControlResult === "success" &&
+      dependencyToolingResult === "skipped" &&
       fullResult === "skipped" &&
+      databaseResult === "skipped" &&
+      browserResult === "skipped" &&
       mobileWebResult === "skipped" &&
       androidResult === "skipped";
     return {
       passed,
       reason: passed
-        ? "release_control_tested_passed"
-        : "release_control_tested_result_mismatch",
+        ? `${lane.replaceAll("-", "_")}_passed`
+        : `${lane.replaceAll("-", "_")}_result_mismatch`,
     };
   }
   if (lane === "operator-tooling-tested") {
     const passed =
       releaseControlResult === "success" &&
+      dependencyToolingResult === "skipped" &&
       fullResult === "skipped" &&
+      databaseResult === "skipped" &&
+      browserResult === "skipped" &&
       mobileWebResult === "skipped" &&
       androidResult === "skipped";
     return {
@@ -924,8 +1043,39 @@ export function evaluateFullAggregate({
         : "operator_tooling_tested_result_mismatch",
     };
   }
+  if (lane === "dependency-tooling-tested") {
+    const passed =
+      dependencyToolingResult === "success" &&
+      releaseControlResult === "skipped" &&
+      fullResult === "skipped" &&
+      databaseResult === "skipped" &&
+      browserResult === "skipped" &&
+      mobileWebResult === "skipped" &&
+      androidResult === "skipped";
+    return {
+      passed,
+      reason: passed
+        ? "dependency_tooling_tested_passed"
+        : "dependency_tooling_tested_result_mismatch",
+    };
+  }
   if (fullResult !== "success") {
     return { passed: false, reason: "full_validation_not_successful" };
+  }
+  if (releaseControlResult !== "skipped" || dependencyToolingResult !== "skipped") {
+    return { passed: false, reason: "focused_lane_result_mismatch" };
+  }
+  const databasePassed = databaseRequired
+    ? databaseResult === "success"
+    : databaseResult === "skipped";
+  if (!databasePassed) {
+    return { passed: false, reason: "database_lane_result_mismatch" };
+  }
+  const browserPassed = browserRequired
+    ? browserResult === "success"
+    : browserResult === "skipped";
+  if (!browserPassed) {
+    return { passed: false, reason: "browser_lane_result_mismatch" };
   }
   const passed = mobileRequired
     ? androidResult === "success" && mobileWebResult === "skipped"

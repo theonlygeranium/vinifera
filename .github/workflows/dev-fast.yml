@@ -272,6 +272,7 @@ jobs:
        needs.classify.outputs.lane == 'promotion-smoke-cleanup' ||
        needs.classify.outputs.lane == 'protected-reconcile' ||
        needs.classify.outputs.lane == 'ci-script-tested' ||
+       needs.classify.outputs.lane == 'dependency-tooling-tested' ||
        needs.classify.outputs.lane == 'release-control-tested' ||
        needs.classify.outputs.lane == 'operator-tooling-tested')
     runs-on: ubuntu-latest
@@ -299,19 +300,53 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Export base package manifest
+        if: needs.classify.outputs.lane == 'dependency-tooling-tested'
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+        run: git show "$BASE_SHA:package.json" > "$RUNNER_TEMP/base-package.json"
+
       - name: Validate policy, whitespace, and credentials
         env:
           BASE_SHA: ${{ needs.classify.outputs.base_sha }}
           HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+          LANE: ${{ needs.classify.outputs.lane }}
+          PATHS_JSON: ${{ needs.classify.outputs.paths_json }}
         run: |
           node --test .github/scripts/delivery-policy.policy.mjs
           git diff --check "$BASE_SHA" "$HEAD_SHA"
           node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
           import { scanDiffForSecrets } from "./.github/scripts/docs-ci-policy.mjs";
+          import { validateDependencyToolingPackageJsonChange } from "./.github/scripts/delivery-policy.mjs";
           scanDiffForSecrets({
             baseSha: process.env.BASE_SHA,
             headSha: process.env.HEAD_SHA,
           });
+          if (process.env.LANE === "dependency-tooling-tested") {
+            const paths = JSON.parse(process.env.PATHS_JSON || "[]");
+            if (paths.includes("package.json")) {
+              const before = JSON.parse(
+                readFileSync(new URL("base-package.json", `file://${process.env.RUNNER_TEMP}/`), "utf8"),
+              );
+              const after = JSON.parse(readFileSync("package.json", "utf8"));
+              const result = validateDependencyToolingPackageJsonChange({
+                beforePackageJson: before,
+                afterPackageJson: after,
+              });
+              if (!result.valid) {
+                throw new Error(
+                  `Dependency tooling lane only permits package dependency/toolchain keys; rejected: ${result.disallowedKeys.join(", ")}`,
+                );
+              }
+              const lockRequired = result.changedKeys.some((key) =>
+                ["dependencies", "devDependencies", "optionalDependencies", "overrides", "peerDependencies"].includes(key),
+              );
+              if (lockRequired && !paths.includes("package-lock.json")) {
+                throw new Error("Dependency graph changes must include package-lock.json.");
+              }
+            }
+          }
           NODE
 
       - name: Generate and validate Worker types
@@ -375,6 +410,14 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
+
+      - name: Restore Playwright browser cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
 
       - name: Install locked dependencies and Chromium
         run: |
