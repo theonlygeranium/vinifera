@@ -1,4 +1,4 @@
-name: Octopus Deploy — Main to Development
+name: Octopus Deploy — Main Release Audit Record
 
 on:
   workflow_dispatch:
@@ -18,8 +18,8 @@ on:
       - "public/vinifera-promotion-smoke-*.html"
 
 jobs:
-  create-and-deploy:
-    name: Create Release and Deploy to Development
+  create-release:
+    name: Create Octopus Release (Audit Record)
     runs-on: ubuntu-latest
 
     permissions:
@@ -31,11 +31,11 @@ jobs:
       OCTOPUS_PROXY_URL: http://127.0.0.1:41809
 
     steps:
-      - name: Require main ref for Octopus deployment
+      - name: Require main ref for Octopus release
         run: |
           set -euo pipefail
           if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
-            echo "::error::Octopus main deployment must run from refs/heads/main."
+            echo "::error::Octopus main release must run from refs/heads/main."
             exit 1
           fi
 
@@ -96,28 +96,6 @@ jobs:
           release_number: "0.0.${{ github.run_number }}-${{ github.run_attempt }}"
           git_ref: ${{ github.ref }}
           git_commit: ${{ github.sha }}
-
-      - name: Deploy to Development 🏗️
-        uses: OctopusDeploy/deploy-release-action@v4
-        env:
-          GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
-          OCTOPUS_API_KEY: ${{ steps.octopus_login.outputs.api_key }}
-          OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}
-          OCTOPUS_SPACE: Default
-        with:
-          project: Vinifera
-          release_number: ${{ steps.create_release.outputs.release_number }}
-          environments: |
-            Development
-          variables: |
-            GitHubPAT:${{ secrets.GH_PAT_FOR_OCTOPUS }}
-            PRBranch:${{ github.ref_name }}
-            PRNumber:${{ github.run_number }}
-            ExpectedBaseRef:${{ github.ref_name }}
-            ExpectedBaseSHA:${{ github.sha }}
-            ExpectedHeadSHA:${{ github.sha }}
-          # Development deploys are automatic — no manual intervention required.
-          # Staging and Production require manual approval in Octopus.
 
       - name: Stop Cloudflare Access proxy
         if: always()

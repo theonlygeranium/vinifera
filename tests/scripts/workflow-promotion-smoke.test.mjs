@@ -68,10 +68,12 @@ describe("promotion workflow smoke contract", () => {
     );
   });
 
-  it("leaves production Worker mutation manual while allowing safe main deploy smoke", () => {
+  it("leaves production Worker mutation manual while allowing safe main release audit", () => {
     expect(mainDeployWorkflow).toContain("workflow_dispatch:");
-    expect(mainDeployWorkflow).toContain("environments: |\n            Development");
-    expect(mainDeployWorkflow).toContain("GitHubPAT:${{ secrets.GH_PAT_FOR_OCTOPUS }}");
+    // The main deploy workflow now creates a release audit record only;
+    // it no longer deploys to Development. Worker deployment is owned by
+    // GitHub Actions via Wrangler.
+    expect(mainDeployWorkflow).toContain("Create Octopus Release");
     expect(mainDeployWorkflow).toContain("tests/**");
     expect(mainDeployWorkflow).toContain("public/vinifera-promotion-smoke-*.html");
     expect(mainDeployWorkflow).toContain("public/_redirects");
