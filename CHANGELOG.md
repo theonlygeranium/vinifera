@@ -21,6 +21,12 @@
   application route, provider, database, credential, billing, DNS, Worker
   activation, production/mobile approval-gate, or Cloudflare Access policy
   state changes.
+- Reconcile protected `dev`/`staging` package metadata with `main` after the
+  dependency/tooling fast lane landed, preventing branch drift from forcing
+  noisy future promotion diffs. **Deployment impact:** package-manager metadata
+  only; no application route, provider, database, credential, billing, DNS,
+  Worker activation, production/mobile approval-gate, or Cloudflare Access
+  policy state changes.
 - Add a protected-branch `dependency-tooling-tested` lane for package
   dependency and toolchain metadata changes so `package.json`/`package-lock.json`
   updates validate audit, typecheck, app build, Worker build, and shared mobile
