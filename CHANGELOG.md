@@ -7,6 +7,92 @@
 ## [Unreleased]
 
 ### Fixed
+- Conclude OIDC service-account migration investigation: `OctopusDeploy/login@v2` OIDC exchange targets `localhost:8080/token/v1`, a sidecar provisioned only on Octopus Cloud-hosted runners. Self-hosted Octopus with GitHub-hosted runners cannot satisfy this requirement. Reverted both `octopus-main-deploy.yml` and `octopus-pr-quality-gates.yml` to the verified `api_key:` login path; retained `vinifera-gha` service account, dedicated Octopus team (`Teams-21`), Build Server role (`ScopedUserRoles-21`), and `OCTOPUS_SERVICE_ACCOUNT_ID` secret as prerequisites for a future attempt when a compatible token-exchange mechanism ships. **Deployment impact:** CI/release-control authentication behavior only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
+- Split protected full-lane browser QA and database architecture checks into
+  path-aware jobs so full validation still runs the common app/package gate but
+  only pays for Playwright or Phase 1-5 database checks when the exact diff
+  touches browser- or database-relevant paths. **Deployment impact:**
+  CI/release-control performance only; no application route, provider,
+  database, credential, billing, DNS, Worker activation, production/mobile
+  approval-gate, or Cloudflare Access policy state changes.
+- Pin the npm package manager metadata so dependency/toolchain promotion tests
+  can prove the `dependency-tooling-tested` lane without touching application
+  runtime code. **Deployment impact:** package-manager metadata only; no
+  application route, provider, database, credential, billing, DNS, Worker
+  activation, production/mobile approval-gate, or Cloudflare Access policy
+  state changes.
+- Add a protected-branch `dependency-tooling-tested` lane for package
+  dependency and toolchain metadata changes so `package.json`/`package-lock.json`
+  updates validate audit, typecheck, app build, Worker build, and shared mobile
+  web output without running database architecture checks, browser QA, Android
+  assembly, or Octopus Development releases for package-only main merges.
+  Playwright's browser cache is restored for the remaining full browser-QA lane.
+  **Deployment impact:** CI/release-control performance and package governance
+  only; no application route, provider, database, credential, billing, DNS,
+  Worker activation, production/mobile approval-gate, or Cloudflare Access
+  policy state changes.
+- Keep protected-branch `ci-script-tested` controller/script patches on the
+  focused release-control lane instead of escalating to full package, browser,
+  and Android validation; pin the two remaining Octopus checkout steps to the
+  repo's maintained checkout action and restore a zero-vulnerability production
+  dependency audit with targeted `brace-expansion` and `undici` overrides.
+  Dependency metadata changes remain high-risk/full-validation work, but no
+  longer force Android unless native/mobile paths change or `full_mobile` is
+  explicitly dispatched.
+  **Deployment impact:** CI/release-control classification, action-runtime
+  hygiene, and dependency-audit stability only; no application route, provider,
+  database, credential, billing, DNS, Worker activation, Cloudflare Access
+  policy, or production/mobile approval-gate state changes.
+- Restore Octopus main deploy and PR quality-gate workflows to the verified
+  `OctopusDeploy/login@v2` API-key path through the Cloudflare Access proxy
+  after the OIDC service-account exchange reached Octopus but was rejected by
+  the self-hosted identity matcher. **Deployment impact:** CI/release-control
+  authentication behavior only; no application route, provider, database,
+  billing, DNS, Worker activation, production/mobile approval-gate, or
+  Cloudflare Access policy state changes.
+- Strip upstream `Transfer-Encoding` from buffered Cloudflare Access proxy
+  responses before setting `Content-Length`, preventing Node/undici parse errors
+  during Octopus OIDC discovery. **Deployment impact:** CI/release-control
+  authentication behavior only; no application route, provider, database,
+  billing, DNS, Worker activation, production/mobile approval-gate, or
+  Cloudflare Access policy state changes.
+- Rewrite the self-hosted Octopus OIDC discovery `token_endpoint` inside the
+  Cloudflare Access proxy so `OctopusDeploy/login@v2` exchanges GitHub OIDC
+  tokens through the runner-local proxy instead of following Octopus's internal
+  `localhost:8080` advertisement. **Deployment impact:** CI/release-control
+  authentication behavior only; no application route, provider, database,
+  billing, DNS, Worker activation, production/mobile approval-gate, or
+  Cloudflare Access policy state changes.
+- Correct the Octopus OIDC migration to use the `OctopusDeploy/login@v2`
+  `access_token` output instead of the API-key output, and let the shared
+  Octopus runbook bridge authenticate with either an OIDC bearer token or the
+  legacy API key. **Deployment impact:** CI/release-control authentication
+  behavior only; no application route, provider, database, billing, DNS, Worker
+  activation, production/mobile approval-gate, or Cloudflare Access policy
+  state changes.
+- Add a scheduled/manual Octopus access smoke workflow that verifies the
+  browser bypass, Octopus-native authentication boundary, and GitHub Actions
+  machine credential path without creating releases or deploying application
+  artifacts; update the Octopus/Cloudflare ADR with the confirmed Access policy
+  shape, OIDC migration prerequisites, and branch hygiene guidance.
+  **Deployment impact:** CI/release-control observability only; no application
+  route, provider, database, billing, DNS, Worker activation,
+  production/mobile approval-gate, or Cloudflare Access policy state changes.
+- Stop the Octopus main development deployment workflow from running on hidden
+  promotion-smoke HTML artifacts and `public/_redirects` tombstone-only
+  cleanup changes; document the Cloudflare Access OTP diagnosis and the
+  Octopus OIDC/service-token optimization path. **Deployment impact:**
+  CI/release-control behavior and Octopus deploy noise reduction only; no
+  application route, provider, database, credential, billing, DNS, Worker
+  activation, production/mobile approval-gate, or Cloudflare Access policy
+  state changes.
+- Stop the Octopus main development deployment workflow from running on
+  test-only changes; this prevents release-control support tests from creating
+  unnecessary Octopus releases after merge. **Deployment impact:**
+  CI/release-control behavior and Octopus deploy noise reduction only; no
+  application route, provider, database, credential, billing, DNS, Worker
+  activation, production/mobile approval-gate, or Cloudflare Access policy
+  state changes.
 - Let the `release-control-tested` fast lane include companion documentation
   updates for workflow/controller changes, preventing safe controller
   promotions with `AGENTS.md` or ADR evidence from falling back to the full app

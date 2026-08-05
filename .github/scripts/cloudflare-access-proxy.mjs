@@ -15,6 +15,36 @@ function targetUrlFor(requestUrl, targetBase) {
   return parsed;
 }
 
+export function rewriteOctopusOidcDiscovery({
+  body,
+  proxyBase,
+  requestUrl,
+  responseHeaders,
+}) {
+  const parsed = new URL(requestUrl, proxyBase);
+  if (parsed.pathname !== "/.well-known/openid-configuration") {
+    return body;
+  }
+
+  const contentType = responseHeaders.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return body;
+  }
+
+  const discovery = JSON.parse(body.toString("utf8"));
+  discovery.token_endpoint = new URL("/token/v1", proxyBase).toString();
+  return Buffer.from(JSON.stringify(discovery));
+}
+
+export function proxyResponseHeaders(upstreamHeaders, body) {
+  const responseHeaders = new Headers(upstreamHeaders);
+  responseHeaders.delete("content-encoding");
+  responseHeaders.delete("content-length");
+  responseHeaders.delete("transfer-encoding");
+  responseHeaders.set("content-length", String(body.length));
+  return responseHeaders;
+}
+
 function requestBody(request) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -37,6 +67,7 @@ function outgoingHeaders(request, targetBase) {
 
 export function createCloudflareAccessProxy({
   fetchImpl = fetch,
+  proxyBase,
   targetBase = new URL(requiredEnv("OCTOPUS_TARGET_URL")),
 } = {}) {
   if (targetBase.protocol !== "https:") {
@@ -46,22 +77,33 @@ export function createCloudflareAccessProxy({
   return http.createServer(async (request, response) => {
     try {
       const targetUrl = targetUrlFor(request.url ?? "/", targetBase);
-      const body = await requestBody(request);
+      const incomingBody = await requestBody(request);
       const upstream = await fetchImpl(targetUrl, {
         method: request.method,
         headers: outgoingHeaders(request, targetBase),
         body:
-          request.method === "GET" || request.method === "HEAD" ? undefined : body,
+          request.method === "GET" || request.method === "HEAD"
+            ? undefined
+            : incomingBody,
         redirect: "manual",
       });
-      const responseHeaders = new Headers(upstream.headers);
-      responseHeaders.delete("content-encoding");
-      responseHeaders.delete("content-length");
+      const responseBody = Buffer.from(await upstream.arrayBuffer());
+      const outgoingBody = rewriteOctopusOidcDiscovery({
+        body: responseBody,
+        proxyBase:
+          proxyBase ??
+          new URL(
+            `http://${request.headers.host ?? `127.0.0.1:${process.env.CF_ACCESS_PROXY_PORT ?? "41809"}`}`,
+          ),
+        requestUrl: request.url ?? "/",
+        responseHeaders: upstream.headers,
+      });
+      const responseHeaders = proxyResponseHeaders(upstream.headers, outgoingBody);
       response.writeHead(
         upstream.status,
         Object.fromEntries(responseHeaders.entries()),
       );
-      response.end(Buffer.from(await upstream.arrayBuffer()));
+      response.end(outgoingBody);
     } catch (error) {
       response.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
       response.end(error instanceof Error ? error.message : String(error));
