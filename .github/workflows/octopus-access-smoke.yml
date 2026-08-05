@@ -1,0 +1,30 @@
+name: Octopus access smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+concurrency:
+  group: octopus-access-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Verify Octopus browser and machine access
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Probe Octopus access boundary
+        env:
+          OCTOPUS_URL: ${{ secrets.OCTOPUS_URL }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
+          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+        run: node .github/scripts/octopus-access-smoke.mjs --require-machine

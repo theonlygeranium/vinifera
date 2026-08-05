@@ -2,18 +2,21 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  changedTopLevelPackageKeys,
   classifyDeliveryChange,
   evaluateCandidateEvent,
   evaluateFastAggregate,
   evaluateFullAggregate,
   isAuthorityHighRiskPath,
   isBrowserRelevantPath,
+  isDatabaseRelevantPath,
   isHighRiskPath,
   isPromotionSmokePath,
   isStaticRoutingPath,
   isPreviewRelevantPath,
   parseNameStatusZ,
   selectFocusedTests,
+  validateDependencyToolingPackageJsonChange,
 } from "./delivery-policy.mjs";
 
 const record = (status, ...paths) => ({ status, paths });
@@ -230,6 +233,93 @@ test("operator tooling patches require changelog and select focused coverage", (
   );
 });
 
+test("dependency tooling patches require changelog and select focused coverage", () => {
+  const missingChangelog = classifyDeliveryChange([
+    record("M", "package.json"),
+    record("M", "package-lock.json"),
+  ]);
+  assert.equal(missingChangelog.classificationSucceeded, false);
+  assert.equal(missingChangelog.lane, "invalid");
+  assert.equal(
+    missingChangelog.reason,
+    "dependency_tooling_fastlane_missing_changelog",
+  );
+
+  const result = classifyDeliveryChange([
+    record("M", "package.json"),
+    record("M", "package-lock.json"),
+    record("M", "CHANGELOG.md"),
+    record("M", "docs/decisions/2026-08-04-octopus-cloudflare-access-optimization.md"),
+  ]);
+  assert.equal(result.classificationSucceeded, true);
+  assert.equal(result.lane, "dependency-tooling-tested");
+  assert.equal(result.reason, "dependency_tooling_fastlane_allowlist_match");
+  assert.equal(result.risk, "medium");
+  assert.equal(result.mobileRequired, false);
+  assert.equal(result.browserRequired, false);
+  assert.equal(result.previewRequired, false);
+  assert.deepEqual(selectFocusedTests(result.paths, result.lane), [
+    ".github/scripts/delivery-policy.policy.mjs",
+    "tests/scripts",
+  ]);
+
+  assert.equal(
+    classifyDeliveryChange([
+      record("D", "package-lock.json"),
+      record("M", "CHANGELOG.md"),
+    ]).lane,
+    "high-risk",
+  );
+});
+
+test("dependency tooling package guard allows only dependency and toolchain metadata", () => {
+  const before = {
+    scripts: { build: "vite build" },
+    dependencies: { vite: "1.0.0" },
+    devDependencies: { vitest: "1.0.0" },
+    overrides: { undici: "7.28.0" },
+  };
+  const after = {
+    ...before,
+    dependencies: { vite: "1.0.1" },
+    devDependencies: { vitest: "1.0.1" },
+    engines: { node: ">=22.12.0" },
+    overrides: { undici: "7.29.0" },
+  };
+  assert.deepEqual(changedTopLevelPackageKeys(before, after), [
+    "dependencies",
+    "devDependencies",
+    "engines",
+    "overrides",
+  ]);
+  assert.deepEqual(
+    validateDependencyToolingPackageJsonChange({
+      beforePackageJson: before,
+      afterPackageJson: after,
+    }),
+    {
+      changedKeys: [
+        "dependencies",
+        "devDependencies",
+        "engines",
+        "overrides",
+      ],
+      disallowedKeys: [],
+      valid: true,
+    },
+  );
+  assert.deepEqual(
+    validateDependencyToolingPackageJsonChange({
+      beforePackageJson: before,
+      afterPackageJson: {
+        ...after,
+        scripts: { build: "vite build", deploy: "wrangler deploy" },
+      },
+    }).disallowedKeys,
+    ["scripts"],
+  );
+});
+
 test("candidate events distinguish draft WIP from coherent review heads", () => {
   assert.deepEqual(
     evaluateCandidateEvent({
@@ -298,6 +388,38 @@ test("browser and preview selection are path-aware", () => {
   assert.equal(isPreviewRelevantPath("playwright.config.ts"), false);
 });
 
+test("database architecture selection is path-aware", () => {
+  for (const path of [
+    "server/routes/members.ts",
+    "supabase/migrations/202608040001_members.sql",
+    "tests/server/app.test.ts",
+    "scripts/verify-phase3-db.mjs",
+    "scripts/verify-local-seed.mjs",
+    "wrangler.jsonc",
+  ]) {
+    assert.equal(isDatabaseRelevantPath(path), true, path);
+  }
+  for (const path of [
+    "src/client/App.tsx",
+    "tests/e2e/smoke.spec.ts",
+    "public/marketing.js",
+    ".github/workflows/ci.yml",
+    "package.json",
+  ]) {
+    assert.equal(isDatabaseRelevantPath(path), false, path);
+  }
+
+  const backend = classifyDeliveryChange([record("M", "server/app.ts")]);
+  assert.equal(backend.databaseRequired, true);
+  assert.equal(backend.browserRequired, false);
+
+  const browserOnly = classifyDeliveryChange([
+    record("M", "tests/e2e/smoke.spec.ts"),
+  ]);
+  assert.equal(browserOnly.databaseRequired, false);
+  assert.equal(browserOnly.browserRequired, true);
+});
+
 test("backend-only and workflow-only candidates avoid browser and preview work", () => {
   for (const [path, surface, risk] of [
     ["server/services/members.ts", "backend", "medium"],
@@ -339,7 +461,11 @@ test("minimum mandated security and delivery paths are high-risk", () => {
   ];
   for (const path of paths) {
     assert.equal(isHighRiskPath(path), true, path);
-    assert.equal(classifyDeliveryChange([record("M", path)]).lane, "high-risk");
+    if (path === "package-lock.json") {
+      assert.equal(classifyDeliveryChange([record("M", path)]).lane, "invalid");
+    } else {
+      assert.equal(classifyDeliveryChange([record("M", path)]).lane, "high-risk");
+    }
   }
   assert.equal(isHighRiskPath(".github/workflows/ci.yml"), true);
   assert.equal(
@@ -436,14 +562,13 @@ test("NUL parser preserves rename paths and rejects truncation", () => {
   assert.throws(() => parseNameStatusZ(Buffer.from("R100\0docs/a.md\0")));
 });
 
-test("mobile selection covers native, Capacitor, shared mobile web, and dependencies", () => {
+test("mobile selection covers native, Capacitor, and shared mobile web paths", () => {
   for (const path of [
     "android/app/build.gradle",
     "ios/App/Info.plist",
     "mobile/app-identity.json",
     "src/client/mobile/session.ts",
     "capacitor.config.json",
-    "package-lock.json",
   ]) {
     assert.equal(
       classifyDeliveryChange([record("M", path)]).mobileRequired,
@@ -451,6 +576,21 @@ test("mobile selection covers native, Capacitor, shared mobile web, and dependen
       path,
     );
   }
+  const packageLockOnly = classifyDeliveryChange([record("M", "package-lock.json")]);
+  assert.equal(packageLockOnly.lane, "invalid");
+  assert.equal(
+    packageLockOnly.reason,
+    "dependency_tooling_fastlane_missing_changelog",
+  );
+  assert.equal(packageLockOnly.mobileRequired, false);
+
+  const packageGovernanceChange = classifyDeliveryChange([
+    record("M", "package.json"),
+    record("M", "package-lock.json"),
+    record("M", "CHANGELOG.md"),
+  ]);
+  assert.equal(packageGovernanceChange.lane, "dependency-tooling-tested");
+  assert.equal(packageGovernanceChange.mobileRequired, false);
 });
 
 test("focused tests reflect the changed domain", () => {
@@ -506,6 +646,7 @@ test("fast aggregate accepts only the selected successful lane", () => {
   for (const lane of [
     "protected-reconcile",
     "ci-script-tested",
+    "dependency-tooling-tested",
     "release-control-tested",
     "operator-tooling-tested",
     "static-routing",
@@ -634,6 +775,22 @@ test("full aggregate rejects skipped required work and permits one mobile lane",
     evaluateFullAggregate({
       classificationSucceeded: true,
       classifyResult: "success",
+      lane: "ci-script-tested",
+      releaseControlResult: "success",
+      fullResult: "skipped",
+      mobileRequired: false,
+      mobileWebResult: "skipped",
+      androidResult: "skipped",
+    }),
+    {
+      passed: true,
+      reason: "ci_script_tested_passed",
+    },
+  );
+  assert.deepEqual(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
       lane: "release-control-tested",
       releaseControlResult: "success",
       fullResult: "skipped",
@@ -652,6 +809,7 @@ test("full aggregate rejects skipped required work and permits one mobile lane",
       classifyResult: "success",
       lane: "operator-tooling-tested",
       releaseControlResult: "success",
+      dependencyToolingResult: "skipped",
       fullResult: "skipped",
       mobileRequired: false,
       mobileWebResult: "skipped",
@@ -661,6 +819,48 @@ test("full aggregate rejects skipped required work and permits one mobile lane",
       passed: true,
       reason: "operator_tooling_tested_passed",
     },
+  );
+  assert.equal(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
+      lane: "dependency-tooling-tested",
+      dependencyToolingResult: "success",
+      releaseControlResult: "skipped",
+      fullResult: "skipped",
+      mobileRequired: false,
+      mobileWebResult: "skipped",
+      androidResult: "skipped",
+    }).passed,
+    true,
+  );
+  assert.equal(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
+      lane: "dependency-tooling-tested",
+      dependencyToolingResult: "skipped",
+      releaseControlResult: "success",
+      fullResult: "skipped",
+      mobileRequired: false,
+      mobileWebResult: "skipped",
+      androidResult: "skipped",
+    }).passed,
+    false,
+  );
+  assert.equal(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
+      lane: "ci-script-tested",
+      releaseControlResult: "skipped",
+      dependencyToolingResult: "skipped",
+      fullResult: "success",
+      mobileRequired: false,
+      mobileWebResult: "success",
+      androidResult: "skipped",
+    }).passed,
+    false,
   );
   assert.equal(
     evaluateFullAggregate({
@@ -704,6 +904,10 @@ test("full aggregate rejects skipped required work and permits one mobile lane",
       classificationSucceeded: true,
       classifyResult: "success",
       fullResult: "success",
+      databaseRequired: false,
+      databaseResult: "skipped",
+      browserRequired: false,
+      browserResult: "skipped",
       mobileRequired: false,
       mobileWebResult: "success",
       androidResult: "skipped",
@@ -715,6 +919,10 @@ test("full aggregate rejects skipped required work and permits one mobile lane",
       classificationSucceeded: true,
       classifyResult: "success",
       fullResult: "skipped",
+      databaseRequired: true,
+      databaseResult: "success",
+      browserRequired: true,
+      browserResult: "success",
       mobileRequired: true,
       mobileWebResult: "skipped",
       androidResult: "success",
@@ -726,11 +934,45 @@ test("full aggregate rejects skipped required work and permits one mobile lane",
       classificationSucceeded: true,
       classifyResult: "success",
       fullResult: "success",
+      databaseRequired: true,
+      databaseResult: "skipped",
+      browserRequired: false,
+      browserResult: "skipped",
       mobileRequired: true,
       mobileWebResult: "success",
       androidResult: "skipped",
     }).passed,
     false,
+  );
+  assert.equal(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
+      fullResult: "success",
+      databaseRequired: false,
+      databaseResult: "success",
+      browserRequired: false,
+      browserResult: "skipped",
+      mobileRequired: false,
+      mobileWebResult: "success",
+      androidResult: "skipped",
+    }).reason,
+    "database_lane_result_mismatch",
+  );
+  assert.equal(
+    evaluateFullAggregate({
+      classificationSucceeded: true,
+      classifyResult: "success",
+      fullResult: "success",
+      databaseRequired: false,
+      databaseResult: "skipped",
+      browserRequired: true,
+      browserResult: "skipped",
+      mobileRequired: false,
+      mobileWebResult: "success",
+      androidResult: "skipped",
+    }).reason,
+    "browser_lane_result_mismatch",
   );
 });
 
@@ -766,10 +1008,14 @@ test("development workflow has candidate-only triggers and cancellable PR concur
   assert.match(workflow, /PR_HEAD_REF: \$\{\{ github\.event\.pull_request\.head\.ref \}\}/);
   assert.match(workflow, /protected-reconcile/);
   assert.match(workflow, /ci-script-tested/);
+  assert.match(workflow, /dependency-tooling-tested/);
   assert.match(workflow, /release-control-tested/);
   assert.match(workflow, /operator-tooling-tested/);
   assert.match(workflow, /static-routing/);
   assert.match(workflow, /promotion-smoke-cleanup/);
+  assert.match(workflow, /validateDependencyToolingPackageJsonChange/);
+  assert.match(workflow, /base-package\.json/);
+  assert.match(workflow, /actions\/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6/);
 });
 
 test("development workflow makes browser and preview work path-aware", () => {
@@ -857,16 +1103,30 @@ test("full workflow excludes dev pushes and retains promotion-grade coverage", (
   assert.match(workflow, /promotion-smoke-cleanup/);
   assert.match(workflow, /Promotion smoke cleanup validation/);
   assert.match(workflow, /release-control-tested/);
+  assert.match(workflow, /dependency-tooling-tested/);
   assert.match(workflow, /operator-tooling-tested/);
   assert.match(workflow, /operator-tooling-policy\.policy\.mjs/);
   assert.match(workflow, /validateOperatorPackageJson/);
+  assert.match(workflow, /validateDependencyToolingPackageJsonChange/);
   assert.match(workflow, /Release-control focused validation/);
+  assert.match(workflow, /Dependency tooling validation/);
+  assert.match(workflow, /Database architecture validation/);
+  assert.match(workflow, /Browser QA/);
   assert.match(
     workflow,
     /AGENTS\\\.md\|CHANGELOG\\\.md\|docs\/\.\*\\\.md\|tests\/scripts\/\.\*/,
   );
   assert.match(workflow, /RELEASE_CONTROL_RESULT.*needs\.release_control_validation\.result/);
+  assert.match(workflow, /DEPENDENCY_TOOLING_RESULT.*needs\.dependency_tooling_validation\.result/);
+  assert.match(workflow, /DATABASE_RESULT.*needs\.database_architecture\.result/);
+  assert.match(workflow, /BROWSER_RESULT.*needs\.browser_qa\.result/);
   assert.match(workflow, /Focused release-control fast lane did not run exclusively and pass/);
+  assert.match(workflow, /Dependency tooling fast lane did not run exclusively and pass/);
+  assert.match(workflow, /Required database architecture validation did not run and pass/);
+  assert.match(workflow, /Required browser QA did not run and pass/);
+  assert.match(workflow, /actions\/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6/);
+  assert.match(workflow, /~\/\.cache\/ms-playwright/);
+  assert.match(workflow, /npm audit --audit-level=moderate/);
   for (const command of [
     "npm run qa:db:phase1",
     "npm run qa:db:phase2",
@@ -876,6 +1136,7 @@ test("full workflow excludes dev pushes and retains promotion-grade coverage", (
     "npm run qa:e2e",
     "npm run build:pages",
     "npm run build:worker",
+    "npm run build:mobile:web",
   ]) {
     assert.ok(workflow.includes(command), command);
   }

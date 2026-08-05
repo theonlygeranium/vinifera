@@ -15,6 +15,7 @@ import {
   configAsCodeRunbooksPath,
   credentialShapeSummary,
   normalizeApiBase,
+  octopusAuthenticationHeaders,
   responseProvenance,
   resolveFormValues,
   runRunbook,
@@ -1194,24 +1195,48 @@ describe("Octopus runbook bridge", () => {
     const summary = credentialShapeSummary({
       CF_ACCESS_CLIENT_ID: "client-id.access",
       CF_ACCESS_CLIENT_SECRET: "sensitive-value",
-      OCTOPUS_API_KEY: "API-EXAMPLE",
+      OCTOPUS_ACCESS_TOKEN: "opaque-secret",
       OCTOPUS_URL: "https://octopus.example.test",
     });
 
     expect(summary).toBe(
       "Octopus credential shape accepted: cf-client-id-chars=16; " +
-        "cf-client-secret-chars=15; octopus-api-key-chars=11; " +
+        "cf-client-secret-chars=15; octopus-access-token-chars=13; " +
         "octopus-host=octopus.example.test",
     );
     expect(summary).not.toContain("sensitive-value");
+    expect(summary).not.toContain("opaque-secret");
     expect(() =>
       credentialShapeSummary({
         CF_ACCESS_CLIENT_ID: "client-id.access",
         CF_ACCESS_CLIENT_SECRET: "curly\u201csecret",
-        OCTOPUS_API_KEY: "API-EXAMPLE",
+        OCTOPUS_ACCESS_TOKEN: "opaque-secret",
         OCTOPUS_URL: "https://octopus.example.test",
       }),
     ).toThrow("visible ASCII");
+  });
+
+  it("builds OIDC bearer headers while preserving API-key fallback", () => {
+    expect(
+      octopusAuthenticationHeaders({
+        CF_ACCESS_CLIENT_ID: "client-id.access",
+        CF_ACCESS_CLIENT_SECRET: "access-secret",
+        OCTOPUS_ACCESS_TOKEN: "oidc-token",
+      }),
+    ).toMatchObject({
+      "CF-Access-Client-Id": "client-id.access",
+      "CF-Access-Client-Secret": "access-secret",
+      Authorization: "Bearer oidc-token",
+    });
+    expect(
+      octopusAuthenticationHeaders({
+        CF_ACCESS_CLIENT_ID: "client-id.access",
+        CF_ACCESS_CLIENT_SECRET: "access-secret",
+        OCTOPUS_API_KEY: "api-key",
+      }),
+    ).toMatchObject({
+      "X-Octopus-ApiKey": "api-key",
+    });
   });
 
   it("reports safe HTTP response provenance without response bodies", () => {
