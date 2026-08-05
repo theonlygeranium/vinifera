@@ -134,6 +134,7 @@ jobs:
       contents: read
       pull-requests: read
       statuses: write
+      id-token: write   # Required for OIDC token exchange with Octopus
 
     steps:
       - name: Enforce trusted source validation
@@ -151,12 +152,12 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
-      - name: Login to Octopus Deploy 🔑
+      - name: Login to Octopus Deploy (OIDC) 🔑
         id: octopus_login
         uses: OctopusDeploy/login@v2
         with:
           server: ${{ secrets.OCTOPUS_URL }}
-          api_key: ${{ secrets.OCTOPUS_API_KEY }}
+          service_account_id: ${{ secrets.OCTOPUS_SERVICE_ACCOUNT_ID }}
 
       - name: Run PR Quality Gates Runbook in Octopus 🐙
         id: runbook
