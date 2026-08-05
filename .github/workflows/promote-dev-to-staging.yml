@@ -180,6 +180,8 @@ jobs:
         env:
           STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          STAGING_CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          STAGING_CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
@@ -194,6 +196,8 @@ jobs:
             --retry-delay 5 \
             -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
+            -H "CF-Access-Client-Id: ${STAGING_CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${STAGING_CF_ACCESS_CLIENT_SECRET}" \
             "${STAGING_SUPABASE_URL%/}/auth/v1/health" || printf "000")
 
           if [[ "$http_code" =~ ^2 ]]; then
@@ -429,6 +433,8 @@ jobs:
         env:
           STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          STAGING_CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          STAGING_CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
@@ -438,6 +444,8 @@ jobs:
             --retry-delay 5 \
             -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
+            -H "CF-Access-Client-Id: ${STAGING_CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${STAGING_CF_ACCESS_CLIENT_SECRET}" \
             "${STAGING_SUPABASE_URL%/}/auth/v1/health" || printf "000")
 
           if [[ "$http_code" =~ ^2 ]]; then
