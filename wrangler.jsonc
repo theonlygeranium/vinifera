@@ -193,6 +193,8 @@
     },
     "staging": {
       "name": "vinifera-staging",
+      "workers_dev": true,
+      "preview_urls": true,
       "assets": {
         "directory": "./dist",
         "binding": "ASSETS",
