@@ -6,8 +6,8 @@ const workflow = readFileSync(
   "utf8",
 );
 
-describe("main to development Octopus deployment contract", () => {
-  it("can be manually smoke-tested and runs only for meaningful main pushes", () => {
+describe("main release Octopus audit record contract", () => {
+  it("can be manually triggered and runs only for meaningful main pushes", () => {
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toMatch(/push:\n\s+branches:\n\s+- main/);
     expect(workflow).toContain('"**.md"');
@@ -33,10 +33,10 @@ describe("main to development Octopus deployment contract", () => {
   });
 
   it("rejects manual dispatches from non-main refs before Octopus secrets are used", () => {
-    expect(workflow).toContain("Require main ref for Octopus deployment");
+    expect(workflow).toContain("Require main ref for Octopus release");
     expect(workflow).toContain('[[ "${GITHUB_REF}" != "refs/heads/main" ]]');
     expect(workflow).toMatch(
-      /Require main ref for Octopus deployment[\s\S]*?Checkout repository[\s\S]*?Start Cloudflare Access proxy/,
+      /Require main ref for Octopus release[\s\S]*?Checkout repository[\s\S]*?Start Cloudflare Access proxy/,
     );
     expect(workflow).toMatch(
       /Start Cloudflare Access proxy[\s\S]*?CF_ACCESS_CLIENT_ID: \$\{\{ secrets\.OCTOPUS_CF_ACCESS_CLIENT_ID \}\}/,
@@ -46,14 +46,16 @@ describe("main to development Octopus deployment contract", () => {
     );
   });
 
-  it("uses current Octopus actions instead of the Node 20 v3 actions", () => {
+  it("uses current Octopus actions for build info and release creation", () => {
     expect(workflow).toContain("OctopusDeploy/push-build-information-action@v4");
     expect(workflow).toContain("OctopusDeploy/create-release-action@v4");
-    expect(workflow).toContain("OctopusDeploy/deploy-release-action@v4");
+    // The deploy-release-action is intentionally removed: Octopus serves as
+    // an audit record only. Worker deployment is owned by GitHub Actions.
+    expect(workflow).not.toContain("OctopusDeploy/deploy-release-action");
     expect(workflow).not.toContain("@v3");
   });
 
-  it("keeps deploys idempotent and tied to the exact main commit", () => {
+  it("creates a release audit record tied to the exact main commit", () => {
     expect(workflow).toContain(
       "version: 0.0.${{ github.run_number }}-${{ github.run_attempt }}",
     );
@@ -63,11 +65,11 @@ describe("main to development Octopus deployment contract", () => {
     expect(workflow).toContain("overwrite_mode: OverwriteExisting");
     expect(workflow).toContain("git_ref: ${{ github.ref }}");
     expect(workflow).toContain("git_commit: ${{ github.sha }}");
-    expect(workflow).toContain("environments: |\n            Development");
-    expect(workflow).toContain("GitHubPAT:${{ secrets.GH_PAT_FOR_OCTOPUS }}");
-    expect(workflow).toContain("PRBranch:${{ github.ref_name }}");
-    expect(workflow).toContain("PRNumber:${{ github.run_number }}");
-    expect(workflow).toContain("ExpectedBaseSHA:${{ github.sha }}");
-    expect(workflow).toContain("ExpectedHeadSHA:${{ github.sha }}");
+    // The workflow no longer deploys to Development; it only creates a release
+    // audit record. Deployment variables are not passed.
+    expect(workflow).not.toContain("environments: |");
+    expect(workflow).not.toContain("GitHubPAT:${{ secrets.GH_PAT_FOR_OCTOPUS }}");
+    expect(workflow).not.toContain("PRBranch:");
+    expect(workflow).not.toContain("ExpectedHeadSHA:");
   });
 });
