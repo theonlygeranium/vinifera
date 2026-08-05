@@ -1322,7 +1322,7 @@ jobs:
       github.event_name != 'pull_request' &&
       github.ref == 'refs/heads/staging' &&
       vars.STAGING_CLOUDFLARE_DEPLOY_ENABLED == 'true' &&
-      needs.database.result == 'success'
+      (needs.database.result == 'success' || needs.database.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: staging
