@@ -25,7 +25,6 @@ jobs:
     permissions:
       contents: read
       deployments: write
-      id-token: write   # Required for OIDC token exchange with Octopus
 
     env:
       CF_ACCESS_PROXY_PORT: "41809"
@@ -66,12 +65,12 @@ jobs:
           cat "$RUNNER_TEMP/octopus-cf-access-proxy.log"
           exit 1
 
-      - name: Login to Octopus Deploy (OIDC) 🔑
+      - name: Login to Octopus Deploy 🔑
         id: octopus_login
         uses: OctopusDeploy/login@v2
         with:
-          server: ${{ secrets.OCTOPUS_URL }}   # Direct HTTPS required for OIDC JWT exchange
-          service_account_id: ${{ secrets.OCTOPUS_SERVICE_ACCOUNT_ID }}
+          server: ${{ env.OCTOPUS_PROXY_URL }}
+          api_key: ${{ secrets.OCTOPUS_API_KEY }}
 
       - name: Push Build Information 📦
         uses: OctopusDeploy/push-build-information-action@v4
