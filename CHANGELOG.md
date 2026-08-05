@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- Add CF Access service token headers (`CF-Access-Client-Id`, `CF-Access-Client-Secret`) to the `staging-rest-pre` and `staging-rest-pre-merge` REST probe jobs in `promote-dev-to-staging.yml`. Without these headers, the probes receive 302 redirects from the Cloudflare Access protection on `staging-db.edstratumlabs.ai` and cannot verify staging Supabase REST health during the dev→staging promotion pipeline. The `promotion-control` environment already has `STAGING_CF_ACCESS_CLIENT_ID` and `STAGING_CF_ACCESS_CLIENT_SECRET` secrets configured. **Deployment impact:** CI/release-control pipeline only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
+
 ### Changed
 
 - Added `workers_dev` and `preview_urls` flags to the staging Wrangler environment so the isolated staging Worker receives a public preview URL for health verification during Gate 2 activation.
