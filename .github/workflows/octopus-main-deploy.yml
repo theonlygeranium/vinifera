@@ -11,6 +11,11 @@ on:
       - "docs/**"
       - ".github/**"
       - ".octopus/**"
+      - "tests/**"
+      - "package.json"
+      - "package-lock.json"
+      - "public/_redirects"
+      - "public/vinifera-promotion-smoke-*.html"
 
 jobs:
   create-and-deploy:
@@ -35,7 +40,7 @@ jobs:
           fi
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -43,17 +48,15 @@ jobs:
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.OCTOPUS_CF_ACCESS_CLIENT_SECRET }}
-          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
           OCTOPUS_TARGET_URL: ${{ secrets.OCTOPUS_URL }}
         run: |
           set -euo pipefail
           node .github/scripts/cloudflare-access-proxy.mjs > "$RUNNER_TEMP/octopus-cf-access-proxy.log" 2>&1 &
           echo "OCTOPUS_CF_ACCESS_PROXY_PID=$!" >> "$GITHUB_ENV"
 
+          # Health-check /api — public endpoint, no API key required
           for _ in {1..20}; do
-            if curl -fsS \
-              -H "X-Octopus-ApiKey: ${OCTOPUS_API_KEY}" \
-              "${OCTOPUS_PROXY_URL}/api" >/dev/null; then
+            if curl -fsS "${OCTOPUS_PROXY_URL}/api" >/dev/null; then
               exit 0
             fi
             sleep 1
@@ -62,10 +65,17 @@ jobs:
           cat "$RUNNER_TEMP/octopus-cf-access-proxy.log"
           exit 1
 
+      - name: Login to Octopus Deploy 🔑
+        id: octopus_login
+        uses: OctopusDeploy/login@v2
+        with:
+          server: ${{ env.OCTOPUS_PROXY_URL }}
+          api_key: ${{ secrets.OCTOPUS_API_KEY }}
+
       - name: Push Build Information 📦
         uses: OctopusDeploy/push-build-information-action@v4
         env:
-          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          OCTOPUS_API_KEY: ${{ steps.octopus_login.outputs.api_key }}
           OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}
           OCTOPUS_SPACE: Default
         with:
@@ -78,7 +88,7 @@ jobs:
         uses: OctopusDeploy/create-release-action@v4
         id: create_release
         env:
-          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          OCTOPUS_API_KEY: ${{ steps.octopus_login.outputs.api_key }}
           OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}
           OCTOPUS_SPACE: Default
         with:
@@ -91,7 +101,7 @@ jobs:
         uses: OctopusDeploy/deploy-release-action@v4
         env:
           GH_PAT_FOR_OCTOPUS: ${{ secrets.GH_PAT_FOR_OCTOPUS }}
-          OCTOPUS_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+          OCTOPUS_API_KEY: ${{ steps.octopus_login.outputs.api_key }}
           OCTOPUS_URL: ${{ env.OCTOPUS_PROXY_URL }}
           OCTOPUS_SPACE: Default
         with:
