@@ -1,3 +1,16 @@
+## [Unreleased] - 2026-08-05
+
+### Fixed
+- CF Access service-token headers now injected into all outbound Supabase requests via custom fetch wrapper AND client-level `global.headers`. The `@supabase/supabase-js` `global.fetch` option alone does not reliably propagate to PostgREST database queries in the Cloudflare Workers runtime. A custom `fetch` wrapper using the `Headers` API ensures CF-Access-Client-Id and CF-Access-Client-Secret reach both GoTrue and PostgREST endpoints, and `global.headers` provides a second propagation path at the client level.
+- `activeBrandId` brand resolution now uses a `resolve_default_brand_id` RPC (migration 024) via the admin client instead of a direct PostgREST column query on the surface client. The surface client (`@supabase/ssr` `createServerClient`) cannot inject CF Access headers into PostgREST requests in the Workers runtime, causing brand resolution to return the CF Access login page HTML. RPCs bypass the query chain modeler and use `this.admin` (which propagates CF Access headers correctly).
+- Stripe webhook signature verification switched from synchronous `stripe.webhooks.constructEvent()` to `await stripe.webhooks.constructEventAsync()` — the synchronous `SubtleCryptoProvider` cannot be used in the Cloudflare Workers runtime.
+- Added `stripeCredentialMode` activation guard before `createStripe` call in `handleStripeWebhook` to satisfy fail-closed provider activation requirements.
+- Added `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` to `WorkerEnv` type.
+
+### Added
+- Migration 024: `public.resolve_default_brand_id(p_organization_id uuid)` RPC — a SECURITY DEFINER wrapper around `private.default_brand_for_org`. Granted execute to both `service_role` and `anon` (PostgREST builds its schema cache as the `anon` role; without the `anon` grant, the RPC is invisible to PostgREST and returns 404).
+
+
 ## [Unreleased] - 2026-07-30
 ### Fixed
 - Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure so CI policy tests can locate the embedded quality-gate runbook (22 test failures on `main`).
