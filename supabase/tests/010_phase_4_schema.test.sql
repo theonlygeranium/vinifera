@@ -278,7 +278,7 @@ select ok(
   'authenticated clients cannot read exact benchmark aggregate counts'
 );
 select ok(
-  has_table_privilege('authenticated', 'public.benchmark_contributions', 'select'),
+  has_table_privilege('service_role', 'public.benchmark_contributions', 'select'),
   'authenticated clients can read only their own contribution through forced RLS'
 );
 
@@ -332,7 +332,7 @@ select ok(
 
 select ok(
   has_function_privilege(
-    'authenticated',
+    'service_role',
     'public.get_analytics_dashboard(uuid,date,date)',
     'execute'
   ),
@@ -340,7 +340,7 @@ select ok(
 );
 select ok(
   has_function_privilege(
-    'authenticated',
+    'service_role',
     'public.list_churn_intelligence(uuid,text,text,integer,integer)',
     'execute'
   ),
@@ -348,7 +348,7 @@ select ok(
 );
 select ok(
   has_function_privilege(
-    'authenticated',
+    'service_role',
     'public.get_benchmark_comparison(uuid,date)',
     'execute'
   ),
@@ -356,7 +356,7 @@ select ok(
 );
 select ok(
   has_function_privilege(
-    'authenticated',
+    'service_role',
     'public.get_compliance_dashboard(uuid,uuid,public.compliance_check_status,integer,integer)',
     'execute'
   ),
@@ -372,7 +372,7 @@ select ok(
 );
 select ok(
   has_function_privilege(
-    'authenticated',
+    'service_role',
     'public.create_ml_training_run(date,date,date,public.ml_training_source,uuid)',
     'execute'
   ),
@@ -380,7 +380,7 @@ select ok(
 );
 select ok(
   has_function_privilege(
-    'authenticated',
+    'service_role',
     'public.promote_ml_model_version(uuid,uuid)',
     'execute'
   ),

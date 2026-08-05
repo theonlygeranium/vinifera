@@ -51,9 +51,9 @@ select ok(
     from pg_catalog.pg_indexes
     where schemaname = 'public'
       and tablename = 'members'
-      and indexname = 'members_email_uidx'
+      and indexname = 'members_brand_email_uidx'
   ),
-  'global normalized member email uniqueness remains for magic-link identity'
+  'brand-scoped normalized member email uniqueness for multi-brand support'
 );
 
 select ok(to_regclass('public.club_tiers') is not null, 'club_tiers exists');
