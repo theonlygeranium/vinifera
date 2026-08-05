@@ -15,7 +15,9 @@ variable "NodeEnv" {
 }
 
 variable "AppHealthUrl" {
-    value "http://localhost:3000/health" {}
+    value "https://vinifera-development.jeff-f69.workers.dev/health" {
+        description = "Health endpoint for the vinifera-development Cloudflare Worker. Replaced localhost:3000 which assumed a PM2 Node.js server that does not exist."
+    }
 }
 
 variable "AppName" {
