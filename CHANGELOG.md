@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Added `workers_dev` and `preview_urls` flags to the staging Wrangler environment so the isolated staging Worker receives a public preview URL for health verification during Gate 2 activation.
+
 ### Fixed
 - Resolve 15 pgTAP test failures on staging database: add migration 023 (87 missing FK indexes across all phases), update 4 stale test files for renamed constraints/indexes, RPC signature change, and service-role-only security boundary. pgTAP suite now passes 258/258. **Deployment impact:** database schema (87 new non-unique indexes) and test files only; no application route, provider, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
