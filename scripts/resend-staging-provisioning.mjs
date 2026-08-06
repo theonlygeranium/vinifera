@@ -300,6 +300,36 @@ function authorizeRuntimeKey(key, policy, requireComplete) {
   return { authorized, idHash };
 }
 
+export function recordRuntimeCredential(
+  evidence,
+  runtimeKeyResult,
+  policy,
+  operation,
+) {
+  const authorization = authorizeRuntimeKey(
+    runtimeKeyResult.key,
+    policy,
+    operation === "apply" || operation === "verify",
+  );
+  evidence.runtimeCredential = {
+    adminSeparated: true,
+    authorized: authorization.authorized,
+    disposition: runtimeKeyResult.disposition,
+    domainRestricted:
+      runtimeKeyResult.disposition === "created" ? true : null,
+    idSha256: authorization.idHash,
+    permission:
+      runtimeKeyResult.disposition === "created" ? "sending_access" : null,
+  };
+  if (operation === "bootstrap" && runtimeKeyResult.disposition === "existing") {
+    expect(
+      authorization.authorized,
+      "An existing runtime sending key requires its previously reviewed ID policy.",
+    );
+  }
+  return authorization;
+}
+
 export function authorizeTargets({
   accountId,
   domain,
@@ -815,26 +845,12 @@ async function main() {
           process.env,
         ),
     );
-    const runtimeKeyAuthorization = authorizeRuntimeKey(
-      runtimeKeyResult.key,
+    recordRuntimeCredential(
+      evidence,
+      runtimeKeyResult,
       policy,
-      operation === "apply" || operation === "verify",
+      operation,
     );
-    if (operation === "bootstrap" && runtimeKeyResult.disposition === "existing") {
-      expect(
-        runtimeKeyAuthorization.authorized,
-        "An existing runtime sending key requires its previously reviewed ID policy.",
-      );
-    }
-    evidence.runtimeCredential = {
-      adminSeparated: true,
-      authorized: runtimeKeyAuthorization.authorized,
-      disposition: runtimeKeyResult.disposition,
-      domainRestricted: runtimeKeyResult.disposition === "created" ? true : null,
-      idSha256: runtimeKeyAuthorization.idHash,
-      permission:
-        runtimeKeyResult.disposition === "created" ? "sending_access" : null,
-    };
     expect(
       String(domainResult.domain.name).toLowerCase() === authorized.domain,
       "Resend returned another domain.",

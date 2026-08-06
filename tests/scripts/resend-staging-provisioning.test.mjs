@@ -12,6 +12,7 @@ import {
   ensureWebhook,
   normalizeDnsRecord,
   normalizeWebhookEndpoint,
+  recordRuntimeCredential,
   reconcileDnsRecord,
   sha256,
   validateEvidenceBinding,
@@ -66,6 +67,34 @@ describe("Resend staging provisioning controller", () => {
     expect(policy.webhookEndpointSha256).toEqual([]);
     expect(policy.runtimeApiKeyIdSha256).toEqual([]);
     expect(policy.dnsRecords).toEqual([]);
+  });
+
+  it("records an existing runtime key hash before rejecting incomplete bootstrap policy", () => {
+    const evidence = {};
+    const { policy } = enabledPolicy();
+    expect(() =>
+      recordRuntimeCredential(
+        evidence,
+        {
+          disposition: "existing",
+          key: { id: "runtime-key-after-interrupted-bootstrap" },
+          token: null,
+        },
+        policy,
+        "bootstrap",
+      ),
+    ).toThrow(/previously reviewed ID policy/u);
+    expect(evidence.runtimeCredential).toEqual({
+      adminSeparated: true,
+      authorized: false,
+      disposition: "existing",
+      domainRestricted: null,
+      idSha256: sha256("runtime-key-after-interrupted-bootstrap"),
+      permission: null,
+    });
+    expect(JSON.stringify(evidence.runtimeCredential)).not.toContain(
+      "runtime-key-after-interrupted-bootstrap",
+    );
   });
 
   it("fails before provider access and retains sanitized evidence while disabled", async () => {

@@ -5,7 +5,10 @@
 ### Changed
 - Persist the one-time Resend sending-only runtime key directly into the
   protected staging environment immediately after creation and before any
-  fallible provider inventory, DNS reconciliation, or verification step.
+  fallible provider inventory, DNS reconciliation, or verification step. A
+  retry after an interrupted post-create check now records the existing key's
+  sanitized ID hash before rejecting incomplete reviewed policy, so the next
+  policy revision can authorize the already-persisted credential.
   **Deployment impact:** bootstrap secret handoff ordering only; no new
   provider operation and no credential value enters evidence or logs.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind

@@ -63,7 +63,10 @@ DNS. The one-time runtime token is streamed into the protected
 re-inventory or DNS postchecks. The sanitized artifact supplies the runtime key's ID hash and each returned
 record's `nameSha256`, `type`, `valueSha256`, and `priority`. Copy the exact key
 ID hash and complete tuple set into the policy in a second reviewed change; do
-not infer, shorten, or hand-edit provider values.
+not infer, shorten, or hand-edit provider values. If a post-creation check
+interrupts the first bootstrap, a retry inventories the existing key, writes
+its sanitized ID hash into the failure artifact, and then fails closed until
+that hash is present in reviewed policy.
 
 Run `apply` only after that exact DNS policy reaches `main`. It accepts one
 matching unproxied Cloudflare record, creates an absent unproxied record, and
