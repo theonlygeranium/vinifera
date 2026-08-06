@@ -43,6 +43,10 @@ and the service-token bindings are included in the atomic Worker secret upload.
 The Gate 7 prerequisite repair also uses the protected isolated `workers.dev`
 origin for staging Auth callbacks and CORS; the unattached custom hostname is
 not used before Gate 16.
+An opt-in protected hosted-acceptance step now exercises the complete Gate 7
+two-tenant, member Auth, Stripe test Checkout/webhook, and access-lifecycle
+contract with uniquely scoped synthetic fixtures and cleanup. Its retained
+artifact, rather than source presence, determines Gate 7 status.
 
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format

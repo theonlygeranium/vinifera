@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Changed
+- Add an opt-in protected hosted Gate 7 acceptance controller that provisions
+  two scoped synthetic tenants, verifies staff/member Auth and API/native RLS
+  isolation, exercises Stripe test Checkout plus signed, duplicate, and forged
+  webhook handling, advances grace/restriction/suspension/recovery, attempts
+  complete synthetic cleanup, and retains sanitized evidence with the staging
+  runtime artifact. **Deployment impact:** runs only when the protected staging
+  acceptance variable is enabled; test-mode provider and synthetic staging
+  data only, with no production, DNS, live-billing, or mobile-store mutation.
 - Record hosted activation Gate 2 as `live-passed` after protected staging run
   `31073800654` deployed the exact immutable candidate to the dedicated
   Cloudflare staging account and retained matching revision, configuration,

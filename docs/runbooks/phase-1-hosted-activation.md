@@ -208,6 +208,15 @@ Never use a real card or replace the test key during this runbook.
 
 ## 6. Run the hosted QA gate
 
+Set `STAGING_HOSTED_ACCEPTANCE_EMAIL_BASE` to an owner-controlled mailbox and
+enable `STAGING_HOSTED_ACCEPTANCE_ENABLED` only on the protected staging
+environment. The staging deployment job then creates two uniquely named
+synthetic tenants, exercises staff and member Auth, native and API tenant
+isolation, Stripe test Checkout, signed/duplicate/forged webhooks, and the
+grace/restriction/suspension/recovery lifecycle. It attempts cleanup of every
+synthetic Auth user, organization, Checkout Session, and Stripe Customer and
+retains only the sanitized JSON result in `staging-runtime-evidence`.
+
 Run the complete browser suite against the staging Worker at 375, 768, and
 1440 pixels. Require zero axe WCAG 2.1 AA violations, touch targets of at least
 44 pixels, LCP below 2.5 seconds, CLS below 0.1, no horizontal overflow, and no
