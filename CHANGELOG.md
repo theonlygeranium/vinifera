@@ -6,6 +6,12 @@
 - Narrow `human-review-required` from a global automation pause to a consequential-mutation stop. Exact-head review, safe repair, non-production previews, promotion readiness, and immutable artifact packaging now continue while merge/promotion/deployment boundaries remain fail closed. Verified rollback to a known prior reviewed Worker version is no longer blocked by a stop label. The ownership and agent workflow contracts now reserve additional human review for destructive, irreversible, production-data, unresolved auth/tenant, real-money, legal, credential-compromise, or DNS/domain decisions. **Deployment impact:** governance and trusted CI/release-control behavior only; no application route, provider, database, credential, billing, DNS, Worker, mobile-store, or production activation state changes.
 
 ### Fixed
+- Reconcile the hosted activation ledger with the 2026-08-05 live re-audit:
+  mark Gates 1, 3, 4, 5, and 9 `live-passed`, keep repaired Worker/acceptance
+  Gates 2 and 7 pending exact-candidate staging deployment, and raise every
+  documented Vitest regression floor from 549 to the verified 550-test exact
+  head. **Deployment impact:** documentation and merge-floor accuracy only; no
+  provider, database, Worker, billing, DNS, or production mutation.
 - Re-audit hosted activation Gates 1–5, 7, and 9 against current provider,
   database, and runtime evidence. Repair Cloudflare Access propagation in the
   member service, route default-brand resolution through its tenant-scoped

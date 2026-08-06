@@ -1,16 +1,16 @@
 # Activation readiness
 
-**Last reviewed:** 2026-07-31
+**Last reviewed:** 2026-08-05
 **Allowed statuses:** `pending`, `local-verified`, `live-passed`
 
-All 20 composite activation gates remain `pending`. BS-05 separately proves
-partial local prerequisites for Gates 1, 7, and 15: the integrated 22-migration
-chain passes native reset and deterministic double-seed replay; local Auth,
-two-tenant staff isolation, a populated UI, member-session resolution, and
-zero axe violations also pass. Those results do not include linked staging
-pgTAP, Checkout/webhook/grace/suspension, independent billing, service-role
-isolation, or hostname-derived context, so they do not promote a composite
-gate to `local-verified`.
+Five composite gates are `live-passed`: Gates 1, 3, 4, 5, and 9. The 2026-08-05
+hosted re-audit proved exact 30-version staging migration-ledger parity and
+331/331 canonical native pgTAP assertions, retained Supabase Auth hook/OTP/
+Google/SMTP configuration, accepted one resent signed Stripe test webhook
+exactly once, and reverified an EasyPost test address with ZIP+4. Gates 2 and 7
+were reopened because the deployed staging Worker did not identify itself as
+staging or expose an exact revision and one member Supabase client path omitted
+Cloudflare Access headers. All other gates remain `pending`.
 
 Partial local evidence:
 
@@ -21,15 +21,11 @@ Partial local evidence:
 - Gate 15: two local organizations/default brands with staff isolation; no
   independent billing or hostname-derived member context.
 
-Current delivery evidence does not advance a gate: `dev` contains the
-principal-orchestrator and immutable release controllers, but they are not on
-the default branch; `development-worker` is not provisioned; and the latest
-trusted nightly Octopus rerun reaches the obsolete database-backed runbook
-route and returns HTTP 400. The repaired Config-as-Code bridge has passed a
-real operator invocation but still requires the normal `dev` and promotion
-path before scheduled execution uses it. Credential-independent QA can
-validate source, migration, tenant, browser, build, and fail-closed release
-contracts while all hosted/provider statuses remain `pending`.
+The Gate 2/7 repair candidate carries Access service-token headers through all
+member Supabase client paths and requires `environment=staging`, the exact
+promoted revision, and a successful database-backed route before deployment
+evidence can pass. Those two gates remain pending until this exact reviewed
+candidate reaches staging and the hosted acceptance suite succeeds.
 
 ## Activation phases
 
@@ -61,15 +57,15 @@ stores do not block the private web beta.
 
 | Gate | Description | Status | Evidence required for `live-passed` | Owner |
 |---:|---|---|---|---|
-| 1 | Apply migrations to staging Supabase and run linked pgTAP/RLS | pending | Authorized project hash, successful migration job, and complete linked native test output | Track A — staging database |
+| 1 | Apply migrations to staging Supabase and run linked pgTAP/RLS | live-passed | Authorized project hash, successful migration job, exact 30-version ledger parity, and 331/331 linked native pgTAP assertions | Track A — staging database |
 | 2 | Deploy isolated staging Worker | pending | Authorized account hash, Workers Scripts edit token, successful version/deploy, and readiness output | Track A — staging Worker |
-| 3 | Activate Supabase Auth | pending | Custom token hook, 900-second OTP, Google OAuth, SMTP, and staff/member callback proof | Track A — authentication |
-| 4 | Activate Stripe test catalog and webhook | pending | Reconciled created-or-unknown Price, four verified Prices, signed webhook, and sanitized test evidence | Track A — Stripe test |
-| 5 | Activate EasyPost test fulfillment | pending | Test key, validated winery origin, simulator disabled, and address/label round trip | Track A — fulfillment |
+| 3 | Activate Supabase Auth | live-passed | Custom token hook, 900-second OTP, Google OAuth, SMTP, and staff/member callback proof retained in hosted configuration | Track A — authentication |
+| 4 | Activate Stripe test catalog and webhook | live-passed | Reconciled four-price test catalog and one resent signed subscription webhook accepted exactly once | Track A — Stripe test |
+| 5 | Activate EasyPost test fulfillment | live-passed | Test credential, validated winery origin, simulator disabled, and deliverable address verification with ZIP+4 | Track A — fulfillment |
 | 6 | Prove Phase 2 billing lifecycle with ten members | pending | Charge, decline, recovery, label, pack, delivery, and refund evidence for ten Stripe test members | Track A — Phase 2 operations |
 | 7 | Prove hosted tenant/Auth/billing isolation | pending | Two-tenant native RLS, staff, member magic link, Checkout, webhook, grace, and suspension results | Track A — hosted acceptance |
 | 8 | Activate Resend | pending | Verified sending domain, signed webhook, and two real staging lifecycle triggers | Track A — communications |
-| 9 | Prove hosted Phase 4 database | pending | Migration 015 applied plus 37 pgTAP assertions and native tenant/RPC tests | Track A — Phase 4 database |
+| 9 | Prove hosted Phase 4 database | live-passed | Migration 015 and the current 30-version chain applied; canonical native tenant/RPC/Phase 4 assertions included in the 331/331 hosted pass | Track A — Phase 4 database |
 | 10 | Validate real winery analytics | pending | Every metric and CSV reconciled to production-like operational source records | Track A — analytics |
 | 11 | Qualify and promote ML | pending | Dedicated actor, required population/events, six-source reconciliation, AUC/rules comparison, 30-day A/B, and audited promotion | Track A — ML |
 | 12 | Validate peer benchmarks | pending | Estate/Reserve opt-in, ten-contributor k-anonymous cohort, and quarterly delivery | Track A — benchmarks |
