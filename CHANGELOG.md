@@ -59,10 +59,10 @@
 - Align the hosted Supabase Auth Site URL and redirect allowlist with the exact
   staging Worker callback namespace after Gate 7 run `31082627789` proved that
   Supabase was replacing the requested PKCE callback with a fallback origin.
-  Inspect the `signInWithOtp` response and fail closed with a privacy-safe
-  configuration error when the provider rejects delivery; revoke only that
-  failed attempt's database context and preserve any earlier browser link
-  cookie until a new email is accepted. **Deployment
+  Keep link-context registration and `signInWithOtp` delivery failures
+  indistinguishable from an unknown member; revoke only a failed provider
+  attempt's database context and preserve any earlier browser link cookie.
+  **Deployment
   impact:** staging Supabase Auth configuration plus member magic-link error
   handling; no production, live-billing, DNS, or mobile-store mutation.
 - Publish the Gate 7 run-bound handoff identifier and ephemeral public key to

@@ -85,7 +85,7 @@ describe("member magic-link provider response", () => {
     signInWithOtpMock.mockReset();
   });
 
-  it("fails closed with a privacy-safe error when Supabase rejects delivery", async () => {
+  it("preserves the generic response when Supabase rejects delivery", async () => {
     signInWithOtpMock.mockResolvedValue({
       data: { user: null },
       error: { message: "provider detail must remain private" },
@@ -105,11 +105,7 @@ describe("member magic-link provider response", () => {
         email: "member@example.test",
         ipAddress: "192.0.2.44",
       }),
-    ).rejects.toMatchObject({
-      code: "configuration_error",
-      message: "Member sign-in is temporarily unavailable.",
-      status: 503,
-    });
+    ).resolves.toBeUndefined();
     expect(signInWithOtpMock).toHaveBeenCalledWith(
       expect.objectContaining({
         email: "member@example.test",

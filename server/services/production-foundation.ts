@@ -890,11 +890,7 @@ export class ProductionFoundationService
       },
     );
     if (contextError) {
-      throw new AppError(
-        503,
-        "configuration_error",
-        "Member sign-in is temporarily unavailable.",
-      );
+      return;
     }
     const callback = new URL("/api/auth/member/callback", callbackOrigin);
     callback.searchParams.set("state", linkState);
@@ -916,11 +912,7 @@ export class ProductionFoundationService
         .eq("organization_id", member.organization_id)
         .eq("brand_id", member.brand_id)
         .eq("member_id", member.id);
-      throw new AppError(
-        503,
-        "configuration_error",
-        "Member sign-in is temporarily unavailable.",
-      );
+      return;
     }
     setMemberAuthLinkContextCookie(this.response, this.env, linkState);
   }
