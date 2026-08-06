@@ -102,6 +102,12 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Give the three multi-branch promotion-smoke fixture tests a 15-second local
+  Git budget instead of Vitest's 5-second default. Their assertions are
+  synchronous and deterministic, but concurrent full-suite filesystem load
+  repeatedly exceeded five seconds while isolated 9/9 runs passed. **Deployment
+  impact:** test reliability only; no runtime, workflow, provider, database,
+  credential, billing, DNS, mobile-store, or production mutation.
 - Stream trusted development auto-merge check-run and commit-status pages into
   runner-local JSON files instead of passing the unbounded historical response
   set through `jq --argjson`. This removes the operating-system argument-length

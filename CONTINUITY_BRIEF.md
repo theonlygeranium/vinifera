@@ -18,6 +18,11 @@ and commit-status responses in runner-local JSON files before exact evidence
 selection. This fixes the runner argument-length failure observed on PR #291
 without weakening PR/base/head binding or the immediate pre-merge check.
 
+Promotion-smoke tests that create and compare three local Git branches use a
+15-second per-test budget. Their logic is unchanged; the prior 5-second default
+repeatedly timed out only under concurrent full-suite filesystem load while the
+isolated suite passed 9/9.
+
 ## 2026-08-06 Gates 10-16 acceptance foundation
 
 The protected staging deployment now supports independent opt-in readiness
