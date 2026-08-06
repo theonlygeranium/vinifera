@@ -24,12 +24,15 @@
   secret before provider re-read, and reuse the stable controller-owned
   unsubscribe secret across retries. If either one-time secret write fails,
   delete only the resource created by that attempt so a retry can recreate it;
+  malformed runtime-key creation responses enter the same rollback path, and
+  inventoried webhooks require the persisted ID hash that binds their signing
+  secret before readiness can pass;
   on other interrupted-bootstrap retries, emit the existing key's sanitized ID
   hash before rejecting incomplete policy. Secrets
   stream only over stdin and evidence retains hashes rather than raw targets or
   credentials. Run canonical-`main` provisioning through the dedicated
   `staging-acceptance-control` environment without broadening the staging
-  deployment environment's branch policy. Verification: 18/18 focused provisioning tests and 593/593 full
+  deployment environment's branch policy. Verification: 20/20 focused provisioning tests and 595/595 full
   Vitest tests, app build, and Worker dry-run. **Deployment impact:** protected
   manual workflow/source only; empty policy blocks provider/DNS mutation,
   deletion is restricted to same-attempt one-time-secret recovery, and source

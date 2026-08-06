@@ -89,6 +89,7 @@ jobs:
           RESEND_PROVISIONING_CONFIRMATION: ${{ inputs.confirmation }}
           RESEND_SENDING_DOMAIN: ${{ inputs.sending_domain }}
           RESEND_WEBHOOK_ENDPOINT: ${{ format('{0}/api/webhooks/resend', vars.STAGING_WORKER_ORIGIN) }}
+          STAGING_RESEND_WEBHOOK_ID_SHA256: ${{ secrets.STAGING_RESEND_WEBHOOK_ID_SHA256 }}
           STAGING_UNSUBSCRIBE_SIGNING_SECRET: ${{ secrets.STAGING_UNSUBSCRIBE_SIGNING_SECRET }}
         run: |
           umask 077

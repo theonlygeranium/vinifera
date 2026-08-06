@@ -528,6 +528,7 @@ export async function ensureWebhook(
   endpoint,
   canMutate,
   persistSigningSecret,
+  boundWebhookIdSha256,
 ) {
   let webhook = await inventoryWebhook(apiKey, endpoint);
   let disposition = "existing";
@@ -541,15 +542,23 @@ export async function ensureWebhook(
       typeof persistSigningSecret === "function",
       "Webhook creation requires an immediate secret persistence callback.",
     );
+    const createdId =
+      typeof created?.id === "string" && created.id.trim()
+        ? created.id.trim()
+        : required(
+            (await inventoryWebhook(apiKey, endpoint))?.id,
+            "Resend webhook ID",
+          );
     try {
       await persistSigningSecret(
         required(created.signing_secret, "Resend webhook signing secret"),
+        sha256(createdId),
       );
     } catch (persistenceError) {
       try {
         await apiJson(
           RESEND_ORIGIN,
-          `/webhooks/${encodeURIComponent(required(created.id, "Resend webhook ID"))}`,
+          `/webhooks/${encodeURIComponent(createdId)}`,
           { headers: resendHeaders(apiKey), method: "DELETE" },
         );
       } catch (rollbackError) {
@@ -562,7 +571,7 @@ export async function ensureWebhook(
     }
     webhook = await apiJson(
       RESEND_ORIGIN,
-      `/webhooks/${encodeURIComponent(created.id)}`,
+      `/webhooks/${encodeURIComponent(createdId)}`,
       { headers: resendHeaders(apiKey) },
     );
     disposition = "created";
@@ -578,6 +587,14 @@ export async function ensureWebhook(
     );
     webhook = await inventoryWebhook(apiKey, endpoint);
     disposition = "updated";
+  }
+  if (webhook && disposition !== "created") {
+    expect(
+      typeof boundWebhookIdSha256 === "string" &&
+        SHA256_PATTERN.test(boundWebhookIdSha256) &&
+        sha256(String(webhook.id)) === boundWebhookIdSha256,
+      "Existing Resend webhook is not bound to the persisted signing secret.",
+    );
   }
   return { disposition, webhook };
 }
@@ -610,20 +627,27 @@ export async function ensureRuntimeSendingKey(
       headers: resendHeaders(provisioningApiKey),
       method: "POST",
     });
-    token = required(created?.token, "Resend runtime sending token");
-    expect(
-      /^re_[^\s]{8,}$/u.test(token),
-      "Resend runtime sending credential format is invalid.",
-    );
+    const createdId =
+      typeof created?.id === "string" && created.id.trim()
+        ? created.id.trim()
+        : required(
+            (await inventoryRuntimeSendingKey(provisioningApiKey))?.id,
+            "Resend runtime API key ID",
+          );
     // Resend returns this value only once. Store it before any provider
     // inventory or other fallible post-creation work can interrupt bootstrap.
     try {
+      token = required(created?.token, "Resend runtime sending token");
+      expect(
+        /^re_[^\s]{8,}$/u.test(token),
+        "Resend runtime sending credential format is invalid.",
+      );
       await persistToken(token);
     } catch (persistenceError) {
       try {
         await apiJson(
           RESEND_ORIGIN,
-          `/api-keys/${encodeURIComponent(required(created?.id, "Resend runtime API key ID"))}`,
+          `/api-keys/${encodeURIComponent(createdId)}`,
           { headers: resendHeaders(provisioningApiKey), method: "DELETE" },
         );
       } catch (rollbackError) {
@@ -636,7 +660,7 @@ export async function ensureRuntimeSendingKey(
     }
     key = await inventoryRuntimeSendingKey(provisioningApiKey);
     expect(
-      key && String(key.id) === String(created?.id),
+      key && String(key.id) === createdId,
       "Post-creation runtime API key inventory did not match.",
     );
     disposition = "created";
@@ -724,7 +748,12 @@ export async function reconcileDnsRecord(apiToken, zoneId, record, { create }) {
   return "created";
 }
 
-async function setGitHubEnvironmentSecret(name, value, env) {
+async function setGitHubEnvironmentSecret(
+  name,
+  value,
+  env,
+  environment = "staging",
+) {
   const repository = required(env.GITHUB_REPOSITORY, "GITHUB_REPOSITORY");
   expect(
     repository === "theonlygeranium/vinifera",
@@ -733,7 +762,7 @@ async function setGitHubEnvironmentSecret(name, value, env) {
   await new Promise((resolvePromise, reject) => {
     const child = spawn(
       "gh",
-      ["secret", "set", name, "--env", "staging", "--repo", repository],
+      ["secret", "set", name, "--env", environment, "--repo", repository],
       {
         env: { ...process.env, GH_TOKEN: required(env.GH_TOKEN, "GH_TOKEN") },
         stdio: ["pipe", "ignore", "ignore"],
@@ -870,12 +899,20 @@ async function main() {
       provisioningApiKey,
       authorized.endpoint,
       canMutate,
-      async (secret) =>
-        setGitHubEnvironmentSecret(
+      async (secret, webhookIdSha256) => {
+        await setGitHubEnvironmentSecret(
           "STAGING_RESEND_WEBHOOK_SECRET",
           secret,
           process.env,
-        ),
+        );
+        await setGitHubEnvironmentSecret(
+          "STAGING_RESEND_WEBHOOK_ID_SHA256",
+          webhookIdSha256,
+          process.env,
+          "staging-acceptance-control",
+        );
+      },
+      process.env.STAGING_RESEND_WEBHOOK_ID_SHA256,
     );
     evidence.provider = {
       domainDisposition: domainResult.domain

@@ -70,11 +70,15 @@ streamed into the protected
 `STAGING_RESEND_API_KEY` secret immediately after creation, before provider
 re-inventory or DNS postchecks. If that write fails, the controller deletes
 only the API key created by the current attempt so a retry can obtain a new
-one-time token. The one-time webhook signing secret is likewise
+one-time token; a missing or malformed token response follows the same rollback.
+The one-time webhook signing secret is likewise
 written to `staging` directly from the create response before the webhook is
 retrieved again. A failed write deletes that newly created webhook before the
-controller exits, preserving a recoverable retry path. The sanitized artifact
-supplies the runtime key's ID hash and each returned
+controller exits, preserving a recoverable retry path. An existing webhook is
+accepted only when its ID hashes to the protected
+`STAGING_RESEND_WEBHOOK_ID_SHA256` value written to the main-only controller
+environment at the same time as the signing secret is written to `staging`.
+The sanitized artifact supplies the runtime key's ID hash and each returned
 record's `nameSha256`, `type`, `valueSha256`, and `priority`. Copy the exact key
 ID hash and complete tuple set into the policy in a second reviewed change; do
 not infer, shorten, or hand-edit provider values. If a post-creation check
@@ -129,6 +133,7 @@ STAGING_RESEND_FROM
 STAGING_RESEND_SENDING_DOMAIN
 STAGING_RESEND_DOMAIN_VERIFIED
 STAGING_RESEND_WEBHOOK_SECRET
+STAGING_RESEND_WEBHOOK_ID_SHA256
 STAGING_UNSUBSCRIBE_SIGNING_SECRET
 ```
 

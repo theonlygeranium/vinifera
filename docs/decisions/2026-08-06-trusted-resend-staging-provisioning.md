@@ -70,7 +70,10 @@ official webhook signing secret to `gh secret set` over stdin. The webhook
 secret is persisted directly from the one-time create response before any
 subsequent provider call. If persistence fails, the controller deletes that
 just-created webhook so a later protected run can recreate it and obtain a new
-one-time secret. It never writes the provisioning key to a Worker
+one-time secret. The controller stores the signing secret in `staging` and its
+webhook ID hash in the main-only `staging-acceptance-control` environment, then
+requires that exact binding before accepting any inventoried
+webhook. It never writes the provisioning key to a Worker
 binding. A stable unsubscribe signing secret is supplied by the trusted
 controller environment and copied unchanged on every retry; the controller
 never generates or rotates it. Because Resend exposes a newly created runtime token only once, the
@@ -78,6 +81,7 @@ controller writes that token to `STAGING_RESEND_API_KEY` immediately after its
 format check and before provider re-inventory, DNS work, or any other fallible
 postcheck. A failed token write deletes only the API key created by that
 attempt, preserving a retry path that can receive a new one-time token. The
+same rollback covers a missing or malformed one-time token response. The
 staging deployment workflow already maps these environment
 secrets into its immutable Worker version upload.
 

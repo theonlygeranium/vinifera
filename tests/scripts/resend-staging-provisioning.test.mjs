@@ -352,6 +352,7 @@ describe("Resend staging provisioning controller", () => {
       endpoint,
       true,
       persistSigningSecret,
+      sha256("webhook-one"),
     );
     expect(webhook.disposition).toBe("updated");
     expect(persistSigningSecret).not.toHaveBeenCalled();
@@ -393,7 +394,10 @@ describe("Resend staging provisioning controller", () => {
     );
     const persistSigningSecret = vi.fn(async () => order.push("persist"));
     await ensureWebhook("re_test_key", endpoint, true, persistSigningSecret);
-    expect(persistSigningSecret).toHaveBeenCalledWith("whsec_created_once");
+    expect(persistSigningSecret).toHaveBeenCalledWith(
+      "whsec_created_once",
+      sha256("webhook-created"),
+    );
     expect(order).toEqual(["inventory", "create", "persist", "retrieve"]);
   });
 
@@ -430,6 +434,38 @@ describe("Resend staging provisioning controller", () => {
       }),
     ).rejects.toThrow(/webhook persistence failure/u);
     expect(order).toEqual(["inventory", "create", "persist", "delete"]);
+  });
+
+  it("rejects an existing webhook without its persisted secret binding", async () => {
+    const endpoint =
+      "https://vinifera-staging.account.workers.dev/api/webhooks/resend";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url) => {
+        const pathname = new URL(String(url)).pathname;
+        if (pathname === "/webhooks") {
+          return Response.json({ data: [{ endpoint, id: "webhook-existing" }] });
+        }
+        return Response.json({
+          endpoint,
+          events: [
+            "email.bounced",
+            "email.clicked",
+            "email.complained",
+            "email.delivered",
+            "email.delivery_delayed",
+            "email.failed",
+            "email.opened",
+            "email.sent",
+          ],
+          id: "webhook-existing",
+          status: "enabled",
+        });
+      }),
+    );
+    await expect(
+      ensureWebhook("re_test_key", endpoint, false, undefined, undefined),
+    ).rejects.toThrow(/not bound to the persisted signing secret/u);
   });
 
   it("creates a distinct sending-only runtime key restricted to the exact domain", async () => {
@@ -496,6 +532,27 @@ describe("Resend staging provisioning controller", () => {
         },
       ),
     ).rejects.toThrow(/persistence failure/u);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][0]).toContain("/api-keys/runtime-key");
+    expect(fetchMock.mock.calls[2][1].method).toBe("DELETE");
+  });
+
+  it("deletes a newly created runtime key when its token response is malformed", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(
+        Response.json({ id: "runtime-key", token: "malformed" }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      ensureRuntimeSendingKey(
+        "re_provisioning_admin",
+        "domain-one",
+        true,
+      ),
+    ).rejects.toThrow(/credential format is invalid/u);
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[2][0]).toContain("/api-keys/runtime-key");
     expect(fetchMock.mock.calls[2][1].method).toBe("DELETE");
@@ -657,8 +714,10 @@ describe("Resend staging provisioning controller", () => {
     expect(controller).toContain("/dns_records`");
     expect(controller.match(/method: "DELETE"/gu)).toHaveLength(2);
     expect(controller).toContain(
-      '`/webhooks/${encodeURIComponent(required(created.id, "Resend webhook ID"))}`',
+      '`/webhooks/${encodeURIComponent(createdId)}`',
     );
+    expect(controller).toContain("STAGING_RESEND_WEBHOOK_ID_SHA256");
+    expect(controller).toContain('"staging-acceptance-control"');
     expect(controller).not.toContain("dns_records/batch");
   });
 });
