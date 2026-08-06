@@ -19,6 +19,24 @@ const productionWorkflow = readFileSync(
   ),
   "utf8",
 );
+const ciWorkflow = readFileSync(
+  new URL("../../.github/workflows/ci.yml", import.meta.url),
+  "utf8",
+);
+const previewWorkflow = readFileSync(
+  new URL(
+    "../../.github/workflows/frontend-preview-publish.yml",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const packageWorkflow = readFileSync(
+  new URL(
+    "../../.github/workflows/release-candidate-package.yml",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 describe("two-speed Octopus review policy", () => {
   it("automatically reviews only consolidated promotions", () => {
@@ -108,7 +126,7 @@ describe("two-speed Octopus review policy", () => {
     expect(workflow).toContain("if: always()");
   });
 
-  it("binds publication to the exact PR, head, base, and attempt", () => {
+  it("binds publication to the exact PR, head, base, and attempt without suppressing evidence", () => {
     expect(workflow).toContain(
       "PR_SHA: ${{ github.event.pull_request.head.sha }}",
     );
@@ -127,11 +145,8 @@ describe("two-speed Octopus review policy", () => {
     expect(workflow).toContain(
       "The explicit Octopus review label was removed before publication.",
     );
-    expect(workflow).toContain(
-      "The PR was paused by an emergency label before publication.",
-    );
-    expect(workflow).toContain("human-review-required");
-    expect(workflow).toContain("do-not-merge");
+    expect(workflow).not.toContain("human-review-required");
+    expect(workflow).not.toContain("do-not-merge");
     expect(workflow).toContain(
       "Promotion review attempt changed before Octopus publication.",
     );
@@ -142,6 +157,13 @@ describe("two-speed Octopus review policy", () => {
     expect(workflow).toContain('"repos/$REPO/statuses/$PR_SHA"');
     expect(workflow).toContain('-f context="Octopus PR Quality Gates"');
     expect(bridge).toContain('"PR_EXPECTED_BASE_SHA"');
+  });
+
+  it("continues safe preview and artifact evidence while a merge decision is paused", () => {
+    expect(previewWorkflow).not.toContain("human-review-required");
+    expect(previewWorkflow).not.toContain("do-not-merge");
+    expect(packageWorkflow).not.toContain("human-review-required");
+    expect(packageWorkflow).not.toContain("do-not-merge");
   });
 });
 
@@ -173,10 +195,55 @@ describe("production authorization policy", () => {
     );
     expect(productionWorkflow).toContain("human-review-required");
     expect(productionWorkflow).toContain("do-not-merge");
+    expect(productionWorkflow).toMatch(
+      /OPERATION" != "rollback-worker"[\s\S]*?human-review-required/,
+    );
     expect(productionWorkflow).not.toMatch(/^\s+- cutover-domain$/m);
     expect(productionWorkflow).not.toMatch(/^\s+- restore-pages$/m);
     expect(productionWorkflow).not.toMatch(/^\s+cutover-domain\)$/m);
     expect(productionWorkflow).not.toMatch(/^\s+restore-pages\)$/m);
     expect(productionWorkflow).not.toMatch(/\n\s+push:/);
+  });
+});
+
+describe("staging deployment evidence policy", () => {
+  it("runs after an intentionally skipped database gate but never after failed quality", () => {
+    const deployJob = ciWorkflow.slice(ciWorkflow.indexOf("  deploy-staging:"));
+    expect(deployJob).toContain("always()");
+    expect(deployJob).toContain("needs.quality.result == 'success'");
+    expect(deployJob).toContain(
+      "(needs.database.result == 'success' || needs.database.result == 'skipped')",
+    );
+  });
+
+  it("uploads Cloudflare Access service-token bindings to the staging Worker", () => {
+    const deployJob = ciWorkflow.slice(ciWorkflow.indexOf("  deploy-staging:"));
+    expect(deployJob).toContain(
+      "CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}",
+    );
+    expect(deployJob).toContain(
+      "CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}",
+    );
+    expect(deployJob).toContain('"CF_ACCESS_CLIENT_ID"');
+    expect(deployJob).toContain('"CF_ACCESS_CLIENT_SECRET"');
+    expect(deployJob).toContain(
+      '[[ -z "$CF_ACCESS_CLIENT_ID" || -z "$CF_ACCESS_CLIENT_SECRET" ]]',
+    );
+  });
+
+  it("binds runtime verification to the promoted revision", () => {
+    const deployJob = ciWorkflow.slice(ciWorkflow.indexOf("  deploy-staging:"));
+    expect(deployJob).toContain(
+      '--expected-revision "${{ steps.release-package.outputs.candidate_sha }}"',
+    );
+  });
+
+  it("requires a database-backed route before recording live evidence", () => {
+    expect(
+      readFileSync(
+        new URL("../../scripts/verify-hosted-runtime.mjs", import.meta.url),
+        "utf8",
+      ),
+    ).toContain("/api/portal/branding");
   });
 });

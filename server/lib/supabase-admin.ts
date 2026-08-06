@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { requireConfigured } from "./errors";
+import { cfAccessFetch, cfAccessHeaders } from "./cf-access-fetch";
 import type { WorkerEnv } from "../types";
 
 export function createSupabaseAdminClient(env: WorkerEnv): SupabaseClient {
@@ -8,11 +9,15 @@ export function createSupabaseAdminClient(env: WorkerEnv): SupabaseClient {
     env.SUPABASE_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY,
     "SUPABASE_SECRET_KEY",
   );
+  const customFetch = cfAccessFetch(env);
   return createClient(url, secret, {
     auth: {
       autoRefreshToken: false,
       detectSessionInUrl: false,
       persistSession: false,
     },
+    ...(customFetch
+      ? { global: { fetch: customFetch, headers: cfAccessHeaders(env) } }
+      : {}),
   });
 }

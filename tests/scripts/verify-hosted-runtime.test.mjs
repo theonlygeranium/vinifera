@@ -21,6 +21,19 @@ const capabilityNames = [
   "shipping",
   "webhook",
 ];
+const expectedRevision = "0123456789abcdef0123456789abcdef01234567";
+
+function healthPayload(overrides = {}) {
+  return {
+    data: {
+      environment: "staging",
+      revision: expectedRevision,
+      service: "vinifera-api",
+      status: "ok",
+      ...overrides,
+    },
+  };
+}
 
 function configurationPayload(overrides = {}) {
   return {
@@ -39,6 +52,10 @@ function configurationPayload(overrides = {}) {
   };
 }
 
+function databasePayload(overrides = {}) {
+  return { data: { brand: null, mode: "canonical", ...overrides } };
+}
+
 function response(payload) {
   return {
     json: vi.fn(async () => payload),
@@ -54,7 +71,9 @@ describe("hosted runtime verifier", () => {
       return response(
         String(url).endsWith("/api/health/configuration")
           ? configurationPayload()
-          : { data: { service: "vinifera-api", status: "ok" } },
+          : String(url).endsWith("/api/portal/branding")
+            ? databasePayload()
+            : healthPayload(),
       );
     });
     const origin =
@@ -64,6 +83,7 @@ describe("hosted runtime verifier", () => {
       fetchImpl,
       now: () => new Date("2026-07-26T12:00:00.000Z"),
       origin,
+      expectedRevision,
     });
 
     expect(evidence).toMatchObject({
@@ -71,20 +91,48 @@ describe("hosted runtime verifier", () => {
         requiredCapabilities: ["app", "database", "billing", "security", "webhook"],
         requiredCapabilitiesPassed: true,
       },
-      health: { passed: true, service: "vinifera-api", status: "ok" },
+      databaseProbe: { mode: "canonical", passed: true },
+      health: {
+        environment: "staging",
+        passed: true,
+        revision: expectedRevision,
+        service: "vinifera-api",
+        status: "ok",
+      },
       targetClass: "isolated-staging-workers-dev",
     });
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(
       calls.every(
         ({ init, url }) =>
           init.method === "GET" &&
           init.redirect === "error" &&
-          String(url).startsWith(`${origin}/api/health`),
+          String(url).startsWith(origin),
       ),
     ).toBe(true);
     expect(JSON.stringify(evidence)).not.toContain(origin);
     expect(JSON.stringify(evidence)).not.toContain("missing");
+  });
+
+  it("accepts the immutable version-preview staging origin", async () => {
+    const fetchImpl = vi.fn(async (url) =>
+      response(
+        String(url).endsWith("/api/health/configuration")
+          ? configurationPayload()
+          : String(url).endsWith("/api/portal/branding")
+            ? databasePayload()
+            : healthPayload(),
+      ),
+    );
+
+    await expect(
+      verifyHostedRuntime({
+        expectedRevision,
+        fetchImpl,
+        origin:
+          "https://01234567-vinifera-staging.account-subdomain.workers.dev",
+      }),
+    ).resolves.toMatchObject({ health: { revision: expectedRevision } });
   });
 
   it("fails closed when a core capability is not configured", () => {
@@ -93,9 +141,9 @@ describe("hosted runtime verifier", () => {
         configurationPayload: configurationPayload({
           billing: { configured: false, missing: ["STRIPE_SECRET_KEY"] },
         }),
-        healthPayload: {
-          data: { service: "vinifera-api", status: "ok" },
-        },
+        databasePayload: databasePayload(),
+        expectedRevision,
+        healthPayload: healthPayload(),
       }),
     ).toThrow(/missing required capabilities: billing/);
   });
@@ -109,7 +157,7 @@ describe("hosted runtime verifier", () => {
   ])("rejects a non-isolated staging origin: %s", async (origin) => {
     const fetchImpl = vi.fn();
     await expect(
-      verifyHostedRuntime({ fetchImpl, origin }),
+      verifyHostedRuntime({ expectedRevision, fetchImpl, origin }),
     ).rejects.toThrow(/isolated vinifera-staging workers\.dev origin/);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -118,16 +166,55 @@ describe("hosted runtime verifier", () => {
     expect(() =>
       buildHostedRuntimeEvidence({
         configurationPayload: configurationPayload(),
-        healthPayload: { data: { service: "unexpected", status: "ok" } },
+        databasePayload: databasePayload(),
+        expectedRevision,
+        healthPayload: healthPayload({ service: "unexpected" }),
       }),
     ).toThrow(/health contract did not pass/);
     expect(() =>
       buildHostedRuntimeEvidence({
         configurationPayload: { data: { app: { configured: "yes" } } },
-        healthPayload: {
-          data: { service: "vinifera-api", status: "ok" },
-        },
+        databasePayload: databasePayload(),
+        expectedRevision,
+        healthPayload: healthPayload(),
       }),
     ).toThrow(/configuration contract is invalid/);
+  });
+
+  it.each([
+    [{ environment: "production" }, /health contract did not pass/],
+    [{ revision: null }, /health contract did not pass/],
+    [{ revision: "f".repeat(40) }, /health contract did not pass/],
+  ])("rejects mismatched staging identity: %j", (overrides, error) => {
+    expect(() =>
+      buildHostedRuntimeEvidence({
+        configurationPayload: configurationPayload(),
+        databasePayload: databasePayload(),
+        expectedRevision,
+        healthPayload: healthPayload(overrides),
+      }),
+    ).toThrow(error);
+  });
+
+  it("rejects an invalid expected revision before accepting evidence", () => {
+    expect(() =>
+      buildHostedRuntimeEvidence({
+        configurationPayload: configurationPayload(),
+        databasePayload: databasePayload(),
+        expectedRevision: "short",
+        healthPayload: healthPayload(),
+      }),
+    ).toThrow(/full Git SHA/);
+  });
+
+  it("rejects a malformed database-backed route contract", () => {
+    expect(() =>
+      buildHostedRuntimeEvidence({
+        configurationPayload: configurationPayload(),
+        databasePayload: databasePayload({ mode: "offline" }),
+        expectedRevision,
+        healthPayload: healthPayload(),
+      }),
+    ).toThrow(/database-backed route did not pass/);
   });
 });

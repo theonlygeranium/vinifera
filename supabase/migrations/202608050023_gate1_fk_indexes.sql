@@ -1,0 +1,96 @@
+-- Gate 1: Index every remaining unindexed foreign-key column.
+-- Migration 021 (p3_missing_indexes) covered many FK columns but left 87
+-- unindexed across all phases. This migration closes that gap so the
+-- pgTAP "every Phase N foreign-key column is indexed" tests pass.
+
+begin;
+
+create index if not exists avalara_filing_registration_statuses_brand_id_fk_idx on public.avalara_filing_registration_statuses (brand_id);
+create index if not exists avalara_filing_registration_statuses_organization_id_fk_idx on public.avalara_filing_registration_statuses (organization_id);
+create index if not exists avalara_filing_verification_snapshots_brand_id_fk_idx on public.avalara_filing_verification_snapshots (brand_id);
+create index if not exists avalara_filing_verification_snapshots_organization_id_fk_idx on public.avalara_filing_verification_snapshots (organization_id);
+create index if not exists avalara_tax_code_mappings_club_tier_id_fk_idx on public.avalara_tax_code_mappings (club_tier_id);
+create index if not exists avalara_tax_code_mappings_organization_id_fk_idx on public.avalara_tax_code_mappings (organization_id);
+create index if not exists benchmark_preferences_updated_by_fk_idx on public.benchmark_preferences (updated_by);
+create index if not exists cancel_flow_attempts_actor_user_id_fk_idx on public.cancel_flow_attempts (actor_user_id);
+create index if not exists cancel_flow_attempts_current_step_id_fk_idx on public.cancel_flow_attempts (current_step_id);
+create index if not exists cancel_flow_events_actor_user_id_fk_idx on public.cancel_flow_events (actor_user_id);
+create index if not exists cancel_flow_events_member_id_fk_idx on public.cancel_flow_events (member_id);
+create index if not exists cancel_flow_events_step_id_fk_idx on public.cancel_flow_events (step_id);
+create index if not exists compliance_checks_actor_user_id_fk_idx on public.compliance_checks (actor_user_id);
+create index if not exists custom_hostname_write_attempts_brand_id_fk_idx on public.custom_hostname_write_attempts (brand_id);
+create index if not exists custom_hostname_write_attempts_organization_id_fk_idx on public.custom_hostname_write_attempts (organization_id);
+create index if not exists email_log_template_id_fk_idx on public.email_log (template_id);
+create index if not exists email_provider_event_inbox_brand_id_fk_idx on public.email_provider_event_inbox (brand_id);
+create index if not exists email_provider_event_inbox_email_log_id_fk_idx on public.email_provider_event_inbox (email_log_id);
+create index if not exists email_provider_event_inbox_organization_id_fk_idx on public.email_provider_event_inbox (organization_id);
+create index if not exists email_unsubscribe_tokens_member_id_fk_idx on public.email_unsubscribe_tokens (member_id);
+create index if not exists integration_connections_consented_by_fk_idx on public.integration_connections (consented_by);
+create index if not exists integration_refund_deliveries_brand_id_fk_idx on public.integration_refund_deliveries (brand_id);
+create index if not exists integration_refund_deliveries_organization_id_fk_idx on public.integration_refund_deliveries (organization_id);
+create index if not exists integration_secrets_organization_id_fk_idx on public.integration_secrets (organization_id);
+create index if not exists integration_sync_logs_job_id_fk_idx on public.integration_sync_logs (job_id);
+create index if not exists klaviyo_engagement_events_brand_id_fk_idx on public.klaviyo_engagement_events (brand_id);
+create index if not exists klaviyo_engagement_events_member_id_fk_idx on public.klaviyo_engagement_events (member_id);
+create index if not exists klaviyo_engagement_events_organization_id_fk_idx on public.klaviyo_engagement_events (organization_id);
+create index if not exists klaviyo_field_mappings_brand_id_fk_idx on public.klaviyo_field_mappings (brand_id);
+create index if not exists klaviyo_field_mappings_organization_id_fk_idx on public.klaviyo_field_mappings (organization_id);
+create index if not exists klaviyo_list_mappings_brand_id_fk_idx on public.klaviyo_list_mappings (brand_id);
+create index if not exists klaviyo_list_mappings_organization_id_fk_idx on public.klaviyo_list_mappings (organization_id);
+create index if not exists klaviyo_profile_mappings_brand_id_fk_idx on public.klaviyo_profile_mappings (brand_id);
+create index if not exists klaviyo_profile_mappings_organization_id_fk_idx on public.klaviyo_profile_mappings (organization_id);
+create index if not exists loyalty_ledger_actor_user_id_fk_idx on public.loyalty_ledger (actor_user_id);
+create index if not exists loyalty_ledger_redemption_id_fk_idx on public.loyalty_ledger (redemption_id);
+create index if not exists loyalty_redemptions_created_by_fk_idx on public.loyalty_redemptions (created_by);
+create index if not exists loyalty_reservation_allocations_member_id_fk_idx on public.loyalty_reservation_allocations (member_id);
+create index if not exists member_auth_link_contexts_brand_id_fk_idx on public.member_auth_link_contexts (brand_id);
+create index if not exists member_auth_link_contexts_member_id_fk_idx on public.member_auth_link_contexts (member_id);
+create index if not exists member_auth_link_contexts_organization_id_fk_idx on public.member_auth_link_contexts (organization_id);
+create index if not exists meta_conversion_events_member_id_fk_idx on public.meta_conversion_events (member_id);
+create index if not exists ml_churn_predictions_experiment_id_fk_idx on public.ml_churn_predictions (experiment_id);
+create index if not exists ml_churn_predictions_feature_snapshot_id_fk_idx on public.ml_churn_predictions (feature_snapshot_id);
+create index if not exists ml_experiments_created_by_fk_idx on public.ml_experiments (created_by);
+create index if not exists ml_high_risk_alerts_acknowledged_by_fk_idx on public.ml_high_risk_alerts (acknowledged_by);
+create index if not exists ml_high_risk_alerts_member_id_fk_idx on public.ml_high_risk_alerts (member_id);
+create index if not exists ml_model_versions_promoted_by_fk_idx on public.ml_model_versions (promoted_by);
+create index if not exists ml_model_versions_registered_by_fk_idx on public.ml_model_versions (registered_by);
+create index if not exists ml_model_versions_training_run_id_fk_idx on public.ml_model_versions (training_run_id);
+create index if not exists ml_retraining_signals_training_run_id_fk_idx on public.ml_retraining_signals (training_run_id);
+create index if not exists ml_training_runs_created_by_fk_idx on public.ml_training_runs (created_by);
+create index if not exists ml_training_source_qualifications_qualified_by_fk_idx on public.ml_training_source_qualifications (qualified_by);
+create index if not exists mobile_auth_exchange_tokens_auth_user_id_fk_idx on public.mobile_auth_exchange_tokens (auth_user_id);
+create index if not exists mobile_auth_exchange_tokens_brand_id_fk_idx on public.mobile_auth_exchange_tokens (brand_id);
+create index if not exists mobile_auth_exchange_tokens_device_id_fk_idx on public.mobile_auth_exchange_tokens (device_id);
+create index if not exists mobile_auth_exchange_tokens_member_id_fk_idx on public.mobile_auth_exchange_tokens (member_id);
+create index if not exists mobile_auth_exchange_tokens_organization_id_fk_idx on public.mobile_auth_exchange_tokens (organization_id);
+create index if not exists mobile_offline_mutations_brand_id_fk_idx on public.mobile_offline_mutations (brand_id);
+create index if not exists mobile_offline_mutations_member_id_fk_idx on public.mobile_offline_mutations (member_id);
+create index if not exists mobile_offline_mutations_organization_id_fk_idx on public.mobile_offline_mutations (organization_id);
+create index if not exists mobile_offline_snapshots_brand_id_fk_idx on public.mobile_offline_snapshots (brand_id);
+create index if not exists mobile_offline_snapshots_organization_id_fk_idx on public.mobile_offline_snapshots (organization_id);
+create index if not exists mobile_push_outbox_brand_id_fk_idx on public.mobile_push_outbox (brand_id);
+create index if not exists mobile_push_outbox_device_id_fk_idx on public.mobile_push_outbox (device_id);
+create index if not exists mobile_push_outbox_member_id_fk_idx on public.mobile_push_outbox (member_id);
+create index if not exists mobile_refresh_sessions_auth_user_id_fk_idx on public.mobile_refresh_sessions (auth_user_id);
+create index if not exists mobile_refresh_sessions_brand_id_fk_idx on public.mobile_refresh_sessions (brand_id);
+create index if not exists mobile_refresh_sessions_device_id_fk_idx on public.mobile_refresh_sessions (device_id);
+create index if not exists mobile_refresh_sessions_member_id_fk_idx on public.mobile_refresh_sessions (member_id);
+create index if not exists mobile_refresh_sessions_organization_id_fk_idx on public.mobile_refresh_sessions (organization_id);
+create index if not exists mobile_refresh_sessions_parent_session_id_fk_idx on public.mobile_refresh_sessions (parent_session_id);
+create index if not exists mobile_refresh_sessions_replaced_by_session_id_fk_idx on public.mobile_refresh_sessions (replaced_by_session_id);
+create index if not exists organization_staff_access_granted_by_fk_idx on public.organization_staff_access (granted_by);
+create index if not exists organizations_default_brand_id_fk_idx on public.organizations (default_brand_id);
+create index if not exists quickbooks_account_mappings_organization_id_fk_idx on public.quickbooks_account_mappings (organization_id);
+create index if not exists quickbooks_transaction_mappings_brand_id_fk_idx on public.quickbooks_transaction_mappings (brand_id);
+create index if not exists quickbooks_transaction_mappings_organization_id_fk_idx on public.quickbooks_transaction_mappings (organization_id);
+create index if not exists shipments_avalara_tax_calculation_id_fk_idx on public.shipments (avalara_tax_calculation_id);
+create index if not exists shipments_latest_compliance_check_id_fk_idx on public.shipments (latest_compliance_check_id);
+create index if not exists shipping_label_attempts_compliance_check_id_fk_idx on public.shipping_label_attempts (compliance_check_id);
+create index if not exists staff_brand_access_granted_by_fk_idx on public.staff_brand_access (granted_by);
+create index if not exists stripe_billing_attempts_brand_id_fk_idx on public.stripe_billing_attempts (brand_id);
+create index if not exists stripe_customer_provisioning_brand_id_fk_idx on public.stripe_customer_provisioning (brand_id);
+create index if not exists stripe_customer_provisioning_member_id_fk_idx on public.stripe_customer_provisioning (member_id);
+create index if not exists stripe_customer_provisioning_organization_id_fk_idx on public.stripe_customer_provisioning (organization_id);
+
+
+commit;

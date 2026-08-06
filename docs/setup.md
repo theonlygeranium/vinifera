@@ -551,8 +551,8 @@ then runs the remaining test and build gates. This keeps validation reproducible
 from a fresh checkout while leaving the generated artifact untracked.
 
 The current credential-independent architecture gate passes generated Worker
-types, TypeScript, 512/512 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
-3 199/199, Phase 4 158/158, Phase 5 513/513 embedded PostgreSQL/pgTAP
+types, TypeScript, 550/550 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+3 199/199, Phase 4 159/159, Phase 5 515/515 embedded PostgreSQL/pgTAP
 assertions, and the integrated Playwright suite with 155 passed and three
 hosted-only cases skipped, with zero axe violations in executed cases.
 `test:e2e` is an alias of `qa:e2e`. Pages plus

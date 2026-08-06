@@ -15,9 +15,11 @@ import {
 } from "../config";
 import { assertStaffRole } from "../lib/authorization";
 import { AppError, requireConfigured } from "../lib/errors";
+import { assertUuid } from "../lib/utils";
 import {
   createSupabaseAdminClient as createAdminClient,
 } from "../lib/supabase-admin";
+import { cfAccessFetch, cfAccessHeaders } from "../lib/cf-access-fetch";
 import { requireSecuritySecrets } from "../lib/security-secrets";
 import {
   clearMemberAuthLinkContextCookie,
@@ -234,7 +236,11 @@ function createSurfaceClient(
         persistSession: false,
       },
       global: {
-        headers: { Authorization: `Bearer ${bearer}` },
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          ...(cfAccessHeaders(env) ?? {}),
+        },
+        ...(cfAccessFetch(env) ? { fetch: cfAccessFetch(env)! } : {}),
       },
     });
   }
@@ -244,6 +250,9 @@ function createSurfaceClient(
     auth: {
       flowType: "pkce",
     },
+    ...(cfAccessFetch(env)
+      ? { global: { fetch: cfAccessFetch(env)!, headers: cfAccessHeaders(env) } }
+      : {}),
     cookieOptions: {
       name: cookieName,
       httpOnly: true,
@@ -899,6 +908,52 @@ export class ProductionFoundationService
     });
   }
 
+  protected async activeBrandId(
+    principal: StaffPrincipal,
+    supplied?: string | null,
+    allowSuspended = false,
+  ): Promise<string> {
+    const organizationId = this.organizationId(principal);
+    const header = this.request.get("x-vinifera-brand-id")?.trim();
+    if (header === "all") {
+      throw new AppError(
+        400,
+        "invalid_request",
+        "This operation requires one active brand.",
+      );
+    }
+    let candidate = supplied ?? (header && header !== "all" ? header : null);
+    if (!candidate) {
+      const { data, error } = await this.admin.rpc(
+        "resolve_default_brand_id",
+        { p_organization_id: organizationId },
+      );
+      if (error || !data) {
+        throw new AppError(500, "upstream_error", "The default brand could not be resolved.");
+      }
+      candidate = String(data);
+    }
+    assertUuid(candidate, "Brand");
+    const { data: brand, error: brandError } = await this.admin
+      .from("brands")
+      .select("id,billing_mode,access_status")
+      .eq("organization_id", organizationId)
+      .eq("id", candidate)
+      .eq("active", true)
+      .maybeSingle();
+    if (brandError || !brand) {
+      throw new AppError(403, "forbidden", "Brand access is not available.");
+    }
+    if (
+      brand.billing_mode === "independent" &&
+      brand.access_status === "suspended" &&
+      !allowSuspended
+    ) {
+      throw new AppError(403, "forbidden", "This brand account is suspended.");
+    }
+    return candidate;
+  }
+
   async createBillingCheckout(input: {
     attemptId: string;
     planTier: PlanTier;
@@ -1130,10 +1185,11 @@ export class ProductionFoundationService
       this.env.STRIPE_WEBHOOK_SECRET,
       "STRIPE_WEBHOOK_SECRET",
     );
+    const activation = stripeCredentialMode(this.env);
     const stripe = createStripe(this.env);
     let event: Stripe.Event;
     try {
-      event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      event = await stripe.webhooks.constructEventAsync(payload, signature, webhookSecret);
     } catch {
       throw new AppError(400, "invalid_request", "The webhook signature is invalid.");
     }

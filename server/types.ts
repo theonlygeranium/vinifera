@@ -58,6 +58,8 @@ export type IntegrationType =
   | "quickbooks";
 
 export interface WorkerEnv {
+  CF_ACCESS_CLIENT_ID?: string;
+  CF_ACCESS_CLIENT_SECRET?: string;
   ADMIN_RATE_LIMITER?: RateLimit;
   ALLOWED_ORIGINS?: string;
   API_RATE_LIMITER?: RateLimit;

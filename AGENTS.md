@@ -20,7 +20,11 @@
 
 ### Current status
 
-v0.5.0 — source architecture complete and structurally hardened. All 6 build specs (BS-01 through BS-06) have been merged to `main`. The platform source is modular, observable, and locally runnable. All 20 hosted activation gates remain `pending` — see `CONTINUITY_BRIEF.md` for the full gate list and current state.
+v0.5.0 — source architecture complete and structurally hardened. All 6 build
+specs (BS-01 through BS-06) have been merged to `main`. Hosted activation Gates
+1, 3, 4, 5, and 9 are provider-verified. The 2026-08-05 re-audit reopened Gates
+2 and 7 until the reviewed Worker repair is promoted and exact-revision runtime
+evidence passes. The other 13 gates remain pending; see `CONTINUITY_BRIEF.md`.
 
 The public custom domain continues to serve the verified static Cloudflare Pages rollback baseline. It is **not** evidence that the Worker application is live.
 
@@ -47,7 +51,7 @@ The public custom domain continues to serve the verified static Cloudflare Pages
 6. **Preserve WCAG compliance.** All pages must pass axe-core with 0 WCAG 2.1 AA violations. Run the fast browser smoke for routine visual PRs and the complete Playwright/axe suite before promotion.
 7. **Test on mobile.** Every visual change must be verified at 375px viewport width. Touch targets must meet 44×44px (WCAG 2.5.5).
 8. **Own every PR through completion.** Opening a PR is not completion. Use an available wait or monitoring mechanism until the applicable exact-head checks and reviews pass and there are no active requested-changes reviews. Routine ready `dev` candidates require `Dev fast checks`; frontend-relevant candidates also require exact-head `Frontend preview evidence`, while the same status reports policy-approved non-applicability for other surfaces. Promotions require `Vinifera Promotion Gate` plus Octopus. Explicitly classified or labeled high-risk work also requires Octopus. CodeRabbit is optional and non-blocking while unavailable or rate-limited. Follow `docs/agent-workflow.md`.
-9. **Protect hosted activation.** Provider and environment mutations must run only through the applicable protected, fail-closed workflow under explicit task authority or a standing owner-approved automation contract. Production, live billing, destructive data operations, credential rotation, and DNS/domain ownership changes retain their independent confirmations and protection. `human-review-required` pauses automation and `do-not-merge` is absolute.
+9. **Protect hosted activation.** Provider and environment mutations must run only through the applicable protected, fail-closed workflow under explicit task authority or a standing owner-approved automation contract. Production, live billing, destructive data operations, credential rotation, and DNS/domain ownership changes retain their independent confirmations and protection. `human-review-required` pauses merges, promotions, deployments, and other boundary-crossing mutations, but never suppresses safe diagnosis, repair, review, preview, packaging, or evidence collection. `do-not-merge` is an absolute merge prohibition.
 10. **Respect tenant isolation.** Every database query that touches member, shipment, billing, or integration data must be scoped to `brand_id`. Missing `brand_id` predicates are a critical defect. Octopus is configured to flag these — always resolve them before merging.
 
 ---
@@ -100,7 +104,7 @@ vinifera/
 
 | File / Directory | Who can modify | Notes |
 |-----------------|----------------|-------|
-| `AGENTS.md` | Any agent via PR | Owner review or an explicitly owner-authorized protected workflow is required. Changes to Section 2 (Prime Directives) or this ownership table require a corresponding ADR in `docs/decisions/`. |
+| `AGENTS.md` | Any agent via PR | Changes to Section 2 (Prime Directives) or this ownership table require a corresponding ADR and explicit owner authority; the initiating task may record that authority. |
 | `CONTINUITY_BRIEF.md` | Any agent | Must reflect current reality — update after every session |
 | `README.md` | Any agent | Must reflect reality — no aspirational content |
 | `CHANGELOG.md` | Any agent | One consolidated entry per logical PR or promotion |
@@ -108,14 +112,14 @@ vinifera/
 | `.env.example` | Any agent | Real secrets NEVER go here |
 | `docs/` | Any agent | Must stay in sync with actual architecture |
 | `docs/decisions/` | Any agent | Add an ADR only for architectural, security, deployment, database-policy, or governance decisions |
-| `.octopus/` | Any agent via PR | Changes to architectural rules require human review before merge |
+| `.octopus/` | Any agent via PR | Exact-head trusted review is required; owner review is additionally required only when the change weakens a hard-stop, production, privacy, authentication, authorization, or tenant-isolation boundary. |
 | `src/client/` | Any agent | Verify WCAG + mobile after any visual change |
 | `server/routes/` | Any agent | Extraction-only unless a new domain is being added — no logic changes during refactors |
 | `server/services/` | Any agent | `brand_id` scoping is mandatory on every data-access function |
 | `server/integrations/` | Any agent | All integrations must fail closed when credentials are absent |
 | `supabase/migrations/` | Any agent via PR | Never modify an applied migration — always add a forward migration |
 | `tests/` | Any agent | Never delete existing tests without documented justification |
-| `.github/workflows/` | Any agent via PR | Owner review or an explicitly owner-authorized protected workflow is required; direct-push guard must remain enabled |
+| `.github/workflows/` | Any agent via PR | Exact-head CI and applicable Octopus review are required. Owner review is additionally required only for the hard-stop boundaries named in Section 10; direct-push guard must remain enabled. |
 | `index.html` | Any agent | Verify WCAG after changes |
 | `app` | Any agent | Visual prototype — verify WCAG + mobile |
 | `guide` | Any agent | Investor's guide — verify WCAG + mobile |
@@ -146,7 +150,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 512/512 Vitest; 155 passed Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 550/550 Vitest; 155 passed Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -244,16 +248,16 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 ## 6. Quality Assurance
 
-### Current verified test counts (2026-07-31 credential-independent baseline)
+### Current verified test counts (2026-08-05 hosted-gate QA baseline)
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 512 | `npm run check` |
+| Vitest unit/integration | 550 | `npm run check` |
 | Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |
-| Phase 4 DB (intelligence) | 158 assertions | `npm run qa:db:phase4` |
-| Phase 5 DB (scale) | 513 assertions | `npm run qa:db:phase5` |
+| Phase 4 DB (intelligence) | 159 assertions | `npm run qa:db:phase4` |
+| Phase 5 DB (scale) | 515 assertions | `npm run qa:db:phase5` |
 | Playwright E2E + axe-core | 155 passed, 3 hosted-only skipped | `npm run qa:e2e` |
 
 A PR may not merge if any of these counts decrease without a documented justification in the PR description. Test regressions are blocking defects.
@@ -424,10 +428,11 @@ a separate consolidated release-candidate operation.
 Readiness for `dev → staging` is initiated manually or through an explicitly
 owner-authorized workflow. It requires staging REST health twice, exact
 head/base `Vinifera Promotion Gate`, Octopus, and no active requested-changes review. Production remains
-protected and owner-authorized. Emergency labels always override standing
-automation authority.
-
-**PR routing rule (mandatory):** All agent PRs target `dev`. Codex agents must never open a PR against `staging` or `main`. Promotion from `dev → staging → main` is exclusively a human-initiated action. This is a Prime Directive-level constraint — it cannot be overridden by a build spec, task description, or runtime instruction without a matching ADR approved by the human owner.
+protected and owner-authorized. A standing owner-approved protected workflow
+may initiate and complete `dev → staging`; production, live billing,
+destructive data work, credential rotation, and DNS/domain ownership changes
+retain their independent confirmations. A stop label blocks only its
+consequential boundary and does not suppress evidence or safe repair work.
 
 **Subagent delegation:** Codex agents executing large decomposition tasks (BS-02, BS-03 style work) may spawn subagents for parallel domain extraction. The primary agent is responsible for the manifest step before delegating, and for integration verification after subagents complete.
 
@@ -444,11 +449,14 @@ in a trusted protected workflow. It never bypasses target hashes, environment
 protection, exact confirmations, exact-revision evidence, privacy boundaries,
 or rollback requirements.
 
-Apply `human-review-required`, stop mutation, and notify the owner for
+Apply `human-review-required` and notify the owner for
 destructive or irreversible database work; credible production data-loss,
 authentication, authorization, tenant-isolation, or secret-exposure risk;
 real-money billing decisions; legal/regulatory judgment; suspected credential
 compromise; DNS/domain ownership changes; materially undefined product
 choices; repeated repair failure; or an external failure without a safe
-fallback. `do-not-merge` is absolute. Only the owner or an explicitly trusted
-owner workflow may remove either control.
+fallback. Continue safe diagnostics, reversible repairs, review, preview,
+packaging, and evidence gathering while paused; stop only the merge,
+promotion, deployment, or other boundary-crossing mutation that requires the
+owner's decision. `do-not-merge` is an absolute merge prohibition. Only the
+owner or an explicitly trusted owner workflow may remove either control.

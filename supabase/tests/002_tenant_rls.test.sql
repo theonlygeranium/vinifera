@@ -4,6 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
 select plan(28);
+set local request.jwt.claims = '{"role":"service_role"}';
 
 insert into auth.users (id, email)
 values
@@ -174,10 +175,50 @@ select is((select count(*) from public.organization_invites), 0::bigint, 'member
 set local request.jwt.claims =
   '{"sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","role":"authenticated","organization_id":null,"user_role":"super_admin","auth_surface":"platform","platform_role":"super_admin"}';
 
-select is((select count(*) from public.organizations), 2::bigint, 'super-admin sees all organizations');
-select is((select count(*) from public.members), 2::bigint, 'super-admin sees all members');
-select is((select count(*) from public.staff_users), 2::bigint, 'super-admin sees all staff');
-select is((select count(*) from public.subscription_events), 2::bigint, 'super-admin sees all billing events');
+select is(
+  (
+    select count(*) from public.organizations
+    where id in (
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222'
+    )
+  ),
+  2::bigint,
+  'super-admin sees both fixture organizations'
+);
+select is(
+  (
+    select count(*) from public.members
+    where organization_id in (
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222'
+    )
+  ),
+  2::bigint,
+  'super-admin sees both fixture members'
+);
+select is(
+  (
+    select count(*) from public.staff_users
+    where organization_id in (
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222'
+    )
+  ),
+  2::bigint,
+  'super-admin sees both fixture staff users'
+);
+select is(
+  (
+    select count(*) from public.subscription_events
+    where organization_id in (
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222'
+    )
+  ),
+  2::bigint,
+  'super-admin sees both fixture billing events'
+);
 
 reset role;
 

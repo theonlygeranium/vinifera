@@ -51,9 +51,12 @@ select ok(
     from pg_catalog.pg_indexes
     where schemaname = 'public'
       and tablename = 'members'
-      and indexname = 'members_email_uidx'
+      and indexname in (
+        'members_organization_email_uidx',
+        'members_brand_email_uidx'
+      )
   ),
-  'global normalized member email uniqueness remains for magic-link identity'
+  'normalized member email uniqueness follows the active tenant generation'
 );
 
 select ok(to_regclass('public.club_tiers') is not null, 'club_tiers exists');
@@ -350,7 +353,12 @@ select ok(
 select ok(
   has_function_privilege(
     'service_role',
-    'public.link_member_auth_user(uuid,text)',
+    coalesce(
+      to_regprocedure('public.link_member_auth_user(uuid,text)'),
+      to_regprocedure(
+        'public.link_member_auth_user(uuid,text,uuid,uuid,uuid,text,text)'
+      )
+    ),
     'execute'
   ),
   'service role can atomically link a member auth identity'

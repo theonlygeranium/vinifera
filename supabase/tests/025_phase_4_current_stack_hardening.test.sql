@@ -3,7 +3,27 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
-select plan(37);
+select plan(38);
+set local request.jwt.claims = '{"role":"service_role"}';
+
+select ok(
+  not exists (
+    select 1
+    from pg_proc as procedure
+    join pg_namespace as namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'public'
+      and procedure.proname in (
+        'create_ml_training_run',
+        'get_analytics_dashboard',
+        'get_benchmark_comparison',
+        'get_compliance_dashboard',
+        'list_churn_intelligence',
+        'promote_ml_model_version'
+      )
+      and has_function_privilege('authenticated', procedure.oid, 'EXECUTE')
+  ),
+  'analytics, benchmark, compliance, and ML RPC overloads remain service-only'
+);
 
 insert into auth.users (id, email)
 values

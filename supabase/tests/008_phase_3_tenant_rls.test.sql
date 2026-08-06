@@ -4,6 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
 select plan(39);
+set local request.jwt.claims = '{"role":"service_role"}';
 
 insert into auth.users (id, email)
 values
@@ -238,7 +239,17 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"71000000-0000-4000-8000-000000000001","role":"authenticated","organization_id":"72000000-0000-4000-8000-000000000001","user_role":"owner","auth_surface":"staff","platform_role":null}';
 
-select is((select count(*) from public.email_templates), 6::bigint, 'Org A staff sees six templates');
+select is(
+  (
+    select count(*) from public.email_templates
+    where trigger_type in (
+      'welcome', 'pre_shipment', 'payment_decline', 'shipped',
+      'birthday', 're_engagement'
+    )
+  ),
+  6::bigint,
+  'Org A staff sees six Phase 3 templates'
+);
 select is((select count(*) from public.member_email_preferences), 1::bigint, 'Org A staff sees one email preference');
 select is((select count(*) from public.email_log), 1::bigint, 'Org A staff sees one email log');
 select is((select count(*) from public.email_outbox), 1::bigint, 'Org A staff sees one outbox row');
@@ -256,7 +267,17 @@ select is((select count(*) from public.loyalty_point_lots), 1::bigint, 'Org A st
 set local request.jwt.claims =
   '{"sub":"71000000-0000-4000-8000-000000000002","role":"authenticated","organization_id":"72000000-0000-4000-8000-000000000002","user_role":"owner","auth_surface":"staff","platform_role":null}';
 
-select is((select count(*) from public.email_templates), 6::bigint, 'Org B staff cannot see Org A templates');
+select is(
+  (
+    select count(*) from public.email_templates
+    where trigger_type in (
+      'welcome', 'pre_shipment', 'payment_decline', 'shipped',
+      'birthday', 're_engagement'
+    )
+  ),
+  6::bigint,
+  'Org B staff cannot see Org A Phase 3 templates'
+);
 select is((select count(*) from public.email_log), 1::bigint, 'Org B staff cannot see Org A email');
 select is((select count(*) from public.churn_scores), 1::bigint, 'Org B staff cannot see Org A churn');
 select is((select count(*) from public.loyalty_ledger), 1::bigint, 'Org B staff cannot see Org A loyalty');
@@ -289,10 +310,54 @@ select is((select count(*) from public.loyalty_ledger), 1::bigint, 'Org B member
 set local request.jwt.claims =
   '{"sub":"71000000-0000-4000-8000-000000000005","role":"authenticated","organization_id":null,"user_role":"super_admin","auth_surface":"platform","platform_role":"super_admin"}';
 
-select is((select count(*) from public.email_templates), 12::bigint, 'super-admin sees all templates');
-select is((select count(*) from public.email_unsubscribe_tokens), 2::bigint, 'super-admin sees token state');
-select is((select count(*) from public.churn_scores), 2::bigint, 'super-admin sees all churn scores');
-select is((select count(*) from public.loyalty_ledger), 2::bigint, 'super-admin sees all loyalty entries');
+select is(
+  (
+    select count(*) from public.email_templates
+    where organization_id in (
+      '72000000-0000-4000-8000-000000000001',
+      '72000000-0000-4000-8000-000000000002'
+    )
+      and trigger_type in (
+        'welcome', 'pre_shipment', 'payment_decline', 'shipped',
+        'birthday', 're_engagement'
+      )
+  ),
+  12::bigint,
+  'super-admin sees all fixture Phase 3 templates'
+);
+select is(
+  (
+    select count(*) from public.email_unsubscribe_tokens
+    where organization_id in (
+      '72000000-0000-4000-8000-000000000001',
+      '72000000-0000-4000-8000-000000000002'
+    )
+  ),
+  2::bigint,
+  'super-admin sees fixture token state'
+);
+select is(
+  (
+    select count(*) from public.churn_scores
+    where organization_id in (
+      '72000000-0000-4000-8000-000000000001',
+      '72000000-0000-4000-8000-000000000002'
+    )
+  ),
+  2::bigint,
+  'super-admin sees all fixture churn scores'
+);
+select is(
+  (
+    select count(*) from public.loyalty_ledger
+    where organization_id in (
+      '72000000-0000-4000-8000-000000000001',
+      '72000000-0000-4000-8000-000000000002'
+    )
+  ),
+  2::bigint,
+  'super-admin sees all fixture loyalty entries'
+);
 
 select * from finish();
 rollback;

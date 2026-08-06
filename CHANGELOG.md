@@ -1,10 +1,81 @@
-## [Unreleased] - 2026-07-30
-### Fixed
-- Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure so CI policy tests can locate the embedded quality-gate runbook (22 test failures on `main`).
-
 # Changelog
 
 ## [Unreleased]
+
+### Changed
+- Narrow `human-review-required` from a global automation pause to a consequential-mutation stop. Exact-head review, safe repair, non-production previews, promotion readiness, and immutable artifact packaging now continue while merge/promotion/deployment boundaries remain fail closed. Verified rollback to a known prior reviewed Worker version is no longer blocked by a stop label. The ownership and agent workflow contracts now reserve additional human review for destructive, irreversible, production-data, unresolved auth/tenant, real-money, legal, credential-compromise, or DNS/domain decisions. **Deployment impact:** governance and trusted CI/release-control behavior only; no application route, provider, database, credential, billing, DNS, Worker, mobile-store, or production activation state changes.
+- Reconcile the protected `staging` history back into `dev` while retaining the
+  newer GitHub-owned Worker deployment model, exact neutral-branch promotion
+  fixture, and current Octopus workflow formatting. This removes branch-history
+  conflicts without reverting either branch's delivered behavior.
+  **Deployment impact:** branch ancestry and release-control history only; no
+  provider, database, Worker, billing, DNS, or production mutation.
+- Preserve the reconciled `staging` revision as an explicit merge parent after
+  the reviewed reconciliation PR was squash-merged. The merge keeps the already
+  verified `dev` tree and restores the ancestry required by the protected
+  `dev`-to-`staging` promotion comparison.
+  **Deployment impact:** Git topology and promotion eligibility only; no
+  application, provider, database, Worker, billing, DNS, or production change.
+
+### Fixed
+- Reconcile the hosted activation ledger with the 2026-08-05 live re-audit:
+  mark Gates 1, 3, 4, 5, and 9 `live-passed`, keep repaired Worker/acceptance
+  Gates 2 and 7 pending exact-candidate staging deployment, and raise every
+  documented Vitest regression floor from 549 to the verified 550-test exact
+  head. **Deployment impact:** documentation and merge-floor accuracy only; no
+  provider, database, Worker, billing, DNS, or production mutation.
+- Re-audit hosted activation Gates 1–5, 7, and 9 against current provider,
+  database, and runtime evidence. Repair Cloudflare Access propagation in the
+  member service, route default-brand resolution through its tenant-scoped
+  admin RPC, require staging identity plus the exact promoted Git SHA in
+  Worker evidence, accept immutable Wrangler preview origins, restore the
+  skipped-database staging deployment path with `always()`, upload the Access
+  service-token bindings, correct the Octopus health route, and replace the
+  broken hosted database backup with a checked, timestamped, retained custom
+  dump. Refresh native pgTAP fixtures for current template seeds, service-role
+  JWT context, browser-role privilege denial, active ML actor attribution,
+  source-qualified 500-member/50-outcome training, and production-only alert
+  semantics. Add negative browser-role RPC privilege assertions and a member
+  service Access-transport regression. Add forward migrations that disambiguate
+  release shipment creation and carry selected-brand scope through every
+  shipment query, make the email outbox digest portable and schema-qualified,
+  and restore early provider-webhook reconciliation after the hashed-token
+  rewrite. Require the complete staging Access pair and a successful
+  database-backed Worker route before recording live deployment evidence. Load
+  the complete 30-migration chain in Phase 5 QA and
+  make promotion-smoke fixtures independent of the operator's Git default
+  branch.
+  **Deployment impact:** staging Worker release control, hosted backup
+  operations, and staging database/runtime verification; no production, live
+  billing, DNS, or mobile-store activation.
+- CF Access service-token headers now injected into all outbound Supabase requests via custom fetch wrapper AND client-level `global.headers`. The `@supabase/supabase-js` `global.fetch` option alone does not reliably propagate to PostgREST database queries in the Cloudflare Workers runtime. A custom `fetch` wrapper using the `Headers` API ensures CF-Access-Client-Id and CF-Access-Client-Secret reach both GoTrue and PostgREST endpoints, and `global.headers` provides a second propagation path at the client level.
+- `activeBrandId` brand resolution now uses a `resolve_default_brand_id` RPC (migration 024) via the admin client instead of a direct PostgREST column query on the surface client. The surface client (`@supabase/ssr` `createServerClient`) cannot inject CF Access headers into PostgREST requests in the Workers runtime, causing brand resolution to return the CF Access login page HTML. RPCs bypass the query chain modeler and use `this.admin` (which propagates CF Access headers correctly).
+- Stripe webhook signature verification switched from synchronous `stripe.webhooks.constructEvent()` to `await stripe.webhooks.constructEventAsync()` — the synchronous `SubtleCryptoProvider` cannot be used in the Cloudflare Workers runtime.
+- Added `stripeCredentialMode` activation guard before `createStripe` call in `handleStripeWebhook` to satisfy fail-closed provider activation requirements.
+- Added `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` to `WorkerEnv` type.
+
+### Added
+- Migration 024: `public.resolve_default_brand_id(p_organization_id uuid)` RPC — a SECURITY DEFINER wrapper around `private.default_brand_for_org`. Granted execute to both `service_role` and `anon` (PostgREST builds its schema cache as the `anon` role; without the `anon` grant, the RPC is invisible to PostgREST and returns 404).
+
+
+### Fixed
+- Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure so CI policy tests can locate the embedded quality-gate runbook (22 test failures on `main`).
+
+### Fixed
+- Fix the automated staging deployment pipeline in `ci.yml`: (1) the `deploy-staging` job's `if` condition referenced `vars.STAGING_CLOUDFLARE_DEPLOY_ENABLED`, but this variable was set as a staging *environment* variable, which is invisible to job-level `if` conditions (environment-level variables are only available on the runner after the job starts, per GitHub's context availability rules). Moved the variable to the repository level so it is visible in the `vars` context at job-evaluation time. (2) The `deploy-staging` job required `needs.database.result == 'success'`, but the `database` job is gated by `vars.STAGING_SUPABASE_MIGRATION_ENABLED == 'true'` (not set), so it is always `skipped`. A skipped job has `result == 'skipped'`, not `'success'`, which blocked `deploy-staging` unconditionally. Updated the condition to accept `skipped` since staging migrations are applied manually on the self-hosted Supabase stack, not via `supabase link`/`supabase db push` which targets Supabase Cloud. **Deployment impact:** CI/release-control pipeline only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
+
+### Fixed
+- Add CF Access service token headers (`CF-Access-Client-Id`, `CF-Access-Client-Secret`) to the `staging-rest-pre` and `staging-rest-pre-merge` REST probe jobs in `promote-dev-to-staging.yml`. Without these headers, the probes receive 302 redirects from the Cloudflare Access protection on `staging-db.edstratumlabs.ai` and cannot verify staging Supabase REST health during the dev→staging promotion pipeline. The `promotion-control` environment already has `STAGING_CF_ACCESS_CLIENT_ID` and `STAGING_CF_ACCESS_CLIENT_SECRET` secrets configured. **Deployment impact:** CI/release-control pipeline only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
+
+### Changed
+
+- Added `workers_dev` and `preview_urls` flags to the staging Wrangler environment so the isolated staging Worker receives a public preview URL for health verification during Gate 2 activation.
+
+### Fixed
+- Resolve 15 pgTAP test failures on staging database: add migration 023 (87 missing FK indexes across all phases), update 4 stale test files for renamed constraints/indexes, RPC signature change, and service-role-only security boundary. pgTAP suite now passes 258/258. **Deployment impact:** database schema (87 new non-unique indexes) and test files only; no application route, provider, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
+
+### Changed
+- Reconcile Octopus↔Cloudflare deployment model (ADR: `2026-08-05-octopus-cloudflare-deployment-reconciliation.md`). Correct `AppHealthUrl` in `.octopus/variables.ocl` from `http://localhost:3000/health` to the real Worker health endpoint `https://vinifera-development.jeff-f69.workers.dev/health`. Deprecate PM2 `restart-application` step in `.octopus/deployment_process.ocl`, replacing it with a `verify-worker-health` evidence probe that checks the deployed Cloudflare Worker; merge the former `smoke-test` step into the probe. Reduce `.github/workflows/octopus-main-deploy.yml` to evidence-only — remove the non-functional "Deploy to Development" step and keep Octopus release creation as an audit record. Octopus now serves as review/orchestration and release-audit ledger; GitHub Actions owns Worker deployment via Wrangler. **Deployment impact:** CI/release-control and Octopus process configuration only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Fixed
 - Conclude OIDC service-account migration investigation: `OctopusDeploy/login@v2` OIDC exchange targets `localhost:8080/token/v1`, a sidecar provisioned only on Octopus Cloud-hosted runners. Self-hosted Octopus with GitHub-hosted runners cannot satisfy this requirement. Reverted both `octopus-main-deploy.yml` and `octopus-pr-quality-gates.yml` to the verified `api_key:` login path; retained `vinifera-gha` service account, dedicated Octopus team (`Teams-21`), Build Server role (`ScopedUserRoles-21`), and `OCTOPUS_SERVICE_ACCOUNT_ID` secret as prerequisites for a future attempt when a compatible token-exchange mechanism ships. **Deployment impact:** CI/release-control authentication behavior only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.

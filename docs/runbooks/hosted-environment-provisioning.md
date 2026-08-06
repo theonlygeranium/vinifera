@@ -32,11 +32,12 @@ Create a fourth control environment before enabling deliberate promotion:
 | --- | --- | --- |
 | `promotion-control` | Event-producing GitHub token and staging REST probe credentials used by `promote-dev-to-staging.yml` | Deployment branch policy permits only `main`; prevent self-review where supported |
 
-Move `GH_PAT_FOR_OCTOPUS`, `STAGING_SUPABASE_URL`, and
-`STAGING_SUPABASE_ANON_KEY` into `promotion-control` before dispatching the
-workflow. The workflow itself also rejects any ref or SHA other than the
-current `main`, but that source check supplements rather than replaces the
-environment boundary.
+Move `GH_PAT_FOR_OCTOPUS`, `STAGING_SUPABASE_URL`,
+`STAGING_SUPABASE_ANON_KEY`, `STAGING_CF_ACCESS_CLIENT_ID`, and
+`STAGING_CF_ACCESS_CLIENT_SECRET` into `promotion-control` before dispatching
+the workflow. The Access pair authenticates the protected REST probes. The
+workflow itself also rejects any ref or SHA other than the current `main`, but
+that source check supplements rather than replaces the environment boundary.
 
 Configure protected-environment policy and prevent self-review where the
 GitHub plan supports it. Standing owner authorization may permit a trusted
@@ -75,8 +76,9 @@ to them.
 The architecture is currently complete but services are intentionally
 disconnected. Do not treat the sections below as permission to dispatch a
 mutation. Resume only the smallest provider-specific step after its credential,
-target, protected-workflow authority, and absence of `human-review-required`
-and `do-not-merge` are confirmed.
+target, and protected-workflow authority are confirmed. Stop labels do not
+block readiness probes or evidence collection; they are rechecked at the exact
+merge, promotion, or deployment boundary they govern.
 
 ## Staging target authorization
 
@@ -122,6 +124,8 @@ Minimum Worker control and core runtime secrets:
 ```text
 STAGING_CLOUDFLARE_ACCOUNT_ID
 STAGING_CLOUDFLARE_API_TOKEN
+STAGING_CF_ACCESS_CLIENT_ID
+STAGING_CF_ACCESS_CLIENT_SECRET
 STAGING_SUPABASE_URL
 STAGING_SUPABASE_PUBLISHABLE_KEY or STAGING_SUPABASE_ANON_KEY
 STAGING_SUPABASE_SECRET_KEY or STAGING_SUPABASE_SERVICE_ROLE_KEY
@@ -171,11 +175,47 @@ Optional capabilities may remain false in staging while their credentials are
 pending. Their application paths continue returning explicit activation
 states.
 
+When the staging Supabase ingress is protected by Cloudflare Access, the same
+service-token pair is uploaded as the Worker bindings `CF_ACCESS_CLIENT_ID` and
+`CF_ACCESS_CLIENT_SECRET`. Both the GoTrue and PostgREST client paths inject
+those headers. A successful Auth session alone is therefore not sufficient
+evidence; verify an authenticated database-backed route such as
+`GET /api/members` after deployment.
+
+### Self-hosted staging database backup
+
+Install the tracked backup command at the path used by the host cron:
+
+```bash
+sudo install -o root -g root -m 700 \
+  scripts/staging-db-backup.sh \
+  /opt/supabase-staging/vinifera_backup.sh
+sudo /opt/supabase-staging/vinifera_backup.sh --check
+sudo /opt/supabase-staging/vinifera_backup.sh
+```
+
+The command reads the database identity from the running `supabase-db`
+container, creates a timestamped PostgreSQL custom-format dump under
+`/opt/supabase-staging/backups`, and retains 14 days by default. Override the
+container, directory, or retention only with the documented
+`VINIFERA_DB_CONTAINER`, `VINIFERA_BACKUP_DIRECTORY`, and
+`VINIFERA_BACKUP_RETENTION_DAYS` variables.
+
+For a self-hosted database whose schema predates the Supabase migration ledger,
+reconcile each already-applied local version with `supabase migration repair
+--status applied` before using `supabase db push`. Confirm exact parity with
+`supabase migration list` and a no-op `supabase db push --dry-run`; do not
+reapply schema SQL merely to populate the ledger.
+
 After a staging deployment, verify the stable staging URL separately from the
 immutable Worker or Pages preview. Record the environment marker, build
 SHA/digest, API health contract, primary browser journey, basic accessibility,
-and absence of critical console/server errors. An HTTP 200 or a static landing
-page is insufficient.
+a successful database-backed `GET /api/portal/branding` probe, and absence of
+critical console/server errors. The staging deploy must fail before upload
+unless both Cloudflare Access service-token values are present, and it must
+fail after deployment if the database-backed probe cannot traverse the
+protected Supabase ingress. An HTTP 200 or a static landing page is
+insufficient.
 
 Winery connection secrets may be stored in an authenticated encrypted
 database envelope or referenced by the exact
@@ -323,9 +363,10 @@ Do not promote one row into another without collecting the named evidence.
 5. Re-enable mutation only after target hashes and sandbox/production modes
    still match.
 
-If `human-review-required` or `do-not-merge` is present, stop mutation,
-promotion, and deployment. Only the human owner or an explicitly trusted owner
-workflow may remove either control.
+If `human-review-required` is present, continue read-only readiness, diagnosis,
+safe repair, and evidence collection, but stop the consequential promotion or
+deployment awaiting owner judgment. `do-not-merge` blocks merge only. Only the
+human owner or an explicitly trusted owner workflow may remove either control.
 
 Database migrations are forward-only. Restore a verified hosted backup instead
 of attempting to drop Phase 1–5 tables. Domain rollback is documented

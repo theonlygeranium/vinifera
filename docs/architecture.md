@@ -495,25 +495,25 @@ The Worker serves `/app/*` and `/portal/*` from the Vite shell with `text/html; 
 
 ## Provider adapters
 
-All provider activation remains pending. Gate numbers refer to the canonical
-table below.
+Provider activation is incremental. Gate numbers and current evidence status
+refer to the canonical table below.
 
 | Provider | Purpose | Activation gate | Status | Missing-wiring behavior |
 |---|---|---:|---|---|
-| Supabase | Auth, PostgreSQL, RLS | 1, 3, 7, 9 | Pending | Auth/data operations return `503 activation_required` |
-| Stripe | SaaS subscriptions and portal | 4, 19 | Pending | Billing operations return `503 activation_required` |
-| Stripe PaymentIntents | Release charges, retries, refunds | 4, 6, 19 | Pending | Shipment billing returns `503 activation_required` |
-| EasyPost | Address verification, carrier rates, labels, tracking | 5, 13 | Pending | Shipping returns `503 activation_required` |
+| Supabase | Auth, PostgreSQL, RLS | 1, 3, 7, 9 | Gates 1, 3, and 9 complete; Gate 7 repair pending deployment | Auth/data operations return `503 activation_required` |
+| Stripe | SaaS subscriptions and portal | 4, 19 | Gate 4 complete; Gate 19 pending | Billing operations return `503 activation_required` |
+| Stripe PaymentIntents | Release charges, retries, refunds | 4, 6, 19 | Gate 4 complete; Gates 6 and 19 pending | Shipment billing returns `503 activation_required` |
+| EasyPost | Address verification, carrier rates, labels, tracking | 5, 13 | Gate 5 complete; Gate 13 pending | Shipping returns `503 activation_required` |
 | Resend | Transactional templates, stable per-message delivery, events | 8 | Pending | Delivery returns `503 activation_required`; durable work remains queued |
 | ShipCompliant | Post-charge/pre-label shipment legality, volume, and tax checks | 13 | Pending | Labels fail closed; dashboard reports `activation_required` until the contracted adapter configuration is complete |
 | Klaviyo | Profiles, list membership, and engagement sync | 14 | Pending | Jobs remain unclaimable until explicit opt-in and encrypted winery credentials validate |
 | QuickBooks Online | Sales receipts, refunds, OAuth refresh, and reconciliation | 14 | Pending | Application OAuth remains disabled without Worker config; connection tokens are encrypted per winery |
 | Avalara | Pre-charge tax calculation, commit, void, and reconciliation | 14 | Pending | An opted-in connected failure blocks the charge; inactive connections transmit nothing |
 | Meta Conversions API | Consent-gated conversions with hashed identifiers | 14 | Pending | Unconsented events are suppressed; missing encrypted dataset/token configuration transmits nothing |
-| Cloudflare for SaaS | Worker deployment, hostname validation, and certificates | 2, 16, 20 | Pending | Pending or unverified hosts never choose brand context |
+| Cloudflare for SaaS | Worker deployment, hostname validation, and certificates | 2, 16, 20 | Gate 2 repair pending deployment; Gates 16 and 20 pending | Pending or unverified hosts never choose brand context |
 | APNs / FCM | Platform-specific native push delivery | 17, 18 | Pending | Missing platform credentials leave push work dormant without creating a connected state |
-| Google via Supabase | Staff OAuth | 3 | Pending | OAuth route remains disabled until configured |
-| SMTP via Supabase | Invite/reset/magic-link delivery | 3, 7 | Pending | Delivery QA remains pending |
+| Google via Supabase | Staff OAuth | 3 | Complete | OAuth route remains disabled until configured |
+| SMTP via Supabase | Invite/reset/magic-link delivery | 3, 7 | Gate 3 complete; Gate 7 repair pending deployment | Delivery QA remains pending |
 
 ---
 
@@ -534,21 +534,21 @@ All animations are disabled under `@media (prefers-reduced-motion: reduce)`.
 
 ## Current activation gates
 
-The canonical gates below are reproduced from `CONTINUITY_BRIEF.md`. BS-05
-records partial local prerequisite evidence separately; a composite gate stays
-`pending` until its complete hosted or provider requirement is proved.
+The canonical gates below are reproduced from `CONTINUITY_BRIEF.md`. A gate is
+complete only with current hosted/provider proof; a source repair remains
+pending until its reviewed exact revision is deployed and reverified.
 
 | Gate | Requirement | Status |
 |---:|---|---|
-| 1 | Add staging-environment Supabase management credentials, then set the exact project hash and repository variable `STAGING_SUPABASE_MIGRATION_ENABLED=true` to apply `supabase/migrations/` and run `supabase test db --linked`. | Pending |
-| 2 | Give the staging Cloudflare token Workers Scripts edit permission and set the exact account hash plus repository variable `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` only for the isolated `vinifera-staging` Worker. | Pending |
-| 3 | Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP. | Pending |
-| 4 | When service activation is explicitly resumed, reconcile the created-or-unknown Stripe test Price from run `30218801133`, then bootstrap/verify the four recurring Prices without a blind retry, register `/api/billing/webhook`, and add its signing secret. | Pending |
-| 5 | Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled. | Pending |
+| 1 | Add staging-environment Supabase management credentials, then set the exact project hash and repository variable `STAGING_SUPABASE_MIGRATION_ENABLED=true` to apply `supabase/migrations/` and run `supabase test db --linked`. | Complete |
+| 2 | Give the staging Cloudflare token Workers Scripts edit permission and set the exact account hash plus repository variable `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` only for the isolated `vinifera-staging` Worker. | Repair pending deployment |
+| 3 | Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP. | Complete |
+| 4 | When service activation is explicitly resumed, reconcile the created-or-unknown Stripe test Price from run `30218801133`, then bootstrap/verify the four recurring Prices without a blind retry, register `/api/billing/webhook`, and add its signing secret. | Complete |
+| 5 | Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled. | Complete |
 | 6 | Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof. | Pending |
-| 7 | Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests. | Pending |
+| 7 | Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests. | Repair pending deployment |
 | 8 | Verify a Resend sending domain, signed webhook, and at least two real staging triggers. | Pending |
-| 9 | Apply Phase 4 migration 15 to hosted Supabase and run the 37 current-stack pgTAP assertions plus native tenant/RPC tests. | Pending |
+| 9 | Apply Phase 4 migration 15 to hosted Supabase and run the current-stack pgTAP assertions plus native tenant/RPC tests. | Complete (331/331 canonical native assertions) |
 | 10 | Connect a winery with real Phase 2/3 operations and verify every analytics metric and CSV export against source records. | Pending |
 | 11 | Configure a dedicated active `ML_PLATFORM_ACTOR_USER_ID`, accumulate at least 500 labeled members and 50 cancellations, reconcile all six source families, dry-run and execute `ops:phase4:qualify-ml`, train on production history, meet held-out AUC-ROC 0.82 without underperforming rules, and complete the superior 30-day A/B gate before actor-audited promotion. | Pending |
 | 12 | Opt an Estate/Reserve winery into a peer cohort with at least ten contributors and verify the quarterly report delivery. | Pending |

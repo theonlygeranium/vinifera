@@ -16,7 +16,9 @@ marketing/static hostname.
 - The release workflow executes only the current `origin/main` control SHA and
   requires GitHub to associate it with a merged same-repository
   `staging → main` PR. It rejects the dispatch when that authorization retains
-  `human-review-required` or `do-not-merge`.
+  `human-review-required` or `do-not-merge` for a forward release. A verified
+  rollback to a known prior reviewed version remains available under either
+  label.
 - `Type, test, build, and package`, exact-comparison Octopus, source QA, hosted
   Supabase pgTAP/RLS, hosted two-tenant proof, provider
   sandboxes, physical-device QA, and store-track checks required by the Phase 5
@@ -40,7 +42,8 @@ marketing/static hostname.
   `vinifera.edstratumlabs.ai` custom domain and a restorable production
   deployment.
 - The known production rollback target is healthy and retained.
-- Neither `human-review-required` nor `do-not-merge` is present.
+- Neither `human-review-required` nor `do-not-merge` is present for a forward
+  production release. Exact known-good rollback is exempt.
 - The production Worker uses Stripe test mode and
   `LIVE_BILLING_ENABLED=false`.
 - `config/stripe-live-billing-policy.json` remains disabled; production Worker
@@ -232,7 +235,8 @@ The revert operation restores the reviewed test bindings and disables live
 billing. Neither operation is authorized while services are deferred, and a
 credential's presence alone is never sufficient.
 
-`human-review-required` pauses release and rollback mutation until the owner or
-an explicitly trusted owner workflow removes it. `do-not-merge` remains an
-absolute promotion prohibition. Neither label may be bypassed by standing
-authorization.
+`human-review-required` pauses forward release mutation until the owner or an
+explicitly trusted owner workflow removes it. `do-not-merge` remains an
+absolute promotion prohibition. Neither label suppresses evidence collection,
+and neither blocks an exact, verified rollback to a known prior reviewed Worker
+version.

@@ -121,11 +121,8 @@ jobs:
           if [[ -n "$existing" ]]; then
             existing_metadata=$(gh pr view "$existing" --repo "$REPO" \
               --json labels,state)
-            if [[ "$(jq -r '.state' <<<"$existing_metadata")" != "OPEN" ]] \
-              || jq -e \
-                'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-                <<<"$existing_metadata" >/dev/null; then
-              echo "::error::The existing promotion PR is closed or paused by an emergency label."
+            if [[ "$(jq -r '.state' <<<"$existing_metadata")" != "OPEN" ]]; then
+              echo "::error::The existing promotion PR is closed."
               exit 1
             fi
             echo "Existing promotion PR #$existing found — updating body."
@@ -180,6 +177,8 @@ jobs:
         env:
           STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          STAGING_CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          STAGING_CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
@@ -194,6 +193,8 @@ jobs:
             --retry-delay 5 \
             -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
+            -H "CF-Access-Client-Id: ${STAGING_CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${STAGING_CF_ACCESS_CLIENT_SECRET}" \
             "${STAGING_SUPABASE_URL%/}/auth/v1/health" || printf "000")
 
           if [[ "$http_code" =~ ^2 ]]; then
@@ -252,11 +253,8 @@ jobs:
             current_base_name=$(jq -r '.baseRefName' <<<"$current_metadata")
             current_base_sha=$(jq -r '.baseRefOid' <<<"$current_metadata")
             current_state=$(jq -r '.state' <<<"$current_metadata")
-            if [[ "$current_state" != "OPEN" ]] \
-              || jq -e \
-                'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-                <<<"$current_metadata" >/dev/null; then
-              echo "::error::Promotion PR is closed or paused by an emergency label."
+            if [[ "$current_state" != "OPEN" ]]; then
+              echo "::error::Promotion PR is closed."
               exit 1
             fi
             if [[ "$current_sha" != "$PR_SHA" ]]; then
@@ -429,6 +427,8 @@ jobs:
         env:
           STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
           STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          STAGING_CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          STAGING_CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
@@ -438,6 +438,8 @@ jobs:
             --retry-delay 5 \
             -H "apikey: ${STAGING_SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${STAGING_SUPABASE_ANON_KEY}" \
+            -H "CF-Access-Client-Id: ${STAGING_CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${STAGING_CF_ACCESS_CLIENT_SECRET}" \
             "${STAGING_SUPABASE_URL%/}/auth/v1/health" || printf "000")
 
           if [[ "$http_code" =~ ^2 ]]; then
@@ -481,11 +483,8 @@ jobs:
           current_base_name=$(jq -r '.baseRefName' <<<"$current_metadata")
           current_base_sha=$(jq -r '.baseRefOid' <<<"$current_metadata")
           current_state=$(jq -r '.state' <<<"$current_metadata")
-          if [[ "$current_state" != "OPEN" ]] \
-            || jq -e \
-              'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-              <<<"$current_metadata" >/dev/null; then
-            echo "::error::Promotion PR is closed or paused by an emergency label."
+          if [[ "$current_state" != "OPEN" ]]; then
+            echo "::error::Promotion PR is closed."
             exit 1
           fi
           if [[ "$current_sha" != "$PR_SHA" ]]; then

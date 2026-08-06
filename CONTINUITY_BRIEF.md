@@ -1,6 +1,6 @@
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-07-31
+**Last updated:** 2026-08-05
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
 
 ## Project identity
@@ -12,6 +12,33 @@
 - Build specifications: `docs/build-specs/`
 
 Read `AGENTS.md`, the phase specification, and this brief before editing.
+
+## 2026-08-05 hosted activation re-audit
+
+The canonical Gate 1–5, 7, and 9 evidence was rechecked against the live
+staging providers, database, and Worker rather than accepted from the prior
+review. Gates 1, 3, 4, 5, and 9 are currently verified: all 30 migrations are in
+the repaired Supabase migration ledger with a clean dry run; Auth retains the
+custom hook, 900-second OTP, Google provider, and SMTP configuration; Stripe
+accepted a resent signed subscription event exactly once; and EasyPost test
+address verification remains deliverable with ZIP+4.
+
+Gates 2 and 7 were reopened pending deployment of this repair candidate.
+The stable staging Worker reported `environment=production` and no revision;
+member/tier requests failed because one Supabase client factory omitted the
+Cloudflare Access service token; and native current-stack pgTAP files contained
+stale JWT, seed-count, privilege, ML-attribution, qualification, and alert
+assumptions. The repaired canonical native set passes 331/331 against the
+hosted database. Forward migrations also repair release-shipment overload
+resolution with end-to-end brand scoping, email-claim digest resolution, and
+early-webhook reconciliation.
+The staging deploy now requires `environment=staging` plus the exact promoted SHA,
+and the service-token bindings are included in the atomic Worker secret upload.
+
+The host backup command was also replaced with
+`scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
+dump completed on 2026-08-05; the existing daily cron continues to call the
+installed `/opt/supabase-staging/vinifera_backup.sh` path.
 
 ## Current production state
 
@@ -231,8 +258,10 @@ CI, Octopus, CodeRabbit, or automatic `dev → staging` readiness after each
   database-policy, or governance decisions.
 - Staging and production remain exact-revision, protected operations.
   Standing owner authorization does not bypass environment controls, target
-  hashes, confirmations, privacy, rollback, `human-review-required`, or
-  `do-not-merge`.
+  hashes, confirmations, privacy, rollback, or a stop label at the exact
+  consequential boundary. `human-review-required` does not suppress safe
+  diagnosis, repair, review, preview, or evidence collection;
+  `do-not-merge` remains an absolute merge prohibition.
 
 Evidence must be reported as one of: local validation, fast GitHub validation,
 full GitHub validation, preview deployment, staging deployment, production
@@ -429,9 +458,11 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   cannot be treated as success.
 - PR ownership remains a terminal agent condition, but the applicable gate now
   depends on delivery level. Five precedence-ordered labels scope recurring
-  monitoring; `human-review-required` pauses mutation and `do-not-merge` is
-  absolute. Standing owner authority can cover routine reversible delivery
-  through protected controls but cannot bypass either label.
+  monitoring; `human-review-required` pauses merge, promotion, deployment,
+  and the specific owner decision while safe repair/evidence work continues;
+  `do-not-merge` is an absolute merge prohibition. Standing owner authority
+  covers routine reversible delivery through protected controls but cannot
+  bypass a stop label at its consequential boundary.
 - Risk-based development merge source is defined by
   `.github/delivery-risk-contract.json`,
   `.github/scripts/dev-automerge-policy.mjs`, and

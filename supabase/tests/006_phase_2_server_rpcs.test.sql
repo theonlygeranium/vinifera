@@ -4,6 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
 select plan(72);
+set local request.jwt.claims = '{"role":"service_role"}';
 
 select ok(
   to_regclass('public.billing_attempts_stripe_refund_id_uidx') is not null,
@@ -19,12 +20,14 @@ insert into public.organizations (
   id,
   name,
   plan_tier,
+  access_status,
   shipping_origin_address
 )
 values (
   '32000000-0000-4000-8000-000000000001',
   'Phase 2 RPC Winery',
   'vine',
+  'active',
   '{
     "company":"Phase 2 RPC Winery",
     "name":"Fulfillment",
@@ -36,6 +39,10 @@ values (
     "country":"US"
   }'::jsonb
 );
+
+update public.organizations
+set access_status = 'active'
+where id = '32000000-0000-4000-8000-000000000001';
 
 insert into public.staff_users (id, organization_id, email, role)
 values (
@@ -206,6 +213,42 @@ values (
   4000
 );
 
+create function pg_temp.create_release_shipment_count(
+  p_organization_id uuid,
+  p_release_id uuid,
+  p_actor_user_id uuid
+)
+returns bigint
+language plpgsql
+as $$
+declare
+  v_brand_id uuid;
+  v_count bigint;
+begin
+  if to_regprocedure(
+    'public.create_release_shipments(uuid,uuid,uuid,uuid)'
+  ) is not null then
+    select brand_id into v_brand_id
+    from public.releases
+    where id = p_release_id;
+    execute $query$
+      select count(*)
+      from public.create_release_shipments($1, $2, $3, $4)
+    $query$
+    into v_count
+    using p_organization_id, v_brand_id, p_release_id, p_actor_user_id;
+  else
+    execute $query$
+      select count(*)
+      from public.create_release_shipments($1, $2, $3)
+    $query$
+    into v_count
+    using p_organization_id, p_release_id, p_actor_user_id;
+  end if;
+  return v_count;
+end;
+$$;
+
 select is(
   (
     select count(*)
@@ -223,25 +266,19 @@ select is(
   'a due release cannot be claimed twice'
 );
 select is(
-  (
-    select count(*)
-    from public.create_release_shipments(
-      '32000000-0000-4000-8000-000000000001',
-      '35000000-0000-4000-8000-000000000001',
-      '31000000-0000-4000-8000-000000000001'
-    )
+  pg_temp.create_release_shipment_count(
+    '32000000-0000-4000-8000-000000000001',
+    '35000000-0000-4000-8000-000000000001',
+    '31000000-0000-4000-8000-000000000001'
   ),
   2::bigint,
   'release processing creates one shipment per active participating member'
 );
 select is(
-  (
-    select count(*)
-    from public.create_release_shipments(
-      '32000000-0000-4000-8000-000000000001',
-      '35000000-0000-4000-8000-000000000001',
-      '31000000-0000-4000-8000-000000000001'
-    )
+  pg_temp.create_release_shipment_count(
+    '32000000-0000-4000-8000-000000000001',
+    '35000000-0000-4000-8000-000000000001',
+    '31000000-0000-4000-8000-000000000001'
   ),
   2::bigint,
   'release shipment creation is idempotent'
@@ -946,32 +983,131 @@ select throws_ok(
   'a fully refunded terminal shipment rejects a new retry'
 );
 
+do $$
+declare
+  v_brand_id uuid;
+  v_shipment_id uuid := (
+    select id
+    from public.shipments
+    where member_id = '34000000-0000-4000-8000-000000000002'
+  );
+begin
+  if to_regprocedure(
+    'public.record_shipment_compliance_check(uuid,uuid,uuid,public.compliance_check_status,text,integer,text,text,timestamptz,uuid,jsonb)'
+  ) is not null then
+    select brand_id into v_brand_id
+    from public.shipments
+    where id = v_shipment_id;
+    execute $address$
+      select public.set_validated_shipment_address(
+        $1, $2, 'valid', $3, '[]'::jsonb, $4
+      )
+    $address$
+    using
+      '32000000-0000-4000-8000-000000000001'::uuid,
+      v_shipment_id,
+      '{"line1":"20 Main Street","city":"Napa","state":"CA","postal_code":"94558","country":"US"}'::jsonb,
+      '31000000-0000-4000-8000-000000000001'::uuid;
+    execute $compliance$
+      select public.record_shipment_compliance_check(
+        $1, $2, $3, 'compliant', null, 0,
+        'phase2-current-stack-compliance', 'simulated', now(), $4,
+        '{
+          "recipient_state_allowed":true,
+          "origin_to_recipient_allowed":true,
+          "age_verified":true,
+          "volume_within_limit":true,
+          "rules_version":"phase2-current-stack-v1",
+          "provider_response_is_local":true,
+          "request_fingerprint_sha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }'::jsonb
+      )
+    $compliance$
+    using
+      '32000000-0000-4000-8000-000000000001'::uuid,
+      v_brand_id,
+      v_shipment_id,
+      '31000000-0000-4000-8000-000000000001'::uuid;
+  end if;
+end;
+$$;
+
+create function pg_temp.advance_label_compat()
+returns public.shipment_status
+language plpgsql
+as $$
+declare
+  v_attempt_id uuid;
+  v_lease_token text;
+  v_shipment_id uuid := (
+    select id
+    from public.shipments
+    where member_id = '34000000-0000-4000-8000-000000000002'
+  );
+  v_status public.shipment_status;
+begin
+  if to_regprocedure(
+    'public.acquire_shipping_label_attempt(uuid,uuid,text,uuid,integer,text)'
+  ) is not null then
+    execute $acquire$
+      select attempt_id, lease_token
+      from public.acquire_shipping_label_attempt($1, $2, $3, $4, 300, 'simulated')
+    $acquire$
+    into v_attempt_id, v_lease_token
+    using
+      '32000000-0000-4000-8000-000000000001'::uuid,
+      v_shipment_id,
+      'phase2-current-stack-worker',
+      '31000000-0000-4000-8000-000000000001'::uuid;
+    execute $persist$
+      select public.persist_shipping_label_external_shipment(
+        $1, $2, 'simshipment_phase2', 'simrate_phase2'
+      )
+    $persist$
+    using v_attempt_id, v_lease_token;
+    execute $complete$
+      select public.complete_shipping_label_attempt(
+        $1, $2, 'succeeded', 'simlabel_phase2',
+        'https://example.test/label.pdf', '1ZP2TEST', 'SIMULATED',
+        1299, '{"mode":"test"}'::jsonb, null
+      )
+    $complete$
+    using v_attempt_id, v_lease_token;
+    select status into v_status
+    from public.shipments
+    where id = v_shipment_id;
+    return v_status;
+  end if;
+
+  execute $legacy$
+    select public.transition_shipment(
+      $1, $2, 'label_created', $3, '1ZP2TEST', 'UPS',
+      '{
+        "shipping_provider":"easypost",
+        "external_shipment_id":"shp_test",
+        "external_rate_id":"rate_test",
+        "external_label_id":"tracker_test",
+        "label_url":"https://example.test/label.pdf",
+        "label_format":"PDF",
+        "label_cost_cents":1299,
+        "address_validation_status":"valid",
+        "address_validation_messages":[],
+        "validated_shipping_address":{"line1":"20 Main Street","city":"Napa","state":"CA","postal_code":"94558","country":"US"},
+        "provider_metadata":{"mode":"test"}
+      }'::jsonb
+    )
+  $legacy$
+  into v_status
+  using
+    '32000000-0000-4000-8000-000000000001'::uuid,
+    v_shipment_id,
+    '31000000-0000-4000-8000-000000000001'::uuid;
+  return v_status;
+end;
+$$;
+
 select is(
-  public.transition_shipment(
-    '32000000-0000-4000-8000-000000000001',
-    (
-      select id
-      from public.shipments
-      where member_id = '34000000-0000-4000-8000-000000000002'
-    ),
-    'label_created',
-    '31000000-0000-4000-8000-000000000001',
-    '1ZP2TEST',
-    'UPS',
-    '{
-      "shipping_provider":"easypost",
-      "external_shipment_id":"shp_test",
-      "external_rate_id":"rate_test",
-      "external_label_id":"tracker_test",
-      "label_url":"https://example.test/label.pdf",
-      "label_format":"PDF",
-      "label_cost_cents":1299,
-      "address_validation_status":"valid",
-      "address_validation_messages":[],
-      "validated_shipping_address":{"line1":"20 Main Street"},
-      "provider_metadata":{"mode":"test"}
-    }'::jsonb
-  ),
+  pg_temp.advance_label_compat(),
   'label_created'::public.shipment_status,
   'validated EasyPost label metadata is recorded'
 );
@@ -1027,24 +1163,78 @@ select is(
   'release completes when every shipment is terminal'
 );
 
+create function pg_temp.link_member_auth_compat(
+  p_email text,
+  p_token_hash text
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_brand_id uuid;
+  v_member_id uuid := '34000000-0000-4000-8000-000000000003';
+  v_linked_id uuid;
+begin
+  if to_regprocedure(
+    'public.link_member_auth_user(uuid,text,uuid,uuid,uuid,text,text)'
+  ) is not null then
+    select default_brand_id into v_brand_id
+    from public.organizations
+    where id = '32000000-0000-4000-8000-000000000001';
+    execute $register$
+      select public.register_member_auth_link_context(
+        $1, $2, $3, $4,
+        encode(extensions.digest(convert_to(lower(btrim($5)), 'UTF8'), 'sha256'), 'hex'),
+        'vinifera-staging.edstratumlabs.ai',
+        now() + interval '10 minutes'
+      )
+    $register$
+    using
+      p_token_hash,
+      '32000000-0000-4000-8000-000000000001'::uuid,
+      v_brand_id,
+      v_member_id,
+      p_email;
+    execute $link$
+      select member_id
+      from public.link_member_auth_user(
+        $1, $2, $3, $4, $5, $6,
+        'vinifera-staging.edstratumlabs.ai'
+      )
+    $link$
+    into v_linked_id
+    using
+      '31000000-0000-4000-8000-000000000002'::uuid,
+      p_email,
+      '32000000-0000-4000-8000-000000000001'::uuid,
+      v_brand_id,
+      v_member_id,
+      p_token_hash;
+  else
+    execute $legacy$
+      select member_id from public.link_member_auth_user($1, $2)
+    $legacy$
+    into v_linked_id
+    using
+      '31000000-0000-4000-8000-000000000002'::uuid,
+      p_email;
+  end if;
+  return v_linked_id;
+end;
+$$;
+
 select is(
-  (
-    select member_id
-    from public.link_member_auth_user(
-      '31000000-0000-4000-8000-000000000002',
-      'PHASE2-LINK@EXAMPLE.TEST'
-    )
+  pg_temp.link_member_auth_compat(
+    'PHASE2-LINK@EXAMPLE.TEST',
+    repeat('e', 64)
   ),
   '34000000-0000-4000-8000-000000000003'::uuid,
   'magic-link auth user is atomically linked by normalized email'
 );
 select is(
-  (
-    select member_id
-    from public.link_member_auth_user(
-      '31000000-0000-4000-8000-000000000002',
-      'phase2-link@example.test'
-    )
+  pg_temp.link_member_auth_compat(
+    'phase2-link@example.test',
+    repeat('f', 64)
   ),
   '34000000-0000-4000-8000-000000000003'::uuid,
   'member auth linking is idempotent'

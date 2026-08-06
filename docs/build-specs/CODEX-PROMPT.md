@@ -33,7 +33,7 @@ All build specs have been merged. The following structural work is complete:
 | BS-05 | ✅ Merged | `npm run dev` local stack with seeded tenants, authenticated smoke tests |
 | BS-06 | ✅ Merged | Tenancy audit, `docs/architecture.md`, governance ADR, Greptile training notes |
 
-**Verified test baseline:** 448 Vitest · 250/199/158/513 DB assertions · 145 Playwright/axe
+**Verified test baseline:** 549 Vitest · 250/199/159/515 DB assertions · 155 passed Playwright/axe with 3 hosted-only skips
 
 ---
 
@@ -120,7 +120,7 @@ Your task:
 
 Acceptance criteria:
 - npm audit --audit-level=moderate exits 0
-- All test counts at or above: 448 Vitest, 145 Playwright/axe
+- All test counts at or above: 549 Vitest, 155 passed Playwright/axe
 - No TypeScript errors (npm run check)
 
 Branch: chore/dependency-audit-YYYY-MM-DD
