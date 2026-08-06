@@ -32,6 +32,7 @@
     "qa:db:phase4": "node scripts/verify-phase4-db.mjs",
     "qa:db:phase5": "node scripts/verify-phase5-db.mjs",
     "qa:e2e": "playwright test",
+    "qa:gate6-acceptance": "vitest run tests/scripts/hosted-gate6-phase2-acceptance.test.mjs",
     "test:e2e": "npm run qa:e2e",
     "qa:mobile-release": "vitest run tests/scripts/mobile-release.test.mjs",
     "qa:mobile:identity": "node scripts/verify-mobile-identity.mjs",

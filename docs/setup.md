@@ -300,6 +300,19 @@ Phase 2 CSV imports accept generic mappings plus Commerce7 and WineDirect
 headers. Preview and validation occur before commit; do not upload files that
 contain full payment-card data.
 
+Gate 6 uses the separate protected
+`.github/workflows/gate6-staging-acceptance.yml` controller only after Gate 13
+has passed against the same staging revision. Configure the exact ten-member
+fixture manifest as `STAGING_GATE6_ACCEPTANCE_MANIFEST`, keep
+its exact post-candidate digest in the protected
+`STAGING_GATE6_ACCEPTANCE_MANIFEST_SHA256` environment variable only for that
+attempt, keep
+`STAGING_GATE6_ACCEPTANCE_ENABLED=false` outside the one-shot run, and keep the
+checked-in stable fixture-contract/provider hash policy disabled and empty until
+its reviewed activation PR.
+The complete fixture, target-hash, dispatch, evidence, and retirement contract
+is in `docs/runbooks/phase-2-hosted-acceptance.md`.
+
 ## Phase 3 communications and retention
 
 Email work is persisted before provider delivery. To activate Resend, configure

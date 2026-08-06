@@ -129,11 +129,18 @@ const HIGH_RISK_FILES = new Set([
   ".env.example",
   ".nvmrc",
   "capacitor.config.json",
+  "config/gate6-staging-acceptance-policy.json",
   "config/hosted-target-allowlist.json",
   "package-lock.json",
   "package.json",
   "tests/e2e/smoke.spec.ts",
   "wrangler.jsonc",
+]);
+
+const AUTHORITY_HIGH_RISK_FILES = new Set([
+  ".github/workflows/gate6-staging-acceptance.yml",
+  "config/gate6-staging-acceptance-policy.json",
+  "scripts/hosted-gate6-phase2-acceptance.mjs",
 ]);
 
 const MOBILE_PREFIXES = Object.freeze([
@@ -181,6 +188,7 @@ export function isHighRiskPath(path) {
 
 export function isAuthorityHighRiskPath(path) {
   if (
+    AUTHORITY_HIGH_RISK_FILES.has(path) ||
     path.startsWith(".github/") ||
     path.startsWith(".octopus/") ||
     path.startsWith("supabase/migrations/") ||
