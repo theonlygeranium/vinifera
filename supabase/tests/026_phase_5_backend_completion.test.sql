@@ -4,6 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
 select plan(35);
+set local request.jwt.claims = '{"role":"service_role"}';
 
 select ok(
   to_regprocedure(

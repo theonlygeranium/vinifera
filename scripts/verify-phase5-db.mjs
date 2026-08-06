@@ -50,7 +50,18 @@ const migrations = [
   "supabase/migrations/202607260015_phase_4_analytics_current_stack_hardening.sql",
   "supabase/migrations/202607260016_phase_5_backend_completion.sql",
   "supabase/migrations/202607260017_custom_hostname_delete_safety.sql",
+  "supabase/migrations/202607260018_p0_security_patches.sql",
+  "supabase/migrations/202607260019_p1_staging_readiness_patches.sql",
+  "supabase/migrations/202607260020_p2_launch_readiness_patches.sql",
+  "supabase/migrations/202607260021_p3_missing_indexes.sql",
   "supabase/migrations/202607260022_release_wine_identity_replay.sql",
+  "supabase/migrations/202608050023_gate1_fk_indexes.sql",
+  "supabase/migrations/202608050024_resolve_default_brand_id_rpc.sql",
+  "supabase/migrations/202608050025_release_shipment_overload_resolution.sql",
+  "supabase/migrations/202608050026_email_outbox_digest_resolution.sql",
+  "supabase/migrations/202608050027_email_outbox_digest_qualification.sql",
+  "supabase/migrations/202608050028_email_outbox_digest_input.sql",
+  "supabase/migrations/202608050029_email_outbox_early_event_reconciliation.sql",
 ];
 const tests = [
   "supabase/tests/013_phase_5_schema.test.sql",
@@ -125,6 +136,7 @@ async function runPerformanceGates() {
 
   try {
     await database.exec(`
+      set request.jwt.claims = '{"role":"service_role"}';
       insert into auth.users (id, email)
       values ('${ownerId}', 'phase5-performance-owner@example.test');
       insert into public.organizations (id, name, plan_tier)

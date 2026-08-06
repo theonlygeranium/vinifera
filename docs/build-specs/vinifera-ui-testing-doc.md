@@ -1,8 +1,8 @@
 # Vinifera UI Testing Specification
 **Version:** 1.0 | **Repo:** `theonlygeranium/vinifera` | **Branch target:** `dev`
 **Owner:** EdStratum Labs / `founder@edstratumlabs.ai`
-**Baseline:** v0.5.0 — BS-01 through BS-06 merged, 448 Vitest + 145 Playwright/axe passing
-**Last updated:** 2026-07-28
+**Baseline:** v0.5.0 — BS-01 through BS-06 merged, 546 Vitest + 155 passed Playwright/axe with 3 hosted-only skips
+**Last updated:** 2026-08-05
 
 ---
 
@@ -19,7 +19,7 @@ Before writing a single line of test code or opening a browser, every agent and 
 - All PRs target **`dev`** only. Never open a PR against `staging` or `main`.
 - Never activate a hosted gate. Never commit real credentials.
 - `CHANGELOG.md` must be updated in every commit.
-- `npm run check` must pass before every push (448 Vitest + TypeScript clean + zero axe violations).
+- `npm run check` must pass before every push (546 Vitest + TypeScript clean + zero axe violations).
 - Every visual change must be verified at 375 px viewport width.
 - Touch targets must meet ≥ 44 × 44 px (WCAG 2.5.5).
 
@@ -776,8 +776,8 @@ cd ../vinifera-fix-<domain>-<slug>
 
 # 4. Verify the fix
 npm run dev:frontend    # Start server
-npm run qa:e2e          # Must still pass 145/145
-npm run check           # TypeScript + 448 Vitest must pass
+npm run qa:e2e          # Must still pass 155 with 3 hosted-only skips
+npm run check           # TypeScript + 546 Vitest must pass
 # Re-run the specific browser test that caught the defect
 
 # 5. Update CHANGELOG.md under [Unreleased]
@@ -786,7 +786,7 @@ npm run check           # TypeScript + 448 Vitest must pass
 #
 #    <what changed and why>
 #
-#    Verification: npm run check; 448/448 Vitest; 145/145 Playwright/axe
+#    Verification: npm run check; 546/546 Vitest; 155 passed Playwright/axe
 # 7. Open PR targeting dev
 ```
 
@@ -809,8 +809,8 @@ The testing mission is complete when all of the following are true:
 
 | Criterion | Target |
 |-----------|--------|
-| Vitest suite | 448/448 passing (must not decrease) |
-| Playwright/axe suite | 145/145 passing (must not decrease) |
+| Vitest suite | 546/546 passing (must not decrease) |
+| Playwright/axe suite | 155 passing with 3 hosted-only skips (must not decrease) |
 | axe-core WCAG 2.1 AA | Zero violations on all 23 routes × 3 viewports |
 | Horizontal overflow | Zero pages overflow at 375 px |
 | Console health | Zero errors or warnings on page load for all routes |
@@ -873,12 +873,12 @@ The baseline `dev` branch (v0.5.0, BS-01–06 merged) passes the following — d
 
 | Suite | Baseline count | Command |
 |-------|---------------|---------|
-| Vitest unit/integration | 448 | `npm run check` |
+| Vitest unit/integration | 546 | `npm run check` |
 | Phase 2 DB | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB | 199 assertions | `npm run qa:db:phase3` |
-| Phase 4 DB | 158 assertions | `npm run qa:db:phase4` |
-| Phase 5 DB | 513 assertions | `npm run qa:db:phase5` |
-| Playwright E2E + axe | 145 | `npm run qa:e2e` |
+| Phase 4 DB | 159 assertions | `npm run qa:db:phase4` |
+| Phase 5 DB | 514 assertions | `npm run qa:db:phase5` |
+| Playwright E2E + axe | 155 passed, 3 hosted-only skipped | `npm run qa:e2e` |
 
 Any new Playwright tests added by fix branches must increase the count — never replace or delete existing tests without documented justification.
 

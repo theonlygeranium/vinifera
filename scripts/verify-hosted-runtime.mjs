@@ -3,7 +3,8 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const STAGING_HOST_PATTERN =
-  /^vinifera-staging\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.workers\.dev$/;
+  /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?-)?vinifera-staging\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.workers\.dev$/;
+const GIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
 const DEFAULT_REQUIRED_CAPABILITIES = Object.freeze([
   "app",
   "database",
@@ -62,11 +63,20 @@ function configurationState(value) {
 export function buildHostedRuntimeEvidence({
   healthPayload,
   configurationPayload,
+  expectedRevision,
   requiredCapabilities = DEFAULT_REQUIRED_CAPABILITIES,
   now = () => new Date(),
 }) {
+  if (!GIT_SHA_PATTERN.test(expectedRevision ?? "")) {
+    throw new Error("The expected staging revision must be a full Git SHA.");
+  }
   const health = responseData(healthPayload, "Worker health");
-  if (health.service !== "vinifera-api" || health.status !== "ok") {
+  if (
+    health.environment !== "staging" ||
+    health.revision !== expectedRevision ||
+    health.service !== "vinifera-api" ||
+    health.status !== "ok"
+  ) {
     throw new Error("The staging Worker health contract did not pass.");
   }
 
@@ -116,7 +126,9 @@ export function buildHostedRuntimeEvidence({
       requiredCapabilitiesPassed: true,
     },
     health: {
+      environment: "staging",
       passed: true,
+      revision: expectedRevision,
       service: "vinifera-api",
       status: "ok",
     },
@@ -147,6 +159,7 @@ export async function verifyHostedRuntime({
   fetchImpl = fetch,
   now,
   origin,
+  expectedRevision,
   requiredCapabilities = DEFAULT_REQUIRED_CAPABILITIES,
   timeoutMs = 10_000,
 }) {
@@ -161,6 +174,7 @@ export async function verifyHostedRuntime({
   ]);
   return buildHostedRuntimeEvidence({
     configurationPayload,
+    expectedRevision,
     healthPayload,
     now,
     requiredCapabilities,
@@ -174,14 +188,14 @@ function parseArguments(argv) {
     const value = argv[index + 1];
     if (!name?.startsWith("--") || value === undefined) {
       throw new Error(
-        "Usage: verify-hosted-runtime.mjs --origin <url> --output <path>",
+        "Usage: verify-hosted-runtime.mjs --origin <url> --expected-revision <sha> --output <path>",
       );
     }
     values[name.slice(2)] = value;
   }
-  if (!values.origin || !values.output) {
+  if (!values.origin || !values["expected-revision"] || !values.output) {
     throw new Error(
-      "Usage: verify-hosted-runtime.mjs --origin <url> --output <path>",
+      "Usage: verify-hosted-runtime.mjs --origin <url> --expected-revision <sha> --output <path>",
     );
   }
   return values;
@@ -189,7 +203,10 @@ function parseArguments(argv) {
 
 async function main() {
   const args = parseArguments(process.argv.slice(2));
-  const evidence = await verifyHostedRuntime({ origin: args.origin });
+  const evidence = await verifyHostedRuntime({
+    expectedRevision: args["expected-revision"],
+    origin: args.origin,
+  });
   const outputPath = resolve(args.output);
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, {

@@ -20,7 +20,11 @@
 
 ### Current status
 
-v0.5.0 — source architecture complete and structurally hardened. All 6 build specs (BS-01 through BS-06) have been merged to `main`. The platform source is modular, observable, and locally runnable. All 20 hosted activation gates remain `pending` — see `CONTINUITY_BRIEF.md` for the full gate list and current state.
+v0.5.0 — source architecture complete and structurally hardened. All 6 build
+specs (BS-01 through BS-06) have been merged to `main`. Hosted activation Gates
+1, 3, 4, 5, and 9 are provider-verified. The 2026-08-05 re-audit reopened Gates
+2 and 7 until the reviewed Worker repair is promoted and exact-revision runtime
+evidence passes. The other 13 gates remain pending; see `CONTINUITY_BRIEF.md`.
 
 The public custom domain continues to serve the verified static Cloudflare Pages rollback baseline. It is **not** evidence that the Worker application is live.
 
@@ -146,7 +150,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 512/512 Vitest; 155 passed Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 546/546 Vitest; 155 passed Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -244,16 +248,16 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 ## 6. Quality Assurance
 
-### Current verified test counts (2026-07-31 credential-independent baseline)
+### Current verified test counts (2026-08-05 hosted-gate QA baseline)
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 512 | `npm run check` |
+| Vitest unit/integration | 546 | `npm run check` |
 | Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |
-| Phase 4 DB (intelligence) | 158 assertions | `npm run qa:db:phase4` |
-| Phase 5 DB (scale) | 513 assertions | `npm run qa:db:phase5` |
+| Phase 4 DB (intelligence) | 159 assertions | `npm run qa:db:phase4` |
+| Phase 5 DB (scale) | 514 assertions | `npm run qa:db:phase5` |
 | Playwright E2E + axe-core | 155 passed, 3 hosted-only skipped | `npm run qa:e2e` |
 
 A PR may not merge if any of these counts decrease without a documented justification in the PR description. Test regressions are blocking defects.

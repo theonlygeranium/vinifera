@@ -9,6 +9,7 @@ import {
   usesSecureCookies,
 } from "../config";
 import { assertStaffRole } from "../lib/authorization";
+import { cfAccessFetch, cfAccessHeaders } from "../lib/cf-access-fetch";
 import { mapConcurrent } from "../lib/concurrency";
 import {
   ANALYTICS_EVENT_TYPES,
@@ -165,6 +166,8 @@ function createSurfaceClient(
     surface === "member"
       ? request.get("authorization")?.match(/^Bearer\s+([^\s]+)$/i)?.[1]
       : undefined;
+  const accessFetch = cfAccessFetch(env);
+  const accessHeaders = cfAccessHeaders(env);
   if (bearer) {
     return createClient(url, publicKey, {
       auth: {
@@ -173,7 +176,11 @@ function createSurfaceClient(
         persistSession: false,
       },
       global: {
-        headers: { Authorization: `Bearer ${bearer}` },
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          ...(accessHeaders ?? {}),
+        },
+        ...(accessFetch ? { fetch: accessFetch } : {}),
       },
     });
   }
@@ -181,6 +188,9 @@ function createSurfaceClient(
 
   return createServerClient(url, publicKey, {
     auth: { flowType: "pkce" },
+    ...(accessFetch
+      ? { global: { fetch: accessFetch, headers: accessHeaders } }
+      : {}),
     cookieOptions: {
       name: cookieName,
       httpOnly: true,

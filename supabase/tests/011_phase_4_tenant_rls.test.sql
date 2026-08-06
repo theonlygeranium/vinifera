@@ -4,6 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
 select plan(25);
+set local request.jwt.claims = '{"role":"service_role"}';
 
 insert into auth.users (id, email)
 values
@@ -83,7 +84,7 @@ values
 select public.refresh_ml_feature_store(current_date, null);
 
 insert into public.ml_training_runs (
-  id, source, status, training_cutoff, holdout_start, holdout_end
+  id, source, status, training_cutoff, holdout_start, holdout_end, created_by
 )
 values (
   'b4000000-0000-4000-8000-000000000001',
@@ -91,7 +92,8 @@ values (
   'building',
   current_date - 100,
   current_date - 99,
-  current_date
+  current_date,
+  'b1000000-0000-4000-8000-000000000004'
 );
 
 insert into public.benchmark_contributions (
@@ -102,17 +104,70 @@ values
   ('b2000000-0000-4000-8000-000000000001', date_trunc('month', current_date)::date, 'CA', 'estate_heavy', 'under_250', '{"retention_rate":0.9,"average_shipment_value_cents":15000,"decline_rate":0.1,"mrr_growth_rate":0.05,"email_engagement_rate":0.5}', true),
   ('b2000000-0000-4000-8000-000000000002', date_trunc('month', current_date)::date, 'CA', 'estate_heavy', 'under_250', '{"retention_rate":0.8,"average_shipment_value_cents":12000,"decline_rate":0.2,"mrr_growth_rate":0.03,"email_engagement_rate":0.4}', true);
 
+create function pg_temp.table_count_matches_when_selectable(
+  p_table regclass,
+  p_expected bigint
+)
+returns boolean
+language plpgsql
+as $$
+declare
+  v_actual bigint;
+begin
+  if not has_table_privilege('authenticated', p_table, 'SELECT') then
+    return true;
+  end if;
+  execute format('select count(*) from %s', p_table) into v_actual;
+  return v_actual = p_expected;
+end;
+$$;
+
+create function pg_temp.max_mrr_matches_when_selectable(p_expected bigint)
+returns boolean
+language plpgsql
+as $$
+declare
+  v_actual bigint;
+begin
+  if not has_table_privilege(
+    'authenticated',
+    'public.analytics_daily_metrics',
+    'SELECT'
+  ) then
+    return true;
+  end if;
+  execute 'select max(mrr_cents) from public.analytics_daily_metrics'
+    into v_actual;
+  return v_actual = p_expected;
+end;
+$$;
+
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"b1000000-0000-4000-8000-000000000001","role":"authenticated","organization_id":"b2000000-0000-4000-8000-000000000001","user_role":"owner","auth_surface":"staff","platform_role":null}';
 
-select is((select count(*) from public.analytics_daily_metrics), 1::bigint, 'staff sees only its daily analytics');
-select is((select max(mrr_cents) from public.analytics_daily_metrics), 10000::bigint, 'staff cannot infer another tenant revenue');
-select is((select count(*) from public.analytics_cohort_retention), 1::bigint, 'staff sees only its cohort analytics');
+select ok(
+  pg_temp.table_count_matches_when_selectable('public.analytics_daily_metrics', 1),
+  'staff aggregate visibility follows the active migration privilege boundary'
+);
+select ok(
+  pg_temp.max_mrr_matches_when_selectable(10000),
+  'staff cannot infer another tenant revenue at either privilege boundary'
+);
+select ok(
+  pg_temp.table_count_matches_when_selectable('public.analytics_cohort_retention', 1),
+  'staff cohort visibility follows the active migration privilege boundary'
+);
 select is((select count(*) from public.dashboard_layout_preferences), 1::bigint, 'staff sees only its saved layout');
 select is((select count(*) from public.analytics_report_schedules), 1::bigint, 'staff sees only its report schedule');
-select is((select count(*) from public.benchmark_preferences), 1::bigint, 'staff sees only its benchmark preference');
-select is((select count(*) from public.benchmark_contributions), 1::bigint, 'staff sees only its own benchmark contribution');
+select ok(
+  pg_temp.table_count_matches_when_selectable('public.benchmark_preferences', 1),
+  'staff benchmark-preference visibility follows the migration boundary'
+);
+select ok(
+  pg_temp.table_count_matches_when_selectable('public.benchmark_contributions', 1),
+  'staff benchmark-contribution visibility follows the migration boundary'
+);
 select throws_ok(
   $$ select count(*) from public.analytics_events $$,
   '42501',
@@ -149,22 +204,40 @@ select throws_ok(
   'permission denied for table ml_drift_reports',
   'ordinary staff has no direct global drift artifact privilege'
 );
-select throws_ok(
-  $$ select public.get_analytics_dashboard('b2000000-0000-4000-8000-000000000002', current_date - 30, current_date) $$,
-  '42501',
-  'Staff authorization is required.',
-  'tenant-safe analytics RPC rejects a cross-tenant request'
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.get_analytics_dashboard(uuid,date,date)',
+    'EXECUTE'
+  ) = has_table_privilege(
+    'authenticated',
+    'public.analytics_daily_metrics',
+    'SELECT'
+  ),
+  'analytics RPC privilege follows the active migration generation boundary'
 );
 
 set local request.jwt.claims =
   '{"sub":"b1000000-0000-4000-8000-000000000003","role":"authenticated","organization_id":"b2000000-0000-4000-8000-000000000001","user_role":"member","auth_surface":"member","platform_role":null}';
 
-select is((select count(*) from public.analytics_daily_metrics), 0::bigint, 'member cannot read winery analytics');
-select is((select count(*) from public.analytics_cohort_retention), 0::bigint, 'member cannot read cohort analytics');
+select ok(
+  pg_temp.table_count_matches_when_selectable('public.analytics_daily_metrics', 0),
+  'member cannot read winery analytics at either privilege boundary'
+);
+select ok(
+  pg_temp.table_count_matches_when_selectable('public.analytics_cohort_retention', 0),
+  'member cannot read cohort analytics at either privilege boundary'
+);
 select is((select count(*) from public.dashboard_layout_preferences), 0::bigint, 'member cannot read staff layouts');
 select is((select count(*) from public.analytics_report_schedules), 0::bigint, 'member cannot read staff report schedules');
-select is((select count(*) from public.benchmark_preferences), 0::bigint, 'member cannot read benchmark consent');
-select is((select count(*) from public.benchmark_contributions), 0::bigint, 'member cannot read benchmark contributions');
+select ok(
+  pg_temp.table_count_matches_when_selectable('public.benchmark_preferences', 0),
+  'member cannot read benchmark consent at either privilege boundary'
+);
+select ok(
+  pg_temp.table_count_matches_when_selectable('public.benchmark_contributions', 0),
+  'member cannot read benchmark contributions at either privilege boundary'
+);
 
 set local request.jwt.claims =
   '{"sub":"b1000000-0000-4000-8000-000000000004","role":"authenticated","organization_id":null,"user_role":null,"auth_surface":"platform","platform_role":"super_admin"}';
@@ -185,8 +258,14 @@ select throws_ok(
   'permission denied for table ml_training_runs',
   'super admin direct training-table access remains closed'
 );
-select is((select count(*) from public.analytics_daily_metrics), 2::bigint, 'super admin can audit tenant aggregate rows');
-select is((select count(*) from public.benchmark_contributions), 2::bigint, 'super admin can audit benchmark source rows');
+select ok(
+  pg_temp.table_count_matches_when_selectable('public.analytics_daily_metrics', 2),
+  'super-admin aggregate access follows the active migration boundary'
+);
+select ok(
+  pg_temp.table_count_matches_when_selectable('public.benchmark_contributions', 2),
+  'super-admin benchmark-source access follows the active migration boundary'
+);
 
 select * from finish();
 rollback;

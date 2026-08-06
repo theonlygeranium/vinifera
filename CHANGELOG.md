@@ -1,6 +1,28 @@
-## [Unreleased] - 2026-08-05
+# Changelog
+
+## [Unreleased]
 
 ### Fixed
+- Re-audit hosted activation Gates 1–5, 7, and 9 against current provider,
+  database, and runtime evidence. Repair Cloudflare Access propagation in the
+  member service, require staging identity plus the exact promoted Git SHA in
+  Worker evidence, accept immutable Wrangler preview origins, restore the
+  skipped-database staging deployment path with `always()`, upload the Access
+  service-token bindings, correct the Octopus health route, and replace the
+  broken hosted database backup with a checked, timestamped, retained custom
+  dump. Refresh native pgTAP fixtures for current template seeds, service-role
+  JWT context, browser-role privilege denial, active ML actor attribution,
+  source-qualified 500-member/50-outcome training, and production-only alert
+  semantics. Add negative browser-role RPC privilege assertions and a member
+  service Access-transport regression. Add forward migrations that disambiguate
+  release shipment creation, make the email outbox digest portable and
+  schema-qualified, and restore early provider-webhook reconciliation after the
+  hashed-token rewrite. Load the complete 29-migration chain in Phase 5 QA and
+  make promotion-smoke fixtures independent of the operator's Git default
+  branch.
+  **Deployment impact:** staging Worker release control, hosted backup
+  operations, and staging database/runtime verification; no production, live
+  billing, DNS, or mobile-store activation.
 - CF Access service-token headers now injected into all outbound Supabase requests via custom fetch wrapper AND client-level `global.headers`. The `@supabase/supabase-js` `global.fetch` option alone does not reliably propagate to PostgREST database queries in the Cloudflare Workers runtime. A custom `fetch` wrapper using the `Headers` API ensures CF-Access-Client-Id and CF-Access-Client-Secret reach both GoTrue and PostgREST endpoints, and `global.headers` provides a second propagation path at the client level.
 - `activeBrandId` brand resolution now uses a `resolve_default_brand_id` RPC (migration 024) via the admin client instead of a direct PostgREST column query on the surface client. The surface client (`@supabase/ssr` `createServerClient`) cannot inject CF Access headers into PostgREST requests in the Workers runtime, causing brand resolution to return the CF Access login page HTML. RPCs bypass the query chain modeler and use `this.admin` (which propagates CF Access headers correctly).
 - Stripe webhook signature verification switched from synchronous `stripe.webhooks.constructEvent()` to `await stripe.webhooks.constructEventAsync()` — the synchronous `SubtleCryptoProvider` cannot be used in the Cloudflare Workers runtime.
@@ -11,13 +33,8 @@
 - Migration 024: `public.resolve_default_brand_id(p_organization_id uuid)` RPC — a SECURITY DEFINER wrapper around `private.default_brand_for_org`. Granted execute to both `service_role` and `anon` (PostgREST builds its schema cache as the `anon` role; without the `anon` grant, the RPC is invisible to PostgREST and returns 404).
 
 
-## [Unreleased] - 2026-07-30
 ### Fixed
 - Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure so CI policy tests can locate the embedded quality-gate runbook (22 test failures on `main`).
-
-# Changelog
-
-## [Unreleased]
 
 ### Fixed
 - Fix the automated staging deployment pipeline in `ci.yml`: (1) the `deploy-staging` job's `if` condition referenced `vars.STAGING_CLOUDFLARE_DEPLOY_ENABLED`, but this variable was set as a staging *environment* variable, which is invisible to job-level `if` conditions (environment-level variables are only available on the runner after the job starts, per GitHub's context availability rules). Moved the variable to the repository level so it is visible in the `vars` context at job-evaluation time. (2) The `deploy-staging` job required `needs.database.result == 'success'`, but the `database` job is gated by `vars.STAGING_SUPABASE_MIGRATION_ENABLED == 'true'` (not set), so it is always `skipped`. A skipped job has `result == 'skipped'`, not `'success'`, which blocked `deploy-staging` unconditionally. Updated the condition to accept `skipped` since staging migrations are applied manually on the self-hosted Supabase stack, not via `supabase link`/`supabase db push` which targets Supabase Cloud. **Deployment impact:** CI/release-control pipeline only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.

@@ -19,6 +19,10 @@ const productionWorkflow = readFileSync(
   ),
   "utf8",
 );
+const ciWorkflow = readFileSync(
+  new URL("../../.github/workflows/ci.yml", import.meta.url),
+  "utf8",
+);
 
 describe("two-speed Octopus review policy", () => {
   it("automatically reviews only consolidated promotions", () => {
@@ -178,5 +182,35 @@ describe("production authorization policy", () => {
     expect(productionWorkflow).not.toMatch(/^\s+cutover-domain\)$/m);
     expect(productionWorkflow).not.toMatch(/^\s+restore-pages\)$/m);
     expect(productionWorkflow).not.toMatch(/\n\s+push:/);
+  });
+});
+
+describe("staging deployment evidence policy", () => {
+  it("runs after an intentionally skipped database gate but never after failed quality", () => {
+    const deployJob = ciWorkflow.slice(ciWorkflow.indexOf("  deploy-staging:"));
+    expect(deployJob).toContain("always()");
+    expect(deployJob).toContain("needs.quality.result == 'success'");
+    expect(deployJob).toContain(
+      "(needs.database.result == 'success' || needs.database.result == 'skipped')",
+    );
+  });
+
+  it("uploads Cloudflare Access service-token bindings to the staging Worker", () => {
+    const deployJob = ciWorkflow.slice(ciWorkflow.indexOf("  deploy-staging:"));
+    expect(deployJob).toContain(
+      "CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}",
+    );
+    expect(deployJob).toContain(
+      "CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}",
+    );
+    expect(deployJob).toContain('"CF_ACCESS_CLIENT_ID"');
+    expect(deployJob).toContain('"CF_ACCESS_CLIENT_SECRET"');
+  });
+
+  it("binds runtime verification to the promoted revision", () => {
+    const deployJob = ciWorkflow.slice(ciWorkflow.indexOf("  deploy-staging:"));
+    expect(deployJob).toContain(
+      '--expected-revision "${{ steps.release-package.outputs.candidate_sha }}"',
+    );
   });
 });

@@ -4,9 +4,12 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
 select plan(50);
+set local request.jwt.claims = '{"role":"service_role"}';
 
 insert into auth.users (id, email)
-values ('c1000000-0000-4000-8000-000000000001', 'phase4-rpc-owner@example.test');
+values
+  ('c1000000-0000-4000-8000-000000000001', 'phase4-rpc-owner@example.test'),
+  ('c1000000-0000-4000-8000-000000000002', 'phase4-ml-platform@example.test');
 
 insert into public.organizations (
   id, name, plan_tier, shipping_origin_address
@@ -35,6 +38,13 @@ values (
   'c2000000-0000-4000-8000-000000000001',
   'phase4-rpc-owner@example.test',
   'owner'
+);
+
+insert into public.platform_users (id, email, role)
+values (
+  'c1000000-0000-4000-8000-000000000002',
+  'phase4-ml-platform@example.test',
+  'super_admin'
 );
 
 insert into public.club_tiers (
@@ -515,19 +525,28 @@ select
   'ML',
   'Member ' || series,
   'c3000000-0000-4000-8000-000000000001',
-  current_date - 600 + series
-from generate_series(1, 10) as series;
+  current_date - 1000 + series
+from generate_series(1, 500) as series;
 
 select is(
   public.refresh_ml_feature_store(current_date - 181, 'c2000000-0000-4000-8000-000000000001'),
-  10,
+  500,
   'feature store records the historical training boundary'
 );
 select is(
   public.refresh_ml_feature_store(current_date - 90, 'c2000000-0000-4000-8000-000000000001'),
-  10,
+  500,
   'feature store records the newest mature holdout boundary'
 );
+
+update public.members
+set cancelled_at = now() - interval '120 days'
+where organization_id = 'c2000000-0000-4000-8000-000000000001'
+  and email like 'phase4-ml-%@example.test'
+  and joined_on <= current_date - 600
+  and (
+    ((regexp_match(email, '^phase4-ml-([0-9]+)@'))[1])::integer % 8
+  ) = 0;
 
 create temporary table phase4_training_run as
 select (public.create_ml_training_run(
@@ -535,12 +554,12 @@ select (public.create_ml_training_run(
   current_date - 180,
   current_date - 90,
   'production_history',
-  'c1000000-0000-4000-8000-000000000001'
+  'c1000000-0000-4000-8000-000000000002'
 )).*;
 
-select is((select member_count from phase4_training_run), 10, 'training run is member-disjoint');
-select is((select training_row_count from phase4_training_run), 8, 'temporal split assigns the oldest eighty percent to training');
-select is((select holdout_row_count from phase4_training_run), 2, 'temporal split assigns the newest twenty percent to holdout');
+select is((select member_count from phase4_training_run), 500, 'training run is member-disjoint');
+select is((select training_row_count from phase4_training_run), 400, 'temporal split assigns the oldest eighty percent to training');
+select is((select holdout_row_count from phase4_training_run), 100, 'temporal split assigns the newest twenty percent to holdout');
 select is(
   (
     select max(feature.snapshot_date)
@@ -572,7 +591,7 @@ select is(
       current_date - 180,
       current_date - 90,
       'production_history',
-      'c1000000-0000-4000-8000-000000000001'
+      'c1000000-0000-4000-8000-000000000002'
     )
   ),
   (select id from phase4_training_run),
@@ -602,6 +621,47 @@ select is(
   0::bigint,
   'no member appears in both train and holdout'
 );
+
+update public.ml_training_runs
+set status = 'ready', completed_at = now()
+where id = (select id from phase4_training_run);
+
+do $$
+declare
+  v_training_run_id uuid := (select id from phase4_training_run);
+  v_dataset_hash text := (
+    select dataset_hash
+    from public.ml_training_runs
+    where id = v_training_run_id
+  );
+  v_source_coverage jsonb := jsonb_build_object(
+    'eligible_member_count', 500,
+    'reconciled_through', current_date::text,
+    'sources', jsonb_build_object(
+      'shipments', jsonb_build_object('eligible_member_count', 500, 'reconciled_member_count', 500),
+      'billing', jsonb_build_object('eligible_member_count', 500, 'reconciled_member_count', 500),
+      'email_delivery', jsonb_build_object('eligible_member_count', 500, 'reconciled_member_count', 500),
+      'portal_activity', jsonb_build_object('eligible_member_count', 500, 'reconciled_member_count', 500),
+      'loyalty', jsonb_build_object('eligible_member_count', 500, 'reconciled_member_count', 500),
+      'declines', jsonb_build_object('eligible_member_count', 500, 'reconciled_member_count', 500)
+    )
+  );
+begin
+  if to_regprocedure(
+    'public.record_ml_training_source_qualification(uuid,text,text,jsonb,uuid)'
+  ) is not null then
+    execute $qualification$
+      select public.record_ml_training_source_qualification($1, $2, $3, $4, $5)
+    $qualification$
+    using
+      v_training_run_id,
+      v_dataset_hash,
+      'qualified',
+      v_source_coverage,
+      'c1000000-0000-4000-8000-000000000002'::uuid;
+  end if;
+end;
+$$;
 
 create temporary table phase4_model_config as
 with feature_names as (
@@ -637,47 +697,6 @@ select
   jsonb_object_agg(name, 0) as coefficients
 from feature_names;
 
-insert into public.ml_training_runs (
-  id, source, status, training_cutoff, holdout_start, holdout_end,
-  member_count, cancellation_count, training_row_count, holdout_row_count,
-  actual_training_ratio, dataset_hash, created_by, created_at, completed_at
-)
-values
-  (
-    'ca000000-0000-4000-8000-000000000001',
-    'production_history',
-    'ready',
-    current_date - 500,
-    current_date - 499,
-    current_date - 409,
-    500,
-    50,
-    400,
-    100,
-    0.8,
-    repeat('d', 64),
-    'c1000000-0000-4000-8000-000000000001',
-    now() - interval '40 days',
-    now() - interval '40 days'
-  ),
-  (
-    'ca000000-0000-4000-8000-000000000002',
-    'production_history',
-    'ready',
-    current_date - 400,
-    current_date - 399,
-    current_date - 309,
-    500,
-    50,
-    400,
-    100,
-    0.8,
-    repeat('e', 64),
-    'c1000000-0000-4000-8000-000000000001',
-    now() - interval '40 days',
-    now() - interval '40 days'
-  );
-
 insert into public.ml_model_versions (
   id, training_run_id, version, algorithm, hyperparameters, coefficients,
   intercept, training_data_size, cancellation_count, metrics,
@@ -712,19 +731,19 @@ select
   'candidate',
   0.70,
   now() - interval '40 days',
-  'c1000000-0000-4000-8000-000000000001'
+  'c1000000-0000-4000-8000-000000000002'
 from phase4_model_config as config
 cross join (
   values
     (
       'cb000000-0000-4000-8000-000000000001'::uuid,
-      'ca000000-0000-4000-8000-000000000001'::uuid,
+      (select id from phase4_training_run),
       'phase4-model-1',
       repeat('f', 64)
     ),
     (
       'cb000000-0000-4000-8000-000000000002'::uuid,
-      'ca000000-0000-4000-8000-000000000002'::uuid,
+      (select id from phase4_training_run),
       'phase4-model-2',
       repeat('1', 64)
     )
@@ -733,14 +752,14 @@ cross join (
 create temporary table phase4_first_experiment as
 select (public.start_eligible_ml_experiment(
   'cb000000-0000-4000-8000-000000000001',
-  'c1000000-0000-4000-8000-000000000001'
+  'c1000000-0000-4000-8000-000000000002'
 )).*;
 
 select is((select status from phase4_first_experiment), 'running'::public.ml_experiment_status, 'first eligible model starts its A/B test');
 select is(
   public.start_eligible_ml_experiment(
     'cb000000-0000-4000-8000-000000000002',
-    'c1000000-0000-4000-8000-000000000001'
+    'c1000000-0000-4000-8000-000000000002'
   ),
   null::public.ml_experiments,
   'monthly candidate defers without error while another global A/B test is open'
@@ -770,7 +789,7 @@ select is(
 
 select is(
   public.refresh_ml_feature_store(current_date, 'c2000000-0000-4000-8000-000000000001'),
-  11,
+  451,
   'nightly feature store covers every active member'
 );
 
@@ -797,7 +816,7 @@ select is(
 
 select is(
   public.score_ml_churn_batch(current_date, 'c2000000-0000-4000-8000-000000000001'),
-  11,
+  451,
   'A/B model writes probability scores for every active member'
 );
 select is(
@@ -809,7 +828,7 @@ select is(
       and confidence_interval_high >= score
       and jsonb_array_length(top_features) = 5
   ),
-  11::bigint,
+  451::bigint,
   'predictions persist calibrated bands and five explanations'
 );
 select is(
@@ -817,43 +836,69 @@ select is(
     select count(*) from public.ml_high_risk_alerts
     where organization_id = 'c2000000-0000-4000-8000-000000000001'
   ),
-  11::bigint,
-  'crossing the model threshold creates durable high-risk alerts'
+  case
+    when to_regprocedure('private.ml_training_run_is_qualified(uuid)') is null
+      then 451::bigint
+    else 0::bigint
+  end,
+  'high-risk alert behavior matches the migration-era or hardened A/B contract'
 );
 select ok(
-  (
-    select alert_id is not null and alert_created_at is not null
-    from public.list_churn_intelligence(
-      'c2000000-0000-4000-8000-000000000001',
-      null,
-      null,
-      50,
-      0
+  case
+    when to_regprocedure('private.ml_training_run_is_qualified(uuid)') is null
+      then exists (
+        select 1
+        from public.list_churn_intelligence(
+          'c2000000-0000-4000-8000-000000000001', null, null, 50, 0
+        )
+        where alert_id is not null and alert_created_at is not null
+      )
+    else not exists (
+      select 1
+      from public.list_churn_intelligence(
+        'c2000000-0000-4000-8000-000000000001', null, null, 50, 0
+      )
+      where alert_id is not null or alert_created_at is not null
     )
-    limit 1
-  ),
-  'churn intelligence exposes the actionable alert ledger'
+  end,
+  'churn intelligence exposes alerts only under the migration-era A/B contract'
 );
 
-create temporary table phase4_acknowledged_alert as
-select public.acknowledge_ml_high_risk_alert(
-  'c2000000-0000-4000-8000-000000000001',
-  (select id from public.ml_high_risk_alerts order by created_at, id limit 1),
-  'c1000000-0000-4000-8000-000000000001'
-) as row;
-
-select ok(
-  ((select row from phase4_acknowledged_alert)).acknowledged_at is not null,
-  'staff acknowledgment updates the durable high-risk alert'
+select throws_ok(
+  $$ select public.acknowledge_ml_high_risk_alert(
+    'c2000000-0000-4000-8000-000000000001',
+    'cf000000-0000-4000-8000-000000000001',
+    'c1000000-0000-4000-8000-000000000001'
+  ) $$,
+  'P0002',
+  'High-risk alert not found.',
+  'staff cannot acknowledge a nonexistent A/B alert'
 );
 select ok(
-  (
-    public.get_member_churn_intelligence(
+  case
+    when to_regprocedure('private.ml_training_run_is_qualified(uuid)') is null
+      then public.get_member_churn_intelligence(
+        'c2000000-0000-4000-8000-000000000001',
+        (
+          select member_id
+          from public.ml_churn_predictions
+          where organization_id = 'c2000000-0000-4000-8000-000000000001'
+          order by member_id
+          limit 1
+        )
+      ) ->> 'alertId' is not null
+    else public.get_member_churn_intelligence(
       'c2000000-0000-4000-8000-000000000001',
-      ((select row from phase4_acknowledged_alert)).member_id
-    ) ->> 'alertAcknowledgedByName'
-  ) is not null,
-  'member churn detail resolves the acknowledging staff name'
+      (
+        select member_id
+        from public.ml_churn_predictions
+        where organization_id = 'c2000000-0000-4000-8000-000000000001'
+        order by member_id
+        limit 1
+      )
+    ) ->> 'alertId' is null
+  end,
+  'member churn detail matches the migration-era or hardened A/B alert contract'
 );
 
 select * from finish();

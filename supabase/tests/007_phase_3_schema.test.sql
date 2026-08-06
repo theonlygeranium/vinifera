@@ -122,9 +122,12 @@ select ok(
   exists (
     select 1 from pg_catalog.pg_constraint
     where conrelid = 'public.email_log'::regclass
-      and conname = 'email_log_recipient_consistent'
+      and conname in (
+        'email_log_test_recipient_consistent',
+        'email_log_recipient_consistent'
+      )
   ),
-  'email rows have consistent recipient identity'
+  'email rows retain the current recipient-identity constraint'
 );
 select ok(
   exists (
@@ -274,9 +277,12 @@ select ok(
   exists (
     select 1 from pg_catalog.pg_constraint
     where conrelid = 'public.loyalty_ledger'::regclass
-      and conname = 'loyalty_ledger_org_brand_idempotency_key'
+      and conname in (
+        'loyalty_ledger_org_idempotency_key',
+        'loyalty_ledger_org_brand_idempotency_key'
+      )
   ),
-  'loyalty ledger operations are exact-once with brand scope'
+  'loyalty ledger operations are exact-once at the current tenant scope'
 );
 select ok(
   exists (
@@ -427,9 +433,13 @@ select is(
     select count(*)
     from public.email_templates
     where organization_id = '62000000-0000-4000-8000-000000000001'
+      and trigger_type in (
+        'welcome', 'pre_shipment', 'payment_decline', 'shipped',
+        'birthday', 're_engagement'
+      )
   ),
   6::bigint,
-  'new organizations receive all six templates'
+  'new organizations receive all six Phase 3 templates'
 );
 select is(
   (

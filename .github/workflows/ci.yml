@@ -1261,6 +1261,8 @@ jobs:
     name: Apply Supabase migrations when activated
     needs: [quality]
     if: >-
+      always() &&
+      needs.quality.result == 'success' &&
       github.event_name != 'pull_request' &&
       github.ref == 'refs/heads/staging' &&
       vars.STAGING_SUPABASE_MIGRATION_ENABLED == 'true'
@@ -1319,6 +1321,8 @@ jobs:
     name: Deploy Worker when activated
     needs: [quality, database]
     if: >-
+      always() &&
+      needs.quality.result == 'success' &&
       github.event_name != 'pull_request' &&
       github.ref == 'refs/heads/staging' &&
       vars.STAGING_CLOUDFLARE_DEPLOY_ENABLED == 'true' &&
@@ -1529,6 +1533,8 @@ jobs:
         shell: bash
         env:
           AUTH_EMAIL_ENABLED: ${{ secrets.STAGING_AUTH_EMAIL_ENABLED }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
           APNS_BUNDLE_ID: ${{ secrets.STAGING_APNS_BUNDLE_ID }}
           APNS_ENVIRONMENT: ${{ secrets.STAGING_APNS_ENVIRONMENT }}
           APNS_KEY_ID: ${{ secrets.STAGING_APNS_KEY_ID }}
@@ -1607,6 +1613,8 @@ jobs:
             "APNS_PRIVATE_KEY",
             "APNS_TEAM_ID",
             "AUTH_EMAIL_ENABLED",
+            "CF_ACCESS_CLIENT_ID",
+            "CF_ACCESS_CLIENT_SECRET",
             "CLOUDFLARE_CUSTOM_HOSTNAME_API_TOKEN",
             "CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN",
             "CLOUDFLARE_ZONE_ID",
@@ -1729,6 +1737,7 @@ jobs:
           npx wrangler versions deploy "$version_id@100%" --env staging -y
           node scripts/verify-hosted-runtime.mjs \
             --origin "$staging_url" \
+            --expected-revision "${{ steps.release-package.outputs.candidate_sha }}" \
             --output "$RUNNER_TEMP/vinifera-staging-runtime.json"
           jq -n \
             --arg artifact_sha256 "$(jq -r '.artifactSha256' release/manifest.json)" \
