@@ -220,15 +220,17 @@ current time. It expires an open Checkout Session, restores fixture billing
 state, fails on cleanup errors, and retains only the sanitized JSON result in
 `staging-runtime-evidence`.
 
-When the job publishes the `Hosted Gate 7 magic-link handoff` Actions notice
-(also logged as `HOSTED_GATE7_MAGIC_LINK_HANDOFF`), retrieve the real message
-sent to the dedicated member plus-address, pass its action URL on standard input
-to `scripts/encrypt-hosted-gate7-link.mjs` with the printed handoff identifier
-and public key, and store the resulting JSON in the protected staging variable
+When the job publishes the protected staging variable
+`STAGING_HOSTED_ACCEPTANCE_MAGIC_LINK_HANDOFF`, read its run-bound identifier
+and ephemeral public key, retrieve the real message sent to the dedicated
+member plus-address, pass its action URL on standard input to
+`scripts/encrypt-hosted-gate7-link.mjs`, and store the resulting JSON in the protected staging variable
 `STAGING_HOSTED_ACCEPTANCE_MAGIC_LINK_ENVELOPE`. The job accepts only the
 run-bound envelope and validates its Supabase verify target, callback, and PKCE
-state before consumption. Configure `STAGING_GITHUB_VARIABLES_TOKEN` as a
-protected staging secret with access to read repository environment variables.
+state before consumption, then removes the public handoff variable. Configure
+`STAGING_GITHUB_VARIABLES_TOKEN` as a protected staging secret with access to
+read and write repository environment variables. The completed-run Actions
+notice remains corroborating evidence, not the live transport.
 
 Run the complete browser suite against the staging Worker at 375, 768, and
 1440 pixels. Require zero axe WCAG 2.1 AA violations, touch targets of at least

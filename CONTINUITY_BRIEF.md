@@ -79,6 +79,15 @@ the controller retained only chunk zero. The follow-up repair splits every
 entry before merging the jar, including safe handling of an `Expires` comma.
 Gate 7 remains pending a fresh exact-head run.
 
+Exact-head staging run `31081854654` reached the encrypted email wait, proving
+the Stripe activation ordering and member magic-link request. It was canceled
+after the live check-run annotations remained empty: GitHub publishes the
+workflow-command notice only after the running step ends. The job now upserts
+its run-bound identifier and ephemeral public key into the protected staging
+variable `STAGING_HOSTED_ACCEPTANCE_MAGIC_LINK_HANDOFF`, polls the separate
+encrypted-envelope variable as before, and removes the public handoff variable
+when the wait ends. Gate 7 remains pending a fresh exact-head run.
+
 Exact-head staging run `31078478629` proved that the controller now replays
 both folded SSR cookie chunks, then exposed the application-side counterpart:
 the production/staging auth-presence middleware recognized only the unchunked

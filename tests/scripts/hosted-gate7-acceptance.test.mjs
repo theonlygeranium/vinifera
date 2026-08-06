@@ -140,6 +140,9 @@ describe("hosted Gate 7 acceptance controller", () => {
     expect(workflow).toContain(
       "HOSTED_ACCEPTANCE_GITHUB_TOKEN: ${{ secrets.STAGING_GITHUB_VARIABLES_TOKEN }}",
     );
+    expect(workflow).toContain(
+      "HOSTED_ACCEPTANCE_HANDOFF_VARIABLE: STAGING_HOSTED_ACCEPTANCE_MAGIC_LINK_HANDOFF",
+    );
     expect(workflow).not.toContain("HOSTED_ACCEPTANCE_EMAIL_BASE: founder@");
   });
 
@@ -158,5 +161,7 @@ describe("hosted Gate 7 acceptance controller", () => {
     );
     expect(controller).toContain("HOSTED_GATE7_MAGIC_LINK_HANDOFF");
     expect(controller).toContain("::notice title=Hosted Gate 7 magic-link handoff::");
+    expect(controller).toContain('method: "PATCH"');
+    expect(controller).toContain('method: "DELETE"');
   });
 });
