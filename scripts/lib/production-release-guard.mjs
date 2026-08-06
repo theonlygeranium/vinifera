@@ -230,6 +230,28 @@ export function parseWranglerVersionUploadOutput(output) {
   return { previewUrl: previewUrls[0], versionId: versionIds[0] };
 }
 
+export function parseWranglerStagingVersionUploadOutput(
+  output,
+  configuredOrigin,
+) {
+  const text = String(output ?? "");
+  const versionIds = [
+    ...text.matchAll(
+      /Worker Version ID:\s*([0-9a-f]{8}-[0-9a-f-]{27,})/gi,
+    ),
+  ].map((match) => validateWorkerVersionId(match[1]));
+  const previewUrls = [
+    ...text.matchAll(/Version Preview URL:\s*(https:\/\/\S+)/gi),
+  ].map((match) => normalizeOrigin(match[1]));
+  if (versionIds.length !== 1 || previewUrls.length > 1) {
+    throw new Error(
+      "Wrangler staging upload output must contain exactly one Version ID and at most one preview URL.",
+    );
+  }
+  const previewUrl = previewUrls[0] ?? normalizeOrigin(configuredOrigin);
+  return { previewUrl, versionId: versionIds[0] };
+}
+
 export function parseWranglerJson(output, label) {
   try {
     return JSON.parse(String(output ?? ""));

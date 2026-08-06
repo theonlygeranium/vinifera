@@ -1702,6 +1702,7 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.STAGING_CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
+          STAGING_WORKER_ORIGIN: ${{ vars.STAGING_WORKER_ORIGIN }}
         run: |
           deploy_log="$RUNNER_TEMP/vinifera-staging-deploy.log"
           if [[ "${{ steps.worker-secrets.outputs.count }}" -gt 0 ]]; then
@@ -1728,8 +1729,9 @@ jobs:
               --message "vinifera staging candidate=${{ steps.release-package.outputs.candidate_sha }} artifact_sha256=$(jq -r '.artifactSha256' release/manifest.json)" \
               | tee "$deploy_log"
           fi
-          node scripts/production-release.mjs parse-upload \
-            "$deploy_log" "$RUNNER_TEMP/staging-upload.json"
+          node scripts/production-release.mjs parse-staging-upload \
+            "$deploy_log" "$RUNNER_TEMP/staging-upload.json" \
+            "$STAGING_WORKER_ORIGIN"
           version_id=$(jq -r '.versionId' "$RUNNER_TEMP/staging-upload.json")
           staging_url=$(jq -r '.previewUrl' "$RUNNER_TEMP/staging-upload.json")
           if [[ ! "$version_id" =~ ^[0-9a-f-]{36}$ ]]; then

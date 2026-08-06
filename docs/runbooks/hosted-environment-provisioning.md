@@ -161,8 +161,14 @@ environment secrets are reviewed:
 ```text
 STAGING_SUPABASE_MIGRATION_ENABLED=true
 STAGING_CLOUDFLARE_DEPLOY_ENABLED=true
+STAGING_WORKER_ORIGIN=https://vinifera-staging.<account-subdomain>.workers.dev
 VITE_MOBILE_API_ORIGIN=https://vinifera-staging.<account-subdomain>.workers.dev
 ```
+
+Current Wrangler versions may return only the immutable version ID during
+`versions upload`. When no version preview URL is emitted, the deployment uses
+`STAGING_WORKER_ORIGIN` for exact-revision runtime verification. The variable
+must identify the isolated Worker in the dedicated staging account.
 
 The migration job links the exact allowlisted project, applies migrations, and
 runs `supabase test db --linked`. That suite includes tenant and brand isolation
