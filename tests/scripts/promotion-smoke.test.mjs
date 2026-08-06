@@ -18,6 +18,7 @@ import { probeHostedMarker } from "../../scripts/hosted-marker-probe.mjs";
 
 const sourceSha = "a".repeat(40);
 const originalCwd = process.cwd();
+const fixtureGitTimeoutMs = 15_000;
 
 function git(cwd, args) {
   return execFileSync("git", args, { cwd, encoding: "utf8" });
@@ -171,7 +172,7 @@ describe("promotion smoke tooling", () => {
     expect(result.passed).toBe(false);
     expect(result.reason).toBe("environment_branch_tree_or_mergeability_drift");
     expect(result.devToStaging[0].paths).toEqual(["dev-only.txt"]);
-  });
+  }, fixtureGitTimeoutMs);
 
   it("fails start preflight when stale ancestry would make promotion conflict", () => {
     const root = fixtureRepo();
@@ -197,7 +198,7 @@ describe("promotion smoke tooling", () => {
     });
     expect(result.passed).toBe(false);
     expect(result.devIntoStaging.reason).toBe("merge_tree_conflict");
-  });
+  }, fixtureGitTimeoutMs);
 
   it("allows production preflight only for hidden smoke artifact diffs", () => {
     const root = fixtureRepo();
@@ -227,7 +228,7 @@ describe("promotion smoke tooling", () => {
       mainRef: "main",
     });
     expect(drift.passed).toBe(false);
-  });
+  }, fixtureGitTimeoutMs);
 
   it("probes extension redirects, propagation retries, and robots metadata", async () => {
     const marker = markerFor({ date: "2026-08-02", suffix: "probe-test" });
