@@ -48,6 +48,15 @@ two-tenant, member Auth, Stripe test Checkout/webhook, and access-lifecycle
 contract with uniquely scoped synthetic fixtures and cleanup. Its retained
 artifact, rather than source presence, determines Gate 7 status.
 
+The Gate 7 controller uses two reusable acceptance-only tenants, restores their
+mutable billing state after every run, and fails if that restoration fails. It
+consumes the real emailed PKCE link through a run-bound encrypted handoff and
+uses only the current database time for global lifecycle reconciliation; only
+fixture-local timestamps are compressed. This closes the review defects around
+admin-minted non-PKCE links, audit-blocked deletion, and premature transitions
+for unrelated staging tenants. Gate 7 remains pending until this repaired exact
+head passes the protected staging run.
+
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
 dump completed on 2026-08-05; the existing daily cron continues to call the

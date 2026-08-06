@@ -1776,6 +1776,9 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
           HOSTED_ACCEPTANCE_EMAIL_BASE: ${{ vars.STAGING_HOSTED_ACCEPTANCE_EMAIL_BASE }}
+          HOSTED_ACCEPTANCE_ENVIRONMENT: staging
+          HOSTED_ACCEPTANCE_GITHUB_TOKEN: ${{ secrets.STAGING_GITHUB_VARIABLES_TOKEN }}
+          HOSTED_ACCEPTANCE_LINK_ENVELOPE_VARIABLE: STAGING_HOSTED_ACCEPTANCE_MAGIC_LINK_ENVELOPE
           STAGING_WORKER_ORIGIN: ${{ vars.STAGING_WORKER_ORIGIN }}
           STRIPE_PRICE_VINE: ${{ secrets.STAGING_STRIPE_PRICE_VINE }}
           STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
@@ -1790,7 +1793,7 @@ jobs:
           echo "- Two-tenant staff and native RLS isolation: passed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Member magic-link callback and cookie session: passed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Stripe test Checkout, signed webhook idempotency, grace, restriction, suspension, and recovery: passed" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Synthetic tenants, Auth users, Checkout, and Stripe customers: cleanup attempted" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dedicated staging fixtures restored to their reusable baseline: passed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove temporary Worker secret bundle
         if: always() && steps.worker-secrets.outputs.path != ''
