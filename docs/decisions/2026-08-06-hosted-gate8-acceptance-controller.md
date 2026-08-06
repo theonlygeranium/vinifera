@@ -45,6 +45,11 @@ The release follows the valid `scheduled → processing → completed` retiremen
 path, the member is cancelled and soft-deleted, and the tier is disabled.
 Email logs, outbox records, delivery events, and audits remain durable.
 
+Worker health and configuration probes carry the staging Access service-token
+headers, reject redirects, and use a 15-second deadline. Resend domain and
+webhook discovery traverses every cursor page before matching the exact target,
+and every non-disabled sender identity on the acceptance brand must be verified.
+
 The artifact contains booleans, counts, event names, verified DNS record
 types, and SHA-256 digests of provider identifiers. It excludes credentials,
 domain names, addresses, message content, raw provider identifiers, and

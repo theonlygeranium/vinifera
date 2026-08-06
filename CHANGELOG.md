@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Changed
+- Complete Gate 8 provider inventory across every Resend cursor page, require
+  every active brand sender identity to be verified, bound and authenticate
+  both Worker health probes, strengthen no-mutation source guards, and align
+  the normative gate exit criteria and QA date. **Deployment impact:**
+  protected staging acceptance and documentation only; no provider mutation.
+- Raise the branch Vitest regression floor from 582 to the verified 583 tests
+  after adding behavioral cursor-pagination coverage. **Deployment impact:**
+  QA documentation only.
 - Scope Gate 8 delivery-event and outbox polling by both organization and
   brand, in addition to the exact brand-scoped logical message IDs. This keeps
   every hosted acceptance read explicitly tenant-bound even when an

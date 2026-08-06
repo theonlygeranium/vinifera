@@ -204,6 +204,23 @@ async function providerJson(path, apiKey) {
   return response.json();
 }
 
+export async function providerList(path, apiKey) {
+  const rows = [];
+  let after = null;
+  for (let pageNumber = 0; pageNumber < 100; pageNumber += 1) {
+    const query = new URLSearchParams({ limit: "100" });
+    if (after) query.set("after", after);
+    const page = await providerJson(`${path}?${query}`, apiKey);
+    const pageRows = Array.isArray(page?.data) ? page.data : [];
+    rows.push(...pageRows);
+    if (page?.has_more !== true) return rows;
+    const lastId = providerId(pageRows.at(-1)?.id, "pagination cursor");
+    expect(lastId !== after, "Resend pagination cursor did not advance.");
+    after = lastId;
+  }
+  throw new Error("Resend provider inventory exceeded the pagination limit.");
+}
+
 async function responseBody(response) {
   const text = await response.text();
   if (!text) return null;
@@ -285,7 +302,11 @@ async function main() {
   let runError = null;
 
   try {
-    const healthResponse = await fetch(new URL("/api/health", origin));
+    const healthResponse = await fetch(new URL("/api/health", origin), {
+      headers: access,
+      redirect: "error",
+      signal: AbortSignal.timeout(15_000),
+    });
     const health = await responseBody(healthResponse);
     expect(
       healthResponse.status === 200,
@@ -294,6 +315,11 @@ async function main() {
     expect(health?.data?.environment === "staging", "Worker is not staging.");
     const configurationResponse = await fetch(
       new URL("/api/health/configuration", origin),
+      {
+        headers: access,
+        redirect: "error",
+        signal: AbortSignal.timeout(15_000),
+      },
     );
     const configuration = await responseBody(configurationResponse);
     expect(
@@ -306,8 +332,8 @@ async function main() {
     );
     evidence.checks.runtime = true;
 
-    const domains = await providerJson("/domains?limit=100", apiKey);
-    const domainSummary = domains.data?.find(
+    const domains = await providerList("/domains", apiKey);
+    const domainSummary = domains.find(
       (domain) => String(domain?.name ?? "").toLowerCase() === sendingDomain,
     );
     expect(domainSummary, "The configured Resend domain was not found.");
@@ -325,8 +351,8 @@ async function main() {
     evidence.checks.domain = true;
 
     const webhookEndpoint = new URL("/api/webhooks/resend", origin).toString();
-    const webhooks = await providerJson("/webhooks?limit=100", apiKey);
-    const webhookSummary = webhooks.data?.find(
+    const webhooks = await providerList("/webhooks", apiKey);
+    const webhookSummary = webhooks.find(
       (webhook) => String(webhook?.endpoint ?? "") === webhookEndpoint,
     );
     expect(webhookSummary, "The exact staging Resend webhook was not found.");
@@ -373,16 +399,15 @@ async function main() {
       .eq("id", brandId)
       .single();
     if (brandError) throw brandError;
-    const { data: sender, error: senderError } = await admin
+    const { data: senders, error: senderError } = await admin
       .from("brand_sender_identities")
       .select("status")
       .eq("organization_id", staff.organization_id)
       .eq("brand_id", brandId)
-      .neq("status", "disabled")
-      .maybeSingle();
+      .neq("status", "disabled");
     if (senderError) throw senderError;
     expect(
-      !sender || sender.status === "verified",
+      (senders ?? []).every((sender) => sender.status === "verified"),
       "The acceptance brand has a pending sender identity that blocks global fallback.",
     );
     const { data: templates, error: templateError } = await admin

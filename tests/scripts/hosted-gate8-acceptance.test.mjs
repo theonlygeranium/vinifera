@@ -1,10 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   addCalendarDays,
   deliveryComplete,
   localDate,
   plusAddress,
+  providerList,
   secretsMatch,
   senderDomain,
   validateResendDomain,
@@ -12,6 +13,7 @@ import {
 } from "../../scripts/hosted-gate8-acceptance.mjs";
 
 const repositoryRoot = new URL("../../", import.meta.url);
+afterEach(() => vi.unstubAllGlobals());
 const requiredEvents = [
   "email.bounced",
   "email.clicked",
@@ -24,6 +26,35 @@ const requiredEvents = [
 ];
 
 describe("hosted Gate 8 acceptance controller", () => {
+  it("paginates provider inventory with the last returned ID", async () => {
+    const requests = [];
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockImplementationOnce(async (url) => {
+          requests.push(String(url));
+          return Response.json({
+            data: [{ id: "domain-first" }],
+            has_more: true,
+          });
+        })
+        .mockImplementationOnce(async (url) => {
+          requests.push(String(url));
+          return Response.json({
+            data: [{ id: "domain-second" }],
+            has_more: false,
+          });
+        }),
+    );
+    await expect(providerList("/domains", "re_test_key")).resolves.toEqual([
+      { id: "domain-first" },
+      { id: "domain-second" },
+    ]);
+    expect(requests[0]).toContain("limit=100");
+    expect(requests[1]).toContain("after=domain-first");
+  });
+
   it("scopes recipients and validates sender domains", () => {
     expect(plusAddress("Owner+old@Example.com", "vinifera-g8-run")).toBe(
       "owner+vinifera-g8-run@example.com",
@@ -180,14 +211,18 @@ describe("hosted Gate 8 acceptance controller", () => {
       "utf8",
     );
     expect(controller).toContain('method: "GET"');
-    expect(controller).toContain('providerJson("/domains?limit=100"');
-    expect(controller).toContain('providerJson("/webhooks?limit=100"');
-    expect(controller).not.toMatch(/providerJson\([^\n]+,\s*apiKey,\s*"POST"/u);
+    expect(controller).toContain('providerList("/domains"');
+    expect(controller).toContain('providerList("/webhooks"');
+    expect(controller).not.toMatch(
+      /method:\s*"(?:POST|PUT|PATCH|DELETE)"/u,
+    );
     expect(controller).toContain('admin.rpc("enqueue_due_email_triggers"');
     expect(controller).toContain('fixtureMode: "durable-one-shot-staging"');
     expect(controller).toContain('disposition: "durable-evidence-retained"');
-    expect(controller).not.toContain('.from("email_log").delete()');
-    expect(controller).not.toContain('.from("email_delivery_events").delete()');
+    expect(controller).not.toMatch(/\.delete\(/u);
+    expect(controller).toContain("AbortSignal.timeout(15_000)");
+    expect(controller).toContain('redirect: "error"');
+    expect(controller).toContain("headers: access");
     expect(controller).toMatch(
       /\.from\("email_delivery_events"\)[\s\S]*?\.eq\("organization_id", staff\.organization_id\)[\s\S]*?\.eq\("brand_id", brandId\)[\s\S]*?\.in\("email_log_id", logIds\)/u,
     );
