@@ -150,6 +150,15 @@ signed webhook idempotency and lifecycle transitions, and reusable-fixture
 cleanup. Sanitized evidence artifact `8963047777` records all six acceptance
 checks plus cleanup as successful.
 
+After retaining that evidence, the protected staging variable
+`STAGING_HOSTED_ACCEPTANCE_ENABLED` was returned to `false`. Future staging
+promotions must not rerun Gate 7 or request another member-email handoff unless
+its evidence is being deliberately revalidated. Remaining hosted controllers
+use one-shot gate-specific switches. The remaining-gates dependency audit also
+confirmed Gate 13 must precede Gate 6: the real label path invokes the
+fail-closed compliance adapter, and its test-only simulator is not valid hosted
+compliance authority.
+
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
 dump completed on 2026-08-05; the existing daily cron continues to call the
