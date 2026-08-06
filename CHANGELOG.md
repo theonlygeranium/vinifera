@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Changed
+- Add the chief-orchestrator manifest for completing Gates 6, 8, and 10–20,
+  with non-overlapping read-only subagent audits, centralized mutation
+  authority, dependency-aware sequencing, and mandatory per-gate hosted QA.
+  **Deployment impact:** planning documentation only; no provider, database,
+  credential, billing, DNS, Worker, mobile-store, or production mutation.
 - Record hosted activation Gate 7 as `live-passed` after protected staging run
   `31089753727` deployed reviewed exact candidate
   `530a003b91642ebf40af01468b10e444116ef632` as Worker version
