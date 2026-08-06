@@ -136,7 +136,8 @@ promotion. The controller:
 5. waits up to 70 minutes for the actual deployed hourly Worker Cron Trigger;
 6. requires two completed outbox records, two distinct provider messages, and
    a signed `email.delivered` webhook event for both (`email.sent` is not
-   completion evidence); and
+   completion evidence), with every delivery table read scoped to the exact
+   acceptance organization and brand; and
 7. retires the member, tier, and release while retaining durable email and
    audit evidence.
 

@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- Scope Gate 8 delivery-event and outbox polling by both organization and
+  brand, in addition to the exact brand-scoped logical message IDs. This keeps
+  every hosted acceptance read explicitly tenant-bound even when an
+  organization owns multiple brands. **Deployment impact:** protected staging
+  acceptance evidence only; no provider, database-schema, or production
+  mutation.
 - Add an opt-in, protected hosted Gate 8 acceptance controller that validates
   the exact verified Resend domain and signed staging webhook, creates isolated
   welcome and pre-shipment lifecycle fixtures, waits for the real deployed

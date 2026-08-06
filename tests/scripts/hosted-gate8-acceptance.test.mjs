@@ -188,6 +188,12 @@ describe("hosted Gate 8 acceptance controller", () => {
     expect(controller).toContain('disposition: "durable-evidence-retained"');
     expect(controller).not.toContain('.from("email_log").delete()');
     expect(controller).not.toContain('.from("email_delivery_events").delete()');
+    expect(controller).toMatch(
+      /\.from\("email_delivery_events"\)[\s\S]*?\.eq\("organization_id", staff\.organization_id\)[\s\S]*?\.eq\("brand_id", brandId\)[\s\S]*?\.in\("email_log_id", logIds\)/u,
+    );
+    expect(controller).toMatch(
+      /\.from\("email_outbox"\)[\s\S]*?\.eq\("organization_id", staff\.organization_id\)[\s\S]*?\.eq\("brand_id", brandId\)[\s\S]*?\.in\("email_log_id", logIds\)/u,
+    );
     expect(controller).toContain("domainIdSha256");
     expect(controller).toContain("webhookIdSha256");
   });

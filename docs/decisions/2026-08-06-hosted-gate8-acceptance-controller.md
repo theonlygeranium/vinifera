@@ -38,6 +38,9 @@ uniquely addressed member, tier, and release, and invokes the canonical
 `enqueue_due_email_triggers` RPC twice to prove logical idempotency. It then
 waits for the deployed hourly Worker to complete two outbox records, attach two
 distinct provider message identifiers, and reconcile signed provider events.
+All logical-message, outbox, and delivery-event polling is explicitly scoped
+to the fixture organization and brand; exact brand-scoped email-log IDs are an
+additional correlation boundary rather than a substitute for tenant filters.
 The release follows the valid `scheduled → processing → completed` retirement
 path, the member is cancelled and soft-deleted, and the tier is disabled.
 Email logs, outbox records, delivery events, and audits remain durable.

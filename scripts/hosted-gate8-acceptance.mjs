@@ -499,11 +499,13 @@ async function main() {
           .from("email_delivery_events")
           .select("email_log_id,event_type")
           .eq("organization_id", staff.organization_id)
+          .eq("brand_id", brandId)
           .in("email_log_id", logIds),
         admin
           .from("email_outbox")
           .select("email_log_id,status")
           .eq("organization_id", staff.organization_id)
+          .eq("brand_id", brandId)
           .in("email_log_id", logIds),
       ]);
       if (logs.error) throw logs.error;
