@@ -911,6 +911,9 @@ The code must remain fail-closed until these external connections are active:
    sending-only runtime key from trusted `main`, review the generated key ID and
    every DNS tuple hash, apply and post-read verify exact unproxied Cloudflare
    DNS, then prove the signed webhook and at least two real staging triggers.
+   A one-time webhook secret is durably endpoint-bound before missing-ID
+   inventory, so an interrupted lookup can resume through the protected
+   controller recovery envelope before any webhook update.
    Evidence is bound to exact source SHA, policy digest, repository, and run.
    No provider, DNS, secret, or gate-status mutation has been performed by
    source completion.

@@ -1,7 +1,7 @@
 # Vinifera UI Testing Specification
 **Version:** 1.0 | **Repo:** `theonlygeranium/vinifera` | **Branch target:** `dev`
 **Owner:** EdStratum Labs / `founder@edstratumlabs.ai`
-**Baseline:** v0.5.0 — BS-01 through BS-06 merged, 592 Vitest + 155 passed Playwright/axe with 3 hosted-only skips
+**Baseline:** v0.5.0 — BS-01 through BS-06 merged, 596 Vitest + 155 passed Playwright/axe with 3 hosted-only skips
 **Last updated:** 2026-08-05
 
 ---
@@ -19,7 +19,7 @@ Before writing a single line of test code or opening a browser, every agent and 
 - All PRs target **`dev`** only. Never open a PR against `staging` or `main`.
 - Never activate a hosted gate. Never commit real credentials.
 - `CHANGELOG.md` must be updated in every commit.
-- `npm run check` must pass before every push (592 Vitest + TypeScript clean + zero axe violations).
+- `npm run check` must pass before every push (596 Vitest + TypeScript clean + zero axe violations).
 - Every visual change must be verified at 375 px viewport width.
 - Touch targets must meet ≥ 44 × 44 px (WCAG 2.5.5).
 
@@ -777,7 +777,7 @@ cd ../vinifera-fix-<domain>-<slug>
 # 4. Verify the fix
 npm run dev:frontend    # Start server
 npm run qa:e2e          # Must still pass 155 with 3 hosted-only skips
-npm run check           # TypeScript + 592 Vitest must pass
+npm run check           # TypeScript + 596 Vitest must pass
 # Re-run the specific browser test that caught the defect
 
 # 5. Update CHANGELOG.md under [Unreleased]

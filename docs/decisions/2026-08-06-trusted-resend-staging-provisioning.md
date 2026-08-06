@@ -66,14 +66,16 @@ or DNS deletion is supported.
 
 During bootstrap, the full-access provisioning key creates the domain-scoped,
 sending-only runtime key. The controller streams only that runtime token and the
-official webhook signing secret to `gh secret set` over stdin. The webhook
-secret is persisted directly from the one-time create response before any
-subsequent provider call. If persistence fails, the controller deletes that
-just-created webhook so a later protected run can recreate it and obtain a new
-one-time secret. The controller stores the signing secret in `staging` and its
-webhook ID hash in the main-only `staging-acceptance-control` environment, then
-requires that exact binding before accepting any inventoried
-webhook. It never writes the provisioning key to a Worker
+official webhook signing secret to `gh secret set` over stdin. Before an
+omitted webhook ID can require another provider request, the controller stores
+the one-time signing secret and exact endpoint hash together in one protected
+recovery envelope. It then stores the signing secret in `staging`, binds the
+webhook ID hash in the main-only `staging-acceptance-control` environment, and
+removes the recovery envelope. An interrupted ID lookup can therefore resume
+only against the single exact inventoried endpoint, while a recoverable failed
+write deletes the just-created webhook. The controller requires the exact ID
+binding or this controlled recovery before accepting any inventoried webhook.
+It never writes the provisioning key to a Worker
 binding. A stable unsubscribe signing secret is supplied by the trusted
 controller environment and copied unchanged on every retry; the controller
 never generates or rotates it. Because Resend exposes a newly created runtime token only once, the
@@ -101,6 +103,9 @@ separate real lifecycle acceptance remain required.
 - Re-running bootstrap/apply is idempotent for exact resources and fails on
   ambiguity or conflicting DNS instead of overwriting it.
 - The webhook secret never crosses a workflow output, shell log, or artifact.
+- A missing webhook ID cannot strand its one-time signing secret: the exact
+  endpoint-bound recovery envelope is durable before inventory and removed
+  only after the runtime secret and ID binding are durable.
 - The Worker receives only a domain-restricted `sending_access` credential, not
   the provisioning administrator credential.
 - The operation cannot run from pull-request code, staging code, or a stale

@@ -527,18 +527,36 @@ export async function ensureWebhook(
   apiKey,
   endpoint,
   canMutate,
-  persistSigningSecret,
+  persistWebhookRecovery,
   boundWebhookIdSha256,
+  finalizeWebhookBinding,
+  recoveryEnvelope,
 ) {
   let webhook = await inventoryWebhook(apiKey, endpoint);
   let disposition = "existing";
   if (webhook) {
-    expect(
+    const webhookIdSha256 = sha256(String(webhook.id));
+    const recovery = parseWebhookRecovery(recoveryEnvelope, endpoint);
+    const hasValidBinding =
       typeof boundWebhookIdSha256 === "string" &&
-        SHA256_PATTERN.test(boundWebhookIdSha256) &&
-        sha256(String(webhook.id)) === boundWebhookIdSha256,
-      "Existing Resend webhook is not bound to the persisted signing secret.",
+      SHA256_PATTERN.test(boundWebhookIdSha256);
+    expect(
+      !hasValidBinding || boundWebhookIdSha256 === webhookIdSha256,
+      "Existing Resend webhook conflicts with the persisted signing-secret binding.",
     );
+    if (recovery) {
+      expect(
+        canMutate && typeof finalizeWebhookBinding === "function",
+        "Webhook recovery requires a protected mutating operation and binding callback.",
+      );
+      await finalizeWebhookBinding(recovery.signingSecret, webhookIdSha256);
+      disposition = "recovered";
+    } else {
+      expect(
+        hasValidBinding,
+        "Existing Resend webhook is not bound to the persisted signing secret.",
+      );
+    }
   }
   if (!webhook && canMutate) {
     const created = await apiJson(RESEND_ORIGIN, "/webhooks", {
@@ -547,22 +565,45 @@ export async function ensureWebhook(
       method: "POST",
     });
     expect(
-      typeof persistSigningSecret === "function",
-      "Webhook creation requires an immediate secret persistence callback.",
+      typeof persistWebhookRecovery === "function" &&
+        typeof finalizeWebhookBinding === "function",
+      "Webhook creation requires protected recovery and binding callbacks.",
     );
-    const createdId =
+    let createdId =
       typeof created?.id === "string" && created.id.trim()
         ? created.id.trim()
-        : required(
+        : null;
+    try {
+      const signingSecret = required(
+        created.signing_secret,
+        "Resend webhook signing secret",
+      );
+      // Resend exposes the signing secret only once. Persist one atomic
+      // recovery envelope before an omitted-ID response can require another
+      // provider call. A later protected retry can bind the exact inventoried
+      // endpoint without guessing or recreating the webhook.
+      await persistWebhookRecovery(signingSecret, sha256(endpoint));
+      if (!createdId) {
+        createdId = required(
+          (await inventoryWebhook(apiKey, endpoint))?.id,
+          "Resend webhook ID",
+        );
+      }
+      await finalizeWebhookBinding(signingSecret, sha256(createdId));
+    } catch (persistenceError) {
+      if (!createdId) {
+        try {
+          createdId = required(
             (await inventoryWebhook(apiKey, endpoint))?.id,
             "Resend webhook ID",
           );
-    try {
-      await persistSigningSecret(
-        required(created.signing_secret, "Resend webhook signing secret"),
-        sha256(createdId),
-      );
-    } catch (persistenceError) {
+        } catch (inventoryError) {
+          throw new AggregateError(
+            [persistenceError, inventoryError],
+            "Webhook recovery failed and its provider ID could not be recovered; the protected recovery envelope permits an exact retry.",
+          );
+        }
+      }
       try {
         await apiJson(
           RESEND_ORIGIN,
@@ -597,6 +638,24 @@ export async function ensureWebhook(
     disposition = "updated";
   }
   return { disposition, webhook };
+}
+
+export function parseWebhookRecovery(value, endpoint) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  let recovery;
+  try {
+    recovery = JSON.parse(value);
+  } catch {
+    throw new Error("Resend webhook recovery envelope is invalid JSON.");
+  }
+  expect(
+    recovery?.schemaVersion === 1 &&
+      recovery?.endpointSha256 === sha256(endpoint) &&
+      typeof recovery?.signingSecret === "string" &&
+      recovery.signingSecret.trim().length > 0,
+    "Resend webhook recovery envelope is not bound to the exact endpoint.",
+  );
+  return recovery;
 }
 
 async function inventoryRuntimeSendingKey(apiKey) {
@@ -798,6 +857,38 @@ async function setGitHubEnvironmentSecret(
   });
 }
 
+async function deleteGitHubEnvironmentSecret(
+  name,
+  env,
+  environment = "staging",
+) {
+  const repository = required(env.GITHUB_REPOSITORY, "GITHUB_REPOSITORY");
+  expect(
+    repository === "theonlygeranium/vinifera",
+    "Repository is not the canonical Vinifera repository.",
+  );
+  await new Promise((resolvePromise, reject) => {
+    const child = spawn(
+      "gh",
+      ["secret", "delete", name, "--env", environment, "--repo", repository],
+      {
+        env: { ...process.env, GH_TOKEN: required(env.GH_TOKEN, "GH_TOKEN") },
+        stdio: ["ignore", "ignore", "ignore"],
+      },
+    );
+    child.on("error", () =>
+      reject(new Error("GitHub secret remover failed to start.")),
+    );
+    child.on("close", (code) => {
+      if (code === 0) resolvePromise();
+      else
+        reject(
+          new Error(`GitHub environment secret removal failed for ${name}.`),
+        );
+    });
+  });
+}
+
 async function writeRuntimeSecrets({
   domain,
   domainVerified,
@@ -915,6 +1006,19 @@ async function main() {
       provisioningApiKey,
       authorized.endpoint,
       canMutate,
+      async (secret, endpointSha256) => {
+        await setGitHubEnvironmentSecret(
+          "STAGING_RESEND_WEBHOOK_RECOVERY",
+          JSON.stringify({
+            endpointSha256,
+            schemaVersion: 1,
+            signingSecret: secret,
+          }),
+          process.env,
+          "staging-acceptance-control",
+        );
+      },
+      process.env.STAGING_RESEND_WEBHOOK_ID_SHA256,
       async (secret, webhookIdSha256) => {
         await setGitHubEnvironmentSecret(
           "STAGING_RESEND_WEBHOOK_SECRET",
@@ -927,8 +1031,13 @@ async function main() {
           process.env,
           "staging-acceptance-control",
         );
+        await deleteGitHubEnvironmentSecret(
+          "STAGING_RESEND_WEBHOOK_RECOVERY",
+          process.env,
+          "staging-acceptance-control",
+        );
       },
-      process.env.STAGING_RESEND_WEBHOOK_ID_SHA256,
+      process.env.STAGING_RESEND_WEBHOOK_RECOVERY,
     );
     evidence.provider = {
       domainDisposition: domainResult.domain

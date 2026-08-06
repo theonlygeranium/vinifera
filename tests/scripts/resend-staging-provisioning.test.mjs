@@ -361,30 +361,81 @@ describe("Resend staging provisioning controller", () => {
     expect(requests.every((request) => request.method !== "DELETE")).toBe(true);
   });
 
-  it("persists a newly created webhook secret before retrieving it", async () => {
+  it("recovers a missing webhook ID only after persisting its one-time secret", async () => {
     const endpoint =
       "https://vinifera-staging.account.workers.dev/api/webhooks/resend";
     const order = [];
+    let inventoryCalls = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url, init) => {
         const pathname = new URL(String(url)).pathname;
         if (pathname === "/webhooks" && init.method === "GET") {
-          order.push("inventory");
-          return Response.json({ data: [] });
+          inventoryCalls += 1;
+          if (inventoryCalls === 1) {
+            order.push("inventory");
+            return Response.json({ data: [] });
+          }
+          order.push("recover-id");
+          throw new Error("synthetic inventory outage");
         }
         if (pathname === "/webhooks" && init.method === "POST") {
           order.push("create");
           return Response.json({
-            id: "webhook-created",
             signing_secret: "whsec_created_once",
           });
         }
+        throw new Error(`Unexpected request: ${init.method} ${pathname}`);
+      }),
+    );
+    const persistWebhookRecovery = vi.fn(async () => order.push("persist"));
+    await expect(
+      ensureWebhook(
+        "re_test_key",
+        endpoint,
+        true,
+        persistWebhookRecovery,
+        undefined,
+        vi.fn(),
+      ),
+    ).rejects.toThrow(/protected recovery envelope permits an exact retry/u);
+    expect(persistWebhookRecovery).toHaveBeenCalledWith(
+      "whsec_created_once",
+      sha256(endpoint),
+    );
+    expect(order).toEqual([
+      "inventory",
+      "create",
+      "persist",
+      "recover-id",
+      "recover-id",
+    ]);
+
+    const retryOrder = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init) => {
+        const pathname = new URL(String(url)).pathname;
+        if (pathname === "/webhooks") {
+          retryOrder.push("inventory");
+          return Response.json({
+            data: [{ endpoint, id: "webhook-created" }],
+          });
+        }
         if (pathname === "/webhooks/webhook-created") {
-          order.push("retrieve");
+          retryOrder.push("retrieve");
           return Response.json({
             endpoint,
-            events: ["email.sent"],
+            events: [
+              "email.bounced",
+              "email.clicked",
+              "email.complained",
+              "email.delivered",
+              "email.delivery_delayed",
+              "email.failed",
+              "email.opened",
+              "email.sent",
+            ],
             id: "webhook-created",
             status: "enabled",
           });
@@ -392,13 +443,28 @@ describe("Resend staging provisioning controller", () => {
         throw new Error(`Unexpected request: ${init.method} ${pathname}`);
       }),
     );
-    const persistSigningSecret = vi.fn(async () => order.push("persist"));
-    await ensureWebhook("re_test_key", endpoint, true, persistSigningSecret);
-    expect(persistSigningSecret).toHaveBeenCalledWith(
+    const finalizeWebhookBinding = vi.fn(async () =>
+      retryOrder.push("finalize"),
+    );
+    const result = await ensureWebhook(
+      "re_test_key",
+      endpoint,
+      true,
+      vi.fn(),
+      undefined,
+      finalizeWebhookBinding,
+      JSON.stringify({
+        endpointSha256: sha256(endpoint),
+        schemaVersion: 1,
+        signingSecret: "whsec_created_once",
+      }),
+    );
+    expect(result.disposition).toBe("recovered");
+    expect(finalizeWebhookBinding).toHaveBeenCalledWith(
       "whsec_created_once",
       sha256("webhook-created"),
     );
-    expect(order).toEqual(["inventory", "create", "persist", "retrieve"]);
+    expect(retryOrder).toEqual(["inventory", "retrieve", "finalize"]);
   });
 
   it("deletes a newly created webhook when one-time secret persistence fails", async () => {
@@ -428,10 +494,17 @@ describe("Resend staging provisioning controller", () => {
       }),
     );
     await expect(
-      ensureWebhook("re_test_key", endpoint, true, async () => {
-        order.push("persist");
-        throw new Error("synthetic webhook persistence failure");
-      }),
+      ensureWebhook(
+        "re_test_key",
+        endpoint,
+        true,
+        async () => {
+          order.push("persist");
+          throw new Error("synthetic webhook persistence failure");
+        },
+        undefined,
+        vi.fn(),
+      ),
     ).rejects.toThrow(/webhook persistence failure/u);
     expect(order).toEqual(["inventory", "create", "persist", "delete"]);
   });
@@ -459,6 +532,26 @@ describe("Resend staging provisioning controller", () => {
     await expect(
       ensureWebhook("re_test_key", endpoint, true, undefined, undefined),
     ).rejects.toThrow(/not bound to the persisted signing secret/u);
+    expect(methods).toEqual(["GET", "GET"]);
+
+    methods.length = 0;
+    const finalizeWebhookBinding = vi.fn();
+    await expect(
+      ensureWebhook(
+        "re_test_key",
+        endpoint,
+        false,
+        undefined,
+        undefined,
+        finalizeWebhookBinding,
+        JSON.stringify({
+          endpointSha256: sha256(endpoint),
+          schemaVersion: 1,
+          signingSecret: "whsec_pending",
+        }),
+      ),
+    ).rejects.toThrow(/protected mutating operation/u);
+    expect(finalizeWebhookBinding).not.toHaveBeenCalled();
     expect(methods).toEqual(["GET", "GET"]);
   });
 
@@ -719,6 +812,10 @@ describe("Resend staging provisioning controller", () => {
     );
     expect(controller).toContain('stdio: ["pipe", "ignore", "ignore"]');
     expect(controller).toContain("STAGING_RESEND_WEBHOOK_SECRET");
+    expect(controller).toContain("STAGING_RESEND_WEBHOOK_RECOVERY");
+    expect(controller).toContain(
+      '["secret", "delete", name, "--env", environment, "--repo", repository]',
+    );
     expect(controller).toContain("STAGING_UNSUBSCRIBE_SIGNING_SECRET");
     expect(controller).toContain("domainIdSha256");
     expect(controller).toContain("webhookIdSha256");

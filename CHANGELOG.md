@@ -21,7 +21,9 @@
   evidence binding, and post-mutation re-inventory. Split the provisioning key
   from the domain-restricted sending-only runtime key, persist its one-time
   token before fallible postchecks or missing-ID recovery, persist the webhook's one-time signing
-  secret before provider re-read, and reuse the stable controller-owned
+  secret in an atomic endpoint-bound controller recovery envelope before
+  provider re-read or missing-ID recovery, then finalize the staging secret
+  and webhook-ID binding and remove that envelope; reuse the stable controller-owned
   unsubscribe secret across retries. If either one-time secret write fails,
   delete only the resource created by that attempt so a retry can recreate it;
   malformed runtime-key creation responses enter the same rollback path, and

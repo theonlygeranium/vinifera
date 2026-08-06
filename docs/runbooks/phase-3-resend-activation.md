@@ -71,13 +71,18 @@ streamed into the protected
 re-inventory or DNS postchecks. If that write fails, the controller deletes
 only the API key created by the current attempt so a retry can obtain a new
 one-time token; a missing or malformed token response follows the same rollback.
-The one-time webhook signing secret is likewise
-written to `staging` directly from the create response before the webhook is
-retrieved again. A failed write deletes that newly created webhook before the
-controller exits, preserving a recoverable retry path. An existing webhook is
-accepted only when its ID hashes to the protected
+The one-time webhook signing secret is first written with the exact endpoint
+hash as one atomic `STAGING_RESEND_WEBHOOK_RECOVERY` envelope in the
+main-only controller environment, before a missing provider ID can require
+inventory. Once the exact ID is known, the controller writes the secret to
+`staging`, writes the ID binding, and removes the recovery envelope. If ID
+inventory is interrupted, a later protected retry can finalize only the one
+unambiguous webhook at that exact endpoint. A failed write deletes that newly
+created webhook when its ID can be recovered. An existing webhook is accepted
+only when its ID hashes to the protected
 `STAGING_RESEND_WEBHOOK_ID_SHA256` value written to the main-only controller
-environment at the same time as the signing secret is written to `staging`.
+environment or when that exact recovery envelope is finalized before any
+provider mutation.
 The sanitized artifact supplies the runtime key's ID hash and each returned
 record's `nameSha256`, `type`, `valueSha256`, and `priority`. Copy the exact key
 ID hash and complete tuple set into the policy in a second reviewed change; do
@@ -133,9 +138,13 @@ STAGING_RESEND_FROM
 STAGING_RESEND_SENDING_DOMAIN
 STAGING_RESEND_DOMAIN_VERIFIED
 STAGING_RESEND_WEBHOOK_SECRET
-STAGING_RESEND_WEBHOOK_ID_SHA256
 STAGING_UNSUBSCRIBE_SIGNING_SECRET
 ```
+
+The controller also manages `STAGING_RESEND_WEBHOOK_RECOVERY` and
+`STAGING_RESEND_WEBHOOK_ID_SHA256` only in `staging-acceptance-control`; the
+former is a temporary exact-endpoint recovery envelope removed after the
+runtime secret and webhook ID binding are both durable.
 
 The unprefixed Worker binding `RESEND_FROM` must use `RESEND_SENDING_DOMAIN`, and
 `RESEND_DOMAIN_VERIFIED` must remain false until Resend reports the domain as
