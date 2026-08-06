@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Classify the hosted activation-gate policy as an authority-bearing high-risk
+  file so production-origin changes cannot fail closed as an unknown delivery
+  surface before their required checks run. **Deployment impact:** CI delivery
+  classification only; no hosted gate, Worker, DNS, or provider mutation.
 - Extended the production hostname cutover recovery boundary through the final
   marketing-content invariant check, so any late digest mismatch removes the
   Worker domain and restores the retained Pages topology; custom-domain
