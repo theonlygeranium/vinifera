@@ -3,39 +3,19 @@
 ## [Unreleased]
 
 ### Changed
-- Complete Gate 8 provider inventory across every Resend cursor page, require
-  every active brand sender identity to be verified, bound and authenticate
-  both Worker health probes, strengthen no-mutation source guards, and align
-  the normative gate exit criteria and QA date. Isolate the long acceptance
-  mutation in a fresh 85-minute post-deployment job, reserve 15 minutes after
-  its bounded provider wait for fixture retirement, and prevent an activated
-  staging run from being superseded before cleanup. **Deployment impact:**
-  protected staging acceptance and documentation only; no provider mutation.
-- Raise the branch Vitest regression floor from 582 to the verified 583 tests
-  after adding behavioral cursor-pagination coverage. **Deployment impact:**
-  QA documentation only.
-- Scope Gate 8 delivery-event and outbox polling by both organization and
-  brand, in addition to the exact brand-scoped logical message IDs. This keeps
-  every hosted acceptance read explicitly tenant-bound even when an
-  organization owns multiple brands. **Deployment impact:** protected staging
-  acceptance evidence only; no provider, database-schema, or production
-  mutation.
-- Add an opt-in, protected hosted Gate 8 acceptance controller that validates
-  the exact verified Resend domain and signed staging webhook, creates isolated
-  welcome and pre-shipment lifecycle fixtures, waits for the real deployed
-  hourly scheduler, requires two completed outbox rows, two distinct provider
-  deliveries, and a delivered webhook event for each message, retires mutable
-  fixtures, and retains sanitized durable evidence. Map the complete staging
-  email binding set into the Worker upload
-  and fail closed before deployment when acceptance is enabled but incomplete.
-  **Deployment impact:** source and protected staging workflow only; provider
-  and DNS provisioning remains an explicit prerequisite, the toggle defaults
-  inactive, and Gate 8 remains pending until a reviewed exact-candidate run
-  succeeds.
-- Raise the documented Vitest regression floor from 575 to the verified 582
-  tests after combining the Gate 8 and Gates 10–16 controller contracts.
-  **Deployment impact:** QA documentation only; no additional runtime or
-  hosted mutation.
+- Add the opt-in hosted Gate 8 acceptance controller and its complete review
+  hardening: exact paginated Resend domain/webhook inventory, verified active
+  senders, Access-authenticated bounded Worker probes, an exact tenant/brand/
+  member/release-scoped pre-shipment command with idempotent replay, explicitly
+  tenant-scoped delivery/outbox polling, two completed provider deliveries and
+  signed delivered events, and durable sanitized evidence. Run the mutation in
+  a non-superseded post-deployment job with 15 minutes reserved after the
+  provider wait for fixture retirement. Verification: 9/9 focused Gate 8 tests
+  and 584/584 full Vitest tests, app build, and Worker dry-run. **Deployment
+  impact:** adds one forward service-role-only database RPC plus protected
+  staging acceptance workflow/source; no provider/DNS or production mutation,
+  the toggle remains opt-in, and Gate 8 remains pending until reviewed hosted
+  evidence succeeds.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from

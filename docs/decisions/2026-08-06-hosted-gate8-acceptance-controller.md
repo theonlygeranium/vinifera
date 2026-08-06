@@ -35,11 +35,14 @@ official provider APIs, requires verified DKIM and SPF, enabled sending, all
 supported email events, and a timing-safe signing-secret match. It never
 creates or modifies provider or DNS resources.
 
-The controller reuses the dedicated Gate 7 staging organization, creates one
-uniquely addressed member, tier, and release, and invokes the canonical
-`enqueue_due_email_triggers` RPC twice to prove logical idempotency. It then
-waits for the deployed hourly Worker to complete two outbox records, attach two
-distinct provider message identifiers, and reconcile signed provider events.
+The controller reuses the dedicated Gate 7 staging organization and creates one
+uniquely addressed member, tier, and release. The member insert invokes the
+canonical welcome trigger. Pre-shipment replay uses the service-role-only
+`enqueue_scoped_pre_shipment_trigger` command twice with the exact organization,
+brand, member, and release identifiers to prove logical idempotency without
+scanning or enqueuing another tenant's due communications. It then waits for
+the deployed hourly Worker to complete two outbox records, attach two distinct
+provider message identifiers, and reconcile signed provider events.
 All logical-message, outbox, and delivery-event polling is explicitly scoped
 to the fixture organization and brand; exact brand-scoped email-log IDs are an
 additional correlation boundary rather than a substitute for tenant filters.

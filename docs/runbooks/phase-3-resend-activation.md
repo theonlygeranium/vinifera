@@ -131,8 +131,10 @@ promotion. The controller:
 2. confirms the exact staging webhook is enabled for every supported event and
    that its provider signing secret matches the deployed binding;
 3. creates an isolated member and release in the dedicated acceptance tenant;
-4. enqueues welcome and pre-shipment work twice and requires exactly one
-   logical message of each type;
+4. lets the member insert enqueue welcome, replays pre-shipment twice through
+   the exact organization-, brand-, member-, and release-scoped command, and
+   requires exactly one logical message of each type without scanning other
+   tenants' due communications;
 5. waits up to 70 minutes for the actual deployed hourly Worker Cron Trigger;
 6. requires two completed outbox records, two distinct provider messages, and
    a signed `email.delivered` webhook event for both (`email.sent` is not

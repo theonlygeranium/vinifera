@@ -6,6 +6,7 @@ import {
   localDate,
   plusAddress,
   providerList,
+  scopedPreShipmentTriggerArgs,
   secretsMatch,
   senderDomain,
   validateResendDomain,
@@ -135,6 +136,37 @@ describe("hosted Gate 8 acceptance controller", () => {
     expect(addCalendarDays("2026-08-06", 7)).toBe("2026-08-13");
   });
 
+  it("binds pre-shipment replay to one exact tenant fixture", () => {
+    expect(
+      scopedPreShipmentTriggerArgs(
+        {
+          brandId: "brand-a",
+          memberId: "member-a",
+          organizationId: "organization-a",
+          releaseId: "release-a",
+        },
+        new Date("2026-08-06T12:00:00.000Z"),
+      ),
+    ).toEqual({
+      p_as_of: "2026-08-06T12:00:00.000Z",
+      p_brand_id: "brand-a",
+      p_member_id: "member-a",
+      p_organization_id: "organization-a",
+      p_release_id: "release-a",
+    });
+    expect(() =>
+      scopedPreShipmentTriggerArgs(
+        {
+          brandId: "brand-a",
+          memberId: null,
+          organizationId: "organization-a",
+          releaseId: "release-a",
+        },
+        new Date(),
+      ),
+    ).toThrow(/identity is incomplete/u);
+  });
+
   it("accepts only completed outbox rows and delivered provider events", () => {
     const logIds = ["log-a", "log-b"];
     const logs = logIds.map((id) => ({
@@ -230,7 +262,12 @@ describe("hosted Gate 8 acceptance controller", () => {
     expect(controller).not.toMatch(
       /method:\s*"(?:POST|PUT|PATCH|DELETE)"/u,
     );
-    expect(controller).toContain('admin.rpc("enqueue_due_email_triggers"');
+    expect(controller).toContain(
+      'admin.rpc(\n      "enqueue_scoped_pre_shipment_trigger"',
+    );
+    expect(controller).not.toContain(
+      'admin.rpc("enqueue_due_email_triggers"',
+    );
     expect(controller).toContain('fixtureMode: "durable-one-shot-staging"');
     expect(controller).toContain('disposition: "durable-evidence-retained"');
     expect(controller).not.toMatch(/\.delete\(/u);
@@ -245,5 +282,24 @@ describe("hosted Gate 8 acceptance controller", () => {
     );
     expect(controller).toContain("domainIdSha256");
     expect(controller).toContain("webhookIdSha256");
+    const migration = await readFile(
+      new URL(
+        "supabase/migrations/202608060032_gate8_scoped_pre_shipment_trigger.sql",
+        repositoryRoot,
+      ),
+      "utf8",
+    );
+    for (const predicate of [
+      "release.organization_id = p_organization_id",
+      "release.brand_id = p_brand_id",
+      "member.organization_id = p_organization_id",
+      "member.brand_id = p_brand_id",
+      "member.id = p_member_id",
+    ]) {
+      expect(migration).toContain(predicate);
+    }
+    expect(migration).toContain(
+      "from public, anon, authenticated;",
+    );
   });
 });

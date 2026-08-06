@@ -167,6 +167,23 @@ export function deliveryComplete({ events, logIds, logs, outbox }) {
   );
 }
 
+export function scopedPreShipmentTriggerArgs(fixture, asOf) {
+  expect(
+    fixture.organizationId &&
+      fixture.brandId &&
+      fixture.memberId &&
+      fixture.releaseId,
+    "The scoped pre-shipment fixture identity is incomplete.",
+  );
+  return {
+    p_as_of: asOf.toISOString(),
+    p_brand_id: fixture.brandId,
+    p_member_id: fixture.memberId,
+    p_organization_id: fixture.organizationId,
+    p_release_id: fixture.releaseId,
+  };
+}
+
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -481,14 +498,22 @@ async function main() {
       });
     if (releaseTierError) throw releaseTierError;
     const asOf = new Date();
-    const firstEnqueue = await admin.rpc("enqueue_due_email_triggers", {
-      p_as_of: asOf.toISOString(),
-    });
+    const triggerArgs = scopedPreShipmentTriggerArgs(fixture, asOf);
+    const firstEnqueue = await admin.rpc(
+      "enqueue_scoped_pre_shipment_trigger",
+      triggerArgs,
+    );
     if (firstEnqueue.error) throw firstEnqueue.error;
-    const replayEnqueue = await admin.rpc("enqueue_due_email_triggers", {
-      p_as_of: asOf.toISOString(),
-    });
+    expect(firstEnqueue.data, "The scoped pre-shipment trigger was not queued.");
+    const replayEnqueue = await admin.rpc(
+      "enqueue_scoped_pre_shipment_trigger",
+      triggerArgs,
+    );
     if (replayEnqueue.error) throw replayEnqueue.error;
+    expect(
+      replayEnqueue.data === firstEnqueue.data,
+      "The scoped pre-shipment trigger was not idempotent.",
+    );
     const { data: logicalRows, error: logicalError } = await admin
       .from("email_log")
       .select("id,trigger_type,status,resend_id")
