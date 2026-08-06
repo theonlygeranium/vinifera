@@ -114,7 +114,7 @@ describe("hosted activation target guards", () => {
     ).toThrow(/allow\/deny conflict/);
   });
 
-  it("keeps the checked-in empty allowlists fail-closed at the CLI boundary", async () => {
+  it("keeps unchecked hosted targets fail-closed at the CLI boundary", async () => {
     const allowlist = JSON.parse(
       await readFile(
         new URL("../../config/hosted-target-allowlist.json", import.meta.url),
@@ -122,11 +122,18 @@ describe("hosted activation target guards", () => {
       ),
     );
     expect(allowlist.staging.supabaseProjectRefSha256).toEqual([]);
-    expect(allowlist.staging.cloudflareAccountIdSha256).toEqual([]);
+    expect(allowlist.staging.cloudflareAccountIdSha256).toEqual([
+      "fabdb949ae1bfce81a0132f2fceb8365f3678943f00b910337449136dcde2694",
+    ]);
+    expect(allowlist.deniedProduction.cloudflareAccountIdSha256).toEqual([
+      "9255ff49245aa55fe0593dd098290d4f31928f5607b79d3a8633579c1695dd01",
+    ]);
+    expect(
+      allowlist.deniedProduction.cloudflareAccountIdSha256,
+    ).not.toContain(allowlist.staging.cloudflareAccountIdSha256[0]);
 
     for (const [kind, environment] of [
       ["supabase", { SUPABASE_PROJECT_ID: supabaseProjectRef }],
-      ["cloudflare", { CLOUDFLARE_ACCOUNT_ID: cloudflareAccountId }],
     ]) {
       const result = spawnSync(
         process.execPath,

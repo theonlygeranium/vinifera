@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Changed
+- Authorize the dedicated `EdStratum Labs Staging` Cloudflare account by its
+  normalized SHA-256 target hash and explicitly deny the known production
+  account hash. Provision its account-scoped Workers/Queues deployment token,
+  integration wake queue, and isolated `vinifera-staging` Worker bootstrap.
+  Retain empty fail-closed policy for unchecked targets, route the hosted
+  target-policy file through the authority-high-risk CI lane, and update the
+  activation and delivery-policy regressions plus runbooks to match.
+  **Deployment impact:** enables the already owner-authorized staging Worker
+  boundary in a separate Cloudflare account and corrects CI classification; no
+  production Worker, DNS, database, billing, or mobile-store mutation.
 - Require the exact immutable release-candidate package to be created from
   trusted `main` while the reviewed `dev → staging` promotion PR remains open
   and before that PR is merged. The staging deployment then consumes the

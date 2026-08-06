@@ -2,7 +2,9 @@
   "version": 1,
   "staging": {
     "supabaseProjectRefSha256": [],
-    "cloudflareAccountIdSha256": [],
+    "cloudflareAccountIdSha256": [
+      "fabdb949ae1bfce81a0132f2fceb8365f3678943f00b910337449136dcde2694"
+    ],
     "cloudflareZoneIdSha256": [],
     "cloudflareFallbackOriginSha256": [],
     "fcmProjectIdSha256": [],
@@ -10,7 +12,9 @@
   },
   "deniedProduction": {
     "supabaseProjectRefSha256": [],
-    "cloudflareAccountIdSha256": [],
+    "cloudflareAccountIdSha256": [
+      "9255ff49245aa55fe0593dd098290d4f31928f5607b79d3a8633579c1695dd01"
+    ],
     "cloudflareZoneIdSha256": [],
     "cloudflareFallbackOriginSha256": [],
     "fcmProjectIdSha256": [],
