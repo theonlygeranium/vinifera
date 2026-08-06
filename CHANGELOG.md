@@ -3,6 +3,21 @@
 ## [Unreleased]
 
 ### Changed
+- Add a default-disabled protected mobile acceptance controller for Gates 17
+  and 18. It validates Ed25519-signed, schema-strict iOS and Android evidence
+  against the exact current reviewed `main` commit and successful signed-mobile
+  release workflow path/run, reviewed API/signing identity hashes, and the
+  protected production promotion. Gate 17 requires the complete physical-device
+  magic-link, storage, biometric, push, camera, offline/relock, and
+  accessibility matrix; Gate 18 requires the same-release Gate 17 pass plus
+  successful fixed-track uploads and processed TestFlight/Play installs. Only
+  digest-level evidence is retained for 90 days, with canonical `main` and
+  emergency promotion controls revalidated immediately before publication.
+  **Deployment impact:** new
+  protected manual evidence controller, policy, ADR, templates, and QA only;
+  policy remains disabled with empty allowlists, and no signing, provider
+  upload, device operation, store submission, merge, promotion, or gate status
+  changes occur.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from

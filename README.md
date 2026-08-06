@@ -101,6 +101,7 @@ npm run dev:frontend
 
 # Full local verification
 npm run check
+npm run qa:mobile-acceptance
 npm run qa:mobile-release
 npm run qa:production-release
 npm run qa:db:phase2

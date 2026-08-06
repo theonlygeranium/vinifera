@@ -90,7 +90,7 @@ vinifera/
 │   ├── decisions/          # Architectural Decision Records (ADRs)
 │   ├── build-specs/        # BS-01 through BS-06 specs and dispatch guide
 │   └── agent-workflow.md   # Branching, PR, and review loop rules
-├── .github/workflows/      # 19 CI/CD workflows (see Section 5)
+├── .github/workflows/      # 21 CI/CD workflows (see Section 5)
 ├── .octopus/               # Octopus architectural boundary rules
 ├── AGENTS.md               # YOU ARE HERE — agent collaboration guide
 ├── CONTINUITY_BRIEF.md     # Drop-in context for new agent sessions
@@ -204,6 +204,7 @@ workflows under `.github/workflows/`:
 | `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
 | `credential-envelope-rotation.yml` | Manual, protected | Rotate encrypted credential envelopes |
 | `mobile-release.yml` | Manual, protected | Signed iOS/Android artifacts for TestFlight and Play internal tracks |
+| `mobile-acceptance.yml` | Manual, protected | Default-disabled exact-release physical-device and internal-track evidence for Gates 17–18 |
 
 ### Deployment topology
 

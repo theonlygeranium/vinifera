@@ -556,8 +556,8 @@ pending until its reviewed exact revision is deployed and reverified.
 | 14 | Provision the integration credential keyring, then validate winery-specific Klaviyo, Avalara, and Meta envelopes and the QuickBooks application OAuth plus encrypted per-connection token lifecycle. | Pending |
 | 15 | Create two production-like brands and prove database plus service-role cross-brand isolation, shared/independent billing, and hostname-derived member context. | Pending |
 | 16 | Add one winery custom hostname, complete DNS ownership and certificate activation, and verify sibling/unknown hosts cannot select its brand. | Pending |
-| 17 | Configure APNs and FCM, Apple/Google signing, privacy/store metadata, and prove magic links, secure storage, biometrics, push, camera, offline restore, and relock on physical devices. | Pending |
-| 18 | Install signed builds from TestFlight and the Play internal track. | Pending |
+| 17 | Configure APNs and FCM, Apple/Google signing, privacy/store metadata, and prove magic links, secure storage, biometrics, push, camera, offline restore, and relock on physical devices. | Pending — default-disabled exact-release acceptance controller is source-complete; physical-device evidence is not yet collected |
+| 18 | Install signed builds from TestFlight and the Play internal track. | Pending — controller requires the same-release Gate 17 pass plus processed installs from both fixed tracks; no store-install evidence yet |
 | 19 | Replace Stripe test keys with approved live keys only under human supervision and run one controlled charge/refund. | Pending |
 | 20 | Move the production custom domain only after every hosted exit criterion is evidenced. | Pending |
 

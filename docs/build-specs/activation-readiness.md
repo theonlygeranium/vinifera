@@ -111,8 +111,8 @@ stores do not block the private web beta.
 | 14 | Activate external integrations | pending | Credential keyring plus winery-specific Klaviyo, Avalara, Meta, and QuickBooks OAuth/token lifecycle evidence | Track A — integrations |
 | 15 | Prove production-like multi-brand isolation | pending | Database and service-role isolation, shared/independent billing, and hostname-derived member context for two brands | Track A — multi-brand |
 | 16 | Activate a winery custom hostname | pending | DNS ownership, active certificate, expected brand routing, and sibling/unknown-host denial | Track A — custom domains |
-| 17 | Prove physical-device mobile capabilities | pending | APNs/FCM, signing, privacy metadata, magic link, secure storage, biometrics, push, camera, offline restore, and relock evidence | Track A — mobile devices |
-| 18 | Install internal-track signed builds | pending | Successful TestFlight and Play internal-track installs from verified signed artifacts | Track A — store tracks |
+| 17 | Prove physical-device mobile capabilities | pending — source-ready | Default-disabled protected controller now requires signed exact-release iOS/Android physical-device matrices; real signing, push, and device evidence remain | Track A — mobile devices |
+| 18 | Install internal-track signed builds | pending — source-ready | Controller requires successful same-release Gate 17 evidence plus processed TestFlight and Play internal-track installs; no live install evidence yet | Track A — store tracks |
 | 19 | Perform controlled Stripe live proof | pending | Human-supervised approved live keys plus one controlled charge and refund | Track A — live billing |
 | 20 | Cut production domain to Worker | pending | All hosted exit criteria passed, approved cutover, live health/routes, and rollback evidence | Track A — production cutover |
 

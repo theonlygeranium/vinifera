@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "repository": "theonlygeranium/vinifera",
+  "environment": "mobile-release",
+  "releaseWorkflowName": "Signed mobile internal release",
+  "acceptanceWorkflowName": "Mobile activation acceptance",
+  "confirmation": {
+    "17": "ATTEST VINIFERA GATE 17 PHYSICAL DEVICE ACCEPTANCE",
+    "18": "ATTEST VINIFERA GATE 18 INTERNAL TRACK INSTALLS"
+  },
+  "maximumEvidenceAgeHours": 24,
+  "maximumFutureSkewMinutes": 5,
+  "allowedEvidencePublicKeySha256": [],
+  "allowedApiOriginSha256": [],
+  "allowedSigningIdentitySha256": {
+    "android": [],
+    "ios": []
+  }
+}

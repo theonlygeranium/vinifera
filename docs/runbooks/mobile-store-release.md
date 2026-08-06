@@ -151,6 +151,11 @@ Do not describe a signed build as store-installed until both internal tracks
 and physical-device evidence are retained. Public store submission and Stripe
 live billing are separate human-approved decisions.
 
+Use `mobile-acceptance-gates-17-18.md` to validate the physical-device matrix
+as Gate 17 and the actual TestFlight/Play internal-track installs as Gate 18.
+That controller binds both results to the exact successful signed-release run;
+upload success from this workflow is only a prerequisite.
+
 ## Rotation
 
 If a signing or store credential may be exposed:

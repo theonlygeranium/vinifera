@@ -505,6 +505,7 @@ npm run build:mobile           # prepare web bundle and sync both projects
 npm run build:mobile:android   # sync Android and assemble a debug APK
 npm run build:mobile:android:release # sync Android and exercise R8 shrinking
 npm run build:mobile:ios       # sync and invoke the iOS build
+npm run qa:mobile-acceptance   # validate Gates 17/18 evidence controller
 ```
 
 The iOS simulator and Android debug/minified release APKs prove only native
@@ -513,7 +514,12 @@ on physical devices, release signing, TestFlight, Play internal track, privacy
 metadata, and store
 review remain activation evidence. See
 `docs/runbooks/phase-5-provider-mobile-activation.md` and
-`docs/runbooks/mobile-store-release.md`.
+`docs/runbooks/mobile-store-release.md`. The separate
+`docs/runbooks/mobile-acceptance-gates-17-18.md` workflow requires signed,
+exact-release physical-device evidence before Gate 17 and processed installs
+from both fixed internal tracks before Gate 18. Its checked-in policy remains
+disabled until the public evidence key, API origin, and Android/iOS signing
+identity hashes are reviewed.
 
 For the current architecture candidate, mobile identity, compile-only web
 preparation, and Capacitor Android/iOS synchronization pass. Local Gradle cannot
@@ -533,6 +539,7 @@ npm run build
 npm run build:worker
 npm run build:worker:production
 npm run qa:mobile-release
+npm run qa:mobile-acceptance
 npm run qa:production-release
 npm run qa:stripe-catalog
 npm run qa:db:phase1
@@ -553,15 +560,16 @@ then runs the remaining test and build gates. This keeps validation reproducible
 from a fresh checkout while leaving the generated artifact untracked.
 
 The current credential-independent architecture gate passes generated Worker
-types, TypeScript, 574/574 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+types, TypeScript, 586/586 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
 3 199/199, Phase 4 159/159, Phase 5 515/515 embedded PostgreSQL/pgTAP
 assertions, and the integrated Playwright suite with 155 passed and three
 hosted-only cases skipped, with zero axe violations in executed cases.
 `test:e2e` is an alias of `qa:e2e`. Pages plus
 development, staging, and production Worker dry-run builds pass. The focused
-release controls pass 15/15, mobile-release controls 7/7, Stripe catalog
-controls 16/16, and mobile identity passes. These are local architecture
-results, not service-connection or hosted exit evidence.
+release controls pass 15/15, mobile-release controls 7/7, mobile-acceptance
+controls 11/11, Stripe catalog controls 16/16, and mobile identity passes.
+These are local architecture results, not service-connection or hosted exit
+evidence.
 
 `npm run build` runs Vite, then copies the marketing site, investor guide, and static metadata into `dist/`. The original `app` prototype is retained in source as a visual reference and is not included in the authenticated production bundle.
 

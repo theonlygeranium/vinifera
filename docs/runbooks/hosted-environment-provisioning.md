@@ -24,7 +24,7 @@ Three GitHub environments separate authority:
 | --- | --- | --- |
 | `staging` | Supabase migration, native pgTAP, isolated Worker, read-only readiness | Stripe test mode and provider sandboxes only |
 | `production` | Production Worker bootstrap/version/deploy/Worker rollback | Stripe test mode only; no live-billing activation |
-| `mobile-release` | Signed Android/iOS builds and optional internal-track upload | App signing and store-delivery authority only |
+| `mobile-release` | Signed Android/iOS builds, optional internal-track upload, and signed Gates 17–18 evidence acceptance | App signing, store-delivery, and exact-release device-evidence authority only |
 
 Create a fourth control environment before enabling deliberate promotion:
 
@@ -344,6 +344,14 @@ Signed production releases require the protected `mobile-release` environment
 and the credential matrix in `mobile-store-release.md`. Production native
 builds reuse the exact public origin guard and cannot be made against a
 different or credential-bearing URL.
+
+The separate `Mobile activation acceptance` workflow also uses this
+environment. Add `MOBILE_ACCEPTANCE_EVIDENCE_PUBLIC_KEY_PEM_BASE64`, then
+review and activate the public-key, API-origin, and per-platform signing hashes
+in `.github/mobile-acceptance/policy.json`. The checked-in policy is disabled
+and cannot accept Gate 17 or Gate 18 evidence. See
+`mobile-acceptance-gates-17-18.md` for the exact attestation schemas and
+sequence.
 
 ## Read-only readiness
 
