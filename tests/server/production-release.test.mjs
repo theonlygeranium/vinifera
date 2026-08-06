@@ -9,6 +9,7 @@ import {
   buildProductionSecretBundle,
   hashProductionTarget,
   parseWranglerJson,
+  parseWranglerStagingVersionUploadOutput,
   parseWranglerVersionUploadOutput,
   soleActiveVersionId,
   verifyProductionTargets,
@@ -416,6 +417,31 @@ describe("production release guards", () => {
     expect(() =>
       parseWranglerVersionUploadOutput(`Worker Version ID: ${versionId}`),
     ).toThrow(/exactly one Version ID and preview URL/);
+  });
+
+  it("uses the configured staging origin when Wrangler omits a preview URL", () => {
+    const configuredOrigin = `https://${workerName}.example.workers.dev`;
+    expect(
+      parseWranglerStagingVersionUploadOutput(
+        `Worker Version ID: ${versionId}`,
+        configuredOrigin,
+      ),
+    ).toEqual({ previewUrl: configuredOrigin, versionId });
+    expect(
+      parseWranglerStagingVersionUploadOutput(
+        `Worker Version ID: ${versionId}\nVersion Preview URL: https://preview.example.workers.dev`,
+        configuredOrigin,
+      ),
+    ).toEqual({
+      previewUrl: "https://preview.example.workers.dev",
+      versionId,
+    });
+    expect(() =>
+      parseWranglerStagingVersionUploadOutput(
+        `Worker Version ID: ${versionId}`,
+        "",
+      ),
+    ).toThrow(/valid URL|origin/i);
   });
 
   it("binds version metadata and the sole active deployment to an immutable SHA", () => {

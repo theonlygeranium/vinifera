@@ -9,6 +9,7 @@ import {
   buildProductionSecretBundle,
   hashProductionTarget,
   parseWranglerJson,
+  parseWranglerStagingVersionUploadOutput,
   parseWranglerVersionUploadOutput,
   soleActiveVersionId,
   validateImmutableGitSha,
@@ -100,6 +101,19 @@ if (operation === "verify-targets") {
   );
   await writeJson(outputPath, result);
   console.log("Parsed one production Worker version and preview URL.");
+} else if (operation === "parse-staging-upload") {
+  const [inputPath, outputPath, configuredOrigin] = arguments_;
+  if (!inputPath || !outputPath || !configuredOrigin) {
+    throw new Error(
+      "Staging upload input, evidence output, and configured origin are required.",
+    );
+  }
+  const result = parseWranglerStagingVersionUploadOutput(
+    await readFile(inputPath, "utf8"),
+    configuredOrigin,
+  );
+  await writeJson(outputPath, result);
+  console.log("Parsed one staging Worker version and verified runtime origin.");
 } else if (operation === "verify-version") {
   const [inputPath] = arguments_;
   if (!inputPath) throw new Error("Worker version JSON path is required.");
