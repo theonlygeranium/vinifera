@@ -2,16 +2,10 @@ import type { Request, Response } from "express";
 
 export type AuthSurface = "staff" | "member";
 export type BillingCustomerState =
-  | "deferred"
-  | "ready"
-  | "reconciliation_required";
+  "deferred" | "ready" | "reconciliation_required";
 export type PlanTier = "vine" | "cellar" | "estate" | "reserve";
 export type ClubFrequency =
-  | "monthly"
-  | "bi_monthly"
-  | "quarterly"
-  | "semi_annual"
-  | "annual";
+  "monthly" | "bi_monthly" | "quarterly" | "semi_annual" | "annual";
 export type MemberStatus = "active" | "paused" | "cancelled";
 export type ReleaseStatus = "draft" | "scheduled" | "processing" | "completed";
 export type ShipmentStatus =
@@ -24,12 +18,7 @@ export type ShipmentStatus =
   | "delivered"
   | "cancelled"
   | "refunded";
-export type StaffRole =
-  | "owner"
-  | "admin"
-  | "manager"
-  | "staff"
-  | "super_admin";
+export type StaffRole = "owner" | "admin" | "manager" | "staff" | "super_admin";
 export type EmailTriggerType =
   | "welcome"
   | "pre_shipment"
@@ -38,24 +27,10 @@ export type EmailTriggerType =
   | "birthday"
   | "re_engagement";
 export type CancelFlowOutcome =
-  | "continued"
-  | "paused"
-  | "downgraded"
-  | "swapped"
-  | "cancelled";
-export type AnalyticsRange =
-  | "7d"
-  | "30d"
-  | "90d"
-  | "12m"
-  | "all"
-  | "custom";
+  "continued" | "paused" | "downgraded" | "swapped" | "cancelled";
+export type AnalyticsRange = "7d" | "30d" | "90d" | "12m" | "all" | "custom";
 export type ComplianceStatus = "compliant" | "non_compliant" | "unknown";
-export type IntegrationType =
-  | "avalara"
-  | "klaviyo"
-  | "meta"
-  | "quickbooks";
+export type IntegrationType = "avalara" | "klaviyo" | "meta" | "quickbooks";
 
 export interface WorkerEnv {
   CF_ACCESS_CLIENT_ID?: string;
@@ -79,6 +54,7 @@ export interface WorkerEnv {
   GOOGLE_OAUTH_ENABLED?: "true" | "false";
   INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION?: string;
   INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS?: string;
+  INTEGRATION_CREDENTIAL_ACCEPTANCE_PROOFS?: string;
   INTEGRATION_WAKE_QUEUE?: Queue<{
     kind: "integration-drain";
     requestedAt: string;
@@ -212,14 +188,20 @@ export interface FoundationService {
   getGoogleOAuthUrl(): Promise<string>;
   getMemberSession(): Promise<MemberPrincipal | null>;
   getStaffSession(): Promise<StaffPrincipal | null>;
-  handleStripeWebhook(payload: Buffer, signature: string): Promise<{ duplicate: boolean }>;
+  handleStripeWebhook(
+    payload: Buffer,
+    signature: string,
+  ): Promise<{ duplicate: boolean }>;
   requestMemberMagicLink(input: {
     brandId?: string;
     email: string;
     ipAddress: string;
   }): Promise<void>;
   requestStaffPasswordReset(input: { email: string }): Promise<void>;
-  staffLogin(input: { email: string; password: string }): Promise<StaffPrincipal>;
+  staffLogin(input: {
+    email: string;
+    password: string;
+  }): Promise<StaffPrincipal>;
   staffLogout(): Promise<void>;
   staffSignup(input: {
     email: string;
@@ -319,15 +301,22 @@ export interface CsvPreviewInput {
 }
 
 export interface CoreClubService {
-  batchMembers(input: {
-    ids?: string[];
-    operation: "pause" | "resume" | "cancel" | "assign_tier";
-    tierId?: string;
-  }, commandId: string): Promise<{ updated: number }>;
+  batchMembers(
+    input: {
+      ids?: string[];
+      operation: "pause" | "resume" | "cancel" | "assign_tier";
+      tierId?: string;
+    },
+    commandId: string,
+  ): Promise<{ updated: number }>;
   confirmShipmentPack(
     shipmentId: string,
     input: { barcode: string },
-  ): Promise<{ complete: boolean; packedItems: number; status: ShipmentStatus }>;
+  ): Promise<{
+    complete: boolean;
+    packedItems: number;
+    status: ShipmentStatus;
+  }>;
   createClubTier(
     input: ClubTierInput,
     commandId: string,
@@ -563,7 +552,9 @@ export interface RetentionService {
     templateId: string,
     input: Partial<EmailTemplateInput>,
   ): Promise<Record<string, unknown>>;
-  upsertEmailTemplate(input: EmailTemplateInput): Promise<Record<string, unknown>>;
+  upsertEmailTemplate(
+    input: EmailTemplateInput,
+  ): Promise<Record<string, unknown>>;
 }
 
 export interface AnalyticsService {
@@ -592,7 +583,9 @@ export interface AnalyticsService {
     riskLevel?: "low" | "medium" | "high";
     search?: string;
   }): Promise<Record<string, unknown>>;
-  getMemberChurnIntelligence(memberId: string): Promise<Record<string, unknown>>;
+  getMemberChurnIntelligence(
+    memberId: string,
+  ): Promise<Record<string, unknown>>;
   getMlOperations(): Promise<Record<string, unknown>>;
   listComplianceChecks(input: {
     limit: number;
@@ -610,9 +603,7 @@ export interface AnalyticsService {
   runShipmentComplianceCheck(
     shipmentId: string,
   ): Promise<Record<string, unknown>>;
-  runReleaseComplianceChecks(
-    releaseId: string,
-  ): Promise<{
+  runReleaseComplianceChecks(releaseId: string): Promise<{
     compliant: number;
     nonCompliant: number;
     results: Array<Record<string, unknown>>;
@@ -729,12 +720,8 @@ export interface IntegrationService {
     limit: number,
   ): Promise<{ items: Array<Record<string, unknown>> }>;
   listIntegrations(): Promise<Record<string, unknown>>;
-  logoutMobileSession(input: {
-    refreshToken: string;
-  }): Promise<void>;
-  queueIntegrationSync(
-    type: IntegrationType,
-  ): Promise<Record<string, unknown>>;
+  logoutMobileSession(input: { refreshToken: string }): Promise<void>;
+  queueIntegrationSync(type: IntegrationType): Promise<Record<string, unknown>>;
   queueAvalaraFilingVerification(): Promise<Record<string, unknown>>;
   registerMobileDevice(input: {
     appVersion: string;
@@ -807,6 +794,7 @@ export type ApplicationServiceFactory = (
 ) => ApplicationService;
 
 export interface ConfigurationCapability {
+  bindingHashes?: Record<string, string>;
   configured: boolean;
   missing: string[];
 }

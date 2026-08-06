@@ -1,0 +1,97 @@
+name: Gate 14 integration acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      control_sha: { description: Exact canonical main SHA, required: true, type: string }
+      staging_revision: { description: Exact staging branch merge SHA, required: true, type: string }
+      candidate_revision: { description: Exact deployed promotion candidate SHA, required: true, type: string }
+      confirmation: { description: Exact Gate 14 runbook confirmation, required: true, type: string }
+permissions: { contents: read, deployments: none }
+concurrency: { group: vinifera-gate14-integration-acceptance, cancel-in-progress: false }
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: { name: staging-acceptance-control, deployment: false }
+    steps:
+      - name: Validate immutable canonical source
+        env: { CONTROL_SHA: "${{ inputs.control_sha }}", STAGING_REVISION: "${{ inputs.staging_revision }}", CANDIDATE_REVISION: "${{ inputs.candidate_revision }}" }
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "theonlygeranium/vinifera" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$CONTROL_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$STAGING_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { fetch-depth: 0, persist-credentials: false, ref: "${{ inputs.control_sha }}" }
+      - name: Verify main control and staging candidate
+        env: { CONTROL_SHA: "${{ inputs.control_sha }}", STAGING_REVISION: "${{ inputs.staging_revision }}", CANDIDATE_REVISION: "${{ inputs.candidate_revision }}", GH_TOKEN: "${{ github.token }}", REPOSITORY: "${{ github.repository }}" }
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$CONTROL_SHA" ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main staging:refs/remotes/origin/staging
+          [[ "$(git rev-parse origin/main)" == "$CONTROL_SHA" ]]
+          [[ "$(git rev-parse origin/staging)" == "$STAGING_REVISION" ]]
+          git fetch --no-tags origin "$CANDIDATE_REVISION"
+          [[ "$(git rev-parse "$CANDIDATE_REVISION^{tree}")" == "$(git rev-parse "$STAGING_REVISION^{tree}")" ]]
+          promotion_pr=$(gh api -H "Accept: application/vnd.github+json" "repos/$REPOSITORY/commits/$STAGING_REVISION/pulls" | jq -c --arg repository "$REPOSITORY" --arg staging "$STAGING_REVISION" '[.[] | select(.merged_at != null and .base.ref == "staging" and .head.ref == "dev" and .merge_commit_sha == $staging and .head.repo.full_name == $repository)] | sort_by(.merged_at) | last // empty')
+          [[ -n "$promotion_pr" ]]
+          [[ "$(jq -r '.head.sha // empty' <<<"$promotion_pr")" == "$CANDIDATE_REVISION" ]]
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with: { node-version: 22.22.0, cache: npm }
+      - run: npm ci
+      - run: npm run qa:gate14-acceptance
+      - name: Revalidate promotion authority before acceptance
+        env: { CONTROL_SHA: "${{ inputs.control_sha }}", STAGING_REVISION: "${{ inputs.staging_revision }}", CANDIDATE_REVISION: "${{ inputs.candidate_revision }}", GH_TOKEN: "${{ github.token }}", REPOSITORY: "${{ github.repository }}" }
+        run: |
+          set -euo pipefail
+          git fetch --force --no-tags origin main:refs/remotes/origin/main staging:refs/remotes/origin/staging
+          [[ "$(git rev-parse origin/main)" == "$CONTROL_SHA" ]]
+          [[ "$(git rev-parse origin/staging)" == "$STAGING_REVISION" ]]
+          git fetch --force --no-tags origin "$CANDIDATE_REVISION"
+          [[ "$(git rev-parse "$CANDIDATE_REVISION^{tree}")" == "$(git rev-parse "$STAGING_REVISION^{tree}")" ]]
+          promotion_pr=$(gh api -H "Accept: application/vnd.github+json" "repos/$REPOSITORY/commits/$STAGING_REVISION/pulls" | jq -c --arg repository "$REPOSITORY" --arg staging "$STAGING_REVISION" '[.[] | select(.merged_at != null and .base.ref == "staging" and .head.ref == "dev" and .merge_commit_sha == $staging and .head.repo.full_name == $repository)] | sort_by(.merged_at) | last // empty')
+          [[ -n "$promotion_pr" && "$(jq -r '.head.sha // empty' <<<"$promotion_pr")" == "$CANDIDATE_REVISION" ]]
+      - name: Run protected provider lifecycle acceptance
+        env:
+          CF_ACCESS_CLIENT_ID: "${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}"
+          CF_ACCESS_CLIENT_SECRET: "${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}"
+          GATE14_ACCEPTANCE_CONFIRMATION: "${{ inputs.confirmation }}"
+          GATE14_CANDIDATE_REVISION: "${{ inputs.candidate_revision }}"
+          GATE14_STAGING_REVISION: "${{ inputs.staging_revision }}"
+          GATE14_CONTROL_SHA: "${{ inputs.control_sha }}"
+          STAGING_GATE14_ACCEPTANCE_ENABLED: "${{ vars.STAGING_GATE14_ACCEPTANCE_ENABLED }}"
+          STAGING_GATE14_ACCEPTANCE_MANIFEST: "${{ secrets.STAGING_GATE14_ACCEPTANCE_MANIFEST }}"
+          STAGING_WORKER_ORIGIN: "${{ vars.STAGING_WORKER_ORIGIN }}"
+          SUPABASE_URL: "${{ secrets.STAGING_SUPABASE_URL }}"
+          STAGING_SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}"
+        run: node scripts/hosted-gate14-integration-acceptance.mjs --output "$RUNNER_TEMP/gate14-integration-acceptance.json"
+      - name: Revalidate promotion authority before retaining evidence
+        env: { CONTROL_SHA: "${{ inputs.control_sha }}", STAGING_REVISION: "${{ inputs.staging_revision }}", CANDIDATE_REVISION: "${{ inputs.candidate_revision }}", GH_TOKEN: "${{ github.token }}", REPOSITORY: "${{ github.repository }}" }
+        run: |
+          set -uo pipefail
+          authority_error=""
+          promotion_pr=""
+          if ! git fetch --force --no-tags origin main:refs/remotes/origin/main staging:refs/remotes/origin/staging; then
+            authority_error="Canonical ref refresh failed after acceptance."
+          elif ! promotion_pr=$(gh api -H "Accept: application/vnd.github+json" "repos/$REPOSITORY/commits/$STAGING_REVISION/pulls" | jq -c --arg repository "$REPOSITORY" --arg staging "$STAGING_REVISION" '[.[] | select(.merged_at != null and .base.ref == "staging" and .head.ref == "dev" and .merge_commit_sha == $staging and .head.repo.full_name == $repository)] | sort_by(.merged_at) | last // empty'); then
+            authority_error="Exact promotion provenance lookup failed after acceptance."
+          elif [[ "$(git rev-parse origin/main 2>/dev/null || true)" != "$CONTROL_SHA" || "$(git rev-parse origin/staging 2>/dev/null || true)" != "$STAGING_REVISION" || -z "$promotion_pr" || "$(jq -r '.head.sha // empty' <<<"$promotion_pr" 2>/dev/null || true)" != "$CANDIDATE_REVISION" || "$(git rev-parse "$CANDIDATE_REVISION^{tree}" 2>/dev/null || true)" != "$(git rev-parse "$STAGING_REVISION^{tree}" 2>/dev/null || true)" ]]; then
+            authority_error="Canonical main, staging, or exact promotion authority drifted after acceptance."
+          fi
+          if [[ -n "$authority_error" ]]; then
+            if jq --arg blocker "$authority_error" '.passed = false | .completionClaimed = false | .blockers += [$blocker]' "$RUNNER_TEMP/gate14-integration-acceptance.json" > "$RUNNER_TEMP/gate14-integration-acceptance.invalid.json"; then
+              mv "$RUNNER_TEMP/gate14-integration-acceptance.invalid.json" "$RUNNER_TEMP/gate14-integration-acceptance.json"
+            else
+              mv "$RUNNER_TEMP/gate14-integration-acceptance.json" "$RUNNER_TEMP/gate14-integration-acceptance.unretained.json"
+            fi
+            exit 1
+          fi
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: gate14-integrations-${{ inputs.candidate_revision }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gate14-integration-acceptance.json
+          if-no-files-found: error
+          retention-days: 90

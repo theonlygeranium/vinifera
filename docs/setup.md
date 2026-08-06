@@ -407,7 +407,18 @@ Configure the Worker keyring before accepting them:
 ```text
 INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION
 INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS
+INTEGRATION_CREDENTIAL_ACCEPTANCE_PROOFS
 ```
+
+The acceptance-proofs binding contains exactly four accepted encrypted
+envelopes with their organization, brand, provider type, and connection-ID
+contexts. Runtime health reports only scoped hashes after all four exact
+envelopes decrypt successfully. Gate 14 acceptance additionally uses the
+protected `STAGING_SUPABASE_SERVICE_ROLE_KEY` workflow secret to attest that
+the proof envelopes are the exact active, opted-in tenant/brand rows stored in
+staging. The service-role read is brand-filtered through the connection
+relation before secret rows are returned, and binds ciphertext, IV, and key
+version; it never includes their bytes in the retained artifact.
 
 As an alternative to a database envelope, a connection may store only an exact
 `env://VINIFERA_INTEGRATION_SECRET_<NAME>` reference. The matching Worker

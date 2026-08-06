@@ -129,6 +129,7 @@ const HIGH_RISK_FILES = new Set([
   ".env.example",
   ".nvmrc",
   "capacitor.config.json",
+  "config/gate14-integration-acceptance-policy.json",
   "config/hosted-target-allowlist.json",
   "package-lock.json",
   "package.json",
@@ -186,8 +187,10 @@ export function isAuthorityHighRiskPath(path) {
     path.startsWith("supabase/migrations/") ||
     [
       ".env.example",
+      "config/gate14-integration-acceptance-policy.json",
       "config/hosted-target-allowlist.json",
       "package-lock.json",
+      "scripts/hosted-gate14-integration-acceptance.mjs",
       "wrangler.jsonc",
     ].includes(path)
   ) {
