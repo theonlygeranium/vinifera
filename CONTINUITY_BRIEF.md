@@ -898,7 +898,15 @@ The code must remain fail-closed until these external connections are active:
    Checkout, signed-webhook lifecycle, grace/restriction/suspension/recovery,
    and reusable-fixture cleanup contract for exact candidate
    `530a003b91642ebf40af01468b10e444116ef632`.
-8. Verify a Resend sending domain, signed webhook, and at least two real staging triggers.
+8. **Pending; protected provisioning source-complete on its feature branch:**
+   populate and review the exact disabled-by-default Resend/Cloudflare target
+   hashes, bootstrap the provider domain, webhook, and separate domain-scoped
+   sending-only runtime key from trusted `main`, review the generated key ID and
+   every DNS tuple hash, apply and post-read verify exact unproxied Cloudflare
+   DNS, then prove the signed webhook and at least two real staging triggers.
+   Evidence is bound to exact source SHA, policy digest, repository, and run.
+   No provider, DNS, secret, or gate-status mutation has been performed by
+   source completion.
 9. Apply Phase 4 migration 15 to hosted Supabase and run the 37 current-stack
    pgTAP assertions plus native tenant/RPC tests.
 10. Connect a winery with real Phase 2/3 operations and verify every analytics

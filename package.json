@@ -47,6 +47,7 @@
     "ops:promotion-smoke:status": "node scripts/actions-promotion-status.mjs",
     "ops:promotion-smoke:status:json": "node scripts/actions-promotion-status.mjs --json",
     "qa:production-release": "vitest run tests/server/production-release.test.mjs",
+    "qa:resend-provisioning": "vitest run tests/scripts/resend-staging-provisioning.test.mjs",
     "qa:stripe-catalog": "vitest run tests/scripts/stripe-test-catalog.test.mjs",
     "qa:worker-types": "wrangler types --check",
     "test": "vitest run",

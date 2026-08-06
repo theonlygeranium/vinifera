@@ -1,0 +1,106 @@
+name: Resend staging provisioning
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Read-only probe, provider bootstrap, exact DNS apply, or read-only verify
+        required: true
+        type: choice
+        options:
+          - probe
+          - bootstrap
+          - apply
+          - verify
+      sending_domain:
+        description: Exact policy-authorized staging Resend sending domain
+        required: true
+        type: string
+      git_sha:
+        description: Exact 40-character commit on the trusted default branch
+        required: true
+        type: string
+      confirmation:
+        description: Exact operation confirmation from the Resend activation runbook
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  deployments: none
+
+concurrency:
+  group: vinifera-resend-staging-provisioning
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    name: ${{ inputs.operation }} Resend staging resources
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: staging
+      deployment: false
+    steps:
+      - name: Validate trusted default-branch target
+        env:
+          PROVISIONING_GIT_SHA: ${{ inputs.git_sha }}
+        run: |
+          [[ "$GITHUB_REPOSITORY" == "theonlygeranium/vinifera" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$PROVISIONING_GIT_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Check out immutable trusted source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.git_sha }}
+
+      - name: Verify immutable default-branch commit
+        env:
+          PROVISIONING_GIT_SHA: ${{ inputs.git_sha }}
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$PROVISIONING_GIT_SHA" ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          [[ "$(git rev-parse origin/main)" == "$PROVISIONING_GIT_SHA" ]]
+
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.22.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify provisioning control suite
+        run: npm run qa:resend-provisioning
+
+      - name: Run protected Resend staging operation
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          GH_TOKEN: ${{ secrets.STAGING_GITHUB_VARIABLES_TOKEN }}
+          PROVISIONING_GIT_SHA: ${{ inputs.git_sha }}
+          RESEND_PROVISIONING_API_KEY: ${{ secrets.RESEND_PROVISIONING_API_KEY }}
+          RESEND_DOMAIN_VERIFY_WAIT_SECONDS: "300"
+          RESEND_PROVISIONING_CONFIRMATION: ${{ inputs.confirmation }}
+          RESEND_SENDING_DOMAIN: ${{ inputs.sending_domain }}
+          RESEND_WEBHOOK_ENDPOINT: ${{ format('{0}/api/webhooks/resend', vars.STAGING_WORKER_ORIGIN) }}
+          STAGING_UNSUBSCRIBE_SIGNING_SECRET: ${{ secrets.STAGING_UNSUBSCRIBE_SIGNING_SECRET }}
+        run: |
+          umask 077
+          node scripts/resend-staging-provisioning.mjs \
+            "${{ inputs.operation }}" \
+            --output "$RUNNER_TEMP/resend-staging-provisioning-report.json"
+
+      - name: Upload sanitized provisioning evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: resend-staging-provisioning-report-${{ inputs.git_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/resend-staging-provisioning-report.json
+          if-no-files-found: error
+          retention-days: 14

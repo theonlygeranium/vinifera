@@ -14,6 +14,25 @@
   secret binding only; no provider
   resource, winery data, fixture, model, integration, DNS, live-billing,
   mobile-store, or production mutation.
+- Add a disabled-by-default, trusted default-branch Gate 8 provisioning
+  controller for exact Resend domain/webhook inventory, two-stage reviewed DNS
+  authorization, idempotent Cloudflare record creation, asynchronous domain
+  verification, and direct protected staging secret handoff over stdin. Retain
+  only sanitized target/provider/DNS hashes and readiness evidence, reject
+  ambiguity or conflicting DNS, and support no deletion. **Deployment impact:**
+  source and protected manual workflow only; the empty target policy blocks all
+  provider and DNS calls until exact hashes are reviewed, and no hosted resource,
+  secret, Worker, or Gate 8 state changes in this commit.
+  Split the full-access provisioning key from a bootstrap-created,
+  domain-restricted sending-only runtime key; require the runtime-key ID in the
+  reviewed policy; classify the controller, workflow, and policy as
+  authority-high-risk; normalize trailing DNS dots before suffix checks; reject
+  proxied existing provider records; derive readiness only from post-mutation
+  Resend and Cloudflare inventories; and bind evidence to the exact source SHA,
+  policy digest, canonical repository, and workflow run identity.
+- Raise the documented Vitest regression floor from 569 to the verified 588
+  tests after adding the provisioning policy and workflow controls. **Deployment
+  impact:** QA documentation only; no additional hosted mutation.
 - Remove the broad required-reviewer rule from the protected `staging` GitHub
   environment while retaining its staging-only branch policy and the
   repository's exact-candidate, provider-target, confirmation, health,

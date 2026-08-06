@@ -1,0 +1,480 @@
+import { spawnSync } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  authorizeDnsRecords,
+  authorizeTargets,
+  dnsRecordPolicyEntry,
+  ensureDomain,
+  ensureRuntimeSendingKey,
+  ensureWebhook,
+  normalizeDnsRecord,
+  normalizeWebhookEndpoint,
+  reconcileDnsRecord,
+  sha256,
+  validateEvidenceBinding,
+  validatePolicy,
+} from "../../scripts/resend-staging-provisioning.mjs";
+import { isAuthorityHighRiskPath } from "../../.github/scripts/delivery-policy.mjs";
+
+const repositoryRoot = new URL("../../", import.meta.url);
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function enabledPolicy(overrides = {}) {
+  const accountId = "a".repeat(32);
+  const zoneId = "b".repeat(32);
+  const domain = "mail.staging.example.com";
+  const endpoint =
+    "https://vinifera-staging.account.workers.dev/api/webhooks/resend";
+  return {
+    inputs: { accountId, domain, endpoint, zoneId },
+    policy: validatePolicy({
+      schemaVersion: 1,
+      enabled: true,
+      cloudflareAccountIdSha256: [sha256(accountId)],
+      cloudflareZoneIdSha256: [sha256(zoneId)],
+      sendingDomainSha256: [sha256(domain)],
+      webhookEndpointSha256: [sha256(endpoint)],
+      runtimeApiKeyIdSha256: [],
+      dnsRecords: [],
+      ...overrides,
+    }),
+  };
+}
+
+describe("Resend staging provisioning controller", () => {
+  it("ships disabled with no guessed target or DNS hashes", async () => {
+    const policy = JSON.parse(
+      await readFile(
+        new URL(
+          "config/resend-staging-provisioning-policy.json",
+          repositoryRoot,
+        ),
+        "utf8",
+      ),
+    );
+    expect(validatePolicy(policy)).toEqual(policy);
+    expect(policy.enabled).toBe(false);
+    expect(policy.cloudflareAccountIdSha256).toEqual([]);
+    expect(policy.cloudflareZoneIdSha256).toEqual([]);
+    expect(policy.sendingDomainSha256).toEqual([]);
+    expect(policy.webhookEndpointSha256).toEqual([]);
+    expect(policy.runtimeApiKeyIdSha256).toEqual([]);
+    expect(policy.dnsRecords).toEqual([]);
+  });
+
+  it("fails before provider access and retains sanitized evidence while disabled", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "vinifera-resend-policy-"));
+    const output = join(directory, "report.json");
+    try {
+      const result = spawnSync(
+        process.execPath,
+        [
+          new URL("scripts/resend-staging-provisioning.mjs", repositoryRoot)
+            .pathname,
+          "probe",
+          "--output",
+          output,
+        ],
+        {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+            CLOUDFLARE_API_TOKEN: "not-contacted",
+            CLOUDFLARE_ZONE_ID: "b".repeat(32),
+            GITHUB_REPOSITORY: "theonlygeranium/vinifera",
+            GITHUB_RUN_ATTEMPT: "1",
+            GITHUB_RUN_ID: "12345",
+            GITHUB_SHA: "a".repeat(40),
+            PROVISIONING_GIT_SHA: "a".repeat(40),
+            RESEND_PROVISIONING_API_KEY: "re_not_contacted",
+            RESEND_PROVISIONING_CONFIRMATION: "PROBE VINIFERA STAGING RESEND",
+            RESEND_SENDING_DOMAIN: "mail.staging.example.com",
+            RESEND_WEBHOOK_ENDPOINT:
+              "https://vinifera-staging.account.workers.dev/api/webhooks/resend",
+          },
+        },
+      );
+      expect(result.status).not.toBe(0);
+      const evidence = JSON.parse(await readFile(output, "utf8"));
+      expect(evidence).toMatchObject({
+        failure: "Resend staging provisioning policy is disabled.",
+        operation: "probe",
+        ready: false,
+        success: false,
+      });
+      expect(JSON.stringify(evidence)).not.toContain("not-contacted");
+      expect(JSON.stringify(evidence)).not.toContain(
+        "mail.staging.example.com",
+      );
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("authorizes only one exact account, zone, domain, and staging webhook", () => {
+    const { inputs, policy } = enabledPolicy();
+    expect(authorizeTargets({ ...inputs, policy })).toEqual({
+      domain: inputs.domain,
+      endpoint: inputs.endpoint,
+    });
+    expect(() =>
+      authorizeTargets({
+        ...inputs,
+        domain: "other.staging.example.com",
+        policy,
+      }),
+    ).toThrow(/not authorized/u);
+    expect(() =>
+      normalizeWebhookEndpoint(
+        "https://vinifera-staging.account.workers.dev/api/webhooks/other",
+      ),
+    ).toThrow(/exact isolated staging/u);
+  });
+
+  it("normalizes exact Resend DNS records and retains MX priority", () => {
+    const domain = "mail.staging.example.com";
+    const mx = normalizeDnsRecord(
+      {
+        name: "send.mail.staging.example.com.",
+        priority: 10,
+        record: "SPF",
+        type: "MX",
+        value: "feedback-smtp.us-east-1.amazonses.com.",
+      },
+      domain,
+    );
+    expect(mx).toEqual({
+      label: "SPF",
+      name: `send.${domain}`,
+      priority: 10,
+      type: "MX",
+      value: "feedback-smtp.us-east-1.amazonses.com",
+    });
+    expect(dnsRecordPolicyEntry(mx)).toEqual({
+      nameSha256: sha256(`send.${domain}`),
+      priority: 10,
+      type: "MX",
+      valueSha256: sha256("feedback-smtp.us-east-1.amazonses.com"),
+    });
+  });
+
+  it("binds evidence to the exact workflow revision, policy, repository, and run", () => {
+    const policyText = '{"schemaVersion":1}\n';
+    expect(
+      validateEvidenceBinding(
+        {
+          GITHUB_REPOSITORY: "theonlygeranium/vinifera",
+          GITHUB_RUN_ATTEMPT: "2",
+          GITHUB_RUN_ID: "12345",
+          GITHUB_SHA: "a".repeat(40),
+          PROVISIONING_GIT_SHA: "a".repeat(40),
+        },
+        policyText,
+      ),
+    ).toEqual({
+      gitSha: "a".repeat(40),
+      policySha256: sha256(policyText),
+      repository: "theonlygeranium/vinifera",
+      runAttempt: "2",
+      runId: "12345",
+    });
+    expect(() =>
+      validateEvidenceBinding(
+        {
+          GITHUB_REPOSITORY: "theonlygeranium/vinifera",
+          GITHUB_RUN_ATTEMPT: "2",
+          GITHUB_RUN_ID: "12345",
+          GITHUB_SHA: "b".repeat(40),
+          PROVISIONING_GIT_SHA: "a".repeat(40),
+        },
+        policyText,
+      ),
+    ).toThrow(/workflow revision/u);
+  });
+
+  it("fails closed until every returned DNS tuple is exactly authorized", () => {
+    const record = normalizeDnsRecord(
+      {
+        name: "resend._domainkey",
+        record: "DKIM",
+        type: "TXT",
+        value: "p=provider-key",
+      },
+      "mail.staging.example.com",
+    );
+    const { policy } = enabledPolicy({
+      dnsRecords: [dnsRecordPolicyEntry(record)],
+    });
+    expect(
+      authorizeDnsRecords([record], policy, { requireComplete: true }),
+    ).toEqual({
+      actual: [dnsRecordPolicyEntry(record)],
+      authorizedCount: 1,
+    });
+    expect(() =>
+      authorizeDnsRecords([{ ...record, value: "p=different-key" }], policy, {
+        requireComplete: true,
+      }),
+    ).toThrow(/incomplete or stale/u);
+  });
+
+  it("inventories exact provider resources and creates only when authorized", async () => {
+    const endpoint =
+      "https://vinifera-staging.account.workers.dev/api/webhooks/resend";
+    const requests = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init) => {
+        requests.push({ method: init.method, url: String(url) });
+        if (String(url).endsWith("/domains")) {
+          return Response.json(
+            init.method === "POST"
+              ? {
+                  id: "domain-one",
+                  name: "mail.staging.example.com",
+                  records: [],
+                  status: "not_started",
+                }
+              : { data: [] },
+          );
+        }
+        if (String(url).endsWith("/webhooks")) {
+          return Response.json({
+            data:
+              init.method === "POST"
+                ? undefined
+                : [
+                    {
+                      endpoint,
+                      id: "webhook-one",
+                    },
+                  ],
+            ...(init.method === "POST"
+              ? { id: "webhook-one", signing_secret: "whsec_test" }
+              : {}),
+          });
+        }
+        if (String(url).endsWith("/webhooks/webhook-one")) {
+          return Response.json({
+            endpoint,
+            events: ["email.sent"],
+            id: "webhook-one",
+            signing_secret: "whsec_test",
+            status: "disabled",
+          });
+        }
+        return Response.json({
+          id: "domain-one",
+          name: "mail.staging.example.com",
+          records: [],
+          status: "not_started",
+        });
+      }),
+    );
+    const domain = await ensureDomain(
+      "re_test_key",
+      "mail.staging.example.com",
+      true,
+    );
+    expect(domain.disposition).toBe("created");
+    const webhook = await ensureWebhook("re_test_key", endpoint, true);
+    expect(webhook.disposition).toBe("updated");
+    expect(requests.some((request) => request.method === "POST")).toBe(true);
+    expect(requests.some((request) => request.method === "PATCH")).toBe(true);
+    expect(requests.every((request) => request.method !== "DELETE")).toBe(true);
+  });
+
+  it("creates a distinct sending-only runtime key restricted to the exact domain", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(
+        Response.json({ id: "runtime-key", token: "re_runtime_sender" }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            {
+              id: "runtime-key",
+              name: "Vinifera staging runtime sender",
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await ensureRuntimeSendingKey(
+      "re_provisioning_admin",
+      "domain-one",
+      true,
+    );
+    expect(result).toMatchObject({
+      disposition: "created",
+      token: "re_runtime_sender",
+    });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+      domain_id: "domain-one",
+      name: "Vinifera staging runtime sender",
+      permission: "sending_access",
+    });
+  });
+
+  it("creates only absent exact DNS and refuses conflicting records", async () => {
+    const record = normalizeDnsRecord(
+      {
+        name: "send",
+        priority: 10,
+        record: "SPF",
+        type: "MX",
+        value: "feedback-smtp.us-east-1.amazonses.com",
+      },
+      "mail.staging.example.com",
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ result: [], success: true }))
+      .mockResolvedValueOnce(
+        Response.json({ result: { id: "dns-one" }, success: true }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      reconcileDnsRecord("token", "b".repeat(32), record, { create: true }),
+    ).resolves.toBe("created");
+    expect(fetchMock.mock.calls[1][1].method).toBe("POST");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json({
+          result: [
+            {
+              content: "conflicting.example.com",
+              name: record.name,
+              priority: 10,
+            },
+          ],
+          success: true,
+        }),
+      ),
+    );
+    await expect(
+      reconcileDnsRecord("token", "b".repeat(32), record, { create: true }),
+    ).rejects.toThrow(/conflicts/u);
+  });
+
+  it("rejects an exact existing CNAME when Cloudflare proxying is enabled", async () => {
+    const record = normalizeDnsRecord(
+      {
+        name: "links.mail.staging.example.com.",
+        record: "Tracking",
+        type: "CNAME",
+        value: "links1.resend-dns.com.",
+      },
+      "mail.staging.example.com",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json({
+          result: [
+            {
+              content: `${record.value}.`,
+              name: `${record.name}.`,
+              proxied: true,
+            },
+          ],
+          success: true,
+        }),
+      ),
+    );
+    await expect(
+      reconcileDnsRecord("token", "b".repeat(32), record, { create: false }),
+    ).rejects.toThrow(/conflicts/u);
+  });
+
+  it("uses trusted default-branch code and protected repository credentials", async () => {
+    const workflow = await readFile(
+      new URL(
+        ".github/workflows/resend-staging-provisioning.yml",
+        repositoryRoot,
+      ),
+      "utf8",
+    );
+    expect(workflow).toContain('[[ "$GITHUB_REF" == "refs/heads/main" ]]');
+    expect(workflow).toContain(
+      "git fetch --no-tags origin main:refs/remotes/origin/main",
+    );
+    expect(workflow).toContain("environment:\n      name: staging");
+    expect(workflow).toContain(
+      "RESEND_PROVISIONING_API_KEY: ${{ secrets.RESEND_PROVISIONING_API_KEY }}",
+    );
+    expect(workflow).toContain("PROVISIONING_GIT_SHA: ${{ inputs.git_sha }}");
+    expect(workflow).toContain(
+      "CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}",
+    );
+    expect(workflow).toContain(
+      "GH_TOKEN: ${{ secrets.STAGING_GITHUB_VARIABLES_TOKEN }}",
+    );
+    expect(workflow).not.toContain("pull_request:");
+    for (const path of [
+      ".github/workflows/resend-staging-provisioning.yml",
+      "scripts/resend-staging-provisioning.mjs",
+    ]) {
+      expect(isAuthorityHighRiskPath(path)).toBe(true);
+    }
+    const stagingWorkflow = await readFile(
+      new URL(".github/workflows/ci.yml", repositoryRoot),
+      "utf8",
+    );
+    for (const name of [
+      "EMAIL_PROVIDER",
+      "EMAIL_SIMULATOR_ENABLED",
+      "RESEND_API_KEY",
+      "RESEND_DOMAIN_VERIFIED",
+      "RESEND_FROM",
+      "RESEND_SENDING_DOMAIN",
+      "RESEND_WEBHOOK_SECRET",
+      "UNSUBSCRIBE_SIGNING_SECRET",
+    ]) {
+      expect(stagingWorkflow).toContain(
+        `${name}: \${{ secrets.STAGING_${name} }}`,
+      );
+    }
+  });
+
+  it("writes secrets through stdin and keeps evidence sanitized", async () => {
+    const controller = await readFile(
+      new URL("scripts/resend-staging-provisioning.mjs", repositoryRoot),
+      "utf8",
+    );
+    expect(controller).toContain('["secret", "set", name, "--env", "staging"');
+    expect(controller).toContain("child.stdin.end(value)");
+    expect(controller).toContain('stdio: ["pipe", "ignore", "ignore"]');
+    expect(controller).toContain("STAGING_RESEND_WEBHOOK_SECRET");
+    expect(controller).toContain("STAGING_UNSUBSCRIBE_SIGNING_SECRET");
+    expect(controller).toContain("domainIdSha256");
+    expect(controller).toContain("webhookIdSha256");
+    expect(controller).not.toContain("evidence.webhookSecret");
+    expect(controller).not.toContain("evidence.apiKey");
+  });
+
+  it("uses the official provider mutation endpoints without destructive calls", async () => {
+    const controller = await readFile(
+      new URL("scripts/resend-staging-provisioning.mjs", repositoryRoot),
+      "utf8",
+    );
+    expect(controller).toContain('apiJson(RESEND_ORIGIN, "/domains"');
+    expect(controller).toContain('method: "POST"');
+    expect(controller).toContain('method: "PATCH"');
+    expect(controller).toContain("/verify`");
+    expect(controller).toContain("/dns_records`");
+    expect(controller).not.toContain('method: "DELETE"');
+    expect(controller).not.toContain("dns_records/batch");
+  });
+});
