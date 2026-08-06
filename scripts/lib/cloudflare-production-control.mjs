@@ -797,15 +797,40 @@ export async function restorePages(options) {
       ...verified,
     };
   } catch (error) {
-    if (pagesAttached) {
-      await mutatePagesDomain({ ...options, method: "DELETE" }).catch(
-        () => undefined,
-      );
-    }
+    let current;
     let recoveryError;
     try {
-      const reattached = await attachWorkerDomain(options);
-      await verifyWorkerAttachment(options, reattached?.id);
+      current = await captureProductionState(options);
+      const currentPages = findPagesDomain(current, options.hostname);
+      if (pagesAttached || currentPages) {
+        await mutatePagesDomain({ ...options, method: "DELETE" });
+      }
+      if (workerDomain?.id) {
+        const currentWorker = findWorkerDomain(
+          current,
+          options.hostname,
+          options.workerName,
+        );
+        const reattached = currentWorker ?? (await attachWorkerDomain(options));
+        await verifyWorkerAttachment(options, reattached?.id);
+      } else {
+        await poll(async () => {
+          const restored = await captureProductionState(options);
+          if (
+            findPagesDomain(restored, options.hostname) ||
+            findWorkerDomain(
+              restored,
+              options.hostname,
+              options.workerName,
+            )
+          ) {
+            throw new Error(
+              "The previously unowned hostname was not restored.",
+            );
+          }
+          return restored;
+        }, options);
+      }
       await assertMarketingUnchanged(options, marketingBefore);
     } catch (workerError) {
       recoveryError =
@@ -813,7 +838,12 @@ export async function restorePages(options) {
     }
     if (recoveryError) {
       throw new Error(
-        `Pages restoration failed and verified Worker recovery also failed: ${recoveryError}. Pages error: ${error instanceof Error ? error.message : "unknown error"}`,
+        `Pages restoration failed and prior topology recovery also failed: ${recoveryError}. Pages error: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
+    if (!workerDomain) {
+      throw new Error(
+        `Pages restoration failed and the prior unowned topology was restored: ${error instanceof Error ? error.message : "unknown error"}`,
       );
     }
     throw new Error(

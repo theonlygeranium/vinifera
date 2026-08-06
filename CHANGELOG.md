@@ -14,6 +14,8 @@
   resumable; validate the retained Pages production branch/deployment and exact
   fallback content; restore Pages automatically after a failed attachment; and
   recover the fully verified prior topology after a failed Pages restore.
+  A failed restore from a neither-attached baseline now reconverges to no
+  owner instead of creating a Worker attachment that did not previously exist.
   Signed internal mobile builds now verify the exact allowlisted pre-cutover
   production Worker revision and association payload, removing the Gates
   17/18-to-20 circular dependency. Failed production deploy or explicit
@@ -22,7 +24,7 @@
   impact:** source, policy, native
   association, and protected release-control behavior only; no provider,
   hostname, Worker deployment, billing, database, credential, or store-track
-  mutation was performed. The integrated regression gate passes 590/590
+  mutation was performed. The integrated regression gate passes 591/591
   Vitest tests, generated Worker types, TypeScript, the Vite build, and the
   Worker dry-run package.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind

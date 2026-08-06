@@ -53,6 +53,10 @@ checked-in root and prototype content digests. It does not depend on an
 expiring staging artifact. Both directions re-establish and fully verify the
 prior serving topology if the requested transition fails, and both hash the
 separate marketing root/app/guide surfaces before and after mutation.
+If a restore begins from the valid neither-attached state and Pages attachment
+fails, recovery removes any partially visible Pages claim and verifies that the
+hostname remains unowned; it never invents a Worker attachment that was absent
+from the captured topology.
 
 Before Gate 20, signed internal mobile builds use the allowlisted production
 `workers.dev` origin and prove its exact revision plus the relevant association

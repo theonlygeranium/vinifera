@@ -1035,4 +1035,22 @@ describe("Cloudflare production control plane", () => {
     );
     expect(mock.state).toEqual({ pagesDomain: false, workerDomain: true });
   });
+
+  it("restores an unowned topology when Pages attachment fails", async () => {
+    const mock = cloudflareMock({
+      pagesDomain: false,
+      pagesPostFails: true,
+      workerDomain: false,
+    });
+    await expect(restorePages(controlOptions(mock.fetcher))).rejects.toThrow(
+      /prior unowned topology was restored/,
+    );
+    expect(mock.state).toEqual({ pagesDomain: false, workerDomain: false });
+    expect(
+      mock.calls.some(
+        (call) =>
+          call.method === "PUT" && call.pathname.endsWith("/workers/domains"),
+      ),
+    ).toBe(false);
+  });
 });

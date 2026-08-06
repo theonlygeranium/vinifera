@@ -188,7 +188,9 @@ operation:
    and
 5. if Pages restoration fails, reattaches the prior Worker domain and verifies
    its certificate, exact revision, capabilities, application routes, and
-   mobile associations before reporting the failed restore.
+   mobile associations before reporting the failed restore; when the captured
+   topology had neither owner, removes any partial Pages claim and verifies the
+   hostname remains unowned instead of attaching a new Worker owner.
 
 Restoration is resumable when Pages is already active or neither service is
 attached. It rejects an ambiguous both-attached state.
