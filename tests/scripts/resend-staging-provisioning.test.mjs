@@ -583,9 +583,16 @@ describe("Resend staging provisioning controller", () => {
       "re_provisioning_admin",
       "domain-one",
       true,
-      async (token) => {
+      async (token, domainIdSha256) => {
         expect(token).toBe("re_runtime_sender");
-        order.push("persist");
+        expect(domainIdSha256).toBe(sha256("domain-one"));
+        order.push("recovery");
+      },
+      undefined,
+      async (token, keyIdSha256) => {
+        expect(token).toBe("re_runtime_sender");
+        expect(keyIdSha256).toBe(sha256("runtime-key"));
+        order.push("finalize");
       },
     );
     expect(result).toMatchObject({
@@ -597,7 +604,13 @@ describe("Resend staging provisioning controller", () => {
       name: "Vinifera staging runtime sender",
       permission: "sending_access",
     });
-    expect(order).toEqual(["inventory", "create", "persist", "inventory"]);
+    expect(order).toEqual([
+      "inventory",
+      "create",
+      "recovery",
+      "finalize",
+      "inventory",
+    ]);
   });
 
   it("stops before post-creation inventory when one-time key persistence fails", async () => {
@@ -614,6 +627,8 @@ describe("Resend staging provisioning controller", () => {
         "re_provisioning_admin",
         "domain-one",
         true,
+        async () => undefined,
+        undefined,
         async () => {
           throw new Error("synthetic persistence failure");
         },
@@ -624,7 +639,7 @@ describe("Resend staging provisioning controller", () => {
     expect(fetchMock.mock.calls[2][1].method).toBe("DELETE");
   });
 
-  it("persists a one-time token before recovering a missing provider key ID", async () => {
+  it("recovers a missing runtime-key ID only after persisting its one-time token", async () => {
     const order = [];
     const fetchMock = vi
       .fn()
@@ -639,6 +654,10 @@ describe("Resend staging provisioning controller", () => {
       .mockImplementationOnce(async () => {
         order.push("recover-id");
         throw new Error("synthetic inventory outage");
+      })
+      .mockImplementationOnce(async () => {
+        order.push("recover-id");
+        throw new Error("synthetic inventory outage");
       });
     vi.stubGlobal("fetch", fetchMock);
     await expect(
@@ -646,10 +665,59 @@ describe("Resend staging provisioning controller", () => {
         "re_provisioning_admin",
         "domain-one",
         true,
-        async () => order.push("persist"),
+        async () => order.push("persist-recovery"),
+        undefined,
+        vi.fn(),
       ),
-    ).rejects.toThrow(/inventory outage/u);
-    expect(order).toEqual(["inventory", "create", "persist", "recover-id"]);
+    ).rejects.toThrow(/protected recovery envelope permits an exact retry/u);
+    expect(order).toEqual([
+      "inventory",
+      "create",
+      "persist-recovery",
+      "recover-id",
+      "recover-id",
+    ]);
+
+    const retryOrder = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        retryOrder.push("inventory");
+        return Response.json({
+          data: [
+            {
+              id: "runtime-key",
+              name: "Vinifera staging runtime sender",
+            },
+          ],
+        });
+      }),
+    );
+    const finalizeRuntimeBinding = vi.fn(async () =>
+      retryOrder.push("finalize"),
+    );
+    const result = await ensureRuntimeSendingKey(
+      "re_provisioning_admin",
+      "domain-one",
+      true,
+      vi.fn(),
+      undefined,
+      finalizeRuntimeBinding,
+      JSON.stringify({
+        domainIdSha256: sha256("domain-one"),
+        schemaVersion: 1,
+        token: "re_runtime_sender",
+      }),
+    );
+    expect(result).toMatchObject({
+      disposition: "recovered",
+      token: "re_runtime_sender",
+    });
+    expect(finalizeRuntimeBinding).toHaveBeenCalledWith(
+      "re_runtime_sender",
+      sha256("runtime-key"),
+    );
+    expect(retryOrder).toEqual(["inventory", "finalize"]);
   });
 
   it("deletes a newly created runtime key when its token response is malformed", async () => {
@@ -813,6 +881,8 @@ describe("Resend staging provisioning controller", () => {
     expect(controller).toContain('stdio: ["pipe", "ignore", "ignore"]');
     expect(controller).toContain("STAGING_RESEND_WEBHOOK_SECRET");
     expect(controller).toContain("STAGING_RESEND_WEBHOOK_RECOVERY");
+    expect(controller).toContain("STAGING_RESEND_RUNTIME_KEY_RECOVERY");
+    expect(controller).toContain("STAGING_RESEND_RUNTIME_KEY_ID_SHA256");
     expect(controller).toContain(
       '["secret", "delete", name, "--env", environment, "--repo", repository]',
     );

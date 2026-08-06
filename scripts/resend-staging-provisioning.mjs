@@ -316,10 +316,16 @@ export function recordRuntimeCredential(
     authorized: authorization.authorized,
     disposition: runtimeKeyResult.disposition,
     domainRestricted:
-      runtimeKeyResult.disposition === "created" ? true : null,
+      runtimeKeyResult.disposition === "created" ||
+      runtimeKeyResult.disposition === "recovered"
+        ? true
+        : null,
     idSha256: authorization.idHash,
     permission:
-      runtimeKeyResult.disposition === "created" ? "sending_access" : null,
+      runtimeKeyResult.disposition === "created" ||
+      runtimeKeyResult.disposition === "recovered"
+        ? "sending_access"
+        : null,
   };
   if (operation === "bootstrap" && runtimeKeyResult.disposition === "existing") {
     expect(
@@ -671,11 +677,39 @@ export async function ensureRuntimeSendingKey(
   provisioningApiKey,
   domainId,
   canCreate,
-  persistToken = async () => {},
+  persistRuntimeRecovery,
+  boundRuntimeKeyIdSha256,
+  finalizeRuntimeBinding,
+  recoveryEnvelope,
 ) {
   let key = await inventoryRuntimeSendingKey(provisioningApiKey);
   let token = null;
   let disposition = "existing";
+  if (key) {
+    const keyIdSha256 = sha256(String(key.id));
+    const recovery = parseRuntimeKeyRecovery(recoveryEnvelope, domainId);
+    const hasValidBinding =
+      typeof boundRuntimeKeyIdSha256 === "string" &&
+      SHA256_PATTERN.test(boundRuntimeKeyIdSha256);
+    expect(
+      !hasValidBinding || boundRuntimeKeyIdSha256 === keyIdSha256,
+      "Existing Resend runtime key conflicts with the persisted token binding.",
+    );
+    if (recovery) {
+      expect(
+        canCreate && typeof finalizeRuntimeBinding === "function",
+        "Runtime-key recovery requires protected bootstrap and a binding callback.",
+      );
+      await finalizeRuntimeBinding(recovery.token, keyIdSha256);
+      token = recovery.token;
+      disposition = "recovered";
+    } else {
+      expect(
+        hasValidBinding,
+        "Existing Resend runtime key is not bound to the persisted sending token.",
+      );
+    }
+  }
   if (!key && canCreate) {
     const created = await apiJson(RESEND_ORIGIN, "/api-keys", {
       body: {
@@ -698,7 +732,19 @@ export async function ensureRuntimeSendingKey(
         /^re_[^\s]{8,}$/u.test(token),
         "Resend runtime sending credential format is invalid.",
       );
-      await persistToken(token);
+      expect(
+        typeof persistRuntimeRecovery === "function" &&
+          typeof finalizeRuntimeBinding === "function",
+        "Runtime-key creation requires protected recovery and binding callbacks.",
+      );
+      await persistRuntimeRecovery(token, sha256(domainId));
+      if (!createdId) {
+        createdId = required(
+          (await inventoryRuntimeSendingKey(provisioningApiKey))?.id,
+          "Resend runtime API key ID",
+        );
+      }
+      await finalizeRuntimeBinding(token, sha256(createdId));
     } catch (persistenceError) {
       if (!createdId) {
         try {
@@ -709,7 +755,7 @@ export async function ensureRuntimeSendingKey(
         } catch (inventoryError) {
           throw new AggregateError(
             [persistenceError, inventoryError],
-            "Runtime-key persistence failed and its provider ID could not be recovered.",
+            "Runtime-key recovery failed and its provider ID could not be recovered; the protected recovery envelope permits an exact retry.",
           );
         }
       }
@@ -727,12 +773,6 @@ export async function ensureRuntimeSendingKey(
       }
       throw persistenceError;
     }
-    if (!createdId) {
-      createdId = required(
-        (await inventoryRuntimeSendingKey(provisioningApiKey))?.id,
-        "Resend runtime API key ID",
-      );
-    }
     key = await inventoryRuntimeSendingKey(provisioningApiKey);
     expect(
       key && String(key.id) === createdId,
@@ -741,6 +781,24 @@ export async function ensureRuntimeSendingKey(
     disposition = "created";
   }
   return { disposition: key ? disposition : "absent", key, token };
+}
+
+export function parseRuntimeKeyRecovery(value, domainId) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  let recovery;
+  try {
+    recovery = JSON.parse(value);
+  } catch {
+    throw new Error("Resend runtime-key recovery envelope is invalid JSON.");
+  }
+  expect(
+    recovery?.schemaVersion === 1 &&
+      recovery?.domainIdSha256 === sha256(domainId) &&
+      typeof recovery?.token === "string" &&
+      /^re_[^\s]{8,}$/u.test(recovery.token),
+    "Resend runtime-key recovery envelope is not bound to the exact domain.",
+  );
+  return recovery;
 }
 
 async function verifyCloudflareZone(apiToken, accountId, zoneId, domain) {
@@ -1065,12 +1123,34 @@ async function main() {
       provisioningApiKey,
       domainResult.domain.id,
       operation === "bootstrap",
-      async (token) =>
-        setGitHubEnvironmentSecret(
+      async (token, domainIdSha256) => {
+        await setGitHubEnvironmentSecret(
+          "STAGING_RESEND_RUNTIME_KEY_RECOVERY",
+          JSON.stringify({ domainIdSha256, schemaVersion: 1, token }),
+          process.env,
+          "staging-acceptance-control",
+        );
+      },
+      process.env.STAGING_RESEND_RUNTIME_KEY_ID_SHA256,
+      async (token, runtimeKeyIdSha256) => {
+        await setGitHubEnvironmentSecret(
           "STAGING_RESEND_API_KEY",
           token,
           process.env,
-        ),
+        );
+        await setGitHubEnvironmentSecret(
+          "STAGING_RESEND_RUNTIME_KEY_ID_SHA256",
+          runtimeKeyIdSha256,
+          process.env,
+          "staging-acceptance-control",
+        );
+        await deleteGitHubEnvironmentSecret(
+          "STAGING_RESEND_RUNTIME_KEY_RECOVERY",
+          process.env,
+          "staging-acceptance-control",
+        );
+      },
+      process.env.STAGING_RESEND_RUNTIME_KEY_RECOVERY,
     );
     recordRuntimeCredential(
       evidence,

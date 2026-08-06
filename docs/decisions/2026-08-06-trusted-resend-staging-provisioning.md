@@ -78,12 +78,15 @@ binding or this controlled recovery before accepting any inventoried webhook.
 It never writes the provisioning key to a Worker
 binding. A stable unsubscribe signing secret is supplied by the trusted
 controller environment and copied unchanged on every retry; the controller
-never generates or rotates it. Because Resend exposes a newly created runtime token only once, the
-controller writes that token to `STAGING_RESEND_API_KEY` immediately after its
-format check and before provider re-inventory, DNS work, or any other fallible
-postcheck. A failed token write deletes only the API key created by that
-attempt, preserving a retry path that can receive a new one-time token. The
-same rollback covers a missing or malformed one-time token response. The
+never generates or rotates it. Because Resend exposes a newly created runtime
+token only once, the controller first persists the token and exact domain-ID
+hash in one protected recovery envelope before missing-ID inventory, DNS work,
+or any other fallible postcheck. It then writes `STAGING_RESEND_API_KEY`, binds
+the exact provider-key ID hash, and removes the recovery envelope. A protected
+bootstrap retry can therefore finalize the single exact inventoried runtime-key
+name after an interrupted ID lookup. A failed token write deletes only the API
+key created by that attempt when its ID can be recovered. The same rollback
+covers a missing or malformed one-time token response. The
 staging deployment workflow already maps these environment
 secrets into its immutable Worker version upload.
 
@@ -106,6 +109,9 @@ separate real lifecycle acceptance remain required.
 - A missing webhook ID cannot strand its one-time signing secret: the exact
   endpoint-bound recovery envelope is durable before inventory and removed
   only after the runtime secret and ID binding are durable.
+- A missing runtime-key ID follows the same two-phase contract with an exact
+  domain-bound token envelope; existing keys require the persisted ID binding
+  or that controlled bootstrap recovery.
 - The Worker receives only a domain-restricted `sending_access` credential, not
   the provisioning administrator credential.
 - The operation cannot run from pull-request code, staging code, or a stale

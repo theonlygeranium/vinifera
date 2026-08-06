@@ -20,10 +20,13 @@
   idempotent Cloudflare reconciliation, asynchronous verification, exact-source
   evidence binding, and post-mutation re-inventory. Split the provisioning key
   from the domain-restricted sending-only runtime key, persist its one-time
-  token before fallible postchecks or missing-ID recovery, persist the webhook's one-time signing
-  secret in an atomic endpoint-bound controller recovery envelope before
+  token in an atomic domain-bound controller recovery envelope before fallible
+  postchecks or missing-ID recovery, then finalize the staging token and exact
+  runtime-key ID binding; persist the webhook's one-time signing secret in an
+  atomic endpoint-bound controller recovery envelope before
   provider re-read or missing-ID recovery, then finalize the staging secret
-  and webhook-ID binding and remove that envelope; reuse the stable controller-owned
+  and webhook-ID binding and remove that envelope; reject inventoried runtime
+  keys without their exact persisted token binding or controlled recovery; reuse the stable controller-owned
   unsubscribe secret across retries. If either one-time secret write fails,
   delete only the resource created by that attempt so a retry can recreate it;
   malformed runtime-key creation responses enter the same rollback path, and

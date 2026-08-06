@@ -66,11 +66,15 @@ enabled event contract when necessary, and creates one runtime API key with
 `sending_access` restricted to the exact Resend `domain_id`. It never writes
 DNS. Every domain, webhook, and API-key inventory follows all Resend cursor
 pages before absence can authorize creation. The one-time runtime token is
-streamed into the protected
-`STAGING_RESEND_API_KEY` secret immediately after creation, before provider
-re-inventory or DNS postchecks. If that write fails, the controller deletes
-only the API key created by the current attempt so a retry can obtain a new
-one-time token; a missing or malformed token response follows the same rollback.
+first written with the exact Resend domain-ID hash as one atomic
+`STAGING_RESEND_RUNTIME_KEY_RECOVERY` envelope in the main-only controller
+environment, before missing-ID inventory or other postchecks. Once the exact
+key ID is known, the controller writes `STAGING_RESEND_API_KEY`, binds the ID
+hash, and removes the envelope. A later protected bootstrap can therefore
+finish an interrupted missing-ID lookup against only the single exact
+runtime-key name. A failed write deletes only the API key created by the
+current attempt when its ID can be recovered; a missing or malformed token
+response follows the same rollback.
 The one-time webhook signing secret is first written with the exact endpoint
 hash as one atomic `STAGING_RESEND_WEBHOOK_RECOVERY` envelope in the
 main-only controller environment, before a missing provider ID can require
@@ -141,10 +145,11 @@ STAGING_RESEND_WEBHOOK_SECRET
 STAGING_UNSUBSCRIBE_SIGNING_SECRET
 ```
 
-The controller also manages `STAGING_RESEND_WEBHOOK_RECOVERY` and
-`STAGING_RESEND_WEBHOOK_ID_SHA256` only in `staging-acceptance-control`; the
-former is a temporary exact-endpoint recovery envelope removed after the
-runtime secret and webhook ID binding are both durable.
+The controller also manages `STAGING_RESEND_RUNTIME_KEY_RECOVERY`,
+`STAGING_RESEND_RUNTIME_KEY_ID_SHA256`, `STAGING_RESEND_WEBHOOK_RECOVERY`, and
+`STAGING_RESEND_WEBHOOK_ID_SHA256` only in `staging-acceptance-control`. Each
+recovery envelope is temporary and removed after its runtime secret and exact
+provider-resource ID binding are both durable.
 
 The unprefixed Worker binding `RESEND_FROM` must use `RESEND_SENDING_DOMAIN`, and
 `RESEND_DOMAIN_VERIFIED` must remain false until Resend reports the domain as
