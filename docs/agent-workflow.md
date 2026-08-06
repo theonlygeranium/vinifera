@@ -152,18 +152,24 @@ owner-authorized workflow.
 4. Record CodeRabbit if available, but do not require it.
 5. Run the authorized staging provider preflight and final recheck. A credential
    or HTTP 200 alone is not readiness.
-6. Revalidate head, base, the canonical gate, Octopus, and active reviews immediately
-   before any authorized merge.
-7. After staging deploys, verify its environment marker, build SHA/digest,
+6. While the promotion PR is still open, dispatch `Package selected release
+   candidate` from trusted `main` for the exact current `dev` head and promotion
+   PR number. Require a successful, non-expired
+   `release-candidate-<full-dev-sha>` artifact before merge; the staging deploy
+   consumes that immutable artifact and cannot recover a package created after
+   the promotion PR closes.
+7. Revalidate head, base, the canonical gate, Octopus, active reviews, and the
+   exact candidate package immediately before any authorized merge.
+8. After staging deploys, verify its environment marker, build SHA/digest,
    API/browser/accessibility smoke, and critical error state at
    `https://vinifera-staging.edstratumlabs.ai`.
-8. Production promotion remains protected and owner-authorized. Require the
+9. Production promotion remains protected and owner-authorized. Require the
    configured soak, identical reviewed artifact or content digest, and
    protected release confirmations. A known rollback target means a separately
    verified prior reviewed release SHA plus a matching previously sole-active
    Worker version; the current `main` SHA remains the workflow-control
    authorization.
-9. After production deploys, verify the live marker/SHA, API health, primary
+10. After production deploys, verify the live marker/SHA, API health, primary
    journey, authentication boundary, accessibility smoke, and critical
    console/server state. Use the automatic rollback path if a critical check
    fails.
@@ -266,11 +272,13 @@ and rolls back automatically on failure.
 
 One maintained `dev → staging` PR is the selected release candidate.
 `Package selected release candidate` requires its exact full CI and Octopus
-evidence and packages one Worker/assets artifact. Staging and production must
-consume the reviewed artifact without rebuilding. The protected production
-entry point summarizes commit, changes, risk, validation, staging evidence,
-artifact digest, target, rollback, and caveats before the one `production`
-environment approval.
+evidence and, while that PR remains open, packages one Worker/assets artifact
+for the exact current `dev` head. The package must succeed before the promotion
+merge because a closed promotion PR is ineligible for later packaging. Staging
+and production must consume the reviewed artifact without rebuilding. The
+protected production entry point summarizes commit, changes, risk, validation,
+staging evidence, artifact digest, target, rollback, and caveats before the one
+`production` environment approval.
 
 `Delivery Control Center` is one maintained GitHub issue. It reports
 implemented, CI-verified, deployed, and live-verified states separately,
