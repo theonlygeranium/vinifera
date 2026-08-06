@@ -1,4 +1,8 @@
+import { createHash } from "node:crypto";
+
 const API_BASE = "https://api.cloudflare.com/client/v4";
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function required(value, label) {
   const normalized = String(value ?? "").trim();
@@ -28,7 +32,9 @@ export async function cloudflareApiRequest({
   required(accountId, "Cloudflare account");
   required(apiToken, "Cloudflare API token");
   if (!String(path).startsWith("/accounts/")) {
-    throw new Error("Cloudflare control-plane path is outside the account scope.");
+    throw new Error(
+      "Cloudflare control-plane path is outside the account scope.",
+    );
   }
   const response = await fetcher(`${API_BASE}${path}`, {
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -53,7 +59,12 @@ export async function cloudflareApiRequest({
 }
 
 function workerDomainSummary(domain) {
+  const certificateId = String(domain?.cert_id ?? "");
   return {
+    certificateIdSha256: UUID.test(certificateId)
+      ? createHash("sha256").update(certificateId).digest("hex")
+      : null,
+    certificatePresent: UUID.test(certificateId),
     environment: domain?.environment ?? null,
     hostname: domain?.hostname ?? null,
     id: domain?.id ?? null,
@@ -129,7 +140,9 @@ export async function captureProductionState({
     ? pagesDeployments[0]
     : null;
   if (!productionDeployment) {
-    throw new Error("The Pages project has no production deployment to restore.");
+    throw new Error(
+      "The Pages project has no production deployment to restore.",
+    );
   }
   return {
     capturedAt: new Date().toISOString(),
@@ -144,8 +157,9 @@ export async function captureProductionState({
     },
     worker: {
       deployment: deploymentSummary(deploymentResult?.deployments?.[0]),
-      domains: (
-        Array.isArray(workerDomainsResult) ? workerDomainsResult : []
+      domains: (Array.isArray(workerDomainsResult)
+        ? workerDomainsResult
+        : []
       ).map(workerDomainSummary),
       name: workerName,
     },
@@ -200,12 +214,18 @@ async function attachWorkerDomain({
   });
 }
 
-async function deleteWorkerDomain({
-  accountId,
-  apiToken,
-  domainId,
-  fetcher,
-}) {
+async function getWorkerDomain({ accountId, apiToken, domainId, fetcher }) {
+  const account = endpointPart(accountId, "Cloudflare account");
+  const domain = endpointPart(domainId, "Worker custom-domain ID");
+  return cloudflareApiRequest({
+    accountId,
+    apiToken,
+    fetcher,
+    path: `/accounts/${account}/workers/domains/${domain}`,
+  });
+}
+
+async function deleteWorkerDomain({ accountId, apiToken, domainId, fetcher }) {
   const account = endpointPart(accountId, "Cloudflare account");
   const domain = endpointPart(domainId, "Worker custom-domain ID");
   return cloudflareApiRequest({
@@ -260,7 +280,9 @@ export async function probeWorkerHealth({
         health?.data?.service !== "vinifera-api" ||
         health?.data?.status !== "ok"
       ) {
-        throw new Error("Worker health response is not the Vinifera API contract.");
+        throw new Error(
+          "Worker health response is not the Vinifera API contract.",
+        );
       }
       const capabilities =
         profile === "cutover"
@@ -284,6 +306,42 @@ export async function probeWorkerHealth({
   );
 }
 
+export async function probeWorkerDomainCertificate({
+  accountId,
+  apiToken,
+  attempts,
+  delayMs,
+  domainId,
+  fetcher = fetch,
+  hostname,
+  sleep,
+  workerName,
+  zoneId,
+}) {
+  return poll(
+    async () => {
+      const domain = await getWorkerDomain({
+        accountId,
+        apiToken,
+        domainId,
+        fetcher,
+      });
+      if (
+        domain?.hostname !== hostname ||
+        domain?.service !== workerName ||
+        domain?.zone_id !== zoneId ||
+        !UUID.test(String(domain?.cert_id ?? ""))
+      ) {
+        throw new Error(
+          "Worker custom-domain certificate is not ready for the allowlisted target.",
+        );
+      }
+      return workerDomainSummary(domain);
+    },
+    { attempts, delayMs, sleep },
+  );
+}
+
 export async function probePagesRestored({
   attempts,
   delayMs,
@@ -301,7 +359,10 @@ export async function probePagesRestored({
         throw new Error("Pages rollback routes are not ready.");
       }
       const [rootText, appText] = await Promise.all([root.text(), app.text()]);
-      if (!rootText.includes("Vinifera") || !appText.includes("Fall 2026 Club Release")) {
+      if (
+        !rootText.includes("Vinifera") ||
+        !appText.includes("Fall 2026 Club Release")
+      ) {
         throw new Error("Pages rollback content contract did not match.");
       }
       return { appStatus: app.status, rootStatus: root.status };
@@ -334,7 +395,9 @@ export async function workerResourceExists({
   const response = await fetcher(
     `${API_BASE}/accounts/${account}/workers/services/${worker}`,
     {
-      headers: { Authorization: `Bearer ${required(apiToken, "Cloudflare API token")}` },
+      headers: {
+        Authorization: `Bearer ${required(apiToken, "Cloudflare API token")}`,
+      },
     },
   );
   let payload;
@@ -359,7 +422,9 @@ export async function cutoverToWorker(options) {
   }
   const pagesDomain = findPagesDomain(snapshot, options.hostname);
   if (!pagesDomain) {
-    throw new Error("The production hostname is not attached to the Pages project.");
+    throw new Error(
+      "The production hostname is not attached to the Pages project.",
+    );
   }
   if (pagesDomain.status !== "active") {
     throw new Error(
@@ -367,13 +432,20 @@ export async function cutoverToWorker(options) {
     );
   }
   if (findWorkerDomain(snapshot, options.hostname, options.workerName)) {
-    throw new Error("The production hostname is already attached to the Worker.");
+    throw new Error(
+      "The production hostname is already attached to the Worker.",
+    );
   }
 
   await mutatePagesDomain({ ...options, method: "DELETE" });
   let attached;
+  let certified;
   try {
     attached = await attachWorkerDomain(options);
+    certified = await probeWorkerDomainCertificate({
+      ...options,
+      domainId: attached?.id,
+    });
     await probeWorkerHealth({
       ...options,
       origin: `https://${options.hostname}`,
@@ -393,14 +465,27 @@ export async function cutoverToWorker(options) {
         domainId: attachedDomainId,
       }).catch(() => undefined);
     }
-    await mutatePagesDomain({ ...options, method: "POST" }).catch(
-      () => undefined,
-    );
+    let restorationError;
+    try {
+      await mutatePagesDomain({ ...options, method: "POST" });
+      await probePagesRestored({
+        ...options,
+        origin: `https://${options.hostname}`,
+      });
+    } catch (restoreError) {
+      restorationError =
+        restoreError instanceof Error ? restoreError.message : "unknown error";
+    }
+    if (restorationError) {
+      throw new Error(
+        `Worker custom-domain attachment failed and Pages restoration also failed: ${restorationError}. Attachment error: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
     throw new Error(
-      `Worker custom-domain cutover failed and Pages restoration was attempted: ${error instanceof Error ? error.message : "unknown error"}`,
+      `Worker custom-domain attachment failed and Pages was restored: ${error instanceof Error ? error.message : "unknown error"}`,
     );
   }
-  return { attached: workerDomainSummary(attached), before: snapshot };
+  return { attached: certified, before: snapshot };
 }
 
 export async function restorePages(options) {

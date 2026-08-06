@@ -24,9 +24,7 @@ function targetPolicy({
       cloudflareAccountIdSha256: cloudflareDenied,
       supabaseProjectRefSha256: supabaseDenied,
     },
-    deniedProductionCustomHostnameOrigins: [
-      "vinifera.edstratumlabs.ai",
-    ],
+    deniedProductionCustomHostnameOrigins: ["vinifera.edstratumlabs.ai"],
     staging: {
       cloudflareAccountIdSha256: cloudflareAllowed,
       supabaseProjectRefSha256: supabaseAllowed,
@@ -47,10 +45,7 @@ describe("hosted activation target guards", () => {
   });
 
   it("accepts only the normalized allowlisted target identity", () => {
-    const supabaseHash = hashActivationTarget(
-      "supabase",
-      supabaseProjectRef,
-    );
+    const supabaseHash = hashActivationTarget("supabase", supabaseProjectRef);
     const cloudflareHash = hashActivationTarget(
       "cloudflare",
       cloudflareAccountId,
@@ -79,12 +74,8 @@ describe("hosted activation target guards", () => {
   it("rejects denied production targets without disclosing the raw identity", () => {
     const productionRef = "productionprojectref";
     const policy = targetPolicy({
-      supabaseAllowed: [
-        hashActivationTarget("supabase", supabaseProjectRef),
-      ],
-      supabaseDenied: [
-        hashActivationTarget("supabase", productionRef),
-      ],
+      supabaseAllowed: [hashActivationTarget("supabase", supabaseProjectRef)],
+      supabaseDenied: [hashActivationTarget("supabase", productionRef)],
     });
     let message = "";
     try {
@@ -128,20 +119,16 @@ describe("hosted activation target guards", () => {
     expect(allowlist.deniedProduction.cloudflareAccountIdSha256).toEqual([
       "9255ff49245aa55fe0593dd098290d4f31928f5607b79d3a8633579c1695dd01",
     ]);
-    expect(
-      allowlist.deniedProduction.cloudflareAccountIdSha256,
-    ).not.toContain(allowlist.staging.cloudflareAccountIdSha256[0]);
+    expect(allowlist.deniedProduction.cloudflareAccountIdSha256).not.toContain(
+      allowlist.staging.cloudflareAccountIdSha256[0],
+    );
 
     for (const [kind, environment] of [
       ["supabase", { SUPABASE_PROJECT_ID: supabaseProjectRef }],
     ]) {
       const result = spawnSync(
         process.execPath,
-        [
-          "scripts/verify-staging-activation.mjs",
-          "verify-target",
-          kind,
-        ],
+        ["scripts/verify-staging-activation.mjs", "verify-target", kind],
         {
           cwd: repositoryRoot,
           encoding: "utf8",
@@ -160,17 +147,21 @@ describe("hosted activation target guards", () => {
 });
 
 describe("staging custom-hostname origin guard", () => {
-  const denied = ["vinifera.edstratumlabs.ai"];
+  const denied = [
+    "vinifera.edstratumlabs.ai",
+    "vinifera-live.edstratumlabs.ai",
+  ];
 
   it.each([
     "vinifera.edstratumlabs.ai",
     "VINIFERA.EDSTRATUMLABS.AI.",
     "https://vinifera.edstratumlabs.ai/",
     "HTTPS://VINIFERA.EDSTRATUMLABS.AI:443/",
+    "vinifera-live.edstratumlabs.ai",
   ])("canonicalizes and rejects production variant %s", (origin) => {
-    expect(() =>
-      verifyStagingCustomHostnameOrigin(origin, denied),
-    ).toThrow(/denied production origin/);
+    expect(() => verifyStagingCustomHostnameOrigin(origin, denied)).toThrow(
+      /denied production origin/,
+    );
   });
 
   it("accepts only a canonical non-production hostname", () => {
@@ -240,7 +231,7 @@ describe("native API-origin activation profiles", () => {
     ).toMatchObject({ classification: "compile-only" });
     expect(() =>
       resolveMobileBuildTarget({
-        apiOrigin: "https://vinifera.edstratumlabs.ai",
+        apiOrigin: "https://vinifera-live.edstratumlabs.ai",
         buildProfile: "compile-only",
         productionAuthorized: "false",
       }),
@@ -267,14 +258,14 @@ describe("native API-origin activation profiles", () => {
   it("requires a separate authorization flag for the production origin", () => {
     expect(() =>
       resolveMobileBuildTarget({
-        apiOrigin: "https://vinifera.edstratumlabs.ai",
+        apiOrigin: "https://vinifera-live.edstratumlabs.ai",
         buildProfile: "production-authorized",
         productionAuthorized: "false",
       }),
     ).toThrow(/separate explicit authorization/);
     expect(
       resolveMobileBuildTarget({
-        apiOrigin: "https://vinifera.edstratumlabs.ai",
+        apiOrigin: "https://vinifera-live.edstratumlabs.ai",
         buildProfile: "production-authorized",
         productionAuthorized: "true",
       }),
@@ -316,9 +307,7 @@ describe("activation workflow wiring", () => {
         "node scripts/verify-staging-activation.mjs verify-target cloudflare",
       ),
     ).toBeLessThan(
-      workflow.indexOf(
-        "npx wrangler versions upload release/worker/worker.js",
-      ),
+      workflow.indexOf("npx wrangler versions upload release/worker/worker.js"),
     );
     const securityGuardIndex = workflow.indexOf(
       "assertSecuritySecretSeparation(process.env)",
@@ -330,9 +319,13 @@ describe("activation workflow wiring", () => {
     expect(stagingDeployIndex).toBeGreaterThanOrEqual(0);
     expect(securityGuardIndex).toBeLessThan(stagingDeployIndex);
     expect(workflow).toContain("release-artifact.mjs verify");
-    expect(workflow).toContain("--no-bundle --assets release/dist --env staging");
+    expect(workflow).toContain(
+      "--no-bundle --assets release/dist --env staging",
+    );
     expect(workflow).toContain("https://unconfigured.invalid");
-    expect(workflow).toContain("android-${{ vars.VITE_MOBILE_API_ORIGIN && 'staging-runtime-qa' || 'compile-only' }}-evidence");
+    expect(workflow).toContain(
+      "android-${{ vars.VITE_MOBILE_API_ORIGIN && 'staging-runtime-qa' || 'compile-only' }}-evidence",
+    );
   });
 
   it("contains no native production-origin fallback", async () => {

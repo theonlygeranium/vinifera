@@ -28,10 +28,11 @@ Both platforms force:
 ```text
 MOBILE_BUILD_PROFILE=production-authorized
 MOBILE_PRODUCTION_ORIGIN_AUTHORIZED=true
-VITE_MOBILE_API_ORIGIN=https://vinifera.edstratumlabs.ai
+VITE_MOBILE_API_ORIGIN=https://vinifera-live.edstratumlabs.ai
 ```
 
-Any other origin fails before signing.
+Any other origin fails before signing. The marketing and prototype hostname at
+`vinifera.edstratumlabs.ai` is not a mobile API or associated-link target.
 
 ## Android credentials
 

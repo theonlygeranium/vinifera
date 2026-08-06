@@ -129,14 +129,14 @@ jobs:
           MOBILE_RELEASE_GIT_SHA: ${{ inputs.git_sha }}
           MOBILE_RELEASE_ACTION: ${{ inputs.release_action }}
           MOBILE_UPLOAD_CONFIRMATION: ${{ inputs.upload_confirmation }}
-          VITE_MOBILE_API_ORIGIN: https://vinifera.edstratumlabs.ai
+          VITE_MOBILE_API_ORIGIN: https://vinifera-live.edstratumlabs.ai
         run: node scripts/mobile-release.mjs validate-environment --platform android
 
       - name: Build production-authorized native web bundle
         env:
           MOBILE_BUILD_PROFILE: production-authorized
           MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "true"
-          VITE_MOBILE_API_ORIGIN: https://vinifera.edstratumlabs.ai
+          VITE_MOBILE_API_ORIGIN: https://vinifera-live.edstratumlabs.ai
         run: |
           npm run build:mobile:web
           npx cap sync android
@@ -271,14 +271,14 @@ jobs:
           MOBILE_RELEASE_GIT_SHA: ${{ inputs.git_sha }}
           MOBILE_RELEASE_ACTION: ${{ inputs.release_action }}
           MOBILE_UPLOAD_CONFIRMATION: ${{ inputs.upload_confirmation }}
-          VITE_MOBILE_API_ORIGIN: https://vinifera.edstratumlabs.ai
+          VITE_MOBILE_API_ORIGIN: https://vinifera-live.edstratumlabs.ai
         run: node scripts/mobile-release.mjs validate-environment --platform ios
 
       - name: Build production-authorized native web bundle
         env:
           MOBILE_BUILD_PROFILE: production-authorized
           MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "true"
-          VITE_MOBILE_API_ORIGIN: https://vinifera.edstratumlabs.ai
+          VITE_MOBILE_API_ORIGIN: https://vinifera-live.edstratumlabs.ai
         run: |
           npm run build:mobile:web
           npx cap sync ios

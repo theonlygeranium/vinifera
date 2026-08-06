@@ -7,7 +7,7 @@ const FCM_PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,62}$/;
 const HOSTNAME_PATTERN =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COMPILE_ONLY_ORIGIN = "https://unconfigured.invalid";
-const PRODUCTION_MOBILE_ORIGIN = "https://vinifera.edstratumlabs.ai";
+const PRODUCTION_MOBILE_ORIGIN = "https://vinifera-live.edstratumlabs.ai";
 
 const TARGETS = {
   cloudflare: {
@@ -16,9 +16,13 @@ const TARGETS = {
     environmentName: "CLOUDFLARE_ACCOUNT_ID",
     label: "Cloudflare account ID",
     normalize(value) {
-      const normalized = String(value ?? "").trim().toLowerCase();
+      const normalized = String(value ?? "")
+        .trim()
+        .toLowerCase();
       if (!CLOUDFLARE_ACCOUNT_ID_PATTERN.test(normalized)) {
-        throw new Error("The supplied Cloudflare account ID has an invalid format.");
+        throw new Error(
+          "The supplied Cloudflare account ID has an invalid format.",
+        );
       }
       return normalized;
     },
@@ -52,9 +56,13 @@ const TARGETS = {
     environmentName: "CLOUDFLARE_ZONE_ID",
     label: "Cloudflare zone ID",
     normalize(value) {
-      const normalized = String(value ?? "").trim().toLowerCase();
+      const normalized = String(value ?? "")
+        .trim()
+        .toLowerCase();
       if (!CLOUDFLARE_ACCOUNT_ID_PATTERN.test(normalized)) {
-        throw new Error("The supplied Cloudflare zone ID has an invalid format.");
+        throw new Error(
+          "The supplied Cloudflare zone ID has an invalid format.",
+        );
       }
       return normalized;
     },
@@ -65,9 +73,13 @@ const TARGETS = {
     environmentName: "FCM_PROJECT_ID",
     label: "Firebase project ID",
     normalize(value) {
-      const normalized = String(value ?? "").trim().toLowerCase();
+      const normalized = String(value ?? "")
+        .trim()
+        .toLowerCase();
       if (!FCM_PROJECT_ID_PATTERN.test(normalized)) {
-        throw new Error("The supplied Firebase project ID has an invalid format.");
+        throw new Error(
+          "The supplied Firebase project ID has an invalid format.",
+        );
       }
       return normalized;
     },
@@ -82,7 +94,9 @@ const TARGETS = {
       try {
         parsed = new URL(String(value ?? "").trim());
       } catch {
-        throw new Error("The supplied ShipCompliant origin has an invalid format.");
+        throw new Error(
+          "The supplied ShipCompliant origin has an invalid format.",
+        );
       }
       if (
         parsed.protocol !== "https:" ||
@@ -105,9 +119,13 @@ const TARGETS = {
     environmentName: "SUPABASE_PROJECT_ID",
     label: "Supabase project ref",
     normalize(value) {
-      const normalized = String(value ?? "").trim().toLowerCase();
+      const normalized = String(value ?? "")
+        .trim()
+        .toLowerCase();
       if (!SUPABASE_PROJECT_REF_PATTERN.test(normalized)) {
-        throw new Error("The supplied Supabase project ref has an invalid format.");
+        throw new Error(
+          "The supplied Supabase project ref has an invalid format.",
+        );
       }
       return normalized;
     },
@@ -125,7 +143,9 @@ function targetDefinition(kind) {
 function validatedHashList(value, label) {
   if (
     !Array.isArray(value) ||
-    value.some((entry) => typeof entry !== "string" || !SHA256_PATTERN.test(entry))
+    value.some(
+      (entry) => typeof entry !== "string" || !SHA256_PATTERN.test(entry),
+    )
   ) {
     throw new Error(`${label} must contain only lowercase SHA-256 hashes.`);
   }
@@ -141,11 +161,7 @@ export function hashActivationTarget(kind, rawValue) {
   return createHash("sha256").update(normalized, "utf8").digest("hex");
 }
 
-export function verifyActivationTarget({
-  allowlist,
-  kind,
-  rawValue,
-}) {
+export function verifyActivationTarget({ allowlist, kind, rawValue }) {
   if (!allowlist || allowlist.version !== 1) {
     throw new Error("Hosted target allowlist version is unsupported.");
   }
@@ -210,7 +226,11 @@ export function verifyStagingCustomHostnameOrigin(
   deniedProductionOrigins,
   allowedOriginHashes,
 ) {
-  if (rawValue === undefined || rawValue === null || String(rawValue).trim() === "") {
+  if (
+    rawValue === undefined ||
+    rawValue === null ||
+    String(rawValue).trim() === ""
+  ) {
     return { configured: false, hostname: null };
   }
   if (
@@ -266,7 +286,9 @@ export function verifyStagingCustomHostnameOrigin(
 function canonicalHttpsOrigin(rawValue) {
   const value = String(rawValue ?? "").trim();
   if (!value) {
-    throw new Error("VITE_MOBILE_API_ORIGIN is required for native preparation.");
+    throw new Error(
+      "VITE_MOBILE_API_ORIGIN is required for native preparation.",
+    );
   }
   let parsed;
   try {

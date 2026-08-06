@@ -17,6 +17,7 @@ import {
 import {
   captureProductionState,
   cutoverToWorker,
+  probeWorkerDomainCertificate,
   restorePages,
   workerResourceExists,
 } from "../../scripts/lib/cloudflare-production-control.mjs";
@@ -25,10 +26,12 @@ const gitSha = "a".repeat(40);
 const versionId = "11111111-1111-4111-8111-111111111111";
 const accountId = "1".repeat(32);
 const zoneId = "2".repeat(32);
-const hostname = "vinifera.edstratumlabs.ai";
-const pagesProjectName = "vinifera";
+const hostname = "vinifera-live.edstratumlabs.ai";
+const marketingHostname = "vinifera.edstratumlabs.ai";
+const pagesProjectName = "vinifera-live";
 const workerName = "vinifera-production";
 const workerOrigin = "https://vinifera-production.example.workers.dev";
+const certificateId = "33333333-3333-4333-8333-333333333333";
 const cutoverCapabilities = [
   "app",
   "database",
@@ -50,13 +53,14 @@ const cutoverCapabilities = [
 function policy() {
   return {
     confirmations: {
+      "attach-live-domain": "ATTACH VINIFERA LIVE DOMAIN TO WORKER",
       bootstrap: "BOOTSTRAP VINIFERA PRODUCTION WORKER",
-      cutover: "CUT OVER VINIFERA DOMAIN TO WORKER",
       deploy: "DEPLOY VINIFERA PRODUCTION VERSION",
       rollback: "ROLL BACK VINIFERA PRODUCTION WORKER",
-      "restore-pages": "RESTORE VINIFERA DOMAIN TO PAGES",
+      "restore-live-pages": "RESTORE VINIFERA LIVE DOMAIN TO PAGES",
       upload: "UPLOAD VINIFERA PRODUCTION VERSION",
     },
+    applicationOrigin: `https://${hostname}`,
     coreHealthCapabilities: [
       "app",
       "database",
@@ -69,6 +73,7 @@ function policy() {
       activationPath: "separate-human-approved-live-billing-cutover",
       enabled: false,
     },
+    marketingOrigin: `https://${marketingHostname}`,
     optionalSecrets: ["SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
     requiredSecretGroups: [
       {
@@ -106,6 +111,7 @@ function policy() {
       workerOriginSha256: [hashProductionTarget("workerOrigin", workerOrigin)],
     },
     version: 1,
+    pagesProjectName,
     workerName,
   };
 }
@@ -232,6 +238,7 @@ function cloudflareMock({
         state.workerDomain
           ? [
               {
+                cert_id: certificateId,
                 environment: "production",
                 hostname,
                 id: "worker-domain-1",
@@ -245,6 +252,20 @@ function cloudflareMock({
     if (url.pathname.endsWith("/workers/domains") && method === "PUT") {
       state.workerDomain = true;
       return json({
+        cert_id: certificateId,
+        environment: "production",
+        hostname,
+        id: "worker-domain-1",
+        service: workerName,
+        zone_id: zoneId,
+      });
+    }
+    if (
+      url.pathname.endsWith("/workers/domains/worker-domain-1") &&
+      method === "GET"
+    ) {
+      return json({
+        cert_id: certificateId,
         environment: "production",
         hostname,
         id: "worker-domain-1",
@@ -266,7 +287,7 @@ function cloudflareMock({
       return json({
         name: pagesProjectName,
         production_branch: "main",
-        subdomain: "vinifera.pages.dev",
+        subdomain: "vinifera-live.pages.dev",
       });
     }
     if (
@@ -279,7 +300,7 @@ function cloudflareMock({
         {
           environment: "production",
           id: "pages-deployment-1",
-          url: "https://vinifera.pages.dev",
+          url: "https://vinifera-live.pages.dev",
         },
       ]);
     }
@@ -368,6 +389,21 @@ describe("production release guards", () => {
         targets: targets(),
       }),
     ).not.toThrow();
+    expect(() =>
+      verifyProductionTargets({
+        policy: policy(),
+        scope: "domain",
+        targets: {
+          ...targets(),
+          customHostname: marketingHostname,
+        },
+      }),
+    ).toThrow(/not allowlisted|live application topology/);
+    expect(checkedIn.applicationOrigin).toBe(
+      "https://vinifera-live.edstratumlabs.ai",
+    );
+    expect(checkedIn.marketingOrigin).toBe("https://vinifera.edstratumlabs.ai");
+    expect(checkedIn.pagesProjectName).toBe("vinifera-live");
     expect(checkedIn.liveBilling).toEqual({
       activationPath: "separate-human-approved-live-billing-cutover",
       enabled: false,
@@ -560,7 +596,7 @@ describe("production release guards", () => {
 });
 
 describe("production release workflow", () => {
-  it("is manual, pinned, reversible, test-mode only, and cannot mutate Pages or domains", async () => {
+  it("is manual, pinned, reversible, test-mode only, and protects the live-domain mutation", async () => {
     const workflow = await readFile(
       new URL(
         "../../.github/workflows/production-worker-release.yml",
@@ -574,12 +610,8 @@ describe("production release workflow", () => {
     expect(workflow).toContain("contents: read");
     expect(workflow).toContain("actions: read");
     expect(workflow).toContain("pull-requests: read");
-    expect(workflow).toContain(
-      '[[ "$GITHUB_REF" != "refs/heads/main" ]]',
-    );
-    expect(workflow).toContain(
-      '[[ "$GITHUB_SHA" != "$PRODUCTION_GIT_SHA" ]]',
-    );
+    expect(workflow).toContain('[[ "$GITHUB_REF" != "refs/heads/main" ]]');
+    expect(workflow).toContain('[[ "$GITHUB_SHA" != "$PRODUCTION_GIT_SHA" ]]');
     expect(workflow).toContain(
       "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     );
@@ -589,9 +621,7 @@ describe("production release workflow", () => {
     expect(workflow).toContain(
       "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
     );
-    expect(workflow).toContain(
-      "wrangler deploy release/worker/worker.js",
-    );
+    expect(workflow).toContain("wrangler deploy release/worker/worker.js");
     expect(workflow).toContain(
       "wrangler versions upload release/worker/worker.js",
     );
@@ -616,21 +646,51 @@ describe("production release workflow", () => {
     expect(workflow).toContain(
       "control_git_sha=$PRODUCTION_GIT_SHA artifact_git_sha=$PRODUCTION_ARTIFACT_GIT_SHA",
     );
-    expect(workflow).not.toContain("restore-pages");
+    expect(workflow).toContain("attach-live-domain");
+    expect(workflow).toContain("restore-live-pages");
+    expect(workflow).toContain("node scripts/production-release.mjs snapshot");
+    expect(workflow).toContain(
+      "node scripts/production-release.mjs attach-live-domain",
+    );
+    expect(workflow).toContain(
+      "node scripts/production-release.mjs restore-live-pages",
+    );
+    expect(workflow).toContain("PRIOR_PRODUCTION_VERSION_ID");
+    expect(workflow).toContain("automatic production rollback");
+    expect(workflow).toContain("automatic_rollback_ready");
+    expect(workflow).toContain(
+      "The prior production Worker did not reconverge after automatic rollback.",
+    );
+    expect(workflow).toContain("steps.worker-smoke.outcome == 'failure'");
     expect(workflow).not.toContain("cutover-domain");
     expect(workflow).not.toContain("pages project delete");
     expect(workflow).not.toMatch(/wrangler\s+pages\s+project\s+delete/);
     expect(workflow).not.toMatch(/--(?:route|routes|domain|domains)\b/);
+    expect(workflow).toContain(
+      '--var "APP_ORIGIN:https://vinifera-live.edstratumlabs.ai"',
+    );
+    expect(workflow).not.toContain(
+      '--var "APP_ORIGIN:https://vinifera.edstratumlabs.ai"',
+    );
   });
 
   it("keeps the named production Worker on workers.dev without automatic routes", async () => {
     const wrangler = JSON.parse(
       await readFile(new URL("../../wrangler.jsonc", import.meta.url), "utf8"),
     );
+    const environmentExample = await readFile(
+      new URL("../../.env.example", import.meta.url),
+      "utf8",
+    );
+    const supabaseConfig = await readFile(
+      new URL("../../supabase/config.toml", import.meta.url),
+      "utf8",
+    );
     expect(wrangler.env.production).toMatchObject({
       name: workerName,
       preview_urls: true,
       vars: {
+        APP_ORIGIN: "https://vinifera-live.edstratumlabs.ai",
         LIVE_BILLING_ENABLED: "false",
       },
       workers_dev: true,
@@ -639,6 +699,21 @@ describe("production release workflow", () => {
     expect(wrangler.env.production).not.toHaveProperty("route");
     expect(wrangler.env.production).not.toHaveProperty("domains");
     expect(wrangler.env.production).not.toHaveProperty("domain");
+    expect(environmentExample).toContain(
+      "PRODUCTION_CUSTOM_HOSTNAME=vinifera-live.edstratumlabs.ai",
+    );
+    expect(environmentExample).toContain(
+      "PRODUCTION_PAGES_PROJECT_NAME=vinifera-live",
+    );
+    expect(supabaseConfig).toContain(
+      "https://vinifera-live.edstratumlabs.ai/api/auth/staff/callback",
+    );
+    expect(supabaseConfig).toContain(
+      "https://vinifera-live.edstratumlabs.ai/api/auth/member/callback",
+    );
+    expect(supabaseConfig).not.toContain(
+      '"https://vinifera.edstratumlabs.ai/api/auth/',
+    );
   });
 });
 
@@ -676,7 +751,11 @@ describe("Cloudflare production control plane", () => {
     await expect(
       cutoverToWorker(controlOptions(mock.fetcher)),
     ).resolves.toMatchObject({
-      attached: { hostname, service: workerName },
+      attached: {
+        certificatePresent: true,
+        hostname,
+        service: workerName,
+      },
     });
     expect(mock.state).toEqual({ pagesDomain: false, workerDomain: true });
     expect(
@@ -697,12 +776,35 @@ describe("Cloudflare production control plane", () => {
     ).toBe(false);
   });
 
+  it("requires an issued Worker custom-domain certificate before health", async () => {
+    const mock = cloudflareMock();
+    await expect(
+      probeWorkerDomainCertificate({
+        ...controlOptions(mock.fetcher),
+        domainId: "worker-domain-1",
+      }),
+    ).resolves.toMatchObject({
+      certificatePresent: true,
+      hostname,
+      service: workerName,
+    });
+  });
+
   it("restores Pages automatically when post-cutover Worker health fails", async () => {
     const mock = cloudflareMock({ healthOk: false });
     await expect(cutoverToWorker(controlOptions(mock.fetcher))).rejects.toThrow(
-      /Pages restoration was attempted/,
+      /Pages was restored/,
     );
     expect(mock.state).toEqual({ pagesDomain: true, workerDomain: false });
+    expect(
+      mock.calls.some(
+        (call) =>
+          call.method === "POST" &&
+          call.pathname.endsWith(
+            `/pages/projects/${pagesProjectName}/domains`,
+          ),
+      ),
+    ).toBe(true);
   });
 
   it("refuses cutover unless the retained Pages hostname is active", async () => {

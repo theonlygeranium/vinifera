@@ -90,7 +90,9 @@ if (operation === "verify-targets") {
   const bundle = buildProductionSecretBundle(process.env, policy);
   await writeJson(outputPath, bundle, { flag: "wx", mode: 0o600 });
   await chmod(outputPath, 0o600);
-  console.log(`Prepared ${Object.keys(bundle).length} production Worker bindings.`);
+  console.log(
+    `Prepared ${Object.keys(bundle).length} production Worker bindings.`,
+  );
 } else if (operation === "parse-upload") {
   const [inputPath, outputPath] = arguments_;
   if (!inputPath || !outputPath) {
@@ -192,7 +194,9 @@ if (operation === "verify-targets") {
       "The production Worker already exists; use upload-version instead of bootstrap.",
     );
   }
-  console.log("Verified that first-time production Worker bootstrap is required.");
+  console.log(
+    "Verified that first-time production Worker bootstrap is required.",
+  );
 } else if (operation === "snapshot") {
   const [outputPath] = arguments_;
   if (!outputPath) throw new Error("Snapshot output path is required.");
@@ -203,7 +207,7 @@ if (operation === "verify-targets") {
   });
   await writeJson(outputPath, await captureProductionState(controlOptions()));
   console.log("Captured sanitized Worker and Pages control-plane state.");
-} else if (operation === "cutover") {
+} else if (operation === "attach-live-domain") {
   const [outputPath] = arguments_;
   if (!outputPath) throw new Error("Cutover evidence output path is required.");
   verifyProductionTargets({
@@ -213,12 +217,12 @@ if (operation === "verify-targets") {
   });
   assertProductionConfirmation(
     policy,
-    "cutover",
+    "attach-live-domain",
     process.env.PRODUCTION_CONFIRMATION,
   );
   await writeJson(outputPath, await cutoverToWorker(controlOptions()));
-  console.log("Cut over the allowlisted custom domain to the Worker.");
-} else if (operation === "restore-pages") {
+  console.log("Attached the allowlisted live application domain to the Worker.");
+} else if (operation === "restore-live-pages") {
   const [outputPath] = arguments_;
   if (!outputPath) throw new Error("Restore evidence output path is required.");
   verifyProductionTargets({
@@ -228,13 +232,13 @@ if (operation === "verify-targets") {
   });
   assertProductionConfirmation(
     policy,
-    "restore-pages",
+    "restore-live-pages",
     process.env.PRODUCTION_CONFIRMATION,
   );
   await writeJson(outputPath, await restorePages(controlOptions()));
   console.log("Restored the allowlisted custom domain to the Pages project.");
 } else {
   throw new Error(
-    "Usage: production-release.mjs hash-target <kind>, verify-targets <upload|worker|domain>, verify-confirmation <mode>, verify-bootstrap-absent, verify-version-id, prepare-secrets <path>, parse-upload <input> <output>, verify-version <json>, verify-deployment <json>, verify-rollback-history <history-json> <current-json>, active-version <deployment-json> <output>, verify-health <health-json> <configuration-json> [core|cutover], snapshot <output>, cutover <output>, or restore-pages <output>.",
+    "Usage: production-release.mjs hash-target <kind>, verify-targets <upload|worker|domain>, verify-confirmation <mode>, verify-bootstrap-absent, verify-version-id, prepare-secrets <path>, parse-upload <input> <output>, verify-version <json>, verify-deployment <json>, verify-rollback-history <history-json> <current-json>, active-version <deployment-json> <output>, verify-health <health-json> <configuration-json> [core|cutover], snapshot <output>, attach-live-domain <output>, or restore-live-pages <output>.",
   );
 }

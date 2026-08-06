@@ -151,7 +151,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 575/575 Vitest; 155 passed Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 577/577 Vitest; 155 passed Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -198,7 +198,7 @@ workflows under `.github/workflows/`:
 | `octopus-main-deploy.yml` | Push to main, manual | Reconcile trusted Octopus configuration after the default-branch bootstrap |
 | `octopus-pr-quality-gates.yml` | Promotion PRs and explicit high-risk review requests | Validate same-repository PR source and publish the trusted Octopus result for the exact PR/head/base/attempt |
 | `octopus-security-audit.yml` | Scheduled, manual | Run the trusted Octopus security audit |
-| `production-worker-release.yml` | Manual, protected | Bootstrap, upload, deploy, or roll back the production Worker without domain/Pages mutation (credential-gated) |
+| `production-worker-release.yml` | Manual, protected | Bootstrap, upload, deploy, or roll back the production Worker; attach `vinifera-live.edstratumlabs.ai` to the reviewed Worker or restore that hostname to the `vinifera-live` Pages project under exact protected confirmation. The marketing hostname is never a target. |
 | `promote-dev-to-staging.yml` | Manual/owner-authorized | Open/update, validate, and auto-merge a consolidated `dev` to `staging` promotion unless dry-run or explicitly disabled; never starts after every `dev` push |
 | `stripe-test-catalog.yml` | Manual, mixed | Stripe test Price catalog probe/verify without reviewer approval; bootstrap remains staging-protected |
 | `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
@@ -253,7 +253,7 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 575 | `npm run check` |
+| Vitest unit/integration | 577 | `npm run check` |
 | Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |

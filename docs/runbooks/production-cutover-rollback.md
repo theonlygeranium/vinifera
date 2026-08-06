@@ -38,16 +38,18 @@ marketing/static hostname.
   owner-authorized release contract.
 - Every production target hash is populated in
   `config/production-release-policy.json`.
-- The Pages project `vinifera` still has an active
-  `vinifera.edstratumlabs.ai` custom domain and a restorable production
-  deployment.
+- The Pages project `vinifera-live` still has an active
+  `vinifera-live.edstratumlabs.ai` custom domain and a restorable production
+  deployment. The separate `vinifera` Pages project and
+  `vinifera.edstratumlabs.ai` marketing hostname are not release targets.
 - The known production rollback target is healthy and retained.
 - Neither `human-review-required` nor `do-not-merge` is present for a forward
   production release. Exact known-good rollback is exempt.
 - The production Worker uses Stripe test mode and
   `LIVE_BILLING_ENABLED=false`.
 - `config/stripe-live-billing-policy.json` remains disabled; production Worker
-  deployment and public-domain cutover cannot change payment authority.
+  deployment and live-application hostname attachment cannot change payment
+  authority.
 - Every Phase 1–5 configuration capability reports configured before public
   domain movement.
 
@@ -62,18 +64,15 @@ Select only one operation at a time and enter its exact phrase:
 | Upload immutable version | `UPLOAD VINIFERA PRODUCTION VERSION` |
 | Deploy approved version | `DEPLOY VINIFERA PRODUCTION VERSION` |
 | Roll back Worker version | `ROLL BACK VINIFERA PRODUCTION WORKER` |
-| Move domain to Worker | `CUT OVER VINIFERA DOMAIN TO WORKER` |
-| Restore domain to Pages | `RESTORE VINIFERA DOMAIN TO PAGES` |
+| Attach live application domain | `ATTACH VINIFERA LIVE DOMAIN TO WORKER` |
+| Restore live application domain to Pages | `RESTORE VINIFERA LIVE DOMAIN TO PAGES` |
 
-The domain-move operations are legacy, high-risk controls for the marketing
-hostname. They are outside ordinary autonomous delivery and must not be used to
-replace `vinifera.edstratumlabs.ai` with the application. A future DNS/domain
-ownership change requires `human-review-required` resolution and explicit
-owner direction. Normal application release targets
-`vinifera-live.edstratumlabs.ai` and leaves the marketing/rollback hostname
-attached to Pages. The standard `Production Worker release` dispatch no longer
-offers or accepts `cutover-domain` or `restore-pages`; re-enabling either
-requires a separately reviewed workflow change and explicit owner direction.
+The two domain operations target only `vinifera-live.edstratumlabs.ai` and its
+`vinifera-live` Pages project. The checked-in raw topology plus hashed target
+allowlists must agree before either operation runs. The marketing hostname
+`vinifera.edstratumlabs.ai` is a distinct immutable baseline and is never
+accepted by this controller. Domain attachment and restoration retain the
+production environment review and exact operation confirmation.
 
 ### Bootstrap
 
@@ -93,7 +92,7 @@ SHA. Success requires that version to become the sole version at 100% traffic
 and pass Worker-origin health. It must report the production environment marker
 and reviewed build SHA/artifact digest. No custom domain is moved.
 
-### Deferred legacy domain cutover
+### Live application domain attachment
 
 Immediately before mutation, capture:
 
@@ -103,12 +102,14 @@ Immediately before mutation, capture:
 - the expected account, zone, Pages project, hostname, Worker, and Worker
   origin through hash authorization.
 
-This section documents the separately authorized legacy control and is not
-executable from the standard production workflow. Cutover refuses a missing or
-non-active Pages hostname. It removes only that
-custom-domain attachment from Pages, attaches it to the production Worker, and
-polls the public health/configuration endpoints. It never deletes the Pages
-project or deployment.
+The protected controller refuses a missing or non-active `vinifera-live` Pages
+hostname, a Worker version that does not match the exact reviewed artifact, or
+a Worker version that is not already the sole 100% deployment. It removes only
+the `vinifera-live.edstratumlabs.ai` attachment from the `vinifera-live` Pages
+project, attaches that hostname to `vinifera-production`, waits until the
+Cloudflare domain record contains its issued certificate identity, and then
+polls the public health/configuration endpoints. It never deletes either Pages
+project or any deployment.
 
 Public health must report all of:
 
@@ -129,9 +130,11 @@ push
 shipping
 ```
 
-If health does not pass, the control script removes the attempted Worker domain
-and reattaches the hostname to Pages. Treat the workflow as failed until the
-static root and `/app/` prototype are independently reverified.
+If certificate or health verification does not pass, the control script
+removes the attempted Worker domain and reattaches the live hostname to its
+Pages project. Treat the workflow as failed until the restored live Pages root
+and `/app/` prototype are independently reverified. The marketing hostname is
+checked separately and must remain unchanged throughout.
 
 ## Rollback
 
@@ -152,9 +155,8 @@ this retained-history check. A legitimate older version therefore fails closed
 and requires a separately reviewed recovery procedure rather than bypassing
 the history proof.
 
-For a domain/runtime incident, the standard workflow has no
-**Restore domain to Pages** operation. The separately authorized legacy
-procedure:
+For a domain/runtime incident, dispatch `restore-live-pages`. The protected
+operation:
 
 1. captures current Worker and retained Pages state;
 2. removes only the allowlisted Worker domain attachment;
@@ -164,7 +166,7 @@ procedure:
 5. if Pages restoration fails, attempts to reattach the Worker domain so the
    hostname is not intentionally left unowned.
 
-After any rollback, verify:
+After any rollback, verify the marketing baseline remains unchanged:
 
 ```bash
 curl --fail --silent --show-error https://vinifera.edstratumlabs.ai/
@@ -177,6 +179,13 @@ rolled-back marker, SHA/digest, and API health at:
 
 ```bash
 curl --fail --silent --show-error https://vinifera-live.edstratumlabs.ai/api/health
+```
+
+After `restore-live-pages`, verify the live Pages fallback itself:
+
+```bash
+curl --fail --silent --show-error https://vinifera-live.edstratumlabs.ai/
+curl --fail --silent --show-error https://vinifera-live.edstratumlabs.ai/app/
 ```
 
 Do not force-push Git and do not delete the Pages project. A domain rollback
@@ -199,17 +208,19 @@ Retain workflow summaries and sanitized artifacts for:
   previously sole-active;
 - pre-mutation control-plane snapshot;
 - Worker-origin health;
-- public cutover or Pages-restore health;
+- issued custom-domain certificate identity hash and public attach or
+  Pages-restore health;
 - exact operation and actor from GitHub's audit trail; and
 - any automatic restoration attempt.
 
 After deployment, verify the production build SHA/artifact digest, environment
 marker, API health contract, primary user journey, authentication boundary,
 basic accessibility, and absence of critical console/server errors. An HTTP
-200 or the healthy marketing surface is not application evidence. If a
-critical verification fails, automatically deploy the known prior Worker
-version; use the retained Pages restoration only for the separately authorized
-domain path.
+200 or the healthy marketing surface is not application evidence. If a newly
+deployed Worker fails its post-deploy smoke, the workflow automatically rolls
+back to the captured prior sole-active version and verifies health. If
+live-domain certificate or full health fails, attachment automatically restores
+the `vinifera-live` Pages hostname.
 
 Record the run URL and outcome in the current phase QA report and
 `CONTINUITY_BRIEF.md`. Only then may the deployment state be described as
@@ -217,7 +228,8 @@ hosted or live.
 
 ## Separate Stripe live-billing control
 
-Moving the Worker or public domain never enables live Stripe. A future
+Deploying the Worker or attaching the live application hostname never enables
+live Stripe. A future
 owner-approved cutover uses the separate protected live-billing workflow only
 after:
 

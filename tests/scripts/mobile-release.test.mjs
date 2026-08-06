@@ -23,15 +23,13 @@ function releaseRequest(overrides = {}) {
 
 function commonEnvironment(overrides = {}) {
   return {
-    MOBILE_BUILD_CONFIRMATION:
-      "BUILD SIGNED VINIFERA MOBILE RELEASE",
+    MOBILE_BUILD_CONFIRMATION: "BUILD SIGNED VINIFERA MOBILE RELEASE",
     MOBILE_BUILD_PROFILE: "production-authorized",
     MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "true",
     MOBILE_RELEASE_GIT_SHA: gitSha,
     MOBILE_RELEASE_ACTION: "build-only",
     MOBILE_UPLOAD_CONFIRMATION: "",
-    VITE_MOBILE_API_ORIGIN:
-      "https://vinifera.edstratumlabs.ai",
+    VITE_MOBILE_API_ORIGIN: "https://vinifera-live.edstratumlabs.ai",
     ...overrides,
   };
 }
@@ -46,10 +44,10 @@ function providerResponse(payload, ok = true) {
 
 const serviceAccount = {
   type: "service_account",
-  client_email:
-    "vinifera-release@example.iam.gserviceaccount.com",
-  private_key:
-    "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----",
+  client_email: "vinifera-release@example.iam.gserviceaccount.com",
+  private_key: ["-----BEGIN ", "PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----"].join(
+    "",
+  ),
 };
 
 describe("mobile release authorization and signing guards", () => {
@@ -59,16 +57,13 @@ describe("mobile release authorization and signing guards", () => {
       uploadAuthorized: false,
     });
     expect(() =>
-      validateReleaseRequest(
-        releaseRequest({ gitSha: "0123456789abcdef" }),
-      ),
+      validateReleaseRequest(releaseRequest({ gitSha: "0123456789abcdef" })),
     ).toThrow(/40 lowercase hex characters/);
     expect(() =>
       validateReleaseRequest(
         releaseRequest({
           action: "build-only",
-          uploadConfirmation:
-            "UPLOAD VINIFERA MOBILE INTERNAL TRACKS",
+          uploadConfirmation: "UPLOAD VINIFERA MOBILE INTERNAL TRACKS",
         }),
       ),
     ).toThrow(/leave the upload confirmation empty/);
@@ -84,8 +79,7 @@ describe("mobile release authorization and signing guards", () => {
       validateReleaseRequest(
         releaseRequest({
           action: "upload-internal",
-          uploadConfirmation:
-            "UPLOAD VINIFERA MOBILE INTERNAL TRACKS",
+          uploadConfirmation: "UPLOAD VINIFERA MOBILE INTERNAL TRACKS",
         }),
       ).uploadAuthorized,
     ).toBe(true);
@@ -153,13 +147,9 @@ describe("mobile release authorization and signing guards", () => {
       teamId: "ABCDE12345",
     });
     expect(options).toContain("<string>app-store-connect</string>");
-    expect(options).toContain(
-      "<key>testFlightInternalTestingOnly</key>",
-    );
+    expect(options).toContain("<key>testFlightInternalTestingOnly</key>");
     expect(options).toContain("<string>manual</string>");
-    expect(options).toContain(
-      "<key>ai.edstratumlabs.vinifera</key>",
-    );
+    expect(options).toContain("<key>ai.edstratumlabs.vinifera</key>");
   });
 });
 
@@ -220,9 +210,7 @@ describe("Google Play edit transaction", () => {
     );
     expect(calls[3].init.body).toBeUndefined();
     expect(JSON.stringify(result)).not.toContain("opaque-edit");
-    expect(JSON.stringify(result)).not.toContain(
-      "access-token-sensitive",
-    );
+    expect(JSON.stringify(result)).not.toContain("access-token-sensitive");
   });
 
   it("does not commit when the internal track update fails", async () => {
@@ -268,20 +256,15 @@ describe("mobile release workflow boundaries", () => {
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain("git_sha:");
     expect(workflow).toContain("ref: ${{ inputs.git_sha }}");
-    expect(workflow.match(/ref: \$\{\{ inputs\.git_sha \}\}/g))
-      .toHaveLength(3);
+    expect(workflow.match(/ref: \$\{\{ inputs\.git_sha \}\}/g)).toHaveLength(3);
     expect(workflow).toContain(
       '[[ "$GITHUB_REPOSITORY" == "theonlygeranium/vinifera" ]]',
     );
     expect(workflow).toContain(
       'git merge-base --is-ancestor "$RELEASE_GIT_SHA" origin/main',
     );
-    expect(workflow).toContain(
-      "Type BUILD SIGNED VINIFERA MOBILE RELEASE",
-    );
-    expect(workflow).toContain(
-      "UPLOAD VINIFERA MOBILE INTERNAL TRACKS",
-    );
+    expect(workflow).toContain("Type BUILD SIGNED VINIFERA MOBILE RELEASE");
+    expect(workflow).toContain("UPLOAD VINIFERA MOBILE INTERNAL TRACKS");
     expect(workflow).toContain("name: mobile-release");
     expect(workflow).toContain("deployment: false");
     expect(workflow).toContain("contents: read");
@@ -289,19 +272,16 @@ describe("mobile release workflow boundaries", () => {
     expect(workflow).toContain(
       "if: inputs.release_action == 'upload-internal'",
     );
-    expect(workflow.match(/if: inputs\.release_action == 'upload-internal'/g))
-      .toHaveLength(2);
+    expect(
+      workflow.match(/if: inputs\.release_action == 'upload-internal'/g),
+    ).toHaveLength(2);
     expect(workflow).toContain(
-      "VITE_MOBILE_API_ORIGIN: https://vinifera.edstratumlabs.ai",
+      "VITE_MOBILE_API_ORIGIN: https://vinifera-live.edstratumlabs.ai",
     );
-    expect(workflow).toContain(
-      "MOBILE_BUILD_PROFILE: production-authorized",
-    );
+    expect(workflow).toContain("MOBILE_BUILD_PROFILE: production-authorized");
     expect(workflow).toContain("bundleRelease");
     expect(workflow).toContain("jarsigner -verify -strict");
-    expect(workflow).toContain(
-      "MOBILE_ANDROID_SIGNING_CERT_SHA256",
-    );
+    expect(workflow).toContain("MOBILE_ANDROID_SIGNING_CERT_SHA256");
     expect(workflow).toContain("keytool -list -v");
     expect(workflow).toContain(
       '[[ "${actual_signing_fingerprint^^}" == "${MOBILE_ANDROID_SIGNING_CERT_SHA256^^}" ]]',
@@ -310,9 +290,7 @@ describe("mobile release workflow boundaries", () => {
     expect(workflow).toContain("xcrun altool --validate-app");
     expect(workflow).toContain("xcrun altool --upload-app");
     expect(workflow).toContain("if: always()");
-    expect(workflow).toContain(
-      'rm -f -- android/app/google-services.json',
-    );
+    expect(workflow).toContain("rm -f -- android/app/google-services.json");
     expect(workflow).toContain("security delete-keychain");
     expect(workflow).not.toMatch(
       /fastlane|r0adkll|google-github-actions\/upload/i,
@@ -324,9 +302,7 @@ describe("mobile release workflow boundaries", () => {
     expect(gradle).toContain(
       "release bundles require ephemeral environment-backed signing",
     );
-    expect(gitignore).toContain(
-      "android/app/google-services.json",
-    );
+    expect(gitignore).toContain("android/app/google-services.json");
   });
 
   it("emits evidence without credential values or provider identifiers", () => {

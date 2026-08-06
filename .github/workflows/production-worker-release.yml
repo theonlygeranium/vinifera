@@ -12,6 +12,8 @@ on:
           - upload-version
           - deploy-version
           - rollback-worker
+          - attach-live-domain
+          - restore-live-pages
       git_sha:
         description: Full immutable current main SHA that authorizes this dispatch
         required: true
@@ -270,7 +272,7 @@ jobs:
             echo "The current main revision is not associated with a merged staging-to-main promotion PR." >&2
             exit 1
           fi
-          if [[ "$OPERATION" != "rollback-worker" ]] && jq -e \
+          if [[ "$OPERATION" != "rollback-worker" && "$OPERATION" != "restore-live-pages" ]] && jq -e \
             'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
             <<<"$authorization_pr" >/dev/null; then
             echo "The production promotion is paused by an emergency label." >&2
@@ -309,7 +311,7 @@ jobs:
             echo "The selected artifact SHA is not an exact merged staging-to-main release." >&2
             exit 1
           fi
-          if [[ "$OPERATION" != "rollback-worker" ]] && jq -e \
+          if [[ "$OPERATION" != "rollback-worker" && "$OPERATION" != "restore-live-pages" ]] && jq -e \
             'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
             <<<"$artifact_pr" >/dev/null; then
             echo "The selected artifact release is paused by an emergency label." >&2
@@ -482,6 +484,15 @@ jobs:
               node scripts/production-release.mjs verify-confirmation rollback
               node scripts/production-release.mjs verify-version-id
               ;;
+            attach-live-domain)
+              node scripts/production-release.mjs verify-targets domain
+              node scripts/production-release.mjs verify-confirmation attach-live-domain
+              node scripts/production-release.mjs verify-version-id
+              ;;
+            restore-live-pages)
+              node scripts/production-release.mjs verify-targets domain
+              node scripts/production-release.mjs verify-confirmation restore-live-pages
+              ;;
             *)
               echo "Unsupported production operation." >&2
               exit 1
@@ -503,7 +514,18 @@ jobs:
               > "$EVIDENCE_DIR/prior-deployments.json"
             npx wrangler versions list --env production --json \
               > "$EVIDENCE_DIR/prior-versions.json"
+            if [[ "$OPERATION" == "deploy-version" ]]; then
+              node scripts/production-release.mjs active-version \
+                "$EVIDENCE_DIR/prior-deployment.json" \
+                "$EVIDENCE_DIR/prior-version-id.txt"
+              prior_version_id="$(tr -d '\r\n' < "$EVIDENCE_DIR/prior-version-id.txt")"
+              echo "PRIOR_PRODUCTION_VERSION_ID=$prior_version_id" >> "$GITHUB_ENV"
+            fi
           fi
+
+      - name: Capture pre-mutation live-domain state
+        if: inputs.operation == 'attach-live-domain' || inputs.operation == 'restore-live-pages'
+        run: node scripts/production-release.mjs snapshot "$EVIDENCE_DIR/pre-domain-state.json"
 
       - name: Prepare ephemeral test-mode Worker secret bundle
         if: inputs.operation == 'bootstrap' || inputs.operation == 'upload-version'
@@ -530,7 +552,7 @@ jobs:
             || "$(jq -r '.baseRefName' <<<"$authorization")" != "main" \
             || "$(jq -r '.headRefName' <<<"$authorization")" != "staging" \
             || "$(jq -r '.mergeCommit.oid' <<<"$authorization")" != "$PRODUCTION_GIT_SHA" ]] \
-            || { [[ "$OPERATION" != "rollback-worker" ]] && jq -e \
+            || { [[ "$OPERATION" != "rollback-worker" && "$OPERATION" != "restore-live-pages" ]] && jq -e \
               'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
               <<<"$authorization" >/dev/null; }; then
             echo "Production authorization changed or is paused immediately before mutation." >&2
@@ -543,7 +565,7 @@ jobs:
             || "$(jq -r '.baseRefName' <<<"$artifact_authorization")" != "main" \
             || "$(jq -r '.headRefName' <<<"$artifact_authorization")" != "staging" \
             || "$(jq -r '.mergeCommit.oid' <<<"$artifact_authorization")" != "$PRODUCTION_ARTIFACT_GIT_SHA" ]] \
-            || { [[ "$OPERATION" != "rollback-worker" ]] && jq -e \
+            || { [[ "$OPERATION" != "rollback-worker" && "$OPERATION" != "restore-live-pages" ]] && jq -e \
               'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
               <<<"$artifact_authorization" >/dev/null; }; then
             echo "Artifact authorization changed or is paused immediately before mutation." >&2
@@ -577,8 +599,8 @@ jobs:
             --no-bundle --assets release/dist --env production --strict \
             --secrets-file "$PRODUCTION_SECRET_FILE" \
             --var "APP_ENV:production" \
-            --var "APP_ORIGIN:https://vinifera.edstratumlabs.ai" \
-            --var "ALLOWED_ORIGINS:https://vinifera.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+            --var "APP_ORIGIN:https://vinifera-live.edstratumlabs.ai" \
+            --var "ALLOWED_ORIGINS:https://vinifera-live.edstratumlabs.ai,capacitor://localhost,https://localhost" \
             --var "LIVE_BILLING_ENABLED:false" \
             --var "DEPLOY_GIT_SHA:$PRODUCTION_GIT_SHA" \
             --tag "git-$PRODUCTION_GIT_SHA" \
@@ -603,8 +625,8 @@ jobs:
             --no-bundle --assets release/dist --env production --strict \
             --secrets-file "$PRODUCTION_SECRET_FILE" \
             --var "APP_ENV:production" \
-            --var "APP_ORIGIN:https://vinifera.edstratumlabs.ai" \
-            --var "ALLOWED_ORIGINS:https://vinifera.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+            --var "APP_ORIGIN:https://vinifera-live.edstratumlabs.ai" \
+            --var "ALLOWED_ORIGINS:https://vinifera-live.edstratumlabs.ai,capacitor://localhost,https://localhost" \
             --var "LIVE_BILLING_ENABLED:false" \
             --var "DEPLOY_GIT_SHA:$PRODUCTION_GIT_SHA" \
             --tag "git-$PRODUCTION_GIT_SHA" \
@@ -623,7 +645,7 @@ jobs:
           node scripts/production-release.mjs verify-version "$EVIDENCE_DIR/version.json"
 
       - name: Verify approved version metadata
-        if: inputs.operation == 'deploy-version' || inputs.operation == 'rollback-worker'
+        if: inputs.operation == 'deploy-version' || inputs.operation == 'rollback-worker' || inputs.operation == 'attach-live-domain'
         shell: bash
         run: |
           set -euo pipefail
@@ -633,6 +655,10 @@ jobs:
           if [[ "$OPERATION" == "rollback-worker" ]]; then
             node scripts/production-release.mjs verify-rollback-history \
               "$EVIDENCE_DIR/prior-deployments.json" \
+              "$EVIDENCE_DIR/prior-deployment.json"
+          fi
+          if [[ "$OPERATION" == "attach-live-domain" ]]; then
+            node scripts/production-release.mjs verify-deployment \
               "$EVIDENCE_DIR/prior-deployment.json"
           fi
 
@@ -662,7 +688,23 @@ jobs:
           node scripts/production-release.mjs verify-deployment \
             "$EVIDENCE_DIR/after-deployment.json"
 
+      - name: Attach live application domain to Worker
+        if: inputs.operation == 'attach-live-domain'
+        run: |
+          set -euo pipefail
+          node scripts/production-release.mjs attach-live-domain \
+            "$EVIDENCE_DIR/live-domain-operation.json"
+
+      - name: Restore live application domain to Pages
+        if: inputs.operation == 'restore-live-pages'
+        run: |
+          set -euo pipefail
+          node scripts/production-release.mjs restore-live-pages \
+            "$EVIDENCE_DIR/live-domain-operation.json"
+
       - name: Smoke-test Worker version
+        id: worker-smoke
+        continue-on-error: true
         if: inputs.operation == 'bootstrap' || inputs.operation == 'upload-version' || inputs.operation == 'deploy-version' || inputs.operation == 'rollback-worker'
         shell: bash
         run: |
@@ -699,6 +741,46 @@ jobs:
           done
           node scripts/production-release.mjs verify-health \
             "$EVIDENCE_DIR/health.json" "$EVIDENCE_DIR/configuration.json" core
+
+      - name: Automatically restore prior Worker after failed deployment smoke
+        if: inputs.operation == 'deploy-version' && steps.worker-smoke.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          [[ "$PRIOR_PRODUCTION_VERSION_ID" =~ ^[0-9a-f-]{36}$ ]]
+          npx wrangler rollback "$PRIOR_PRODUCTION_VERSION_ID" --env production -y \
+            --message "vinifera automatic production rollback control_git_sha=$PRODUCTION_GIT_SHA" \
+            | tee "$EVIDENCE_DIR/automatic-rollback-output.txt"
+          npx wrangler deployments status --env production --json \
+            > "$EVIDENCE_DIR/automatic-rollback-deployment.json"
+          PRODUCTION_VERSION_ID="$PRIOR_PRODUCTION_VERSION_ID" \
+            node scripts/production-release.mjs verify-deployment \
+              "$EVIDENCE_DIR/automatic-rollback-deployment.json"
+          automatic_rollback_ready=false
+          for attempt in {1..8}; do
+            if curl --fail --silent --show-error --connect-timeout 10 --max-time 20 \
+                "$PRODUCTION_WORKER_ORIGIN/api/health" \
+                > "$EVIDENCE_DIR/automatic-rollback-health.json" \
+              && curl --fail --silent --show-error --connect-timeout 10 --max-time 20 \
+                "$PRODUCTION_WORKER_ORIGIN/api/health/configuration" \
+                > "$EVIDENCE_DIR/automatic-rollback-configuration.json" \
+              && node scripts/production-release.mjs verify-health \
+                "$EVIDENCE_DIR/automatic-rollback-health.json" \
+                "$EVIDENCE_DIR/automatic-rollback-configuration.json" core; then
+              automatic_rollback_ready=true
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$automatic_rollback_ready" != "true" ]]; then
+            echo "The prior production Worker did not reconverge after automatic rollback." >&2
+            exit 1
+          fi
+
+      - name: Fail when Worker smoke did not pass
+        if: steps.worker-smoke.outcome == 'failure'
+        run: |
+          echo "Production Worker smoke failed; any deploy-version mutation was rolled back." >&2
+          exit 1
 
       - name: Capture final Worker state
         if: always()

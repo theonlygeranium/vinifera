@@ -2,13 +2,16 @@
   "version": 1,
   "workerEnvironment": "production",
   "workerName": "vinifera-production",
+  "applicationOrigin": "https://vinifera-live.edstratumlabs.ai",
+  "marketingOrigin": "https://vinifera.edstratumlabs.ai",
+  "pagesProjectName": "vinifera-live",
   "confirmations": {
     "bootstrap": "BOOTSTRAP VINIFERA PRODUCTION WORKER",
     "upload": "UPLOAD VINIFERA PRODUCTION VERSION",
     "deploy": "DEPLOY VINIFERA PRODUCTION VERSION",
-    "cutover": "CUT OVER VINIFERA DOMAIN TO WORKER",
+    "attach-live-domain": "ATTACH VINIFERA LIVE DOMAIN TO WORKER",
     "rollback": "ROLL BACK VINIFERA PRODUCTION WORKER",
-    "restore-pages": "RESTORE VINIFERA DOMAIN TO PAGES"
+    "restore-live-pages": "RESTORE VINIFERA LIVE DOMAIN TO PAGES"
   },
   "targetHashes": {
     "cloudflareAccountIdSha256": [
@@ -18,10 +21,10 @@
       "d8bfc8811122cbf36c32b7aee8bed7129e3c5b72a22483eb64dfde9a4e1a5d91"
     ],
     "pagesProjectNameSha256": [
-      "46137f70f603721b44582f51743bdf2dea974b70111c7cd539d8cf613a453303"
+      "bb950fdab3a6525e04525f599387193a43200a8204f0b7882fedf185156f4d1b"
     ],
     "customHostnameSha256": [
-      "74b789f2e45dd58efa3e97ea8e4f862cdaa4f7799a0f03db2b21d31f79685d9b"
+      "81130fdd5bf7b3d758df474df0e0162d54e610ead6b11ba8c0a3bc98e00c5960"
     ],
     "workerNameSha256": [
       "be82de059c089a036247e5744a20e32fc5b9bd9bb3c575b3826f12a77271ad2e"
@@ -44,17 +47,11 @@
   "requiredSecretGroups": [
     {
       "label": "Supabase public credential",
-      "anyOf": [
-        "SUPABASE_PUBLISHABLE_KEY",
-        "SUPABASE_ANON_KEY"
-      ]
+      "anyOf": ["SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY"]
     },
     {
       "label": "Supabase server credential",
-      "anyOf": [
-        "SUPABASE_SECRET_KEY",
-        "SUPABASE_SERVICE_ROLE_KEY"
-      ]
+      "anyOf": ["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"]
     }
   ],
   "optionalSecrets": [

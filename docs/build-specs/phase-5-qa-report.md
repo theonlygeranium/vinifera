@@ -510,7 +510,8 @@ is supplied.
 - [x] `npm run build:pages` reproduces the static rollback artifact.
 - [x] Root, original `/app/`, `/guide`, `_headers`, and `_redirects` remain
       unchanged from the accepted Pages baseline.
-- [x] The public custom domain remains on the verified static Pages deployment.
+- [x] The public marketing hostname remains on the verified static Pages deployment.
+- [x] The production application hostname remains on the `vinifera-live` Pages rollback project until protected Gate 20 attachment.
 
 Provider rollback is connector-specific: disconnect or stop jobs first,
 preserve sanitized reconciliation history, revoke provider tokens, and rotate
@@ -568,8 +569,9 @@ from `CONTINUITY_BRIEF.md`; none is converted into a pass by this report.
 18. Install signed builds from TestFlight and the Play internal track.
 19. Replace Stripe test keys with approved live keys only under human
     supervision and run one controlled charge/refund.
-20. Move the production custom domain only after every hosted exit criterion is
-    evidenced.
+20. Attach `vinifera-live.edstratumlabs.ai` to the reviewed production Worker
+    only after every hosted exit criterion is evidenced; leave the marketing
+    hostname on Pages.
 
 ## Deferred activation checklist
 

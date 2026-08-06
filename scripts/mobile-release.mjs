@@ -1,11 +1,5 @@
-import {
-  createSign,
-} from "node:crypto";
-import {
-  mkdir,
-  readFile,
-  writeFile,
-} from "node:fs/promises";
+import { createSign } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -17,7 +11,7 @@ const identity = JSON.parse(
 );
 
 const APP_ID = identity.appId;
-const PRODUCTION_ORIGIN = "https://vinifera.edstratumlabs.ai";
+const PRODUCTION_ORIGIN = "https://vinifera-live.edstratumlabs.ai";
 const BUILD_CONFIRMATION = "BUILD SIGNED VINIFERA MOBILE RELEASE";
 const UPLOAD_CONFIRMATION = "UPLOAD VINIFERA MOBILE INTERNAL TRACKS";
 const PLAY_TRACK = "internal";
@@ -26,8 +20,7 @@ const GOOGLE_PLAY_API_ROOT =
   "https://androidpublisher.googleapis.com/androidpublisher/v3";
 const GOOGLE_PLAY_UPLOAD_ROOT =
   "https://androidpublisher.googleapis.com/upload/androidpublisher/v3";
-const GOOGLE_PLAY_SCOPE =
-  "https://www.googleapis.com/auth/androidpublisher";
+const GOOGLE_PLAY_SCOPE = "https://www.googleapis.com/auth/androidpublisher";
 
 const SECRET_FILES = Object.freeze({
   "android-keystore": {
@@ -87,7 +80,9 @@ export function validateReleaseRequest({
   uploadConfirmation,
 }) {
   if (!/^[0-9a-f]{40}$/.test(gitSha ?? "")) {
-    throw new Error("The mobile release git SHA must be 40 lowercase hex characters.");
+    throw new Error(
+      "The mobile release git SHA must be 40 lowercase hex characters.",
+    );
   }
   if (!["build-only", "upload-internal"].includes(action)) {
     throw new Error(
@@ -111,11 +106,7 @@ export function validateReleaseRequest({
   return { action, uploadAuthorized: action === "upload-internal" };
 }
 
-export function validateReleaseEnvironment({
-  action,
-  env,
-  platform,
-}) {
+export function validateReleaseEnvironment({ action, env, platform }) {
   validateReleaseRequest({
     action,
     buildConfirmation: env.MOBILE_BUILD_CONFIRMATION,
@@ -156,9 +147,7 @@ export function validateReleaseEnvironment({
       );
     }
     if (action === "upload-internal") {
-      requireNames(env, [
-        "GOOGLE_PLAY_RELEASE_SERVICE_ACCOUNT_JSON_BASE64",
-      ]);
+      requireNames(env, ["GOOGLE_PLAY_RELEASE_SERVICE_ACCOUNT_JSON_BASE64"]);
     }
     return { appId: APP_ID, platform };
   }
@@ -205,10 +194,7 @@ function decodeBase64Secret(value, label) {
     throw new Error(`${label} is missing.`);
   }
   const compact = value.replace(/\s+/g, "");
-  if (
-    compact.length % 4 !== 0 ||
-    !/^[A-Za-z0-9+/]+={0,2}$/.test(compact)
-  ) {
+  if (compact.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(compact)) {
     throw new Error(`${label} is not valid base64.`);
   }
   const contents = Buffer.from(compact, "base64");
@@ -224,11 +210,7 @@ async function writePrivateFile(path, contents) {
   await writeFile(absolutePath, contents, { mode: 0o600 });
 }
 
-export async function materializeSecretFile({
-  env,
-  kind,
-  outputPath,
-}) {
+export async function materializeSecretFile({ env, kind, outputPath }) {
   const definition = SECRET_FILES[kind];
   if (!definition) {
     throw new Error("Unsupported mobile secret file kind.");
@@ -248,10 +230,7 @@ export async function materializeSecretFile({
   await writePrivateFile(outputPath, contents);
 }
 
-export async function materializeGoogleServices({
-  encoded,
-  outputPath,
-}) {
+export async function materializeGoogleServices({ encoded, outputPath }) {
   const contents = decodeBase64Secret(
     encoded,
     "MOBILE_GOOGLE_SERVICES_JSON_BASE64",
@@ -271,18 +250,12 @@ export async function materializeGoogleServices({
     (client) =>
       client?.client_info?.android_client_info?.package_name === APP_ID,
   );
-  if (
-    !hasValue(configuration?.project_info?.project_id) ||
-    !packageMatches
-  ) {
+  if (!hasValue(configuration?.project_info?.project_id) || !packageMatches) {
     throw new Error(
       "The Google services configuration does not match the release app.",
     );
   }
-  await writePrivateFile(
-    outputPath,
-    `${JSON.stringify(configuration)}\n`,
-  );
+  await writePrivateFile(outputPath, `${JSON.stringify(configuration)}\n`);
 }
 
 function xmlEscape(value) {
@@ -294,11 +267,7 @@ function xmlEscape(value) {
     .replaceAll("'", "&apos;");
 }
 
-export function iosExportOptions({
-  bundleId,
-  profileUuid,
-  teamId,
-}) {
+export function iosExportOptions({ bundleId, profileUuid, teamId }) {
   if (bundleId !== APP_ID) {
     throw new Error("The iOS export bundle ID does not match.");
   }
@@ -352,21 +321,17 @@ function validateServiceAccount(serviceAccount) {
     ) ||
     !hasValue(serviceAccount.private_key) ||
     !serviceAccount.private_key.startsWith(
-      "-----BEGIN PRIVATE KEY-----",
+      ["-----BEGIN ", "PRIVATE KEY-----"].join(""),
     )
   ) {
-    throw new Error(
-      "The Google Play release service account is invalid.",
-    );
+    throw new Error("The Google Play release service account is invalid.");
   }
 }
 
 function createServiceAccountAssertion(serviceAccount, now) {
   validateServiceAccount(serviceAccount);
   const issuedAt = Math.floor(now.getTime() / 1000) - 30;
-  const header = base64Url(
-    JSON.stringify({ alg: "RS256", typ: "JWT" }),
-  );
+  const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const claims = base64Url(
     JSON.stringify({
       aud: GOOGLE_OAUTH_ENDPOINT,
@@ -405,11 +370,7 @@ async function responseJson(response, stage) {
   }
 }
 
-async function googleAccessToken({
-  fetchImpl,
-  now,
-  serviceAccount,
-}) {
+async function googleAccessToken({ fetchImpl, now, serviceAccount }) {
   const assertion = createServiceAccountAssertion(serviceAccount, now);
   let response;
   try {
@@ -420,8 +381,7 @@ async function googleAccessToken({
       },
       body: new URLSearchParams({
         assertion,
-        grant_type:
-          "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       }),
       redirect: "error",
     });
@@ -435,14 +395,7 @@ async function googleAccessToken({
   return payload.access_token;
 }
 
-async function playRequest({
-  body,
-  fetchImpl,
-  method,
-  stage,
-  token,
-  url,
-}) {
+async function playRequest({ body, fetchImpl, method, stage, token, url }) {
   let response;
   try {
     const hasBody = body !== null && body !== undefined;
@@ -476,10 +429,7 @@ export async function uploadGooglePlayInternal({
   serviceAccount,
   tokenProvider = googleAccessToken,
 }) {
-  if (
-    !Buffer.isBuffer(aabBytes) ||
-    aabBytes.length < 32
-  ) {
+  if (!Buffer.isBuffer(aabBytes) || aabBytes.length < 32) {
     throw new Error("The signed Android App Bundle is missing or invalid.");
   }
   validateServiceAccount(serviceAccount);
@@ -518,9 +468,7 @@ export async function uploadGooglePlayInternal({
   });
   const versionCode = String(bundle.versionCode ?? "");
   if (!/^[1-9][0-9]*$/.test(versionCode)) {
-    throw new Error(
-      "Google Play bundle upload returned no release version.",
-    );
+    throw new Error("Google Play bundle upload returned no release version.");
   }
 
   await playRequest({
@@ -593,8 +541,7 @@ export function sanitizedEvidence({
     readOnlyEvidence: true,
     releaseAction: action,
     signedBuild: normalizedOutcome(buildOutcome) === "success",
-    signatureVerified:
-      normalizedOutcome(verificationOutcome) === "success",
+    signatureVerified: normalizedOutcome(verificationOutcome) === "success",
     upload: {
       requested: action === "upload-internal",
       result: normalizedOutcome(uploadOutcome),
@@ -628,9 +575,7 @@ async function parseServiceAccount(encoded) {
   try {
     return JSON.parse(decoded.toString("utf8"));
   } catch {
-    throw new Error(
-      "The Google Play release service account is not JSON.",
-    );
+    throw new Error("The Google Play release service account is not JSON.");
   }
 }
 

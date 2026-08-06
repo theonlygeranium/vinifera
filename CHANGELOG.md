@@ -3,6 +3,22 @@
 ## [Unreleased]
 
 ### Changed
+- Make `vinifera-live.edstratumlabs.ai` the single production application,
+  mobile API, and association-file origin while preserving
+  `vinifera.edstratumlabs.ai` as the marketing Pages hostname. Add protected,
+  exact-confirmation operations that attach only the live hostname to a
+  reviewed sole-active Worker version or restore it to the `vinifera-live`
+  Pages project; require certificate readiness and the full hosted health
+  contract, restore Pages automatically after a failed attachment, and roll
+  back automatically to the captured prior Worker version after a failed
+  production deploy smoke. Automatic rollback now polls both health contracts
+  through edge convergence before accepting recovery evidence. **Deployment
+  impact:** source, policy, native
+  association, and protected release-control behavior only; no provider,
+  hostname, Worker deployment, billing, database, credential, or store-track
+  mutation was performed. The integrated regression gate passes 577/577
+  Vitest tests, generated Worker types, TypeScript, the Vite build, and the
+  Worker dry-run package.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from
