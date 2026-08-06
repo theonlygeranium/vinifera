@@ -9,6 +9,7 @@ import {
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
 
@@ -34,10 +35,21 @@ export function setCookieHeaders(response) {
 
 export function mergeCookieJar(jar, response) {
   for (const setCookie of setCookieHeaders(response)) {
-    const pair = setCookie.split(";", 1)[0];
+    const parts = setCookie.split(";");
+    const pair = parts[0];
     const separator = pair.indexOf("=");
     if (separator > 0) {
-      jar.set(pair.slice(0, separator), pair.slice(separator + 1));
+      const name = pair.slice(0, separator);
+      const value = pair.slice(separator + 1);
+      const deleted = parts.slice(1).some((rawAttribute) => {
+        const attribute = rawAttribute.trim();
+        const maxAge = /^max-age\s*=\s*(-?\d+)$/iu.exec(attribute);
+        if (maxAge) return Number(maxAge[1]) <= 0;
+        const expires = /^expires\s*=\s*(.+)$/iu.exec(attribute);
+        return expires ? Date.parse(expires[1]) <= Date.now() : false;
+      });
+      if (deleted) jar.delete(name);
+      else jar.set(name, value);
     }
   }
 }
@@ -47,8 +59,12 @@ export function cookieHeader(jar) {
 }
 
 export function hasCookieFamily(jar, baseName) {
-  return [...jar.keys()].some(
-    (name) => name === baseName || name.startsWith(`${baseName}.`),
+  return [...jar.entries()].some(
+    ([name, value]) =>
+      Boolean(value) &&
+      (name === baseName ||
+        (name.startsWith(`${baseName}.`) &&
+          /^\d+$/u.test(name.slice(baseName.length + 1)))),
   );
 }
 
@@ -298,6 +314,27 @@ async function main() {
     return jar;
   }
 
+  async function verifyStaffSessionJar(jar, label) {
+    const direct = createServerClient(supabaseUrl, publicKey, {
+      auth: { flowType: "pkce" },
+      global: { headers: access },
+      cookieOptions: { name: "vinifera-staff-auth" },
+      cookies: {
+        getAll: () => [...jar.entries()].map(([name, value]) => ({ name, value })),
+        setAll: () => undefined,
+      },
+    });
+    const { data, error } = await direct.auth.getUser();
+    if (error || !data.user) {
+      throw new Error(
+        `Tenant ${label} cookie jar failed direct Supabase validation (${error?.code ?? "missing_user"}).`,
+      );
+    }
+    const session = await request("/api/auth/staff/session", {}, jar);
+    expectStatus(session, 200, `tenant ${label} staff session`);
+    expect(session.body?.data?.authenticated === true, `Tenant ${label} Worker session was not authenticated.`);
+  }
+
   async function ensureMember(account, label) {
     let user = await findAuthUser(admin, account.memberEmail);
     if (!user) {
@@ -436,6 +473,8 @@ async function main() {
     runtime.fixtureOrganizationId = tenantA.organizationId;
     const jarA = await login(tenantA, "A");
     const jarB = await login(tenantB, "B");
+    await verifyStaffSessionJar(jarA, "A");
+    await verifyStaffSessionJar(jarB, "B");
     tenantA = await ensureMember(tenantA, "A");
     tenantB = await ensureMember(tenantB, "B");
     evidence.checks.staffAuth = true;
