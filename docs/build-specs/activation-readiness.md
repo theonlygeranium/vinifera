@@ -27,10 +27,13 @@ promoted revision, and a successful database-backed route before deployment
 evidence can pass. Those two gates remain pending until this exact reviewed
 candidate reaches staging and the hosted acceptance suite succeeds.
 
-The staging Cloudflare account target is now authorized by its reviewed
-SHA-256 hash. The deployment remains restricted to `vinifera-staging`, the
-protected `staging` environment, and the exact immutable candidate artifact;
-Gate 2 remains pending until deployment and runtime evidence pass.
+The dedicated staging Cloudflare account target is now authorized by its
+reviewed SHA-256 hash, while the known production account is explicitly
+denied. Its protected environment credential is account-scoped to Workers and
+Queues, and the staging queue plus isolated Worker bootstrap are provisioned.
+The deployment remains restricted to `vinifera-staging`, the protected
+`staging` environment, and the exact immutable candidate artifact; Gate 2
+remains pending until deployment and runtime evidence pass.
 
 ## Activation phases
 

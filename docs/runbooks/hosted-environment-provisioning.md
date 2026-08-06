@@ -98,12 +98,13 @@ Review the hashes, then add only them to
 known, add its hash to the matching `deniedProduction` array. Never add the
 public Vinifera hostname as a staging custom-hostname origin.
 
-The reviewed staging Cloudflare account hash was authorized on 2026-08-05 for
-the isolated `vinifera-staging` Worker deployment. All other unchecked target
-arrays remain empty and fail before their provider APIs are called. The Worker
-name, staging environment, exact release package, and post-deploy identity
-checks continue to prevent this account authorization from selecting another
-application or environment.
+The dedicated `EdStratum Labs Staging` Cloudflare account hash was authorized
+on 2026-08-05 for the isolated `vinifera-staging` Worker deployment, and the
+known production account hash is explicitly denied. The protected staging
+environment holds an account-scoped Workers/Queues deployment token; the
+staging integration wake queue and Worker bootstrap exist in that account.
+All other unchecked target arrays remain empty and fail before their provider
+APIs are called.
 
 Phase 4/5 provider calls have an additional target policy in
 `config/provider-target-policy.json`. Review and hash the exact normalized

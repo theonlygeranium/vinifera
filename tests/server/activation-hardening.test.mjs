@@ -123,11 +123,14 @@ describe("hosted activation target guards", () => {
     );
     expect(allowlist.staging.supabaseProjectRefSha256).toEqual([]);
     expect(allowlist.staging.cloudflareAccountIdSha256).toEqual([
+      "fabdb949ae1bfce81a0132f2fceb8365f3678943f00b910337449136dcde2694",
+    ]);
+    expect(allowlist.deniedProduction.cloudflareAccountIdSha256).toEqual([
       "9255ff49245aa55fe0593dd098290d4f31928f5607b79d3a8633579c1695dd01",
     ]);
-    expect(allowlist.deniedProduction.cloudflareAccountIdSha256).not.toContain(
-      allowlist.staging.cloudflareAccountIdSha256[0],
-    );
+    expect(
+      allowlist.deniedProduction.cloudflareAccountIdSha256,
+    ).not.toContain(allowlist.staging.cloudflareAccountIdSha256[0]);
 
     for (const [kind, environment] of [
       ["supabase", { SUPABASE_PROJECT_ID: supabaseProjectRef }],
