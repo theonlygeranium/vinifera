@@ -483,7 +483,8 @@ describe("Resend staging provisioning controller", () => {
       .mockResolvedValueOnce(Response.json({ data: [] }))
       .mockResolvedValueOnce(
         Response.json({ id: "runtime-key", token: "re_runtime_sender" }),
-      );
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
     await expect(
       ensureRuntimeSendingKey(
@@ -495,7 +496,9 @@ describe("Resend staging provisioning controller", () => {
         },
       ),
     ).rejects.toThrow(/persistence failure/u);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][0]).toContain("/api-keys/runtime-key");
+    expect(fetchMock.mock.calls[2][1].method).toBe("DELETE");
   });
 
   it("creates only absent exact DNS and refuses conflicting records", async () => {
@@ -652,7 +655,7 @@ describe("Resend staging provisioning controller", () => {
     expect(controller).toContain('method: "PATCH"');
     expect(controller).toContain("/verify`");
     expect(controller).toContain("/dns_records`");
-    expect(controller.match(/method: "DELETE"/gu)).toHaveLength(1);
+    expect(controller.match(/method: "DELETE"/gu)).toHaveLength(2);
     expect(controller).toContain(
       '`/webhooks/${encodeURIComponent(required(created.id, "Resend webhook ID"))}`',
     );

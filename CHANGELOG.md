@@ -2,17 +2,6 @@
 
 ## [Unreleased]
 
-### Fixed
-
-- Delete a just-created Resend webhook when its one-time signing secret cannot
-  be persisted, so the next protected run can recreate it and receive a usable
-  secret instead of accepting an unrecoverable orphan. **Deployment impact:**
-  protected Gate 8 provisioning recovery only; no mutation occurs while the
-  controller remains disabled.
-- Persisted Resend's one-time webhook signing secret directly from the create
-  response before further provider reads, and made retries reuse the stable
-  controller-owned unsubscribe signing secret instead of regenerating it.
-
 ### Changed
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
@@ -31,15 +20,20 @@
   idempotent Cloudflare reconciliation, asynchronous verification, exact-source
   evidence binding, and post-mutation re-inventory. Split the provisioning key
   from the domain-restricted sending-only runtime key, persist its one-time
-  token before fallible postchecks, and on interrupted-bootstrap retry emit the
-  existing key's sanitized ID hash before rejecting incomplete policy. Secrets
+  token before fallible postchecks, persist the webhook's one-time signing
+  secret before provider re-read, and reuse the stable controller-owned
+  unsubscribe secret across retries. If either one-time secret write fails,
+  delete only the resource created by that attempt so a retry can recreate it;
+  on other interrupted-bootstrap retries, emit the existing key's sanitized ID
+  hash before rejecting incomplete policy. Secrets
   stream only over stdin and evidence retains hashes rather than raw targets or
   credentials. Run canonical-`main` provisioning through the dedicated
   `staging-acceptance-control` environment without broadening the staging
-  deployment environment's branch policy. Verification: 17/17 focused provisioning tests and 592/592 full
+  deployment environment's branch policy. Verification: 18/18 focused provisioning tests and 593/593 full
   Vitest tests, app build, and Worker dry-run. **Deployment impact:** protected
-  manual workflow/source only; empty policy blocks provider/DNS mutation, no
-  deletion is supported, and source completion does not change Gate 8 status.
+  manual workflow/source only; empty policy blocks provider/DNS mutation,
+  deletion is restricted to same-attempt one-time-secret recovery, and source
+  completion does not change Gate 8 status.
 - Remove the broad required-reviewer rule from the protected `staging` GitHub
   environment while retaining its staging-only branch policy and the
   repository's exact-candidate, provider-target, confirmation, health,

@@ -68,7 +68,9 @@ DNS. Every domain, webhook, and API-key inventory follows all Resend cursor
 pages before absence can authorize creation. The one-time runtime token is
 streamed into the protected
 `STAGING_RESEND_API_KEY` secret immediately after creation, before provider
-re-inventory or DNS postchecks. The one-time webhook signing secret is likewise
+re-inventory or DNS postchecks. If that write fails, the controller deletes
+only the API key created by the current attempt so a retry can obtain a new
+one-time token. The one-time webhook signing secret is likewise
 written to `staging` directly from the create response before the webhook is
 retrieved again. A failed write deletes that newly created webhook before the
 controller exits, preserving a recoverable retry path. The sanitized artifact

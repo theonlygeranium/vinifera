@@ -617,7 +617,23 @@ export async function ensureRuntimeSendingKey(
     );
     // Resend returns this value only once. Store it before any provider
     // inventory or other fallible post-creation work can interrupt bootstrap.
-    await persistToken(token);
+    try {
+      await persistToken(token);
+    } catch (persistenceError) {
+      try {
+        await apiJson(
+          RESEND_ORIGIN,
+          `/api-keys/${encodeURIComponent(required(created?.id, "Resend runtime API key ID"))}`,
+          { headers: resendHeaders(provisioningApiKey), method: "DELETE" },
+        );
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [persistenceError, rollbackError],
+          "Runtime-key persistence and provider rollback both failed.",
+        );
+      }
+      throw persistenceError;
+    }
     key = await inventoryRuntimeSendingKey(provisioningApiKey);
     expect(
       key && String(key.id) === String(created?.id),

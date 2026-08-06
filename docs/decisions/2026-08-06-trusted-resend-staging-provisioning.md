@@ -76,7 +76,9 @@ controller environment and copied unchanged on every retry; the controller
 never generates or rotates it. Because Resend exposes a newly created runtime token only once, the
 controller writes that token to `STAGING_RESEND_API_KEY` immediately after its
 format check and before provider re-inventory, DNS work, or any other fallible
-postcheck. The staging deployment workflow already maps these environment
+postcheck. A failed token write deletes only the API key created by that
+attempt, preserving a retry path that can receive a new one-time token. The
+staging deployment workflow already maps these environment
 secrets into its immutable Worker version upload.
 
 Evidence contains the validated exact git SHA, policy-file digest, canonical
