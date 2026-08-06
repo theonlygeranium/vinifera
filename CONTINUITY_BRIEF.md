@@ -72,6 +72,13 @@ during the polling window. The controller now emits the same non-secret,
 run-bound handoff payload as a live Actions notice for API retrieval. A fresh
 exact-head package and staging run remain required.
 
+Exact-head staging run `31077844811` then proved the base/dot-suffix assertion
+repair but returned 401 on the next authenticated member-list request. The
+hosted response folded both SSR cookie chunks into one `getSetCookie()` entry;
+the controller retained only chunk zero. The follow-up repair splits every
+entry before merging the jar, including safe handling of an `Expires` comma.
+Gate 7 remains pending a fresh exact-head run.
+
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
 dump completed on 2026-08-05; the existing daily cron continues to call the
