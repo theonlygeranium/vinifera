@@ -9,14 +9,20 @@
   exact-confirmation operations that attach only the live hostname to a
   reviewed sole-active Worker version or restore it to the `vinifera-live`
   Pages project; require certificate readiness and the full hosted health
-  contract, restore Pages automatically after a failed attachment, and roll
-  back automatically to the captured prior Worker version after a failed
-  production deploy smoke. Automatic rollback now polls both health contracts
-  through edge convergence before accepting recovery evidence. **Deployment
+  contract, exact revision, root/app/portal and mobile associations; require an
+  exact-current-`main` Gates 1–19 exit artifact; make domain transitions
+  resumable; validate the retained Pages production branch/deployment and exact
+  fallback content; restore Pages automatically after a failed attachment; and
+  recover the fully verified prior topology after a failed Pages restore.
+  Signed internal mobile builds now verify the exact allowlisted pre-cutover
+  production Worker revision and association payload, removing the Gates
+  17/18-to-20 circular dependency. Failed production deploy or explicit
+  rollback commands and smoke checks reconverge to the captured prior
+  sole-active version and exact annotated revision. **Deployment
   impact:** source, policy, native
   association, and protected release-control behavior only; no provider,
   hostname, Worker deployment, billing, database, credential, or store-track
-  mutation was performed. The integrated regression gate passes 577/577
+  mutation was performed. The integrated regression gate passes 590/590
   Vitest tests, generated Worker types, TypeScript, the Vite build, and the
   Worker dry-run package.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind

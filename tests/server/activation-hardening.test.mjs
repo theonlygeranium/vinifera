@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -270,6 +271,27 @@ describe("native API-origin activation profiles", () => {
         productionAuthorized: "true",
       }),
     ).toMatchObject({ classification: "production-authorized" });
+  });
+
+  it("permits only an allowlisted production workers.dev origin before cutover", () => {
+    const apiOrigin = "https://vinifera-production.example.workers.dev";
+    const digest = createHash("sha256").update(apiOrigin).digest("hex");
+    expect(
+      resolveMobileBuildTarget({
+        apiOrigin,
+        buildProfile: "production-precutover",
+        productionAuthorized: "true",
+        productionWorkerOriginHashes: [digest],
+      }),
+    ).toMatchObject({ classification: "production-precutover-internal" });
+    expect(() =>
+      resolveMobileBuildTarget({
+        apiOrigin,
+        buildProfile: "production-precutover",
+        productionAuthorized: "true",
+        productionWorkerOriginHashes: [],
+      }),
+    ).toThrow(/exact allowlisted production Worker origin/);
   });
 
   it("rejects credentials, custom ports, paths, queries, and fragments", () => {

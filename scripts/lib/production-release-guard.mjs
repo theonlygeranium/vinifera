@@ -413,6 +413,22 @@ export function soleActiveVersionId(deployment) {
   return validateWorkerVersionId(deployment.versions[0]?.version_id);
 }
 
+export function versionGitSha(version) {
+  const tag = String(version?.annotations?.["workers/tag"] ?? "");
+  const match = /^git-([0-9a-f]{40})$/u.exec(tag);
+  if (
+    !match ||
+    !String(version?.annotations?.["workers/message"] ?? "").includes(
+      `git_sha=${match[1]}`,
+    )
+  ) {
+    throw new Error(
+      "Worker version does not contain one exact reviewed Git SHA.",
+    );
+  }
+  return match[1];
+}
+
 function healthCapabilities(policy, profile) {
   const capabilities =
     profile === "cutover"
@@ -433,12 +449,17 @@ export function assertHealthPayload(
   configuration,
   policy,
   profile = "core",
+  expectedRevision,
 ) {
   if (
     health?.data?.service !== "vinifera-api" ||
-    health?.data?.status !== "ok"
+    health?.data?.status !== "ok" ||
+    health?.data?.environment !== "production" ||
+    validateImmutableGitSha(expectedRevision) !== health?.data?.revision
   ) {
-    throw new Error("Worker health response is not the Vinifera API contract.");
+    throw new Error(
+      "Worker health response is not the exact production Vinifera API revision.",
+    );
   }
   for (const capability of healthCapabilities(policy, profile)) {
     if (configuration?.data?.[capability]?.configured !== true) {

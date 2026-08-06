@@ -319,6 +319,7 @@ export function resolveMobileBuildTarget({
   apiOrigin,
   buildProfile,
   productionAuthorized,
+  productionWorkerOriginHashes,
 }) {
   const origin = canonicalHttpsOrigin(apiOrigin);
   const profile = String(buildProfile ?? "").trim();
@@ -354,8 +355,27 @@ export function resolveMobileBuildTarget({
     }
     return { classification: "production-authorized", origin, profile };
   }
+  if (profile === "production-precutover") {
+    const hostname = new URL(origin).hostname;
+    const digest = createHash("sha256").update(origin, "utf8").digest("hex");
+    if (
+      productionAuthorized !== "true" ||
+      !hostname.endsWith(".workers.dev") ||
+      !Array.isArray(productionWorkerOriginHashes) ||
+      !productionWorkerOriginHashes.includes(digest)
+    ) {
+      throw new Error(
+        "Pre-cutover mobile builds require the exact allowlisted production Worker origin.",
+      );
+    }
+    return {
+      classification: "production-precutover-internal",
+      origin,
+      profile,
+    };
+  }
   throw new Error(
-    "MOBILE_BUILD_PROFILE must be compile-only, staging-runtime, or production-authorized.",
+    "MOBILE_BUILD_PROFILE must be compile-only, staging-runtime, production-precutover, or production-authorized.",
   );
 }
 

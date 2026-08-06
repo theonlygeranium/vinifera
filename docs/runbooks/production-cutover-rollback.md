@@ -52,19 +52,22 @@ marketing/static hostname.
   authority.
 - Every Phase 1–5 configuration capability reports configured before public
   domain movement.
+- `config/hosted-activation-gates.json` records Gates 1–19 as `live-passed`
+  with retained evidence, and a successful exact-current-`main` **Hosted
+  activation exit evidence** run ID is available for `attach-live-domain`.
 
 ## Operations
 
 Use the manually dispatched **Production Worker release control** workflow.
 Select only one operation at a time and enter its exact phrase:
 
-| Operation | Exact confirmation |
-| --- | --- |
-| First Worker creation | `BOOTSTRAP VINIFERA PRODUCTION WORKER` |
-| Upload immutable version | `UPLOAD VINIFERA PRODUCTION VERSION` |
-| Deploy approved version | `DEPLOY VINIFERA PRODUCTION VERSION` |
-| Roll back Worker version | `ROLL BACK VINIFERA PRODUCTION WORKER` |
-| Attach live application domain | `ATTACH VINIFERA LIVE DOMAIN TO WORKER` |
+| Operation                                | Exact confirmation                      |
+| ---------------------------------------- | --------------------------------------- |
+| First Worker creation                    | `BOOTSTRAP VINIFERA PRODUCTION WORKER`  |
+| Upload immutable version                 | `UPLOAD VINIFERA PRODUCTION VERSION`    |
+| Deploy approved version                  | `DEPLOY VINIFERA PRODUCTION VERSION`    |
+| Roll back Worker version                 | `ROLL BACK VINIFERA PRODUCTION WORKER`  |
+| Attach live application domain           | `ATTACH VINIFERA LIVE DOMAIN TO WORKER` |
 | Restore live application domain to Pages | `RESTORE VINIFERA LIVE DOMAIN TO PAGES` |
 
 The two domain operations target only `vinifera-live.edstratumlabs.ai` and its
@@ -73,6 +76,13 @@ allowlists must agree before either operation runs. The marketing hostname
 `vinifera.edstratumlabs.ai` is a distinct immutable baseline and is never
 accepted by this controller. Domain attachment and restoration retain the
 production environment review and exact operation confirmation.
+
+`attach-live-domain` requires `activation_exit_evidence_run_id`. The protected
+workflow validates that the run used `hosted-activation-exit.yml`, succeeded on
+the exact current `main` SHA, still has the unexpired named artifact, and that
+the artifact matches the exact checked-in ledger digest. `restore-live-pages`
+does not require staging or release-package artifacts; it derives recovery
+identity from the currently active Worker version.
 
 ### Bootstrap
 
@@ -108,7 +118,9 @@ a Worker version that is not already the sole 100% deployment. It removes only
 the `vinifera-live.edstratumlabs.ai` attachment from the `vinifera-live` Pages
 project, attaches that hostname to `vinifera-production`, waits until the
 Cloudflare domain record contains its issued certificate identity, and then
-polls the public health/configuration endpoints. It never deletes either Pages
+polls bounded, no-redirect public probes. A repeated dispatch resumes safely if
+the Worker is already exact or if an interrupted run left neither service
+attached. It rejects a both-attached topology. It never deletes either Pages
 project or any deployment.
 
 Public health must report all of:
@@ -130,6 +142,11 @@ push
 shipping
 ```
 
+The same public proof requires `environment=production`, the exact artifact
+Git SHA, the root surface, `/app/`, `/portal/`, and exact Apple and Android
+association payloads for the signed identities. The separate marketing root,
+app, and guide body digests must remain unchanged.
+
 If certificate or health verification does not pass, the control script
 removes the attempted Worker domain and reattaches the live hostname to its
 Pages project. Treat the workflow as failed until the restored live Pages root
@@ -150,6 +167,11 @@ rollback it repeats the mutable current-main/PR/emergency-label, ancestry,
 version-annotation, deployment-history, and current-state checks, then verifies
 sole-active state and health.
 
+Both `deploy-version` and `rollback-worker` capture the prior sole-active
+version and its annotated Git SHA. A failed mutation command or failed smoke
+automatically reconverges to that prior version and verifies its exact revision
+and core health before the run reports failure.
+
 Cloudflare and Wrangler expose only the ten most recent deployments through
 this retained-history check. A legitimate older version therefore fails closed
 and requires a separately reviewed recovery procedure rather than bypassing
@@ -161,10 +183,15 @@ operation:
 1. captures current Worker and retained Pages state;
 2. removes only the allowlisted Worker domain attachment;
 3. reattaches the hostname to the retained Pages project;
-4. verifies `/` contains the Vinifera static surface and `/app/` contains the
-   accepted prototype marker; and
-5. if Pages restoration fails, attempts to reattach the Worker domain so the
-   hostname is not intentionally left unowned.
+4. verifies the retained project production branch and current production
+   deployment URL, then exact SHA-256 content contracts for `/` and `/app/`;
+   and
+5. if Pages restoration fails, reattaches the prior Worker domain and verifies
+   its certificate, exact revision, capabilities, application routes, and
+   mobile associations before reporting the failed restore.
+
+Restoration is resumable when Pages is already active or neither service is
+attached. It rejects an ambiguous both-attached state.
 
 After any rollback, verify the marketing baseline remains unchanged:
 

@@ -37,10 +37,34 @@ The protected production workflow adds two explicit domain operations:
   that hostname to the authorized `vinifera-live` Pages project after the
   separate restore confirmation passes.
 
-Before a production Worker version deployment, the workflow captures the
-current sole-active version. If the deployed version fails its hosted smoke,
-the workflow automatically rolls back to that captured version, verifies it is
-again sole active, and re-runs core health before failing the release run.
+Gate 20 attachment additionally consumes a 90-day, exact-current-`main`
+activation-exit artifact generated from the checked-in canonical ledger. The
+artifact can be created only when Gates 1 through 19 occur exactly once and
+each is `live-passed` with retained evidence. Readiness reports and pending
+entries cannot satisfy this contract.
+
+The domain controller is convergent across all valid restart states: Pages
+active, Worker active, or neither attached. It rejects the invalid both-active
+state. Attachment verifies the exact production revision, complete capability
+profile, root, staff app, member portal, and both signed-mobile association
+payloads. Restoration binds the retained Pages project to its approved
+production branch and current production deployment, then verifies exact
+checked-in root and prototype content digests. It does not depend on an
+expiring staging artifact. Both directions re-establish and fully verify the
+prior serving topology if the requested transition fails, and both hash the
+separate marketing root/app/guide surfaces before and after mutation.
+
+Before Gate 20, signed internal mobile builds use the allowlisted production
+`workers.dev` origin and prove its exact revision plus the relevant association
+payload before signing. The final canonical live hostname remains embedded in
+the application identity and becomes routable only through Gate 20; this
+removes the prior Gates 17/18-to-20 circular dependency.
+
+Before a production Worker version deployment or explicit rollback, the
+workflow captures the current sole-active version and its exact annotated Git
+SHA. If either mutation command or its hosted smoke fails, the workflow
+automatically restores that captured version, verifies it is again sole active,
+and re-runs exact-revision core health before failing the release run.
 
 Certificate identifiers and topology evidence are retained only as sanitized
 SHA-256 fingerprints and boolean readiness fields.

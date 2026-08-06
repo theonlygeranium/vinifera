@@ -24,6 +24,26 @@ Their logic is unchanged; the prior 5-second default repeatedly timed out only
 under concurrent full-suite filesystem load while the isolated suite passed
 9/9.
 
+## 2026-08-06 production activation-chain repair
+
+Gate 20 now fails closed on a 90-day exact-current-`main` exit artifact derived
+from the canonical checked-in Gates 1–19 ledger; the current ledger truthfully
+retains pending status for Gates 6, 8, and 10–19, so no Gate 20 artifact can yet
+be produced. Signed internal mobile builds use the allowlisted production
+`workers.dev` origin and verify the requested revision plus platform
+association payload before signing, removing the former Gates 17/18-to-20
+circular dependency.
+
+Production live-domain control is now resumable from Pages, Worker, or
+neither-attached states and rejects both-attached ambiguity. Attachment proves
+the exact production revision, all cutover capabilities, root/app/portal, both
+mobile associations, and an unchanged marketing baseline. Pages restoration is
+independent of expiring staging artifacts, validates the approved Pages branch,
+current production deployment, and exact fallback content digests, and fully
+verifies Worker recovery if restoration fails. Failed deploy and explicit
+rollback commands or smoke checks reconverge to the captured prior sole-active
+version and its exact annotated revision.
+
 ## 2026-08-06 Gates 10-16 acceptance foundation
 
 The protected staging deployment now supports independent opt-in readiness
@@ -209,7 +229,7 @@ uses that live hostname consistently for production API/mobile associations
 and provides protected exact-confirmation attach/restore operations plus
 automatic prior-version rollback when a production deploy smoke fails. No
 provider attachment or production deployment was performed by that repair. Its
-complete local regression gate passed 571/571 Vitest tests, generated Worker
+complete local regression gate now passes 590/590 Vitest tests, generated Worker
 types, TypeScript, the Vite build, and the Worker dry-run package. Version 0.5.0
 contains the complete Phase 1–5 connection-ready source architecture:
 

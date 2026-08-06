@@ -5,6 +5,7 @@ import {
   mobileReleaseConstants,
   sanitizedEvidence,
   uploadGooglePlayInternal,
+  verifyPrecutoverProductionOrigin,
   validateReleaseEnvironment,
   validateReleaseRequest,
 } from "../../scripts/mobile-release.mjs";
@@ -24,12 +25,12 @@ function releaseRequest(overrides = {}) {
 function commonEnvironment(overrides = {}) {
   return {
     MOBILE_BUILD_CONFIRMATION: "BUILD SIGNED VINIFERA MOBILE RELEASE",
-    MOBILE_BUILD_PROFILE: "production-authorized",
+    MOBILE_BUILD_PROFILE: "production-precutover",
     MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "true",
     MOBILE_RELEASE_GIT_SHA: gitSha,
     MOBILE_RELEASE_ACTION: "build-only",
     MOBILE_UPLOAD_CONFIRMATION: "",
-    VITE_MOBILE_API_ORIGIN: "https://vinifera-live.edstratumlabs.ai",
+    VITE_MOBILE_API_ORIGIN: "https://vinifera-production.jeff-f69.workers.dev",
     ...overrides,
   };
 }
@@ -45,9 +46,10 @@ function providerResponse(payload, ok = true) {
 const serviceAccount = {
   type: "service_account",
   client_email: "vinifera-release@example.iam.gserviceaccount.com",
-  private_key: ["-----BEGIN ", "PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----"].join(
-    "",
-  ),
+  private_key: [
+    "-----BEGIN ",
+    "PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----",
+  ].join(""),
 };
 
 describe("mobile release authorization and signing guards", () => {
@@ -116,7 +118,7 @@ describe("mobile release authorization and signing guards", () => {
         },
         platform: "android",
       }),
-    ).toThrow(/authorized production origin/);
+    ).toThrow(/allowlisted pre-cutover production Worker origin/);
     expect(() =>
       validateReleaseEnvironment({
         action: "build-only",
@@ -138,6 +140,62 @@ describe("mobile release authorization and signing guards", () => {
         platform: "android",
       }),
     ).toThrow(/colon-delimited SHA-256 fingerprint/);
+  });
+
+  it("verifies the exact Worker revision and Android association before building", async () => {
+    const androidEnv = commonEnvironment({
+      MOBILE_ANDROID_KEYSTORE_BASE64: "encoded",
+      MOBILE_ANDROID_KEYSTORE_PASSWORD: "secret",
+      MOBILE_ANDROID_KEY_ALIAS: "upload",
+      MOBILE_ANDROID_KEY_PASSWORD: "secret",
+      MOBILE_ANDROID_PACKAGE_NAME: "ai.edstratumlabs.vinifera",
+      MOBILE_ANDROID_SIGNING_CERT_SHA256:
+        "AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA:AA",
+      MOBILE_GOOGLE_SERVICES_JSON_BASE64: "encoded",
+    });
+    const fetchImpl = vi.fn(async (url) => {
+      const pathname = new URL(url).pathname;
+      return new Response(
+        JSON.stringify(
+          pathname === "/api/health"
+            ? {
+                data: {
+                  environment: "production",
+                  revision: gitSha,
+                  service: "vinifera-api",
+                  status: "ok",
+                },
+              }
+            : [
+                {
+                  relation: ["delegate_permission/common.handle_all_urls"],
+                  target: {
+                    namespace: "android_app",
+                    package_name: "ai.edstratumlabs.vinifera",
+                    sha256_cert_fingerprints: [
+                      androidEnv.MOBILE_ANDROID_SIGNING_CERT_SHA256,
+                    ],
+                  },
+                },
+              ],
+        ),
+        { status: 200 },
+      );
+    });
+
+    await expect(
+      verifyPrecutoverProductionOrigin({
+        env: androidEnv,
+        fetchImpl,
+        platform: "android",
+      }),
+    ).resolves.toMatchObject({
+      associationVerified: true,
+      platform: "android",
+      revision: gitSha,
+      runtimeVerified: true,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
   it("exports only a manually signed internal-TestFlight package", () => {
@@ -276,9 +334,10 @@ describe("mobile release workflow boundaries", () => {
       workflow.match(/if: inputs\.release_action == 'upload-internal'/g),
     ).toHaveLength(2);
     expect(workflow).toContain(
-      "VITE_MOBILE_API_ORIGIN: https://vinifera-live.edstratumlabs.ai",
+      "VITE_MOBILE_API_ORIGIN: ${{ vars.PRODUCTION_WORKER_ORIGIN }}",
     );
-    expect(workflow).toContain("MOBILE_BUILD_PROFILE: production-authorized");
+    expect(workflow).toContain("MOBILE_BUILD_PROFILE: production-precutover");
+    expect(workflow).toContain("verify-precutover-origin");
     expect(workflow).toContain("bundleRelease");
     expect(workflow).toContain("jarsigner -verify -strict");
     expect(workflow).toContain("MOBILE_ANDROID_SIGNING_CERT_SHA256");

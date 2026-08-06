@@ -14,6 +14,7 @@ import {
   soleActiveVersionId,
   validateImmutableGitSha,
   validateWorkerVersionId,
+  versionGitSha,
   verifyProductionTargets,
 } from "./lib/production-release-guard.mjs";
 import {
@@ -46,6 +47,14 @@ function controlOptions() {
     accountId: process.env.PRODUCTION_CLOUDFLARE_ACCOUNT_ID,
     apiToken: process.env.PRODUCTION_CLOUDFLARE_API_TOKEN,
     hostname: process.env.PRODUCTION_CUSTOM_HOSTNAME,
+    expectedRevision:
+      process.env.PRODUCTION_ARTIFACT_GIT_SHA ?? process.env.PRODUCTION_GIT_SHA,
+    mobile: {
+      androidPackageName: process.env.MOBILE_ANDROID_PACKAGE_NAME,
+      androidSigningCertSha256: process.env.MOBILE_ANDROID_SIGNING_CERT_SHA256,
+      appleTeamId: process.env.MOBILE_APPLE_TEAM_ID,
+      iosBundleId: process.env.MOBILE_IOS_BUNDLE_ID,
+    },
     pagesProjectName: process.env.PRODUCTION_PAGES_PROJECT_NAME,
     policy,
     workerName: policy.workerName,
@@ -164,6 +173,16 @@ if (operation === "verify-targets") {
     )}\n`,
   );
   console.log("Parsed the sole 100% active Worker version.");
+} else if (operation === "version-git-sha") {
+  const [inputPath, outputPath] = arguments_;
+  if (!inputPath || !outputPath) {
+    throw new Error("Version input and Git SHA output paths are required.");
+  }
+  await writeFile(
+    outputPath,
+    `${versionGitSha(await readJson(inputPath, "Wrangler version view"))}\n`,
+  );
+  console.log("Parsed the reviewed Worker version Git SHA.");
 } else if (operation === "verify-health") {
   const [healthPath, configurationPath, profile = "core"] = arguments_;
   if (!healthPath || !configurationPath) {
@@ -174,6 +193,7 @@ if (operation === "verify-targets") {
     await readJson(configurationPath, "Worker configuration"),
     policy,
     profile,
+    process.env.PRODUCTION_ARTIFACT_GIT_SHA ?? process.env.PRODUCTION_GIT_SHA,
   );
   console.log(
     `Verified production Worker health and ${profile} configuration gates.`,
@@ -221,7 +241,9 @@ if (operation === "verify-targets") {
     process.env.PRODUCTION_CONFIRMATION,
   );
   await writeJson(outputPath, await cutoverToWorker(controlOptions()));
-  console.log("Attached the allowlisted live application domain to the Worker.");
+  console.log(
+    "Attached the allowlisted live application domain to the Worker.",
+  );
 } else if (operation === "restore-live-pages") {
   const [outputPath] = arguments_;
   if (!outputPath) throw new Error("Restore evidence output path is required.");

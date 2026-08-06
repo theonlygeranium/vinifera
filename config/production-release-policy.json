@@ -5,6 +5,12 @@
   "applicationOrigin": "https://vinifera-live.edstratumlabs.ai",
   "marketingOrigin": "https://vinifera.edstratumlabs.ai",
   "pagesProjectName": "vinifera-live",
+  "pagesRollback": {
+    "productionBranch": "main",
+    "deploymentHostnameSuffix": "vinifera-live.pages.dev",
+    "rootSha256": "f4562f9ffd9eaea2aec273052c2bcb901201a4e7cf18c403cf91a8bbf4bae20a",
+    "appSha256": "2a0d2bcfa2f02f9fe50c7378393fa2b23266720d4d46489cffe61c46dc8602be"
+  },
   "confirmations": {
     "bootstrap": "BOOTSTRAP VINIFERA PRODUCTION WORKER",
     "upload": "UPLOAD VINIFERA PRODUCTION VERSION",

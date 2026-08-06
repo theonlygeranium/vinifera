@@ -1,4 +1,4 @@
-import { createSign } from "node:crypto";
+import { createHash, createSign } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,9 +9,15 @@ const identity = JSON.parse(
     "utf8",
   ),
 );
+const productionPolicy = JSON.parse(
+  await readFile(
+    new URL("../config/production-release-policy.json", import.meta.url),
+    "utf8",
+  ),
+);
 
 const APP_ID = identity.appId;
-const PRODUCTION_ORIGIN = "https://vinifera-live.edstratumlabs.ai";
+const FINAL_PRODUCTION_ORIGIN = "https://vinifera-live.edstratumlabs.ai";
 const BUILD_CONFIRMATION = "BUILD SIGNED VINIFERA MOBILE RELEASE";
 const UPLOAD_CONFIRMATION = "UPLOAD VINIFERA MOBILE INTERNAL TRACKS";
 const PLAY_TRACK = "internal";
@@ -56,7 +62,7 @@ export const mobileReleaseConstants = Object.freeze({
   googlePlayScope: GOOGLE_PLAY_SCOPE,
   googlePlayUploadRoot: GOOGLE_PLAY_UPLOAD_ROOT,
   playTrack: PLAY_TRACK,
-  productionOrigin: PRODUCTION_ORIGIN,
+  productionOrigin: FINAL_PRODUCTION_ORIGIN,
   uploadConfirmation: UPLOAD_CONFIRMATION,
 });
 
@@ -71,6 +77,136 @@ function requireNames(env, names) {
       `Missing required mobile release secrets: ${missing.join(", ")}.`,
     );
   }
+}
+
+async function boundedMobileJson(fetchImpl, url) {
+  const response = await fetchImpl(url, {
+    redirect: "error",
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (
+    !response.ok ||
+    (response.url && new URL(response.url).origin !== url.origin)
+  ) {
+    throw new Error("Pre-cutover production Worker route is unavailable.");
+  }
+  const maximumBytes = 64 * 1024;
+  const declaredLength = Number(response.headers?.get?.("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+    throw new Error(
+      "Pre-cutover production Worker response exceeded its limit.",
+    );
+  }
+  const reader = response.body?.getReader?.();
+  const chunks = [];
+  let length = 0;
+  if (reader) {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > maximumBytes) {
+        await reader.cancel();
+        throw new Error(
+          "Pre-cutover production Worker response exceeded its limit.",
+        );
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } else {
+    const value = Buffer.from(await response.arrayBuffer());
+    length = value.byteLength;
+    chunks.push(value);
+  }
+  if (length > maximumBytes) {
+    throw new Error(
+      "Pre-cutover production Worker response exceeded its limit.",
+    );
+  }
+  const bytes = Buffer.concat(chunks, length);
+  try {
+    return JSON.parse(bytes.toString("utf8"));
+  } catch {
+    throw new Error("Pre-cutover production Worker route did not return JSON.");
+  }
+}
+
+export async function verifyPrecutoverProductionOrigin({
+  env,
+  fetchImpl = fetch,
+  platform,
+}) {
+  const origin = new URL(env.VITE_MOBILE_API_ORIGIN);
+  validateReleaseEnvironment({
+    action: env.MOBILE_RELEASE_ACTION,
+    env,
+    platform,
+  });
+  const health = await boundedMobileJson(
+    fetchImpl,
+    new URL("/api/health", origin),
+  );
+  if (
+    health?.data?.environment !== "production" ||
+    health?.data?.revision !== env.MOBILE_RELEASE_GIT_SHA ||
+    health?.data?.service !== "vinifera-api" ||
+    health?.data?.status !== "ok"
+  ) {
+    throw new Error("Pre-cutover production Worker revision is not exact.");
+  }
+  const associationPath =
+    platform === "ios"
+      ? "/.well-known/apple-app-site-association"
+      : "/.well-known/assetlinks.json";
+  const association = await boundedMobileJson(
+    fetchImpl,
+    new URL(associationPath, origin),
+  );
+  if (platform === "ios") {
+    const appId = `${env.MOBILE_APPLE_TEAM_ID}.${env.MOBILE_IOS_BUNDLE_ID}`;
+    const expected = {
+      applinks: {
+        details: [
+          {
+            appIDs: [appId],
+            components: identity.externalDeepLinkPaths.map((path) => ({
+              "/": path,
+            })),
+          },
+        ],
+      },
+    };
+    if (JSON.stringify(association) !== JSON.stringify(expected)) {
+      throw new Error(
+        "Apple association does not match the signed mobile identity.",
+      );
+    }
+  } else {
+    const expected = [
+      {
+        relation: ["delegate_permission/common.handle_all_urls"],
+        target: {
+          namespace: "android_app",
+          package_name: env.MOBILE_ANDROID_PACKAGE_NAME,
+          sha256_cert_fingerprints: [
+            env.MOBILE_ANDROID_SIGNING_CERT_SHA256.toUpperCase(),
+          ],
+        },
+      },
+    ];
+    if (JSON.stringify(association) !== JSON.stringify(expected)) {
+      throw new Error(
+        "Android association does not match the signed mobile identity.",
+      );
+    }
+  }
+  return {
+    associationVerified: true,
+    evidenceLevel: "production-precutover-worker",
+    platform,
+    revision: env.MOBILE_RELEASE_GIT_SHA,
+    runtimeVerified: true,
+  };
 }
 
 export function validateReleaseRequest({
@@ -115,12 +251,20 @@ export function validateReleaseEnvironment({ action, env, platform }) {
   });
 
   if (
-    env.MOBILE_BUILD_PROFILE !== "production-authorized" ||
+    env.MOBILE_BUILD_PROFILE !== "production-precutover" ||
     env.MOBILE_PRODUCTION_ORIGIN_AUTHORIZED !== "true" ||
-    env.VITE_MOBILE_API_ORIGIN !== PRODUCTION_ORIGIN
+    !productionPolicy.targetHashes.workerOriginSha256.includes(
+      createHash("sha256")
+        .update(
+          String(env.VITE_MOBILE_API_ORIGIN ?? "")
+            .trim()
+            .toLowerCase(),
+        )
+        .digest("hex"),
+    )
   ) {
     throw new Error(
-      "The mobile release must use the explicitly authorized production origin.",
+      "The mobile release must use the exact allowlisted pre-cutover production Worker origin.",
     );
   }
 
@@ -598,6 +742,18 @@ async function main() {
       env: process.env,
       platform: options.platform,
     });
+    return;
+  }
+
+  if (command === "verify-precutover-origin") {
+    const evidence = await verifyPrecutoverProductionOrigin({
+      env: process.env,
+      platform: options.platform,
+    });
+    await writePrivateFile(
+      options.output,
+      `${JSON.stringify(evidence, null, 2)}\n`,
+    );
     return;
   }
 
