@@ -68,7 +68,9 @@ During bootstrap, the full-access provisioning key creates the domain-scoped,
 sending-only runtime key. The controller streams only that runtime token and the
 official webhook signing secret to `gh secret set` over stdin. The webhook
 secret is persisted directly from the one-time create response before any
-subsequent provider call. It never writes the provisioning key to a Worker
+subsequent provider call. If persistence fails, the controller deletes that
+just-created webhook so a later protected run can recreate it and obtain a new
+one-time secret. It never writes the provisioning key to a Worker
 binding. A stable unsubscribe signing secret is supplied by the trusted
 controller environment and copied unchanged on every retry; the controller
 never generates or rotates it. Because Resend exposes a newly created runtime token only once, the

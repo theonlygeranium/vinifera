@@ -541,9 +541,25 @@ export async function ensureWebhook(
       typeof persistSigningSecret === "function",
       "Webhook creation requires an immediate secret persistence callback.",
     );
-    await persistSigningSecret(
-      required(created.signing_secret, "Resend webhook signing secret"),
-    );
+    try {
+      await persistSigningSecret(
+        required(created.signing_secret, "Resend webhook signing secret"),
+      );
+    } catch (persistenceError) {
+      try {
+        await apiJson(
+          RESEND_ORIGIN,
+          `/webhooks/${encodeURIComponent(required(created.id, "Resend webhook ID"))}`,
+          { headers: resendHeaders(apiKey), method: "DELETE" },
+        );
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [persistenceError, rollbackError],
+          "Webhook secret persistence and provider rollback both failed.",
+        );
+      }
+      throw persistenceError;
+    }
     webhook = await apiJson(
       RESEND_ORIGIN,
       `/webhooks/${encodeURIComponent(created.id)}`,

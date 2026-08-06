@@ -70,7 +70,9 @@ streamed into the protected
 `STAGING_RESEND_API_KEY` secret immediately after creation, before provider
 re-inventory or DNS postchecks. The one-time webhook signing secret is likewise
 written to `staging` directly from the create response before the webhook is
-retrieved again. The sanitized artifact supplies the runtime key's ID hash and each returned
+retrieved again. A failed write deletes that newly created webhook before the
+controller exits, preserving a recoverable retry path. The sanitized artifact
+supplies the runtime key's ID hash and each returned
 record's `nameSha256`, `type`, `valueSha256`, and `priority`. Copy the exact key
 ID hash and complete tuple set into the policy in a second reviewed change; do
 not infer, shorten, or hand-edit provider values. If a post-creation check

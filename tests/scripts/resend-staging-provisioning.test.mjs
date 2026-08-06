@@ -397,6 +397,41 @@ describe("Resend staging provisioning controller", () => {
     expect(order).toEqual(["inventory", "create", "persist", "retrieve"]);
   });
 
+  it("deletes a newly created webhook when one-time secret persistence fails", async () => {
+    const endpoint =
+      "https://vinifera-staging.account.workers.dev/api/webhooks/resend";
+    const order = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init) => {
+        const pathname = new URL(String(url)).pathname;
+        if (pathname === "/webhooks" && init.method === "GET") {
+          order.push("inventory");
+          return Response.json({ data: [] });
+        }
+        if (pathname === "/webhooks" && init.method === "POST") {
+          order.push("create");
+          return Response.json({
+            id: "webhook-created",
+            signing_secret: "whsec_created_once",
+          });
+        }
+        if (pathname === "/webhooks/webhook-created" && init.method === "DELETE") {
+          order.push("delete");
+          return new Response(null, { status: 204 });
+        }
+        throw new Error(`Unexpected request: ${init.method} ${pathname}`);
+      }),
+    );
+    await expect(
+      ensureWebhook("re_test_key", endpoint, true, async () => {
+        order.push("persist");
+        throw new Error("synthetic webhook persistence failure");
+      }),
+    ).rejects.toThrow(/webhook persistence failure/u);
+    expect(order).toEqual(["inventory", "create", "persist", "delete"]);
+  });
+
   it("creates a distinct sending-only runtime key restricted to the exact domain", async () => {
     const order = [];
     const fetchMock = vi
@@ -617,7 +652,10 @@ describe("Resend staging provisioning controller", () => {
     expect(controller).toContain('method: "PATCH"');
     expect(controller).toContain("/verify`");
     expect(controller).toContain("/dns_records`");
-    expect(controller).not.toContain('method: "DELETE"');
+    expect(controller.match(/method: "DELETE"/gu)).toHaveLength(1);
+    expect(controller).toContain(
+      '`/webhooks/${encodeURIComponent(required(created.id, "Resend webhook ID"))}`',
+    );
     expect(controller).not.toContain("dns_records/batch");
   });
 });

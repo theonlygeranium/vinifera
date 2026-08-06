@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Delete a just-created Resend webhook when its one-time signing secret cannot
+  be persisted, so the next protected run can recreate it and receive a usable
+  secret instead of accepting an unrecoverable orphan. **Deployment impact:**
+  protected Gate 8 provisioning recovery only; no mutation occurs while the
+  controller remains disabled.
 - Persisted Resend's one-time webhook signing secret directly from the create
   response before further provider reads, and made retries reuse the stable
   controller-owned unsubscribe signing secret instead of regenerating it.
