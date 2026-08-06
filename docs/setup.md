@@ -40,8 +40,10 @@ compares fixed brand identities across independent clean databases. The Auth
 bootstrap and authenticated HTTP/UI checks also pass on the integrated head. Read
 [local-dev-notes.md](./build-specs/local-dev-notes.md) for the exact
 clean-replay corrections and evidence. BS-05 records partial local
-prerequisites for Gates 1, 7, and 15; all 20 composite activation gates remain
-pending until their complete hosted or provider evidence is proved.
+prerequisites for Gates 1, 7, and 15. Current hosted evidence has since moved
+Gates 1, 2, 3, 4, 5, 7, and 9 to `live-passed`; the remaining 13 composite
+activation gates stay pending until their complete hosted or provider evidence
+is proved.
 
 The Vite-only server is appropriate for focused application visual work that
 does not require the API:

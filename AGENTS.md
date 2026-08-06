@@ -22,9 +22,10 @@
 
 v0.5.0 — source architecture complete and structurally hardened. All 6 build
 specs (BS-01 through BS-06) have been merged to `main`. Hosted activation Gates
-1, 3, 4, 5, and 9 are provider-verified. The 2026-08-05 re-audit reopened Gates
-2 and 7 until the reviewed Worker repair is promoted and exact-revision runtime
-evidence passes. The other 13 gates remain pending; see `CONTINUITY_BRIEF.md`.
+1, 2, 3, 4, 5, 7, and 9 are `live-passed`. Gate 7 passed on 2026-08-06 against
+the reviewed exact candidate with retained runtime, tenant/Auth, Stripe test,
+webhook-lifecycle, and fixture-cleanup evidence. The other 13 gates remain
+pending; see `CONTINUITY_BRIEF.md`.
 
 The public custom domain continues to serve the verified static Cloudflare Pages rollback baseline. It is **not** evidence that the Worker application is live.
 
