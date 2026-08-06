@@ -1,7 +1,7 @@
 # Remaining hosted activation gates — orchestration manifest
 
-**Prepared:** 2026-08-06  
-**Starting branch:** `origin/dev` at `211d7dcac4ebd90758a94cb72c4cad5e98ca4a18`  
+**Prepared:** 2026-08-06
+**Starting branch:** `origin/dev` at `211d7dcac4ebd90758a94cb72c4cad5e98ca4a18`
 **Primary owner:** Codex chief strategist/orchestrator
 
 ## Objective
