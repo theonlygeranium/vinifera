@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Persisted Resend's one-time webhook signing secret directly from the create
+  response before further provider reads, and made retries reuse the stable
+  controller-owned unsubscribe signing secret instead of regenerating it.
+
 ### Changed
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
@@ -25,7 +31,7 @@
   stream only over stdin and evidence retains hashes rather than raw targets or
   credentials. Run canonical-`main` provisioning through the dedicated
   `staging-acceptance-control` environment without broadening the staging
-  deployment environment's branch policy. Verification: 16/16 focused provisioning tests and 591/591 full
+  deployment environment's branch policy. Verification: 17/17 focused provisioning tests and 592/592 full
   Vitest tests, app build, and Worker dry-run. **Deployment impact:** protected
   manual workflow/source only; empty policy blocks provider/DNS mutation, no
   deletion is supported, and source completion does not change Gate 8 status.

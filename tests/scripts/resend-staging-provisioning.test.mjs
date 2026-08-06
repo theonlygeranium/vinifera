@@ -346,11 +346,55 @@ describe("Resend staging provisioning controller", () => {
       true,
     );
     expect(domain.disposition).toBe("created");
-    const webhook = await ensureWebhook("re_test_key", endpoint, true);
+    const persistSigningSecret = vi.fn(async () => undefined);
+    const webhook = await ensureWebhook(
+      "re_test_key",
+      endpoint,
+      true,
+      persistSigningSecret,
+    );
     expect(webhook.disposition).toBe("updated");
+    expect(persistSigningSecret).not.toHaveBeenCalled();
     expect(requests.some((request) => request.method === "POST")).toBe(true);
     expect(requests.some((request) => request.method === "PATCH")).toBe(true);
     expect(requests.every((request) => request.method !== "DELETE")).toBe(true);
+  });
+
+  it("persists a newly created webhook secret before retrieving it", async () => {
+    const endpoint =
+      "https://vinifera-staging.account.workers.dev/api/webhooks/resend";
+    const order = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init) => {
+        const pathname = new URL(String(url)).pathname;
+        if (pathname === "/webhooks" && init.method === "GET") {
+          order.push("inventory");
+          return Response.json({ data: [] });
+        }
+        if (pathname === "/webhooks" && init.method === "POST") {
+          order.push("create");
+          return Response.json({
+            id: "webhook-created",
+            signing_secret: "whsec_created_once",
+          });
+        }
+        if (pathname === "/webhooks/webhook-created") {
+          order.push("retrieve");
+          return Response.json({
+            endpoint,
+            events: ["email.sent"],
+            id: "webhook-created",
+            status: "enabled",
+          });
+        }
+        throw new Error(`Unexpected request: ${init.method} ${pathname}`);
+      }),
+    );
+    const persistSigningSecret = vi.fn(async () => order.push("persist"));
+    await ensureWebhook("re_test_key", endpoint, true, persistSigningSecret);
+    expect(persistSigningSecret).toHaveBeenCalledWith("whsec_created_once");
+    expect(order).toEqual(["inventory", "create", "persist", "retrieve"]);
   });
 
   it("creates a distinct sending-only runtime key restricted to the exact domain", async () => {

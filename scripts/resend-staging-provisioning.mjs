@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -523,7 +523,12 @@ function webhookIsExact(webhook, endpoint) {
   );
 }
 
-export async function ensureWebhook(apiKey, endpoint, canMutate) {
+export async function ensureWebhook(
+  apiKey,
+  endpoint,
+  canMutate,
+  persistSigningSecret,
+) {
   let webhook = await inventoryWebhook(apiKey, endpoint);
   let disposition = "existing";
   if (!webhook && canMutate) {
@@ -532,6 +537,13 @@ export async function ensureWebhook(apiKey, endpoint, canMutate) {
       headers: resendHeaders(apiKey),
       method: "POST",
     });
+    expect(
+      typeof persistSigningSecret === "function",
+      "Webhook creation requires an immediate secret persistence callback.",
+    );
+    await persistSigningSecret(
+      required(created.signing_secret, "Resend webhook signing secret"),
+    );
     webhook = await apiJson(
       RESEND_ORIGIN,
       `/webhooks/${encodeURIComponent(created.id)}`,
@@ -714,22 +726,17 @@ async function writeRuntimeSecrets({
   domainVerified,
   env,
   runtimeApiKey,
-  webhookSecret,
 }) {
-  expect(
-    /^whsec_[^\s]{8,}$/u.test(webhookSecret),
-    "Resend webhook secret is invalid.",
+  const unsubscribe = required(
+    env.STAGING_UNSUBSCRIBE_SIGNING_SECRET,
+    "STAGING_UNSUBSCRIBE_SIGNING_SECRET",
   );
-  const unsubscribe =
-    env.STAGING_UNSUBSCRIBE_SIGNING_SECRET?.trim() ||
-    randomBytes(32).toString("base64url");
   const values = {
     STAGING_EMAIL_PROVIDER: "resend",
     STAGING_EMAIL_SIMULATOR_ENABLED: "false",
     STAGING_RESEND_DOMAIN_VERIFIED: domainVerified ? "true" : "false",
     STAGING_RESEND_FROM: `Vinifera Staging <notifications@${domain}>`,
     STAGING_RESEND_SENDING_DOMAIN: domain,
-    STAGING_RESEND_WEBHOOK_SECRET: webhookSecret,
     STAGING_UNSUBSCRIBE_SIGNING_SECRET: unsubscribe,
   };
   if (runtimeApiKey) values.STAGING_RESEND_API_KEY = runtimeApiKey;
@@ -831,6 +838,12 @@ async function main() {
       provisioningApiKey,
       authorized.endpoint,
       canMutate,
+      async (secret) =>
+        setGitHubEnvironmentSecret(
+          "STAGING_RESEND_WEBHOOK_SECRET",
+          secret,
+          process.env,
+        ),
     );
     evidence.provider = {
       domainDisposition: domainResult.domain
@@ -1022,10 +1035,6 @@ async function main() {
         domainVerified,
         env: process.env,
         runtimeApiKey: runtimeKeyResult.token,
-        webhookSecret: required(
-          webhookResult.webhook.signing_secret,
-          "Resend webhook signing secret",
-        ),
       });
     }
     evidence.success = true;
