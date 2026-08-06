@@ -150,7 +150,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 560/560 Vitest; 155 passed Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 566/566 Vitest; 155 passed Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -252,7 +252,7 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 560 | `npm run check` |
+| Vitest unit/integration | 566 | `npm run check` |
 | Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |

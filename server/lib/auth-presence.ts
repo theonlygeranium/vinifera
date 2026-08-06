@@ -18,6 +18,7 @@
  * auth cookies. Production and staging enforce the check.
  */
 
+import { parseCookieHeader } from "@supabase/ssr";
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "./errors";
 import type { WorkerEnv } from "../types";
@@ -25,6 +26,12 @@ import type { WorkerEnv } from "../types";
 /** Cookie names — must match the constants in core-club.ts. */
 const STAFF_COOKIE = "vinifera-staff-auth";
 const MEMBER_COOKIE = "vinifera-member-auth";
+
+function isSessionCookieName(name: string, baseName: string): boolean {
+  if (name === baseName) return true;
+  const chunkPrefix = `${baseName}.`;
+  return name.startsWith(chunkPrefix) && /^\d+$/u.test(name.slice(chunkPrefix.length));
+}
 
 /**
  * Public route patterns that do not require auth presence.
@@ -74,7 +81,7 @@ function isPublicRoute(path: string): boolean {
  * Check whether the request carries any auth credential.
  * This is a presence check only — validity is confirmed by the service layer.
  */
-function hasAuthCredential(request: Request): boolean {
+export function hasAuthCredential(request: Request): boolean {
   // Check for bearer token (mobile member auth).
   const authHeader = request.get("authorization");
   if (authHeader && /^Bearer\s+\S+$/i.test(authHeader)) {
@@ -84,10 +91,12 @@ function hasAuthCredential(request: Request): boolean {
   // Check for staff or member session cookie.
   const cookieHeader = request.headers.cookie;
   if (cookieHeader) {
-    if (
-      cookieHeader.includes(STAFF_COOKIE + "=") ||
-      cookieHeader.includes(MEMBER_COOKIE + "=")
-    ) {
+    const hasSessionCookie = parseCookieHeader(cookieHeader).some(({ name }) =>
+      [STAFF_COOKIE, MEMBER_COOKIE].some(
+        (baseName) => isSessionCookieName(name, baseName),
+      ),
+    );
+    if (hasSessionCookie) {
       return true;
     }
   }
