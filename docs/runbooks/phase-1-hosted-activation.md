@@ -112,6 +112,8 @@ After the database gate passes:
 1. Enable `STAGING_CLOUDFLARE_DEPLOY_ENABLED`.
 2. Dispatch the staging workflow from the verified `staging` commit.
 3. Require the deployment to target only `vinifera-staging` on `workers.dev`.
+   Until Gate 16 attaches a reviewed custom hostname, use that same isolated
+   `workers.dev` origin for `APP_ORIGIN`, Auth callbacks, and browser CORS.
 4. Verify `/api/health` returns JSON with service `vinifera-api`.
 5. Verify `/api/health/configuration` reports the Phase 1 database and Auth
    core configured before functional testing.
@@ -205,6 +207,27 @@ Prove:
 Never use a real card or replace the test key during this runbook.
 
 ## 6. Run the hosted QA gate
+
+Set `STAGING_HOSTED_ACCEPTANCE_EMAIL_BASE` to an owner-controlled mailbox and
+enable `STAGING_HOSTED_ACCEPTANCE_ENABLED` only on the protected staging
+environment. The staging deployment job then creates two uniquely named
+synthetic tenants on its first run and reuses those dedicated fixtures later.
+It exercises staff and member Auth, native and API tenant isolation, Stripe
+test Checkout, signed/duplicate/forged webhooks, and the
+grace/restriction/suspension/recovery lifecycle. The lifecycle controller
+backdates only the dedicated fixture while global reconciliation uses the
+current time. It expires an open Checkout Session, restores fixture billing
+state, fails on cleanup errors, and retains only the sanitized JSON result in
+`staging-runtime-evidence`.
+
+When the job prints `HOSTED_GATE7_MAGIC_LINK_HANDOFF`, retrieve the real message
+sent to the dedicated member plus-address, pass its action URL on standard input
+to `scripts/encrypt-hosted-gate7-link.mjs` with the printed handoff identifier
+and public key, and store the resulting JSON in the protected staging variable
+`STAGING_HOSTED_ACCEPTANCE_MAGIC_LINK_ENVELOPE`. The job accepts only the
+run-bound envelope and validates its Supabase verify target, callback, and PKCE
+state before consumption. Configure `STAGING_GITHUB_VARIABLES_TOKEN` as a
+protected staging secret with access to read repository environment variables.
 
 Run the complete browser suite against the staging Worker at 375, 768, and
 1440 pixels. Require zero axe WCAG 2.1 AA violations, touch targets of at least

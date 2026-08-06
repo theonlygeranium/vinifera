@@ -1710,8 +1710,8 @@ jobs:
               --no-bundle --assets release/dist --env staging --strict \
               --secrets-file "${{ steps.worker-secrets.outputs.path }}" \
               --var "APP_ENV:staging" \
-              --var "APP_ORIGIN:https://vinifera-staging.edstratumlabs.ai" \
-              --var "ALLOWED_ORIGINS:https://vinifera-staging.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+              --var "APP_ORIGIN:$STAGING_WORKER_ORIGIN" \
+              --var "ALLOWED_ORIGINS:$STAGING_WORKER_ORIGIN,capacitor://localhost,https://localhost" \
               --var "LIVE_BILLING_ENABLED:false" \
               --var "DEPLOY_GIT_SHA:${{ steps.release-package.outputs.candidate_sha }}" \
               --tag "candidate-${{ steps.release-package.outputs.candidate_sha }}" \
@@ -1721,8 +1721,8 @@ jobs:
             npx wrangler versions upload release/worker/worker.js \
               --no-bundle --assets release/dist --env staging --strict \
               --var "APP_ENV:staging" \
-              --var "APP_ORIGIN:https://vinifera-staging.edstratumlabs.ai" \
-              --var "ALLOWED_ORIGINS:https://vinifera-staging.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+              --var "APP_ORIGIN:$STAGING_WORKER_ORIGIN" \
+              --var "ALLOWED_ORIGINS:$STAGING_WORKER_ORIGIN,capacitor://localhost,https://localhost" \
               --var "LIVE_BILLING_ENABLED:false" \
               --var "DEPLOY_GIT_SHA:${{ steps.release-package.outputs.candidate_sha }}" \
               --tag "candidate-${{ steps.release-package.outputs.candidate_sha }}" \
@@ -1770,6 +1770,31 @@ jobs:
           echo "- Native hosted pgTAP/RLS gate: passed in the database job" >> "$GITHUB_STEP_SUMMARY"
           echo "- Production custom-domain cutover: deferred and human-controlled" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Run hosted Gate 7 acceptance when activated
+        if: steps.activation.outputs.ready == 'true' && vars.STAGING_HOSTED_ACCEPTANCE_ENABLED == 'true'
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
+          HOSTED_ACCEPTANCE_EMAIL_BASE: ${{ vars.STAGING_HOSTED_ACCEPTANCE_EMAIL_BASE }}
+          HOSTED_ACCEPTANCE_ENVIRONMENT: staging
+          HOSTED_ACCEPTANCE_GITHUB_TOKEN: ${{ secrets.STAGING_GITHUB_VARIABLES_TOKEN }}
+          HOSTED_ACCEPTANCE_LINK_ENVELOPE_VARIABLE: STAGING_HOSTED_ACCEPTANCE_MAGIC_LINK_ENVELOPE
+          STAGING_WORKER_ORIGIN: ${{ vars.STAGING_WORKER_ORIGIN }}
+          STRIPE_PRICE_VINE: ${{ secrets.STAGING_STRIPE_PRICE_VINE }}
+          STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STAGING_STRIPE_WEBHOOK_SECRET }}
+          SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+        run: |
+          node scripts/hosted-gate7-acceptance.mjs \
+            --output "$RUNNER_TEMP/vinifera-hosted-gate7-acceptance.json"
+          echo "### Hosted Gate 7 acceptance" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Two-tenant staff and native RLS isolation: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Member magic-link callback and cookie session: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Stripe test Checkout, signed webhook idempotency, grace, restriction, suspension, and recovery: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dedicated staging fixtures restored to their reusable baseline: passed" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Remove temporary Worker secret bundle
         if: always() && steps.worker-secrets.outputs.path != ''
         shell: bash
@@ -1784,5 +1809,6 @@ jobs:
             ${{ runner.temp }}/vinifera-staging-runtime.json
             ${{ runner.temp }}/vinifera-staging-release.json
             ${{ runner.temp }}/stripe-test-catalog-verification.json
+            ${{ runner.temp }}/vinifera-hosted-gate7-acceptance.json
           if-no-files-found: ignore
           retention-days: 14

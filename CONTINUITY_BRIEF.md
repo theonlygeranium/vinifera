@@ -1,6 +1,6 @@
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-08-05
+**Last updated:** 2026-08-06
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
 
 ## Project identity
@@ -23,8 +23,14 @@ custom hook, 900-second OTP, Google provider, and SMTP configuration; Stripe
 accepted a resent signed subscription event exactly once; and EasyPost test
 address verification remains deliverable with ZIP+4.
 
-Gates 2 and 7 were reopened pending deployment of this repair candidate.
-The stable staging Worker reported `environment=production` and no revision;
+Gate 2 is live-passed. Protected run `31073800654` deployed immutable candidate
+`f3512e7f36df7bc332ec3e59bca33c4153a835d4` as Worker version
+`b3180ad7-64d6-440d-b609-09ee6e95bac5` in the dedicated staging account. The
+retained runtime artifact and an independent live probe passed staging identity,
+exact revision, core configuration, Stripe test catalog, and database-backed
+branding checks. Gate 7 remains pending for the complete hosted acceptance
+lifecycle. Before the repair, the stable staging Worker reported
+`environment=production` and no revision;
 member/tier requests failed because one Supabase client factory omitted the
 Cloudflare Access service token; and native current-stack pgTAP files contained
 stale JWT, seed-count, privilege, ML-attribution, qualification, and alert
@@ -34,6 +40,22 @@ resolution with end-to-end brand scoping, email-claim digest resolution, and
 early-webhook reconciliation.
 The staging deploy now requires `environment=staging` plus the exact promoted SHA,
 and the service-token bindings are included in the atomic Worker secret upload.
+The Gate 7 prerequisite repair also uses the protected isolated `workers.dev`
+origin for staging Auth callbacks and CORS; the unattached custom hostname is
+not used before Gate 16.
+An opt-in protected hosted-acceptance step now exercises the complete Gate 7
+two-tenant, member Auth, Stripe test Checkout/webhook, and access-lifecycle
+contract with uniquely scoped synthetic fixtures and cleanup. Its retained
+artifact, rather than source presence, determines Gate 7 status.
+
+The Gate 7 controller uses two reusable acceptance-only tenants, restores their
+mutable billing state after every run, and fails if that restoration fails. It
+consumes the real emailed PKCE link through a run-bound encrypted handoff and
+uses only the current database time for global lifecycle reconciliation; only
+fixture-local timestamps are compressed. This closes the review defects around
+admin-minted non-PKCE links, audit-blocked deletion, and premature transitions
+for unrelated staging tenants. Gate 7 remains pending until this repaired exact
+head passes the protected staging run.
 
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
@@ -725,10 +747,9 @@ The code must remain fail-closed until these external connections are active:
    exact project hash and repository variable
    `STAGING_SUPABASE_MIGRATION_ENABLED=true` to apply `supabase/migrations/`
    and run `supabase test db --linked`.
-2. Give the staging Cloudflare token Workers Scripts edit permission and set
-   the exact account hash plus repository variable
-   `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` only for the isolated
-   `vinifera-staging` Worker.
+2. **Live-passed 2026-08-06:** the reviewed account hash, protected credential,
+   immutable package, isolated `vinifera-staging` deployment, and exact runtime
+   readiness contract passed in run `31073800654`.
 3. Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP.
 4. When service activation is explicitly resumed, reconcile the
    created-or-unknown Stripe test Price from run `30218801133`, then

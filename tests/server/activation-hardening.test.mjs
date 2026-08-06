@@ -192,6 +192,26 @@ describe("staging custom-hostname origin guard", () => {
   });
 });
 
+describe("isolated staging application origin", () => {
+  it("uses the protected workers.dev origin for callbacks and CORS", async () => {
+    const [workflow, wrangler] = await Promise.all([
+      readFile(`${repositoryRoot}/.github/workflows/ci.yml`, "utf8"),
+      readFile(`${repositoryRoot}/wrangler.jsonc`, "utf8"),
+    ]);
+
+    expect(workflow).toContain('--var "APP_ORIGIN:$STAGING_WORKER_ORIGIN"');
+    expect(workflow).toContain(
+      '--var "ALLOWED_ORIGINS:$STAGING_WORKER_ORIGIN,capacitor://localhost,https://localhost"',
+    );
+    expect(workflow).not.toContain(
+      '--var "APP_ORIGIN:https://vinifera-staging.edstratumlabs.ai"',
+    );
+    expect(wrangler).toContain(
+      '"APP_ORIGIN": "https://vinifera-staging.edstratum-labs-staging.workers.dev"',
+    );
+  });
+});
+
 describe("native API-origin activation profiles", () => {
   it("requires an explicit origin and build profile", () => {
     expect(() =>
