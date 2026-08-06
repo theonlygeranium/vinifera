@@ -532,6 +532,14 @@ export async function ensureWebhook(
 ) {
   let webhook = await inventoryWebhook(apiKey, endpoint);
   let disposition = "existing";
+  if (webhook) {
+    expect(
+      typeof boundWebhookIdSha256 === "string" &&
+        SHA256_PATTERN.test(boundWebhookIdSha256) &&
+        sha256(String(webhook.id)) === boundWebhookIdSha256,
+      "Existing Resend webhook is not bound to the persisted signing secret.",
+    );
+  }
   if (!webhook && canMutate) {
     const created = await apiJson(RESEND_ORIGIN, "/webhooks", {
       body: { endpoint, events: REQUIRED_WEBHOOK_EVENTS },
@@ -587,14 +595,6 @@ export async function ensureWebhook(
     );
     webhook = await inventoryWebhook(apiKey, endpoint);
     disposition = "updated";
-  }
-  if (webhook && disposition !== "created") {
-    expect(
-      typeof boundWebhookIdSha256 === "string" &&
-        SHA256_PATTERN.test(boundWebhookIdSha256) &&
-        sha256(String(webhook.id)) === boundWebhookIdSha256,
-      "Existing Resend webhook is not bound to the persisted signing secret.",
-    );
   }
   return { disposition, webhook };
 }

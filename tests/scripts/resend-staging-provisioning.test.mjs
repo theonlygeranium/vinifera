@@ -439,33 +439,27 @@ describe("Resend staging provisioning controller", () => {
   it("rejects an existing webhook without its persisted secret binding", async () => {
     const endpoint =
       "https://vinifera-staging.account.workers.dev/api/webhooks/resend";
+    const methods = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (url) => {
+      vi.fn(async (url, init) => {
+        methods.push(init.method);
         const pathname = new URL(String(url)).pathname;
         if (pathname === "/webhooks") {
           return Response.json({ data: [{ endpoint, id: "webhook-existing" }] });
         }
         return Response.json({
           endpoint,
-          events: [
-            "email.bounced",
-            "email.clicked",
-            "email.complained",
-            "email.delivered",
-            "email.delivery_delayed",
-            "email.failed",
-            "email.opened",
-            "email.sent",
-          ],
+          events: ["email.sent"],
           id: "webhook-existing",
-          status: "enabled",
+          status: "disabled",
         });
       }),
     );
     await expect(
-      ensureWebhook("re_test_key", endpoint, false, undefined, undefined),
+      ensureWebhook("re_test_key", endpoint, true, undefined, undefined),
     ).rejects.toThrow(/not bound to the persisted signing secret/u);
+    expect(methods).toEqual(["GET", "GET"]);
   });
 
   it("creates a distinct sending-only runtime key restricted to the exact domain", async () => {
