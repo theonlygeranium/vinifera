@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Changed
+- Scope the hosted Gate 7 controller's Cloudflare Access service-token headers
+  to staging Worker requests only; direct Supabase service-role, native, SSR,
+  and emailed GoTrue action-link calls no longer receive Worker-only
+  credentials. Add a regression for every affected client path and reconcile
+  the activation documentation. **Deployment impact:** protected acceptance
+  controller source only; the one-shot Gate 7 switch remains disabled and no
+  Worker, database, provider, billing, DNS, mobile-store, or production
+  mutation is performed.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from

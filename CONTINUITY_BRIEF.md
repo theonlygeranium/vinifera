@@ -177,6 +177,13 @@ signed webhook idempotency and lifecycle transitions, and reusable-fixture
 cleanup. Sanitized evidence artifact `8963047777` records all six acceptance
 checks plus cleanup as successful.
 
+A post-acceptance source audit corrected the Gate 7 controller's credential
+routing: Cloudflare Access service-token headers now travel only with staging
+Worker requests. Direct Supabase service-role/native/SSR calls and the emailed
+GoTrue action link use their own bounded Supabase credentials and cookies. This
+source repair does not alter the retained Gate 7 result or dispatch the disabled
+hosted acceptance job.
+
 After retaining that evidence, the protected staging variable
 `STAGING_HOSTED_ACCEPTANCE_ENABLED` was returned to `false`. Future staging
 promotions must not rerun Gate 7 or request another member-email handoff unless

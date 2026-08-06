@@ -165,10 +165,9 @@ function accessHeaders(clientId, clientSecret) {
   };
 }
 
-function hostedClient(url, key, headers) {
+function hostedClient(url, key) {
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
-    global: { headers },
   });
 }
 
@@ -249,7 +248,7 @@ async function main() {
       ownerEmail: plusAddress(emailBase, "vinifera-g7-owner-b"),
     },
   };
-  const admin = hostedClient(supabaseUrl, serviceKey, access);
+  const admin = hostedClient(supabaseUrl, serviceKey);
   const stripe = new Stripe(stripeSecret, { apiVersion: STRIPE_API_VERSION });
   const runtime = { checkoutSessionId: null, fixtureOrganizationId: null };
   const evidence = {
@@ -264,6 +263,7 @@ async function main() {
   async function request(path, init = {}, jar = null) {
     const headers = {
       origin: origin.origin,
+      ...access,
       ...init.headers,
     };
     if (jar?.size) headers.cookie = cookieHeader(jar);
@@ -335,7 +335,6 @@ async function main() {
   async function verifyStaffSessionJar(jar, label) {
     const direct = createServerClient(supabaseUrl, publicKey, {
       auth: { flowType: "pkce" },
-      global: { headers: access },
       cookieOptions: { name: "vinifera-staff-auth" },
       cookies: {
         getAll: () => [...jar.entries()].map(([name, value]) => ({ name, value })),
@@ -410,7 +409,7 @@ async function main() {
   }
 
   async function nativeRows(email, table) {
-    const client = hostedClient(supabaseUrl, publicKey, access);
+    const client = hostedClient(supabaseUrl, publicKey);
     const { data: auth, error: authError } = await client.auth.signInWithPassword({ email, password });
     if (authError || !auth.session) throw authError ?? new Error("Native Auth returned no session.");
     const { data, error } = await client.from(table).select("id,organization_id");
@@ -603,10 +602,7 @@ async function main() {
     const callback = new URL("/api/auth/member/callback", origin);
     callback.searchParams.set("state", linkState);
     const actionLink = await waitForMagicActionLink(callback, linkState);
-    const verifyResponse = await fetch(actionLink, {
-      headers: access,
-      redirect: "manual",
-    });
+    const verifyResponse = await fetch(actionLink, { redirect: "manual" });
     expect([302, 303].includes(verifyResponse.status), "Supabase magic link did not redirect.");
     const callbackLocation = verifyResponse.headers.get("location");
     expect(callbackLocation, "Supabase magic link omitted its callback location.");

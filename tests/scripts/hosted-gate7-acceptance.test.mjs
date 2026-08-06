@@ -192,4 +192,19 @@ describe("hosted Gate 7 acceptance controller", () => {
     expect(controller).toContain('method: "PATCH"');
     expect(controller).toContain('method: "DELETE"');
   });
+
+  it("scopes Cloudflare Access credentials to Worker requests", async () => {
+    const controller = await readFile(
+      new URL("scripts/hosted-gate7-acceptance.mjs", repositoryRoot),
+      "utf8",
+    );
+    expect(controller).toMatch(
+      /async function request[\s\S]*?const headers = \{[\s\S]*?\.\.\.access,[\s\S]*?\.\.\.init\.headers,/u,
+    );
+    expect(controller).not.toContain("global: { headers: access }");
+    expect(controller).toContain('fetch(actionLink, { redirect: "manual" })');
+    expect(controller).not.toContain("fetch(actionLink, {\n      headers: access");
+    expect(controller).not.toContain("hostedClient(supabaseUrl, serviceKey, access)");
+    expect(controller).not.toContain("hostedClient(supabaseUrl, publicKey, access)");
+  });
 });

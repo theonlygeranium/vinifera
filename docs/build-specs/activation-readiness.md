@@ -27,11 +27,13 @@ Partial local evidence:
 - Gate 15: two local organizations/default brands with staff isolation; no
   independent billing or hostname-derived member context.
 
-The deployed Gate 2/7 repair carries Access service-token headers through all
-member Supabase client paths and requires `environment=staging`, the exact
+The Gate 7 acceptance controller carries Access service-token headers through
+staging Worker request paths and requires `environment=staging`, the exact
 promoted revision, and a successful database-backed route before deployment
-evidence can pass. The reviewed exact candidate is live in staging and its
-hosted acceptance suite succeeded.
+evidence can pass. Its direct service-role, native, SSR, and emailed action-link
+requests to Supabase do not receive the Worker-only Access credentials. The
+earlier reviewed exact candidate remains live in staging and its retained
+hosted acceptance evidence remains the Gate 7 completion record.
 
 The Gate 7 follow-up audit found that the deployed Worker still generated Auth
 callbacks for the unattached staging custom domain while verification and user
