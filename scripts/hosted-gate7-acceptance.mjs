@@ -128,10 +128,16 @@ async function responseBody(response) {
   }
 }
 
-function expectStatus(result, expected, label) {
+export function expectStatus(result, expected, label) {
   if (result.response.status !== expected) {
+    const errorCode = result.body?.error?.code;
+    const errorMessage = result.body?.error?.message;
+    const detail =
+      typeof errorCode === "string" && typeof errorMessage === "string"
+        ? ` ${errorCode}: ${errorMessage}`
+        : "";
     throw new Error(
-      `${label}: expected HTTP ${expected}, received ${result.response.status}.`,
+      `${label}: expected HTTP ${expected}, received ${result.response.status}.${detail}`,
     );
   }
 }

@@ -88,6 +88,14 @@ accepts only the exact staff/member base names or numeric Supabase chunk
 suffixes, with regressions rejecting similarly prefixed state cookies. Gate 7
 remains pending a fresh exact-head run.
 
+Exact-head staging run `31080464430` then passed both staff-session preflights,
+the protected member-list request, and two-tenant native/API RLS isolation. It
+stopped at the member magic-link request with HTTP 503 before an email handoff.
+Because the endpoint intentionally maps two database failure branches to the
+same status and error code, the controller now retains the sanitized structured
+message as well as the code on failed HTTP assertions. Gate 7 remains pending
+a fresh exact-head run that identifies and repairs the specific hosted RPC.
+
 Exact-head staging run `31079570728` deployed the application-side chunk-cookie
 repair but reproduced the service-layer 401. The remaining discrepancy is in
 the controller's browser emulation: it retained `Set-Cookie` deletion records

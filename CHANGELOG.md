@@ -56,6 +56,13 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Retain the Worker's sanitized structured error code and message when a hosted
+  Gate 7 HTTP assertion fails. This distinguishes the member magic-link
+  rate-recording and link-context database failure branches after exact-head
+  staging proved staff sessions and two-tenant isolation, without retaining
+  request IDs, cookies, addresses, or provider identifiers. **Deployment
+  impact:** protected hosted staging evidence only; no application runtime,
+  credential, database, provider, DNS, billing, or mobile-store mutation.
 - Make the hosted Gate 7 cookie jar honor browser deletion semantics for
   `Max-Age=0` and expired `Set-Cookie` values, and require a non-empty value
   before treating a staff/member cookie family as present. This prevents a
