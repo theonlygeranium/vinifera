@@ -50,6 +50,13 @@ subsequent promotions. Keep `STAGING_HOSTED_ACCEPTANCE_ENABLED=false` after its
 retained successful evidence and use one-shot, gate-specific activation
 switches so unrelated promotions do not require a new email handoff.
 
+The staging GitHub environment retains its staging-only branch policy but no
+longer applies a global required-reviewer rule. Reversible staging deployments
+are governed by their exact-candidate, target-policy, workflow-confirmation,
+health, rollback, and one-shot gate controls. Production DNS, real-money,
+mobile-store, destructive/legal-provider, and other consequential boundaries
+retain their independent confirmation requirements.
+
 ## QA contract
 
 After every gate, the primary agent must inspect the retained sanitized

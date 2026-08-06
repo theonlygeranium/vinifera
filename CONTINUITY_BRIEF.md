@@ -159,6 +159,13 @@ confirmed Gate 13 must precede Gate 6: the real label path invokes the
 fail-closed compliance adapter, and its test-only simulator is not valid hosted
 compliance authority.
 
+The staging GitHub environment's global required-reviewer rule was removed on
+2026-08-06. Its staging-only branch policy and all workflow-level
+exact-candidate, target-policy, explicit-confirmation, health, rollback, and
+one-shot gate controls remain active. Independent confirmation still applies
+at production DNS, real-money, mobile-store, destructive, and legal-provider
+boundaries.
+
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
 dump completed on 2026-08-05; the existing daily cron continues to call the

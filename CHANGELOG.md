@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Changed
+- Remove the broad required-reviewer rule from the protected `staging` GitHub
+  environment while retaining its staging-only branch policy and the
+  repository's exact-candidate, provider-target, confirmation, health,
+  rollback, and one-shot gate controls. Consequential production DNS,
+  real-money, mobile-store, destructive, and legal-provider boundaries remain
+  independently confirmed. **Deployment impact:** reversible staging workflow
+  jobs no longer wait for a generic environment approval; no Worker, provider,
+  database, credential, billing, DNS, mobile-store, or production mutation.
 - Correct the remaining-gates execution order so hosted ShipCompliant
   activation (Gate 13) precedes the operational label proof (Gate 6), require
   executable mobile API/association routes before Gates 17–18, and record that
