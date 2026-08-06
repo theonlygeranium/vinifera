@@ -485,9 +485,11 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   `docs/runbooks/development-worker-release.md`.
 - `Package selected release candidate` packages one current `dev` head only
   after the maintained `dev → staging` PR has exact full CI and Octopus
-  evidence. The protected staging and production upload paths consume that
-  exact manifest-bound bundle/assets package with `--no-bundle`; both remain
-  unactivated and no hosted artifact was uploaded.
+  evidence and while that promotion PR remains open. The exact package must
+  succeed before the promotion merge; a closed promotion PR is deliberately
+  ineligible for later packaging. The protected staging and production upload
+  paths consume that exact manifest-bound bundle/assets package with
+  `--no-bundle`; no rebuild is allowed during deployment.
   `Delivery Control Center` maintains one low-noise GitHub issue and separates
   implemented, CI-verified, deployed, and live-verified state.
 - The 20 pending activation gates are sequenced into private synthetic beta,
