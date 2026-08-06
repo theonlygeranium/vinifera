@@ -692,8 +692,8 @@ jobs:
             --no-bundle --assets release/dist --env production --strict \
             --secrets-file "$PRODUCTION_SECRET_FILE" \
             --var "APP_ENV:production" \
-            --var "APP_ORIGIN:https://vinifera-live.edstratumlabs.ai" \
-            --var "ALLOWED_ORIGINS:https://vinifera-live.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+            --var "APP_ORIGIN:$PRODUCTION_WORKER_ORIGIN" \
+            --var "ALLOWED_ORIGINS:$PRODUCTION_WORKER_ORIGIN,https://vinifera-live.edstratumlabs.ai,capacitor://localhost,https://localhost" \
             --var "LIVE_BILLING_ENABLED:false" \
             --var "DEPLOY_GIT_SHA:$PRODUCTION_GIT_SHA" \
             --tag "git-$PRODUCTION_GIT_SHA" \
@@ -718,8 +718,8 @@ jobs:
             --no-bundle --assets release/dist --env production --strict \
             --secrets-file "$PRODUCTION_SECRET_FILE" \
             --var "APP_ENV:production" \
-            --var "APP_ORIGIN:https://vinifera-live.edstratumlabs.ai" \
-            --var "ALLOWED_ORIGINS:https://vinifera-live.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+            --var "APP_ORIGIN:$PRODUCTION_WORKER_ORIGIN" \
+            --var "ALLOWED_ORIGINS:$PRODUCTION_WORKER_ORIGIN,https://vinifera-live.edstratumlabs.ai,capacitor://localhost,https://localhost" \
             --var "LIVE_BILLING_ENABLED:false" \
             --var "DEPLOY_GIT_SHA:$PRODUCTION_GIT_SHA" \
             --tag "git-$PRODUCTION_GIT_SHA" \

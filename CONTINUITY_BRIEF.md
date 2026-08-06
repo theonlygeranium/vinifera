@@ -32,10 +32,13 @@ retains pending status for Gates 6, 8, and 10–19, so no Gate 20 artifact can y
 be produced. Signed internal mobile builds use the allowlisted production
 `workers.dev` origin and verify the requested revision plus platform
 association payload before signing, removing the former Gates 17/18-to-20
-circular dependency.
+circular dependency. Pre-cutover Worker versions use that same origin for Auth
+callbacks and permit both it and the future live hostname through CORS.
 
 Production live-domain control is now resumable from Pages, Worker, or
 neither-attached states and rejects both-attached ambiguity. Attachment proves
+the documented Worker-domain identity and bounded public HTTPS readiness (the
+Workers Domains response has no `cert_id` contract),
 the exact production revision, all cutover capabilities, root/app/portal, both
 mobile associations, and an unchanged marketing baseline. Pages restoration is
 independent of expiring staging artifacts, validates the approved Pages branch,

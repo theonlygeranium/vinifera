@@ -3,12 +3,18 @@
 ## [Unreleased]
 
 ### Changed
+- Keep pre-cutover production Auth callbacks on the exact allowlisted
+  `workers.dev` origin used by signed Gate 17/18 builds, and validate Worker
+  domain attachment by Cloudflare's documented domain identity followed by
+  bounded public HTTPS health instead of requiring a nonexistent `cert_id`
+  field. **Deployment impact:** protected production release behavior only; no
+  Worker, domain, provider, billing, store, or database mutation was performed.
 - Make `vinifera-live.edstratumlabs.ai` the single production application,
   mobile API, and association-file origin while preserving
   `vinifera.edstratumlabs.ai` as the marketing Pages hostname. Add protected,
   exact-confirmation operations that attach only the live hostname to a
   reviewed sole-active Worker version or restore it to the `vinifera-live`
-  Pages project; require certificate readiness and the full hosted health
+  Pages project; require exact domain attachment and the full hosted HTTPS health
   contract, exact revision, root/app/portal and mobile associations; require an
   exact-current-`main` Gates 1–19 exit artifact; make domain transitions
   resumable; validate the retained Pages production branch/deployment and exact

@@ -19,7 +19,7 @@ import {
 import {
   captureProductionState,
   cutoverToWorker,
-  probeWorkerDomainCertificate,
+  probeWorkerDomainAttachment,
   restorePages,
   workerResourceExists,
 } from "../../scripts/lib/cloudflare-production-control.mjs";
@@ -172,6 +172,7 @@ function configurationPayload(
 
 function cloudflareMock({
   healthOk = true,
+  includeCertificateId = true,
   pagesPostFails = false,
   pagesDomain = true,
   pagesStatus = "active",
@@ -298,7 +299,7 @@ function cloudflareMock({
         state.workerDomain
           ? [
               {
-                cert_id: certificateId,
+                ...(includeCertificateId ? { cert_id: certificateId } : {}),
                 environment: "production",
                 hostname,
                 id: "worker-domain-1",
@@ -312,7 +313,7 @@ function cloudflareMock({
     if (url.pathname.endsWith("/workers/domains") && method === "PUT") {
       state.workerDomain = true;
       return json({
-        cert_id: certificateId,
+        ...(includeCertificateId ? { cert_id: certificateId } : {}),
         environment: "production",
         hostname,
         id: "worker-domain-1",
@@ -325,7 +326,7 @@ function cloudflareMock({
       method === "GET"
     ) {
       return json({
-        cert_id: certificateId,
+        ...(includeCertificateId ? { cert_id: certificateId } : {}),
         environment: "production",
         hostname,
         id: "worker-domain-1",
@@ -808,7 +809,10 @@ describe("production release workflow", () => {
     expect(workflow).not.toMatch(/wrangler\s+pages\s+project\s+delete/);
     expect(workflow).not.toMatch(/--(?:route|routes|domain|domains)\b/);
     expect(workflow).toContain(
-      '--var "APP_ORIGIN:https://vinifera-live.edstratumlabs.ai"',
+      '--var "APP_ORIGIN:$PRODUCTION_WORKER_ORIGIN"',
+    );
+    expect(workflow).toContain(
+      '--var "ALLOWED_ORIGINS:$PRODUCTION_WORKER_ORIGIN,https://vinifera-live.edstratumlabs.ai,capacitor://localhost,https://localhost"',
     );
     expect(workflow).not.toContain(
       '--var "APP_ORIGIN:https://vinifera.edstratumlabs.ai"',
@@ -893,9 +897,10 @@ describe("Cloudflare production control plane", () => {
       cutoverToWorker(controlOptions(mock.fetcher)),
     ).resolves.toMatchObject({
       attached: {
-        certificatePresent: true,
+        environment: "production",
         hostname,
         service: workerName,
+        zoneId,
       },
     });
     expect(mock.state).toEqual({ pagesDomain: false, workerDomain: true });
@@ -917,17 +922,18 @@ describe("Cloudflare production control plane", () => {
     ).toBe(false);
   });
 
-  it("requires an issued Worker custom-domain certificate before health", async () => {
-    const mock = cloudflareMock();
+  it("requires the exact Worker custom-domain attachment before HTTPS health", async () => {
+    const mock = cloudflareMock({ includeCertificateId: false });
     await expect(
-      probeWorkerDomainCertificate({
+      probeWorkerDomainAttachment({
         ...controlOptions(mock.fetcher),
         domainId: "worker-domain-1",
       }),
     ).resolves.toMatchObject({
-      certificatePresent: true,
+      environment: "production",
       hostname,
       service: workerName,
+      zoneId,
     });
   });
 

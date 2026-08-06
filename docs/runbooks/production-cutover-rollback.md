@@ -90,6 +90,10 @@ Bootstrap first proves that the allowlisted Worker does not exist, then uses
 the named `production` Wrangler environment to create it on `workers.dev`.
 `wrangler.jsonc` contains no production route or custom domain. If the resource
 already exists, bootstrap fails and the version-upload path must be used.
+Bootstrap and pre-cutover uploads set `APP_ORIGIN` to the exact protected
+`PRODUCTION_WORKER_ORIGIN` and permit both that origin and the future live
+hostname through browser CORS. This keeps mobile magic-link callbacks
+executable during Gates 17 and 18.
 
 ### Upload and deploy
 
@@ -117,8 +121,10 @@ hostname, a Worker version that does not match the exact reviewed artifact, or
 a Worker version that is not already the sole 100% deployment. It removes only
 the `vinifera-live.edstratumlabs.ai` attachment from the `vinifera-live` Pages
 project, attaches that hostname to `vinifera-production`, waits until the
-Cloudflare domain record contains its issued certificate identity, and then
-polls bounded, no-redirect public probes. A repeated dispatch resumes safely if
+Cloudflare domain record matches the exact hostname, zone, service, and
+environment, and then polls bounded, no-redirect HTTPS public probes. Those
+probes, rather than a nonexistent Workers Domains `cert_id`, prove certificate
+readiness. A repeated dispatch resumes safely if
 the Worker is already exact or if an interrupted run left neither service
 attached. It rejects a both-attached topology. It never deletes either Pages
 project or any deployment.
@@ -147,7 +153,7 @@ Git SHA, the root surface, `/app/`, `/portal/`, and exact Apple and Android
 association payloads for the signed identities. The separate marketing root,
 app, and guide body digests must remain unchanged.
 
-If certificate or health verification does not pass, the control script
+If domain-attachment or HTTPS health verification does not pass, the control script
 removes the attempted Worker domain and reattaches the live hostname to its
 Pages project. Treat the workflow as failed until the restored live Pages root
 and `/app/` prototype are independently reverified. The marketing hostname is

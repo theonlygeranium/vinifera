@@ -29,8 +29,10 @@ The protected production workflow adds two explicit domain operations:
 - `attach-live-domain` attaches only `vinifera-live.edstratumlabs.ai` to the
   exact reviewed, sole-active production Worker version after policy hashes,
   release ancestry, immutable artifact, staging soak, target identity, current
-  topology, and exact confirmation are revalidated. It waits for a valid
-  Cloudflare-managed certificate and the complete hosted health contract. If
+  topology, and exact confirmation are revalidated. It verifies the exact
+  Cloudflare Worker-domain record and then the complete hosted HTTPS health
+  contract, which is the certificate-readiness proof available at the public
+  boundary. If
   either fails, it removes the attempted Worker custom domain and restores the
   existing `vinifera-live` Pages hostname.
 - `restore-live-pages` removes only that Worker custom domain and restores only
@@ -63,6 +65,10 @@ Before Gate 20, signed internal mobile builds use the allowlisted production
 payload before signing. The final canonical live hostname remains embedded in
 the application identity and becomes routable only through Gate 20; this
 removes the prior Gates 17/18-to-20 circular dependency.
+Production Worker versions also use that pre-cutover Worker origin for
+`APP_ORIGIN`, so emailed mobile Auth callbacks reach the same executable Worker
+before the live hostname is attached. Browser CORS permits both the Worker
+origin and the future live hostname.
 
 Before a production Worker version deployment or explicit rollback, the
 workflow captures the current sole-active version and its exact annotated Git
@@ -70,8 +76,8 @@ SHA. If either mutation command or its hosted smoke fails, the workflow
 automatically restores that captured version, verifies it is again sole active,
 and re-runs exact-revision core health before failing the release run.
 
-Certificate identifiers and topology evidence are retained only as sanitized
-SHA-256 fingerprints and boolean readiness fields.
+Cloudflare domain identity is retained without inventing a certificate field;
+successful bounded HTTPS probes provide the certificate readiness evidence.
 
 ## Consequences
 

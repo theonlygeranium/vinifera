@@ -97,12 +97,7 @@ export async function cloudflareApiRequest({
 }
 
 function workerDomainSummary(domain) {
-  const certificateId = String(domain?.cert_id ?? "");
   return {
-    certificateIdSha256: UUID.test(certificateId)
-      ? createHash("sha256").update(certificateId).digest("hex")
-      : null,
-    certificatePresent: UUID.test(certificateId),
     environment: domain?.environment ?? null,
     hostname: domain?.hostname ?? null,
     id: domain?.id ?? null,
@@ -503,7 +498,7 @@ export async function probeWorkerHealth({
   );
 }
 
-export async function probeWorkerDomainCertificate({
+export async function probeWorkerDomainAttachment({
   accountId,
   apiToken,
   attempts,
@@ -526,11 +521,10 @@ export async function probeWorkerDomainCertificate({
       if (
         domain?.hostname !== hostname ||
         domain?.service !== workerName ||
-        domain?.zone_id !== zoneId ||
-        !UUID.test(String(domain?.cert_id ?? ""))
+        domain?.zone_id !== zoneId
       ) {
         throw new Error(
-          "Worker custom-domain certificate is not ready for the allowlisted target.",
+          "Worker custom-domain attachment does not match the allowlisted target.",
         );
       }
       return workerDomainSummary(domain);
@@ -591,7 +585,7 @@ function findPagesDomain(snapshot, hostname) {
 }
 
 async function verifyWorkerAttachment(options, domainId) {
-  const attached = await probeWorkerDomainCertificate({
+  const attached = await probeWorkerDomainAttachment({
     ...options,
     domainId,
   });
