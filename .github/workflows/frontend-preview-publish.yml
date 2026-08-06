@@ -250,6 +250,8 @@ jobs:
           jq -e '
             type == "object" and
             (.applicable | type == "boolean") and
+            (.candidate_eligible | type == "boolean") and
+            (.draft | type == "boolean") and
             (.pr_number | type == "number") and
             (.pr_number > 0) and
             (.base_sha | test("^[0-9a-f]{40}$")) and
@@ -264,6 +266,8 @@ jobs:
           base_sha=$(jq -r '.base_sha' "$metadata")
           head_ref=$(jq -r '.head_ref' "$metadata")
           applicable=$(jq -r '.applicable' "$metadata")
+          candidate_eligible=$(jq -r '.candidate_eligible' "$metadata")
+          draft=$(jq -r '.draft' "$metadata")
           head_repository=$(jq -r '.head_repository' "$metadata")
           artifact_repository=$(jq -r '.repository' "$metadata")
           if [[ "$artifact_repository" != "$REPOSITORY" \
@@ -284,8 +288,13 @@ jobs:
             || "$(jq -r '.base.sha' <<<"$pr")" != "$base_sha" \
             || "$(jq -r '.head.sha' <<<"$pr")" != "$head_sha" \
             || "$(jq -r '.head.ref' <<<"$pr")" != "$head_ref" \
-            || "$(jq -r '.head.repo.full_name' <<<"$pr")" != "$REPOSITORY" ]]; then
+            || "$(jq -r '.head.repo.full_name' <<<"$pr")" != "$REPOSITORY" \
+            || "$(jq -r '.draft' <<<"$pr")" != "$draft" ]]; then
             echo "::error::Pull-request identity changed before privileged publication."
+            exit 1
+          fi
+          if [[ "$candidate_eligible" != "true" && "$applicable" == "true" ]]; then
+            echo "::error::A non-candidate cannot require privileged publication."
             exit 1
           fi
           if [[ "$applicable" == "true" && ! -d "$candidate/dist" ]]; then

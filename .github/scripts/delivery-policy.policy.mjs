@@ -1087,6 +1087,11 @@ test("trusted preview publisher never executes PR-head code beside credentials",
     privileged,
     /Revalidate exact identity without base code execution/,
   );
+  assert.match(privileged, /candidate_eligible=\$\(jq -r '\.candidate_eligible'/);
+  assert.match(
+    privileged,
+    /A non-candidate cannot require privileged publication/,
+  );
   assert.doesNotMatch(
     workflow,
     /import[\s\S]*from "\.\/\.github\/scripts\/delivery-policy\.mjs"/,
