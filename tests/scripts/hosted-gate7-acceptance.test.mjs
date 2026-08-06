@@ -16,6 +16,7 @@ import {
   plusAddress,
   splitSetCookieHeader,
   validateMagicActionLink,
+  validateStripeCheckoutUrl,
 } from "../../scripts/hosted-gate7-acceptance.mjs";
 
 const repositoryRoot = new URL("../../", import.meta.url);
@@ -106,6 +107,28 @@ describe("hosted Gate 7 acceptance controller", () => {
     ).toThrow(/does not match/);
   });
 
+  it("accepts only exact HTTPS Stripe test Checkout Session URLs", () => {
+    expect(
+      validateStripeCheckoutUrl(
+        "https://checkout.stripe.com/c/pay/cs_test_gate7_session_1#fragment",
+      ).sessionId,
+    ).toBe("cs_test_gate7_session_1");
+    expect(() =>
+      validateStripeCheckoutUrl("http://checkout.stripe.com/c/pay/cs_test_gate7_session_1"),
+    ).toThrow(/exact Stripe test Session URL/);
+    expect(() =>
+      validateStripeCheckoutUrl("https://notstripe.com/c/pay/cs_test_gate7_session_1"),
+    ).toThrow(/exact Stripe test Session URL/);
+    expect(() =>
+      validateStripeCheckoutUrl(
+        "https://checkout.stripe.com:444/c/pay/cs_test_gate7_session_1",
+      ),
+    ).toThrow(/exact Stripe test Session URL/);
+    expect(() =>
+      validateStripeCheckoutUrl("https://checkout.stripe.com/c/pay/not-a-session"),
+    ).toThrow(/exact Stripe test Session URL/);
+  });
+
   it("decrypts a run-bound hybrid magic-link envelope", () => {
     const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const key = randomBytes(32);
@@ -156,9 +179,14 @@ describe("hosted Gate 7 acceptance controller", () => {
     expect(controller).not.toContain("admin.auth.admin.deleteUser");
     expect(controller).not.toContain("stripe.customers.del");
     expect(controller).not.toMatch(/p_as_of:\s*(restrictedAt|suspendedAt)/u);
-    expect(controller.indexOf("const firstActive = await deliver(activeEvent)")).toBeLessThan(
-      controller.indexOf('"/api/auth/member/magic-link"'),
-    );
+    const checkoutIndex = controller.indexOf('"/api/billing/checkout"');
+    const activeIndex = controller.indexOf("const firstActive = await deliver(activeEvent)");
+    const memberLinkIndex = controller.indexOf('"/api/auth/member/magic-link"');
+    expect(checkoutIndex).toBeGreaterThanOrEqual(0);
+    expect(activeIndex).toBeGreaterThanOrEqual(0);
+    expect(memberLinkIndex).toBeGreaterThanOrEqual(0);
+    expect(checkoutIndex).toBeLessThan(activeIndex);
+    expect(activeIndex).toBeLessThan(memberLinkIndex);
     expect(controller).toContain("HOSTED_GATE7_MAGIC_LINK_HANDOFF");
     expect(controller).toContain("::notice title=Hosted Gate 7 magic-link handoff::");
     expect(controller).toContain('method: "PATCH"');

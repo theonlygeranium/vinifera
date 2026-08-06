@@ -42,6 +42,16 @@ that creates and cleans up synthetic two-tenant/Auth/Stripe-test fixtures and
 retains sanitized acceptance evidence. Gate 7 does not become `live-passed`
 until that runner succeeds on the reviewed exact candidate.
 
+The `staging-db.edstratumlabs.ai` endpoint is the Cloudflare Tunnel front door
+for the self-hosted Schubert Supabase stack, not a Supabase custom domain on
+the cloud development project. Its GoTrue Site URL and redirect allowlist use
+the isolated staging Worker callback. Run `31087028401` passed the resulting
+real member PKCE flow, then showed that Checkout must precede the synthetic
+active-subscription webhook: writing the synthetic subscription ID first makes
+the application correctly fail closed when it cannot retrieve that ID from
+Stripe. The repaired controller creates Checkout first while still activating
+the fixture before member-link issuance.
+
 The dedicated staging Cloudflare account target is authorized by its reviewed
 SHA-256 hash, while the known production account is explicitly denied. Its
 protected environment credential is account-scoped to Workers and Queues, and
