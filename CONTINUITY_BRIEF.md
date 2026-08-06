@@ -88,6 +88,14 @@ accepts only the exact staff/member base names or numeric Supabase chunk
 suffixes, with regressions rejecting similarly prefixed state cookies. Gate 7
 remains pending a fresh exact-head run.
 
+Exact-head staging run `31079570728` deployed the application-side chunk-cookie
+repair but reproduced the service-layer 401. The remaining discrepancy is in
+the controller's browser emulation: it retained `Set-Cookie` deletion records
+as empty cookies, allowing a cleared legacy base cookie to shadow the valid
+numeric session chunks during Supabase SSR reconstruction. The follow-up repair
+honors `Max-Age=0` and expired deletion attributes and no longer counts empty
+cookie values as an Auth family. Gate 7 remains pending a fresh exact-head run.
+
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
 dump completed on 2026-08-05; the existing daily cron continues to call the

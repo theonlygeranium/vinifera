@@ -33,6 +33,15 @@ variable at runtime. The controller validates the Supabase
 origin, verify path, magic-link type, callback origin/path, and state before
 following the link.
 
+The controller's in-memory cookie jar follows browser deletion semantics:
+`Max-Age=0` and already expired `Set-Cookie` records remove the named cookie,
+and an empty value cannot satisfy an Auth-family assertion. This matters when
+Supabase SSR clears a legacy unchunked base cookie while writing numeric chunks;
+retaining the cleared base can shadow the valid chunks during reconstruction.
+Before protected tenant assertions, each staff jar is validated directly with
+Supabase SSR and through the Worker's public staff-session route. These
+preflights retain only a sanitized Auth error code and boolean outcome.
+
 Lifecycle time compression modifies only the dedicated fixture timestamps and
 invokes global reconciliation with the current time. It never advances the
 database-wide clock, so unrelated staging organizations cannot be restricted
