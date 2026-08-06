@@ -10,6 +10,12 @@
   conflicts without reverting either branch's delivered behavior.
   **Deployment impact:** branch ancestry and release-control history only; no
   provider, database, Worker, billing, DNS, or production mutation.
+- Preserve the reconciled `staging` revision as an explicit merge parent after
+  the reviewed reconciliation PR was squash-merged. The merge keeps the already
+  verified `dev` tree and restores the ancestry required by the protected
+  `dev`-to-`staging` promotion comparison.
+  **Deployment impact:** Git topology and promotion eligibility only; no
+  application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
 - Reconcile the hosted activation ledger with the 2026-08-05 live re-audit:
