@@ -423,6 +423,9 @@ async function main() {
     const variableName =
       process.env.HOSTED_ACCEPTANCE_LINK_ENVELOPE_VARIABLE?.trim() ||
       "STAGING_HOSTED_ACCEPTANCE_MAGIC_LINK_ENVELOPE";
+    const handoffVariableName =
+      process.env.HOSTED_ACCEPTANCE_HANDOFF_VARIABLE?.trim() ||
+      "STAGING_HOSTED_ACCEPTANCE_MAGIC_LINK_HANDOFF";
     const handoffId = `${process.env.GITHUB_RUN_ID ?? "local"}-${process.env.GITHUB_RUN_ATTEMPT ?? "1"}-${randomBytes(8).toString("hex")}`;
     const { privateKey, publicKey } = generateKeyPairSync("rsa", {
       modulusLength: 2048,
@@ -433,35 +436,59 @@ async function main() {
       handoffId,
       publicKeySpkiBase64: publicKey.toString("base64"),
     });
+    const apiBase = `${process.env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${repository}/environments/${encodeURIComponent(environment)}/variables`;
+    const apiHeaders = {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      "x-github-api-version": "2022-11-28",
+    };
+    const handoffEndpoint = `${apiBase}/${encodeURIComponent(handoffVariableName)}`;
+    let publishResponse = await fetch(handoffEndpoint, {
+      body: JSON.stringify({ name: handoffVariableName, value: handoff }),
+      headers: apiHeaders,
+      method: "PATCH",
+    });
+    if (publishResponse.status === 404) {
+      publishResponse = await fetch(apiBase, {
+        body: JSON.stringify({ name: handoffVariableName, value: handoff }),
+        headers: apiHeaders,
+        method: "POST",
+      });
+    }
+    if (!publishResponse.ok) {
+      throw new Error(`Magic-link handoff publication returned HTTP ${publishResponse.status}.`);
+    }
     console.log(`HOSTED_GATE7_MAGIC_LINK_HANDOFF ${handoff}`);
     console.log(`::notice title=Hosted Gate 7 magic-link handoff::${handoff}`);
-    const endpoint = `${process.env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${repository}/environments/${encodeURIComponent(environment)}/variables/${encodeURIComponent(variableName)}`;
-    for (let attempt = 1; attempt <= 72; attempt += 1) {
-      const response = await fetch(endpoint, {
-        headers: {
-          accept: "application/vnd.github+json",
-          authorization: `Bearer ${token}`,
-          "x-github-api-version": "2022-11-28",
-        },
-      });
-      if (response.ok) {
-        const body = await response.json();
-        try {
-          const rawLink = decryptMagicLinkEnvelope(body.value, privateKey, handoffId);
-          return validateMagicActionLink(rawLink, {
-            callback,
-            state,
-            supabaseUrl,
-          });
-        } catch (error) {
-          if (!String(error).includes("does not match this run")) throw error;
+    const endpoint = `${apiBase}/${encodeURIComponent(variableName)}`;
+    try {
+      for (let attempt = 1; attempt <= 72; attempt += 1) {
+        const response = await fetch(endpoint, { headers: apiHeaders });
+        if (response.ok) {
+          const body = await response.json();
+          try {
+            const rawLink = decryptMagicLinkEnvelope(body.value, privateKey, handoffId);
+            return validateMagicActionLink(rawLink, {
+              callback,
+              state,
+              supabaseUrl,
+            });
+          } catch (error) {
+            if (!String(error).includes("does not match this run")) throw error;
+          }
+        } else if (response.status !== 404) {
+          throw new Error(`Magic-link handoff variable returned HTTP ${response.status}.`);
         }
-      } else if (response.status !== 404) {
-        throw new Error(`Magic-link handoff variable returned HTTP ${response.status}.`);
+        await new Promise((resolveWait) => setTimeout(resolveWait, 5_000));
       }
-      await new Promise((resolveWait) => setTimeout(resolveWait, 5_000));
+      throw new Error("Timed out waiting for the encrypted Gate 7 magic-link handoff.");
+    } finally {
+      await fetch(handoffEndpoint, {
+        headers: apiHeaders,
+        method: "DELETE",
+      }).catch(() => undefined);
     }
-    throw new Error("Timed out waiting for the encrypted Gate 7 magic-link handoff.");
   }
 
   let runError = null;

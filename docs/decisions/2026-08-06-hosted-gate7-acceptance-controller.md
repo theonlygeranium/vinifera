@@ -22,14 +22,16 @@ to its baseline in a `finally` path. Cleanup failure fails the job. Its artifact
 is sanitized to booleans, timestamps, target class, and failure text; it
 excludes credentials, cookies, callback codes, emails, and provider identifiers.
 
-Member Auth consumes the real emailed PKCE magic link. The job emits an
-ephemeral public key and run-bound handoff identifier, then polls a protected
-environment variable for a hybrid-encrypted envelope. The operator automation
+Member Auth consumes the real emailed PKCE magic link. The job writes an
+ephemeral public key and run-bound handoff identifier to a protected staging
+environment variable, then polls a separate protected variable for a
+hybrid-encrypted envelope. The operator automation
 retrieves the matching message, encrypts the URL with
 `scripts/encrypt-hosted-gate7-link.mjs`, and updates the variable. The private
 key exists only in the running job. The protected
-`STAGING_GITHUB_VARIABLES_TOKEN` credential lets the job read that environment
-variable at runtime. The controller validates the Supabase
+`STAGING_GITHUB_VARIABLES_TOKEN` credential lets the job read and write those
+environment variables at runtime. It removes the public handoff variable when
+the wait ends. The controller validates the Supabase
 origin, verify path, magic-link type, callback origin/path, and state before
 following the link.
 
