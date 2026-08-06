@@ -29,9 +29,18 @@ Partial local evidence:
 The deployed Gate 2/7 repair carries Access service-token headers through all
 member Supabase client paths and requires `environment=staging`, the exact
 promoted revision, and a successful database-backed route before deployment
-evidence can pass. Those two gates remain pending until this exact reviewed
-candidate is live in staging. Gate 7 remains pending until the hosted acceptance
-suite succeeds.
+evidence can pass. The candidate is live in staging, so only Gate 7 remains
+pending until the hosted acceptance suite succeeds.
+
+The Gate 7 follow-up audit found that the deployed Worker still generated Auth
+callbacks for the unattached staging custom domain while verification and user
+traffic used the isolated `workers.dev` origin. The staging release controller
+now derives `APP_ORIGIN` and browser CORS from the same protected
+`STAGING_WORKER_ORIGIN`; custom-domain callbacks remain deferred to Gate 16.
+The protected staging job now also contains an explicit opt-in Gate 7 runner
+that creates and cleans up synthetic two-tenant/Auth/Stripe-test fixtures and
+retains sanitized acceptance evidence. Gate 7 does not become `live-passed`
+until that runner succeeds on the reviewed exact candidate.
 
 The dedicated staging Cloudflare account target is authorized by its reviewed
 SHA-256 hash, while the known production account is explicitly denied. Its

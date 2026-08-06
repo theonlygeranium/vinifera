@@ -244,8 +244,8 @@
       },
       "vars": {
         "APP_ENV": "staging",
-        "APP_ORIGIN": "https://staging.vinifera.edstratumlabs.ai",
-        "ALLOWED_ORIGINS": "https://staging.vinifera.edstratumlabs.ai,capacitor://localhost,https://localhost"
+        "APP_ORIGIN": "https://vinifera-staging.edstratum-labs-staging.workers.dev",
+        "ALLOWED_ORIGINS": "https://vinifera-staging.edstratum-labs-staging.workers.dev,capacitor://localhost,https://localhost"
       }
     }
   }

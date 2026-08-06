@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### Changed
+- Raise the documented Vitest regression floor from 550 to the verified
+  556-test hosted-acceptance exact head. **Deployment impact:** QA and agent
+  documentation only; no runtime, provider, database, credential, billing,
+  DNS, mobile-store, or production mutation.
+- Add an opt-in protected hosted Gate 7 acceptance controller that provisions
+  two scoped synthetic tenants, verifies staff/member Auth and API/native RLS
+  isolation, exercises Stripe test Checkout plus signed, duplicate, and forged
+  webhook handling, advances grace/restriction/suspension/recovery, attempts
+  complete synthetic cleanup, and retains sanitized evidence with the staging
+  runtime artifact. **Deployment impact:** runs only when the protected staging
+  acceptance variable is enabled; test-mode provider and synthetic staging
+  data only, with no production, DNS, live-billing, or mobile-store mutation.
 - Record hosted activation Gate 2 as `live-passed` after protected staging run
   `31073800654` deployed the exact immutable candidate to the dedicated
   Cloudflare staging account and retained matching revision, configuration,
@@ -44,6 +56,13 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Use the protected isolated `STAGING_WORKER_ORIGIN` as the staging
+  `APP_ORIGIN` and browser CORS origin until custom-hostname Gate 16 is
+  activated. This keeps staff and member Auth callbacks on the same deployed
+  origin that owns their cookies and prevents hosted Gate 7 flows from being
+  redirected to an unattached custom domain. **Deployment impact:** changes
+  only staging Worker callback/CORS variables; production and DNS remain
+  untouched.
 - Retry isolated staging runtime verification during the short workers.dev
   propagation window after an immutable version reaches 100% traffic. Each
   attempt rechecks health, configuration, the database-backed branding route,

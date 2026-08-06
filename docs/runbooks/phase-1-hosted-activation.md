@@ -112,6 +112,8 @@ After the database gate passes:
 1. Enable `STAGING_CLOUDFLARE_DEPLOY_ENABLED`.
 2. Dispatch the staging workflow from the verified `staging` commit.
 3. Require the deployment to target only `vinifera-staging` on `workers.dev`.
+   Until Gate 16 attaches a reviewed custom hostname, use that same isolated
+   `workers.dev` origin for `APP_ORIGIN`, Auth callbacks, and browser CORS.
 4. Verify `/api/health` returns JSON with service `vinifera-api`.
 5. Verify `/api/health/configuration` reports the Phase 1 database and Auth
    core configured before functional testing.
@@ -205,6 +207,15 @@ Prove:
 Never use a real card or replace the test key during this runbook.
 
 ## 6. Run the hosted QA gate
+
+Set `STAGING_HOSTED_ACCEPTANCE_EMAIL_BASE` to an owner-controlled mailbox and
+enable `STAGING_HOSTED_ACCEPTANCE_ENABLED` only on the protected staging
+environment. The staging deployment job then creates two uniquely named
+synthetic tenants, exercises staff and member Auth, native and API tenant
+isolation, Stripe test Checkout, signed/duplicate/forged webhooks, and the
+grace/restriction/suspension/recovery lifecycle. It attempts cleanup of every
+synthetic Auth user, organization, Checkout Session, and Stripe Customer and
+retains only the sanitized JSON result in `staging-runtime-evidence`.
 
 Run the complete browser suite against the staging Worker at 375, 768, and
 1440 pixels. Require zero axe WCAG 2.1 AA violations, touch targets of at least
