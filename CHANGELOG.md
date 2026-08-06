@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- Apply the shared 30-second fixture-Git budget to the promotion classifier's
+  staged CLI test as well as the other repository-heavy promotion fixtures.
+  This prevents a correct subprocess invocation from inheriting Vitest's
+  unrelated five-second default under concurrent CI host load. **Deployment
+  impact:** test timing only; no workflow, branch, deployment, or runtime
+  behavior.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from
