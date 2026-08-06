@@ -32,12 +32,15 @@ describe("hosted Gate 7 acceptance controller", () => {
     const response = {
       headers: {
         get: () => "vinifera-member-auth-link=state.token; Path=/; HttpOnly, vinifera-member-brand=brand.token; Path=/; HttpOnly",
+        getSetCookie: () => [
+          "vinifera-member-auth.0=part-one; Path=/; Expires=Thu, 06 Aug 2026 07:00:00 GMT; HttpOnly, vinifera-member-auth.1=part-two; Path=/; HttpOnly",
+        ],
       },
     };
     expect(splitSetCookieHeader(response.headers.get())).toHaveLength(2);
     mergeCookieJar(jar, response);
     expect(cookieHeader(jar)).toBe(
-      "vinifera-member-auth-link=state.token; vinifera-member-brand=brand.token",
+      "vinifera-member-auth.0=part-one; vinifera-member-auth.1=part-two",
     );
   });
 

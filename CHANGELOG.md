@@ -56,6 +56,14 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Split every value returned by Node's `Headers.getSetCookie()` before merging
+  the hosted Gate 7 cookie jar. Cloudflare can fold multiple Supabase SSR Auth
+  cookie chunks into one header value; retaining only its first chunk allowed
+  login to return 200 but caused the next authenticated request to return 401.
+  The regression includes a folded header with an `Expires` comma. **Deployment
+  impact:** hosted staging acceptance cookie transport only; no application
+  Auth behavior, provider configuration, production, DNS, live billing, or
+  mobile-store mutation.
 - Publish the Gate 7 encrypted handoff identifier and ephemeral public key as
   a GitHub Actions notice as well as ordinary log output. This lets authorized
   automation retrieve the public half through the live check-run annotations
