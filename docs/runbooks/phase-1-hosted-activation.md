@@ -220,7 +220,8 @@ current time. It expires an open Checkout Session, restores fixture billing
 state, fails on cleanup errors, and retains only the sanitized JSON result in
 `staging-runtime-evidence`.
 
-When the job prints `HOSTED_GATE7_MAGIC_LINK_HANDOFF`, retrieve the real message
+When the job publishes the `Hosted Gate 7 magic-link handoff` Actions notice
+(also logged as `HOSTED_GATE7_MAGIC_LINK_HANDOFF`), retrieve the real message
 sent to the dedicated member plus-address, pass its action URL on standard input
 to `scripts/encrypt-hosted-gate7-link.mjs` with the printed handoff identifier
 and public key, and store the resulting JSON in the protected staging variable

@@ -128,5 +128,6 @@ describe("hosted Gate 7 acceptance controller", () => {
     expect(controller).not.toContain("stripe.customers.del");
     expect(controller).not.toMatch(/p_as_of:\s*(restrictedAt|suspendedAt)/u);
     expect(controller).toContain("HOSTED_GATE7_MAGIC_LINK_HANDOFF");
+    expect(controller).toContain("::notice title=Hosted Gate 7 magic-link handoff::");
   });
 });
