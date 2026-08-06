@@ -65,6 +65,13 @@ sessions without confusing the member-link state cookie. This is controller QA,
 not evidence of an application login failure; Gate 7 remains pending a fresh
 exact-head run.
 
+The subsequent exact-head staging run `31077316417` was deliberately canceled
+before its encrypted email wait. GitHub exposes completed job logs through the
+API but not live ordinary log text, so the handoff public key was not observable
+during the polling window. The controller now emits the same non-secret,
+run-bound handoff payload as a live Actions notice for API retrieval. A fresh
+exact-head package and staging run remain required.
+
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
 dump completed on 2026-08-05; the existing daily cron continues to call the

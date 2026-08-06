@@ -386,12 +386,12 @@ async function main() {
       privateKeyEncoding: { format: "pem", type: "pkcs8" },
       publicKeyEncoding: { format: "der", type: "spki" },
     });
-    console.log(
-      `HOSTED_GATE7_MAGIC_LINK_HANDOFF ${JSON.stringify({
-        handoffId,
-        publicKeySpkiBase64: publicKey.toString("base64"),
-      })}`,
-    );
+    const handoff = JSON.stringify({
+      handoffId,
+      publicKeySpkiBase64: publicKey.toString("base64"),
+    });
+    console.log(`HOSTED_GATE7_MAGIC_LINK_HANDOFF ${handoff}`);
+    console.log(`::notice title=Hosted Gate 7 magic-link handoff::${handoff}`);
     const endpoint = `${process.env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${repository}/environments/${encodeURIComponent(environment)}/variables/${encodeURIComponent(variableName)}`;
     for (let attempt = 1; attempt <= 72; attempt += 1) {
       const response = await fetch(endpoint, {

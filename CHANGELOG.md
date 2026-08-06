@@ -56,6 +56,13 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Publish the Gate 7 encrypted handoff identifier and ephemeral public key as
+  a GitHub Actions notice as well as ordinary log output. This lets authorized
+  automation retrieve the public half through the live check-run annotations
+  API while the protected job is polling; GitHub does not expose ordinary job
+  logs through its API until the job completes. **Deployment impact:** hosted
+  staging acceptance orchestration only; no application runtime, provider,
+  production, DNS, live billing, or mobile-store mutation.
 - Accept both unchunked and Supabase SSR chunked staff/member Auth cookie names
   in hosted Gate 7 assertions. The first protected exact-head execution returned
   a successful staff login but exposed that the controller required only the
