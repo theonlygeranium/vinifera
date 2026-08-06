@@ -3,8 +3,21 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
-select plan(35);
+select plan(36);
 set local request.jwt.claims = '{"role":"service_role"}';
+
+select ok(
+  pg_get_functiondef(
+    'public.create_release_shipments(uuid,uuid,uuid,uuid)'::regprocedure
+  ) like '%r.brand_id = p_brand_id%'
+  and pg_get_functiondef(
+    'public.create_release_shipments(uuid,uuid,uuid,uuid)'::regprocedure
+  ) like '%m.brand_id = p_brand_id%'
+  and pg_get_functiondef(
+    'public.create_release_shipments(uuid,uuid,uuid,uuid)'::regprocedure
+  ) like '%s.brand_id = p_brand_id%',
+  'release shipment creation carries selected-brand scope through database queries'
+);
 
 select ok(
   to_regprocedure(

@@ -52,6 +52,10 @@ function configurationPayload(overrides = {}) {
   };
 }
 
+function databasePayload(overrides = {}) {
+  return { data: { brand: null, mode: "canonical", ...overrides } };
+}
+
 function response(payload) {
   return {
     json: vi.fn(async () => payload),
@@ -67,7 +71,9 @@ describe("hosted runtime verifier", () => {
       return response(
         String(url).endsWith("/api/health/configuration")
           ? configurationPayload()
-          : healthPayload(),
+          : String(url).endsWith("/api/portal/branding")
+            ? databasePayload()
+            : healthPayload(),
       );
     });
     const origin =
@@ -85,6 +91,7 @@ describe("hosted runtime verifier", () => {
         requiredCapabilities: ["app", "database", "billing", "security", "webhook"],
         requiredCapabilitiesPassed: true,
       },
+      databaseProbe: { mode: "canonical", passed: true },
       health: {
         environment: "staging",
         passed: true,
@@ -94,13 +101,13 @@ describe("hosted runtime verifier", () => {
       },
       targetClass: "isolated-staging-workers-dev",
     });
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(
       calls.every(
         ({ init, url }) =>
           init.method === "GET" &&
           init.redirect === "error" &&
-          String(url).startsWith(`${origin}/api/health`),
+          String(url).startsWith(origin),
       ),
     ).toBe(true);
     expect(JSON.stringify(evidence)).not.toContain(origin);
@@ -112,7 +119,9 @@ describe("hosted runtime verifier", () => {
       response(
         String(url).endsWith("/api/health/configuration")
           ? configurationPayload()
-          : healthPayload(),
+          : String(url).endsWith("/api/portal/branding")
+            ? databasePayload()
+            : healthPayload(),
       ),
     );
 
@@ -132,6 +141,7 @@ describe("hosted runtime verifier", () => {
         configurationPayload: configurationPayload({
           billing: { configured: false, missing: ["STRIPE_SECRET_KEY"] },
         }),
+        databasePayload: databasePayload(),
         expectedRevision,
         healthPayload: healthPayload(),
       }),
@@ -156,6 +166,7 @@ describe("hosted runtime verifier", () => {
     expect(() =>
       buildHostedRuntimeEvidence({
         configurationPayload: configurationPayload(),
+        databasePayload: databasePayload(),
         expectedRevision,
         healthPayload: healthPayload({ service: "unexpected" }),
       }),
@@ -163,6 +174,7 @@ describe("hosted runtime verifier", () => {
     expect(() =>
       buildHostedRuntimeEvidence({
         configurationPayload: { data: { app: { configured: "yes" } } },
+        databasePayload: databasePayload(),
         expectedRevision,
         healthPayload: healthPayload(),
       }),
@@ -177,6 +189,7 @@ describe("hosted runtime verifier", () => {
     expect(() =>
       buildHostedRuntimeEvidence({
         configurationPayload: configurationPayload(),
+        databasePayload: databasePayload(),
         expectedRevision,
         healthPayload: healthPayload(overrides),
       }),
@@ -187,9 +200,21 @@ describe("hosted runtime verifier", () => {
     expect(() =>
       buildHostedRuntimeEvidence({
         configurationPayload: configurationPayload(),
+        databasePayload: databasePayload(),
         expectedRevision: "short",
         healthPayload: healthPayload(),
       }),
     ).toThrow(/full Git SHA/);
+  });
+
+  it("rejects a malformed database-backed route contract", () => {
+    expect(() =>
+      buildHostedRuntimeEvidence({
+        configurationPayload: configurationPayload(),
+        databasePayload: databasePayload({ mode: "offline" }),
+        expectedRevision,
+        healthPayload: healthPayload(),
+      }),
+    ).toThrow(/database-backed route did not pass/);
   });
 });

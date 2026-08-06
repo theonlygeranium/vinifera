@@ -1342,6 +1342,8 @@ jobs:
         shell: bash
         env:
           APNS_ENVIRONMENT: ${{ secrets.STAGING_APNS_ENVIRONMENT }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.STAGING_CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.STAGING_CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN: ${{ secrets.STAGING_CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN }}
@@ -1375,6 +1377,10 @@ jobs:
           fi
           if [[ -n "$EASYPOST_API_KEY" && "$EASYPOST_API_KEY" != EZTK* ]]; then
             echo "::error::The staging Worker accepts only an EasyPost EZTK test key."
+            exit 1
+          fi
+          if [[ -z "$CF_ACCESS_CLIENT_ID" || -z "$CF_ACCESS_CLIENT_SECRET" ]]; then
+            echo "::error::The Access-protected staging Supabase ingress requires a complete service-token pair."
             exit 1
           fi
           if [[ "$COMPLIANCE_PROVIDER" == "shipcompliant" &&

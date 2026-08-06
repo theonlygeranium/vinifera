@@ -205,6 +205,9 @@ describe("staging deployment evidence policy", () => {
     );
     expect(deployJob).toContain('"CF_ACCESS_CLIENT_ID"');
     expect(deployJob).toContain('"CF_ACCESS_CLIENT_SECRET"');
+    expect(deployJob).toContain(
+      '[[ -z "$CF_ACCESS_CLIENT_ID" || -z "$CF_ACCESS_CLIENT_SECRET" ]]',
+    );
   });
 
   it("binds runtime verification to the promoted revision", () => {
@@ -212,5 +215,14 @@ describe("staging deployment evidence policy", () => {
     expect(deployJob).toContain(
       '--expected-revision "${{ steps.release-package.outputs.candidate_sha }}"',
     );
+  });
+
+  it("requires a database-backed route before recording live evidence", () => {
+    expect(
+      readFileSync(
+        new URL("../../scripts/verify-hosted-runtime.mjs", import.meta.url),
+        "utf8",
+      ),
+    ).toContain("/api/portal/branding");
   });
 });

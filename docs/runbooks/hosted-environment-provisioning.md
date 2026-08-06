@@ -209,8 +209,12 @@ reapply schema SQL merely to populate the ledger.
 After a staging deployment, verify the stable staging URL separately from the
 immutable Worker or Pages preview. Record the environment marker, build
 SHA/digest, API health contract, primary browser journey, basic accessibility,
-and absence of critical console/server errors. An HTTP 200 or a static landing
-page is insufficient.
+a successful database-backed `GET /api/portal/branding` probe, and absence of
+critical console/server errors. The staging deploy must fail before upload
+unless both Cloudflare Access service-token values are present, and it must
+fail after deployment if the database-backed probe cannot traverse the
+protected Supabase ingress. An HTTP 200 or a static landing page is
+insufficient.
 
 Winery connection secrets may be stored in an authenticated encrypted
 database envelope or referenced by the exact

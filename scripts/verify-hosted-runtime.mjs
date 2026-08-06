@@ -63,6 +63,7 @@ function configurationState(value) {
 export function buildHostedRuntimeEvidence({
   healthPayload,
   configurationPayload,
+  databasePayload,
   expectedRevision,
   requiredCapabilities = DEFAULT_REQUIRED_CAPABILITIES,
   now = () => new Date(),
@@ -118,12 +119,24 @@ export function buildHostedRuntimeEvidence({
     );
   }
 
+  const databaseProbe = responseData(databasePayload, "Database-backed route");
+  if (
+    !["canonical", "white-label"].includes(databaseProbe.mode) ||
+    !(databaseProbe.brand === null || typeof databaseProbe.brand === "object")
+  ) {
+    throw new Error("The staging Worker database-backed route did not pass.");
+  }
+
   return {
     checkedAt: now().toISOString(),
     configuration: {
       capabilityConfigured,
       requiredCapabilities: [...requiredCapabilities],
       requiredCapabilitiesPassed: true,
+    },
+    databaseProbe: {
+      mode: databaseProbe.mode,
+      passed: true,
     },
     health: {
       environment: "staging",
@@ -164,16 +177,18 @@ export async function verifyHostedRuntime({
   timeoutMs = 10_000,
 }) {
   const validatedOrigin = stagingOrigin(origin);
-  const [healthPayload, configurationPayload] = await Promise.all([
+  const [healthPayload, configurationPayload, databasePayload] = await Promise.all([
     fetchJson(fetchImpl, `${validatedOrigin}/api/health`, timeoutMs),
     fetchJson(
       fetchImpl,
       `${validatedOrigin}/api/health/configuration`,
       timeoutMs,
     ),
+    fetchJson(fetchImpl, `${validatedOrigin}/api/portal/branding`, timeoutMs),
   ]);
   return buildHostedRuntimeEvidence({
     configurationPayload,
+    databasePayload,
     expectedRevision,
     healthPayload,
     now,

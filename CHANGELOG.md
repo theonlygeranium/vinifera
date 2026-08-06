@@ -16,9 +16,12 @@
   source-qualified 500-member/50-outcome training, and production-only alert
   semantics. Add negative browser-role RPC privilege assertions and a member
   service Access-transport regression. Add forward migrations that disambiguate
-  release shipment creation, make the email outbox digest portable and
-  schema-qualified, and restore early provider-webhook reconciliation after the
-  hashed-token rewrite. Load the complete 29-migration chain in Phase 5 QA and
+  release shipment creation and carry selected-brand scope through every
+  shipment query, make the email outbox digest portable and schema-qualified,
+  and restore early provider-webhook reconciliation after the hashed-token
+  rewrite. Require the complete staging Access pair and a successful
+  database-backed Worker route before recording live deployment evidence. Load
+  the complete 30-migration chain in Phase 5 QA and
   make promotion-smoke fixtures independent of the operator's Git default
   branch.
   **Deployment impact:** staging Worker release control, hosted backup

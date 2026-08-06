@@ -548,7 +548,7 @@ pending until its reviewed exact revision is deployed and reverified.
 | 6 | Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof. | Pending |
 | 7 | Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests. | Repair pending deployment |
 | 8 | Verify a Resend sending domain, signed webhook, and at least two real staging triggers. | Pending |
-| 9 | Apply Phase 4 migration 15 to hosted Supabase and run the current-stack pgTAP assertions plus native tenant/RPC tests. | Complete (330/330 canonical native assertions) |
+| 9 | Apply Phase 4 migration 15 to hosted Supabase and run the current-stack pgTAP assertions plus native tenant/RPC tests. | Complete (331/331 canonical native assertions) |
 | 10 | Connect a winery with real Phase 2/3 operations and verify every analytics metric and CSV export against source records. | Pending |
 | 11 | Configure a dedicated active `ML_PLATFORM_ACTOR_USER_ID`, accumulate at least 500 labeled members and 50 cancellations, reconcile all six source families, dry-run and execute `ops:phase4:qualify-ml`, train on production history, meet held-out AUC-ROC 0.82 without underperforming rules, and complete the superior 30-day A/B gate before actor-audited promotion. | Pending |
 | 12 | Opt an Estate/Reserve winery into a peer cohort with at least ten contributors and verify the quarterly report delivery. | Pending |

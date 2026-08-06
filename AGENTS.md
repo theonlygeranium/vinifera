@@ -150,7 +150,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 547/547 Vitest; 155 passed Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 549/549 Vitest; 155 passed Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -252,12 +252,12 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 547 | `npm run check` |
+| Vitest unit/integration | 549 | `npm run check` |
 | Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |
 | Phase 4 DB (intelligence) | 159 assertions | `npm run qa:db:phase4` |
-| Phase 5 DB (scale) | 514 assertions | `npm run qa:db:phase5` |
+| Phase 5 DB (scale) | 515 assertions | `npm run qa:db:phase5` |
 | Playwright E2E + axe-core | 155 passed, 3 hosted-only skipped | `npm run qa:e2e` |
 
 A PR may not merge if any of these counts decrease without a documented justification in the PR description. Test regressions are blocking defects.
