@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Changed
+- Record hosted activation Gate 7 as `live-passed` after protected staging run
+  `31089753727` deployed reviewed exact candidate
+  `530a003b91642ebf40af01468b10e444116ef632` as Worker version
+  `3978a4da-e488-4887-9900-34f2673f0cb6` and retained successful tenant/Auth,
+  Stripe test Checkout/webhook lifecycle, and fixture-cleanup evidence in
+  artifact `8963047777`. **Deployment impact:** documentation-only
+  reconciliation of completed isolated staging evidence; no additional
+  provider, database, credential, billing, DNS, mobile-store, or production
+  mutation.
 - Raise the documented Vitest regression floor from 550 to the verified
   569-test hosted-acceptance and Auth-provider repair head. **Deployment
   impact:** QA and agent documentation only; no runtime, provider, database,

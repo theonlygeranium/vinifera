@@ -3,7 +3,7 @@
 **Last reviewed:** 2026-08-06
 **Allowed statuses:** `pending`, `local-verified`, `live-passed`
 
-Six composite gates are `live-passed`: Gates 1, 2, 3, 4, 5, and 9. The 2026-08-05
+Seven composite gates are `live-passed`: Gates 1, 2, 3, 4, 5, 7, and 9. The 2026-08-05
 hosted re-audit proved exact 30-version staging migration-ledger parity and
 331/331 canonical native pgTAP assertions, retained Supabase Auth hook/OTP/
 Google/SMTP configuration, accepted one resent signed Stripe test webhook
@@ -13,9 +13,10 @@ on 2026-08-06 when protected run `31073800654` deployed immutable candidate
 `b3180ad7-64d6-440d-b609-09ee6e95bac5` in the dedicated staging Cloudflare
 account. Its retained runtime artifact and an independent live probe both
 passed the exact revision, staging identity, core configuration, Stripe test
-catalog, and database-backed branding contracts. Gate 7 remains `pending` for
-the complete hosted two-tenant/Auth/billing lifecycle proof. All other gates
-remain `pending`.
+catalog, and database-backed branding contracts. Gate 7 passed on 2026-08-06
+in protected staging run `31089753727`; its retained evidence verifies the
+complete hosted two-tenant/Auth/Stripe-test lifecycle and fixture cleanup. All
+other gates remain `pending`.
 
 Partial local evidence:
 
@@ -29,8 +30,8 @@ Partial local evidence:
 The deployed Gate 2/7 repair carries Access service-token headers through all
 member Supabase client paths and requires `environment=staging`, the exact
 promoted revision, and a successful database-backed route before deployment
-evidence can pass. The candidate is live in staging, so only Gate 7 remains
-pending until the hosted acceptance suite succeeds.
+evidence can pass. The reviewed exact candidate is live in staging and its
+hosted acceptance suite succeeded.
 
 The Gate 7 follow-up audit found that the deployed Worker still generated Auth
 callbacks for the unattached staging custom domain while verification and user
@@ -39,8 +40,8 @@ now derives `APP_ORIGIN` and browser CORS from the same protected
 `STAGING_WORKER_ORIGIN`; custom-domain callbacks remain deferred to Gate 16.
 The protected staging job now also contains an explicit opt-in Gate 7 runner
 that creates and cleans up synthetic two-tenant/Auth/Stripe-test fixtures and
-retains sanitized acceptance evidence. Gate 7 does not become `live-passed`
-until that runner succeeds on the reviewed exact candidate.
+retains sanitized acceptance evidence. That runner passed on the reviewed
+exact candidate in run `31089753727`.
 
 The `staging-db.edstratumlabs.ai` endpoint is the Cloudflare Tunnel front door
 for the self-hosted Schubert Supabase stack, not a Supabase custom domain on
@@ -50,7 +51,12 @@ real member PKCE flow, then showed that Checkout must precede the synthetic
 active-subscription webhook: writing the synthetic subscription ID first makes
 the application correctly fail closed when it cannot retrieve that ID from
 Stripe. The repaired controller creates Checkout first while still activating
-the fixture before member-link issuance.
+the fixture before member-link issuance. Protected package run `31089609722`
+produced exact candidate `530a003b91642ebf40af01468b10e444116ef632` with
+artifact SHA-256 `46de1aecaa268736a00d06e3df5bd606305089152248681943405128719b7c1d`.
+After PR #289 promoted it, staging run `31089753727` deployed Worker version
+`3978a4da-e488-4887-9900-34f2673f0cb6` and retained successful sanitized Gate
+7 evidence as artifact `8963047777`.
 
 The dedicated staging Cloudflare account target is authorized by its reviewed
 SHA-256 hash, while the known production account is explicitly denied. Its
@@ -95,7 +101,7 @@ stores do not block the private web beta.
 | 4 | Activate Stripe test catalog and webhook | live-passed | Reconciled four-price test catalog and one resent signed subscription webhook accepted exactly once | Track A — Stripe test |
 | 5 | Activate EasyPost test fulfillment | live-passed | Test credential, validated winery origin, simulator disabled, and deliverable address verification with ZIP+4 | Track A — fulfillment |
 | 6 | Prove Phase 2 billing lifecycle with ten members | pending | Charge, decline, recovery, label, pack, delivery, and refund evidence for ten Stripe test members | Track A — Phase 2 operations |
-| 7 | Prove hosted tenant/Auth/billing isolation | pending | Two-tenant native RLS, staff, member magic link, Checkout, webhook, grace, and suspension results | Track A — hosted acceptance |
+| 7 | Prove hosted tenant/Auth/billing isolation | live-passed | Protected run `31089753727`, exact candidate `530a003b91642ebf40af01468b10e444116ef632`, Worker version `3978a4da-e488-4887-9900-34f2673f0cb6`, retained evidence artifact `8963047777`, and successful two-tenant native/API RLS, staff, real emailed member magic link, Checkout, webhook lifecycle, and cleanup results | Track A — hosted acceptance |
 | 8 | Activate Resend | pending | Verified sending domain, signed webhook, and two real staging lifecycle triggers | Track A — communications |
 | 9 | Prove hosted Phase 4 database | live-passed | Migration 015 and the current 30-version chain applied; canonical native tenant/RPC/Phase 4 assertions included in the 331/331 hosted pass | Track A — Phase 4 database |
 | 10 | Validate real winery analytics | pending | Every metric and CSV reconciled to production-like operational source records | Track A — analytics |

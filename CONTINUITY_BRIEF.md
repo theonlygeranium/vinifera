@@ -136,7 +136,19 @@ the synthetic signed `active` webhook installed a non-provider subscription ID
 before Checkout, so the application correctly rejected reconciliation. The
 controller now creates and records the real Stripe test Checkout first, then
 delivers the active webhook before member-link issuance and the remaining
-billing lifecycle. Gate 7 remains pending a fresh reviewed exact-head run.
+billing lifecycle.
+
+Gate 7 is now **live-passed**. Reviewed candidate
+`530a003b91642ebf40af01468b10e444116ef632` was packaged by protected run
+`31089609722` with artifact SHA-256
+`46de1aecaa268736a00d06e3df5bd606305089152248681943405128719b7c1d`, promoted
+to staging by PR #289, and deployed at 100% as Worker version
+`3978a4da-e488-4887-9900-34f2673f0cb6`. Protected staging run `31089753727`
+passed runtime identity/configuration, staff Auth, native/API two-tenant RLS,
+real emailed member PKCE callback and cookie session, Stripe test Checkout,
+signed webhook idempotency and lifecycle transitions, and reusable-fixture
+cleanup. Sanitized evidence artifact `8963047777` records all six acceptance
+checks plus cleanup as successful.
 
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
@@ -838,7 +850,11 @@ The code must remain fail-closed until these external connections are active:
    `/api/billing/webhook`, and add its signing secret.
 5. Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled.
 6. Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof.
-7. Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests.
+7. **Live-passed 2026-08-06:** protected run `31089753727` passed the complete
+   hosted two-tenant RLS, staff, real emailed member magic-link, Stripe test
+   Checkout, signed-webhook lifecycle, grace/restriction/suspension/recovery,
+   and reusable-fixture cleanup contract for exact candidate
+   `530a003b91642ebf40af01468b10e444116ef632`.
 8. Verify a Resend sending domain, signed webhook, and at least two real staging triggers.
 9. Apply Phase 4 migration 15 to hosted Supabase and run the 37 current-stack
    pgTAP assertions plus native tenant/RPC tests.

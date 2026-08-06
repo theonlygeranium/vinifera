@@ -500,7 +500,7 @@ refer to the canonical table below.
 
 | Provider | Purpose | Activation gate | Status | Missing-wiring behavior |
 |---|---|---:|---|---|
-| Supabase | Auth, PostgreSQL, RLS | 1, 3, 7, 9 | Gates 1, 3, and 9 complete; Gate 7 hosted acceptance pending | Auth/data operations return `503 activation_required` |
+| Supabase | Auth, PostgreSQL, RLS | 1, 3, 7, 9 | Gates 1, 3, 7, and 9 complete | Auth/data operations return `503 activation_required` |
 | Stripe | SaaS subscriptions and portal | 4, 19 | Gate 4 complete; Gate 19 pending | Billing operations return `503 activation_required` |
 | Stripe PaymentIntents | Release charges, retries, refunds | 4, 6, 19 | Gate 4 complete; Gates 6 and 19 pending | Shipment billing returns `503 activation_required` |
 | EasyPost | Address verification, carrier rates, labels, tracking | 5, 13 | Gate 5 complete; Gate 13 pending | Shipping returns `503 activation_required` |
@@ -513,7 +513,7 @@ refer to the canonical table below.
 | Cloudflare for SaaS | Worker deployment, hostname validation, and certificates | 2, 16, 20 | Gate 2 live-passed on the dedicated staging account; Gates 16 and 20 pending | Pending or unverified hosts never choose brand context |
 | APNs / FCM | Platform-specific native push delivery | 17, 18 | Pending | Missing platform credentials leave push work dormant without creating a connected state |
 | Google via Supabase | Staff OAuth | 3 | Complete | OAuth route remains disabled until configured |
-| SMTP via Supabase | Invite/reset/magic-link delivery | 3, 7 | Gate 3 complete; Gate 7 hosted acceptance pending | Delivery QA remains pending |
+| SMTP via Supabase | Invite/reset/magic-link delivery | 3, 7 | Gates 3 and 7 complete | Missing delivery configuration fails closed |
 
 ---
 
@@ -546,7 +546,7 @@ pending until its reviewed exact revision is deployed and reverified.
 | 4 | When service activation is explicitly resumed, reconcile the created-or-unknown Stripe test Price from run `30218801133`, then bootstrap/verify the four recurring Prices without a blind retry, register `/api/billing/webhook`, and add its signing secret. | Complete |
 | 5 | Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled. | Complete |
 | 6 | Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof. | Pending |
-| 7 | Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests. | Pending hosted acceptance |
+| 7 | Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests. | Complete — protected run `31089753727`, exact candidate `530a003b91642ebf40af01468b10e444116ef632`, Worker version `3978a4da-e488-4887-9900-34f2673f0cb6`, evidence artifact `8963047777` |
 | 8 | Verify a Resend sending domain, signed webhook, and at least two real staging triggers. | Pending |
 | 9 | Apply Phase 4 migration 15 to hosted Supabase and run the current-stack pgTAP assertions plus native tenant/RPC tests. | Complete (331/331 canonical native assertions) |
 | 10 | Connect a winery with real Phase 2/3 operations and verify every analytics metric and CSV export against source records. | Pending |
