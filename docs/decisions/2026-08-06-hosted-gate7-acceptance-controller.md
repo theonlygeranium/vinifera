@@ -35,6 +35,15 @@ the wait ends. The controller validates the Supabase
 origin, verify path, magic-link type, callback origin/path, and state before
 following the link.
 
+The hosted Supabase project uses the exact staging Worker as its Auth Site URL
+and allowlists the Worker's full callback namespace. Supabase otherwise falls
+back when a requested redirect is not allowlisted, which detaches the emailed
+action from the run-bound PKCE callback. The application inspects the
+`signInWithOtp` result and fails closed with a privacy-safe configuration error
+when Supabase explicitly rejects delivery. A rejected attempt revokes its new
+database context and does not replace an existing browser link cookie; the
+cookie is written only after Supabase accepts the new email operation.
+
 The controller's in-memory cookie jar follows browser deletion semantics:
 `Max-Age=0` and already expired `Set-Cookie` records remove the named cookie,
 and an empty value cannot satisfy an Auth-family assertion. This matters when

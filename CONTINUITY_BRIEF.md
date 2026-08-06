@@ -121,6 +121,14 @@ numeric session chunks during Supabase SSR reconstruction. The follow-up repair
 honors `Max-Age=0` and expired deletion attributes and no longer counts empty
 cookie values as an Auth family. Gate 7 remains pending a fresh exact-head run.
 
+Exact-head staging run `31082627789` passed runtime, staff Auth, and two-tenant
+RLS, then correctly rejected the emailed member action because Supabase had
+replaced the requested staging Worker PKCE callback with its fallback origin.
+The hosted Auth Site URL now equals `STAGING_WORKER_ORIGIN`, the full staging
+Worker callback namespace is allowlisted, and the application fails closed on
+an explicit `signInWithOtp` provider error. Gate 7 remains pending a fresh
+exact-head run.
+
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
 dump completed on 2026-08-05; the existing daily cron continues to call the

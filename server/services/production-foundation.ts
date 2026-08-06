@@ -876,6 +876,7 @@ export class ProductionFoundationService
       organizationId: member.organization_id,
       requestHost: callbackHost,
     });
+    const linkStateHash = await sha256(linkState);
     const { error: contextError } = await this.admin.rpc(
       "register_member_auth_link_context",
       {
@@ -885,7 +886,7 @@ export class ProductionFoundationService
         p_member_id: member.id,
         p_organization_id: member.organization_id,
         p_request_host: callbackHost,
-        p_token_hash: await sha256(linkState),
+        p_token_hash: linkStateHash,
       },
     );
     if (contextError) {
@@ -895,17 +896,33 @@ export class ProductionFoundationService
         "Member sign-in is temporarily unavailable.",
       );
     }
-    setMemberAuthLinkContextCookie(this.response, this.env, linkState);
     const callback = new URL("/api/auth/member/callback", callbackOrigin);
     callback.searchParams.set("state", linkState);
 
-    await this.surfaceClient("member").auth.signInWithOtp({
+    const { error: magicLinkError } = await this.surfaceClient(
+      "member",
+    ).auth.signInWithOtp({
       email,
       options: {
         emailRedirectTo: callback.toString(),
         shouldCreateUser: true,
       },
     });
+    if (magicLinkError) {
+      await this.admin
+        .from("member_auth_link_contexts")
+        .delete()
+        .eq("token_hash", linkStateHash)
+        .eq("organization_id", member.organization_id)
+        .eq("brand_id", member.brand_id)
+        .eq("member_id", member.id);
+      throw new AppError(
+        503,
+        "configuration_error",
+        "Member sign-in is temporarily unavailable.",
+      );
+    }
+    setMemberAuthLinkContextCookie(this.response, this.env, linkState);
   }
 
   protected async activeBrandId(
