@@ -153,11 +153,12 @@ Git SHA, the root surface, `/app/`, `/portal/`, and exact Apple and Android
 association payloads for the signed identities. The separate marketing root,
 app, and guide body digests must remain unchanged.
 
-If domain-attachment or HTTPS health verification does not pass, the control script
-removes the attempted Worker domain and reattaches the live hostname to its
-Pages project. Treat the workflow as failed until the restored live Pages root
-and `/app/` prototype are independently reverified. The marketing hostname is
-checked separately and must remain unchanged throughout.
+If domain attachment, HTTPS health verification, or the final independent
+marketing-content invariant does not pass, the control script removes the
+attempted Worker domain and reattaches the live hostname to its Pages project.
+Treat the workflow as failed until the restored live Pages root and `/app/`
+prototype are independently reverified. The marketing hostname is checked
+separately and must remain unchanged throughout.
 
 ## Rollback
 

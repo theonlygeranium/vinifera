@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Extended the production hostname cutover recovery boundary through the final
+  marketing-content invariant check, so any late digest mismatch removes the
+  Worker domain and restores the retained Pages topology.
+
 ### Changed
 - Keep pre-cutover production Auth callbacks on the exact allowlisted
   `workers.dev` origin used by signed Gate 17/18 builds, and validate Worker

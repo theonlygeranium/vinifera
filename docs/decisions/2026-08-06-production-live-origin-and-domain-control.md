@@ -32,9 +32,9 @@ The protected production workflow adds two explicit domain operations:
   topology, and exact confirmation are revalidated. It verifies the exact
   Cloudflare Worker-domain record and then the complete hosted HTTPS health
   contract, which is the certificate-readiness proof available at the public
-  boundary. If
-  either fails, it removes the attempted Worker custom domain and restores the
-  existing `vinifera-live` Pages hostname.
+  boundary. If either check or the final marketing-content invariant fails, it
+  removes the attempted Worker custom domain and restores the existing
+  `vinifera-live` Pages hostname.
 - `restore-live-pages` removes only that Worker custom domain and restores only
   that hostname to the authorized `vinifera-live` Pages project after the
   separate restore confirmation passes.

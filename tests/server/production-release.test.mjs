@@ -173,6 +173,7 @@ function configurationPayload(
 function cloudflareMock({
   healthOk = true,
   includeCertificateId = true,
+  marketingChangesAfterCutover = false,
   pagesPostFails = false,
   pagesDomain = true,
   pagesStatus = "active",
@@ -222,7 +223,11 @@ function cloudflareMock({
       }
       if (url.hostname === marketingHostname) {
         return new Response(
-          url.pathname === "/guide/" ? marketingGuide : pagesRoot,
+          marketingChangesAfterCutover && state.workerDomain
+            ? "unexpected marketing mutation"
+            : url.pathname === "/guide/"
+              ? marketingGuide
+              : pagesRoot,
           { headers: { "Content-Type": "text/html" } },
         );
       }
@@ -950,6 +955,14 @@ describe("Cloudflare production control plane", () => {
           call.pathname.endsWith(`/pages/projects/${pagesProjectName}/domains`),
       ),
     ).toBe(true);
+  });
+
+  it("restores Pages when the final marketing invariant changes", async () => {
+    const mock = cloudflareMock({ marketingChangesAfterCutover: true });
+    await expect(cutoverToWorker(controlOptions(mock.fetcher))).rejects.toThrow(
+      /Pages was restored/,
+    );
+    expect(mock.state).toEqual({ pagesDomain: true, workerDomain: false });
   });
 
   it("refuses cutover unless the retained Pages hostname is active", async () => {

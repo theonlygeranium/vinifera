@@ -692,11 +692,13 @@ export async function cutoverToWorker(options) {
   let attached;
   let certified;
   let publicProof;
+  let marketingAfter;
   try {
     attached = await attachWorkerDomain(options);
     const verified = await verifyWorkerAttachment(options, attached?.id);
     certified = verified.attached;
     publicProof = verified.publicProof;
+    marketingAfter = await assertMarketingUnchanged(options, marketingBefore);
   } catch (error) {
     let attachedDomainId = attached?.id;
     if (!attachedDomainId) {
@@ -733,7 +735,7 @@ export async function cutoverToWorker(options) {
     attached: certified,
     before: snapshot,
     marketing: {
-      after: await assertMarketingUnchanged(options, marketingBefore),
+      after: marketingAfter,
       before: marketingBefore,
     },
     publicProof,
