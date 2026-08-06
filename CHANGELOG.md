@@ -4,9 +4,9 @@
 
 ### Changed
 - Raise the documented Vitest regression floor from 550 to the verified
-  560-test hosted-acceptance exact head. **Deployment impact:** QA and agent
-  documentation only; no runtime, provider, database, credential, billing,
-  DNS, mobile-store, or production mutation.
+  566-test hosted-acceptance and auth-presence repair head. **Deployment
+  impact:** QA and agent documentation only; no runtime, provider, database,
+  credential, billing, DNS, mobile-store, or production mutation.
 - Add an opt-in protected hosted Gate 7 acceptance controller that provisions
   two scoped synthetic tenants, verifies staff/member Auth and API/native RLS
   isolation, exercises Stripe test Checkout plus signed, duplicate, and forged
@@ -56,6 +56,15 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Recognize Supabase SSR chunked staff and member session cookies in the
+  production/staging auth-presence middleware. The hosted Gate 7 controller
+  correctly replayed both cookie chunks, but the early defense-in-depth gate
+  accepted only the unchunked base name and rejected the authenticated request
+  before the authoritative service-layer session check. Add exact-name and
+  numeric-chunk regressions while rejecting similarly prefixed state cookies.
+  **Deployment impact:** corrects hosted staff/member cookie authentication in
+  staging and production code paths; no credential, database, provider, DNS,
+  billing, or mobile-store mutation.
 - Split every value returned by Node's `Headers.getSetCookie()` before merging
   the hosted Gate 7 cookie jar. Cloudflare can fold multiple Supabase SSR Auth
   cookie chunks into one header value; retaining only its first chunk allowed

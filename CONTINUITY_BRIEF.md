@@ -79,6 +79,15 @@ the controller retained only chunk zero. The follow-up repair splits every
 entry before merging the jar, including safe handling of an `Expires` comma.
 Gate 7 remains pending a fresh exact-head run.
 
+Exact-head staging run `31078478629` proved that the controller now replays
+both folded SSR cookie chunks, then exposed the application-side counterpart:
+the production/staging auth-presence middleware recognized only the unchunked
+base cookie name and rejected numeric `.0`/`.1` chunks before the authoritative
+service-layer session validation. The follow-up repair parses cookie names and
+accepts only the exact staff/member base names or numeric Supabase chunk
+suffixes, with regressions rejecting similarly prefixed state cookies. Gate 7
+remains pending a fresh exact-head run.
+
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
 dump completed on 2026-08-05; the existing daily cron continues to call the
