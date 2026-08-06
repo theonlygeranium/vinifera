@@ -627,13 +627,10 @@ export async function ensureRuntimeSendingKey(
       headers: resendHeaders(provisioningApiKey),
       method: "POST",
     });
-    const createdId =
+    let createdId =
       typeof created?.id === "string" && created.id.trim()
         ? created.id.trim()
-        : required(
-            (await inventoryRuntimeSendingKey(provisioningApiKey))?.id,
-            "Resend runtime API key ID",
-          );
+        : null;
     // Resend returns this value only once. Store it before any provider
     // inventory or other fallible post-creation work can interrupt bootstrap.
     try {
@@ -644,6 +641,19 @@ export async function ensureRuntimeSendingKey(
       );
       await persistToken(token);
     } catch (persistenceError) {
+      if (!createdId) {
+        try {
+          createdId = required(
+            (await inventoryRuntimeSendingKey(provisioningApiKey))?.id,
+            "Resend runtime API key ID",
+          );
+        } catch (inventoryError) {
+          throw new AggregateError(
+            [persistenceError, inventoryError],
+            "Runtime-key persistence failed and its provider ID could not be recovered.",
+          );
+        }
+      }
       try {
         await apiJson(
           RESEND_ORIGIN,
@@ -657,6 +667,12 @@ export async function ensureRuntimeSendingKey(
         );
       }
       throw persistenceError;
+    }
+    if (!createdId) {
+      createdId = required(
+        (await inventoryRuntimeSendingKey(provisioningApiKey))?.id,
+        "Resend runtime API key ID",
+      );
     }
     key = await inventoryRuntimeSendingKey(provisioningApiKey);
     expect(

@@ -20,7 +20,7 @@
   idempotent Cloudflare reconciliation, asynchronous verification, exact-source
   evidence binding, and post-mutation re-inventory. Split the provisioning key
   from the domain-restricted sending-only runtime key, persist its one-time
-  token before fallible postchecks, persist the webhook's one-time signing
+  token before fallible postchecks or missing-ID recovery, persist the webhook's one-time signing
   secret before provider re-read, and reuse the stable controller-owned
   unsubscribe secret across retries. If either one-time secret write fails,
   delete only the resource created by that attempt so a retry can recreate it;
@@ -35,7 +35,7 @@
   deployment environment's branch policy. Validate an inventoried webhook's
   persisted signing-secret binding before any provider update. Keep the static secret-writer guard
   aligned with its environment-parameterized, repository-bound command.
-  Verification: 20/20 focused provisioning tests and 595/595 full Vitest
+  Verification: 21/21 focused provisioning tests and 596/596 full Vitest
   tests, app build, and Worker dry-run. **Deployment impact:** protected
   manual workflow/source only; empty policy blocks provider/DNS mutation,
   deletion is restricted to same-attempt one-time-secret recovery, and source

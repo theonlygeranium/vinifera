@@ -531,6 +531,34 @@ describe("Resend staging provisioning controller", () => {
     expect(fetchMock.mock.calls[2][1].method).toBe("DELETE");
   });
 
+  it("persists a one-time token before recovering a missing provider key ID", async () => {
+    const order = [];
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        order.push("inventory");
+        return Response.json({ data: [] });
+      })
+      .mockImplementationOnce(async () => {
+        order.push("create");
+        return Response.json({ token: "re_runtime_sender" });
+      })
+      .mockImplementationOnce(async () => {
+        order.push("recover-id");
+        throw new Error("synthetic inventory outage");
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      ensureRuntimeSendingKey(
+        "re_provisioning_admin",
+        "domain-one",
+        true,
+        async () => order.push("persist"),
+      ),
+    ).rejects.toThrow(/inventory outage/u);
+    expect(order).toEqual(["inventory", "create", "persist", "recover-id"]);
+  });
+
   it("deletes a newly created runtime key when its token response is malformed", async () => {
     const fetchMock = vi
       .fn()

@@ -786,7 +786,7 @@ npm run check           # TypeScript + 592 Vitest must pass
 #
 #    <what changed and why>
 #
-#    Verification: npm run check; 595/595 Vitest; 155 passed Playwright/axe
+#    Verification: npm run check; 596/596 Vitest; 155 passed Playwright/axe
 # 7. Open PR targeting dev
 ```
 
@@ -809,7 +809,7 @@ The testing mission is complete when all of the following are true:
 
 | Criterion | Target |
 |-----------|--------|
-| Vitest suite | 595/595 passing (must not decrease) |
+| Vitest suite | 596/596 passing (must not decrease) |
 | Playwright/axe suite | 155 passing with 3 hosted-only skips (must not decrease) |
 | axe-core WCAG 2.1 AA | Zero violations on all 23 routes × 3 viewports |
 | Horizontal overflow | Zero pages overflow at 375 px |
@@ -873,7 +873,7 @@ The baseline `dev` branch (v0.5.0, BS-01–06 merged) passes the following — d
 
 | Suite | Baseline count | Command |
 |-------|---------------|---------|
-| Vitest unit/integration | 595 | `npm run check` |
+| Vitest unit/integration | 596 | `npm run check` |
 | Phase 2 DB | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB | 199 assertions | `npm run qa:db:phase3` |
 | Phase 4 DB | 159 assertions | `npm run qa:db:phase4` |
