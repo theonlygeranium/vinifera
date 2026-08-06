@@ -58,7 +58,9 @@ Run `bootstrap` with the exact reviewed default-branch SHA. It creates or
 inventories one exact domain and webhook, updates the webhook to the complete
 enabled event contract when necessary, and creates one runtime API key with
 `sending_access` restricted to the exact Resend `domain_id`. It never writes
-DNS. The one-time runtime token is streamed into the protected
+DNS. Every domain, webhook, and API-key inventory follows all Resend cursor
+pages before absence can authorize creation. The one-time runtime token is
+streamed into the protected
 `STAGING_RESEND_API_KEY` secret immediately after creation, before provider
 re-inventory or DNS postchecks. The sanitized artifact supplies the runtime key's ID hash and each returned
 record's `nameSha256`, `type`, `valueSha256`, and `priority`. Copy the exact key

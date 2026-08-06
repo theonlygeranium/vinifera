@@ -10,6 +10,7 @@ import {
   ensureDomain,
   ensureRuntimeSendingKey,
   ensureWebhook,
+  listResendCollection,
   normalizeDnsRecord,
   normalizeWebhookEndpoint,
   recordRuntimeCredential,
@@ -167,6 +168,37 @@ describe("Resend staging provisioning controller", () => {
     ).toThrow(/exact isolated staging/u);
   });
 
+  it("paginates every Resend inventory page with the last returned ID", async () => {
+    const requests = [];
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockImplementationOnce(async (url) => {
+          requests.push(String(url));
+          return Response.json({
+            data: [{ id: "first-page-key" }],
+            has_more: true,
+          });
+        })
+        .mockImplementationOnce(async (url) => {
+          requests.push(String(url));
+          return Response.json({
+            data: [{ id: "second-page-key" }],
+            has_more: false,
+          });
+        }),
+    );
+    await expect(
+      listResendCollection("/api-keys", "re_provisioning_admin"),
+    ).resolves.toEqual([
+      { id: "first-page-key" },
+      { id: "second-page-key" },
+    ]);
+    expect(requests[0]).toContain("limit=100");
+    expect(requests[1]).toContain("after=first-page-key");
+  });
+
   it("normalizes exact Resend DNS records and retains MX priority", () => {
     const domain = "mail.staging.example.com";
     const mx = normalizeDnsRecord(
@@ -262,7 +294,8 @@ describe("Resend staging provisioning controller", () => {
       "fetch",
       vi.fn(async (url, init) => {
         requests.push({ method: init.method, url: String(url) });
-        if (String(url).endsWith("/domains")) {
+        const pathname = new URL(String(url)).pathname;
+        if (pathname === "/domains") {
           return Response.json(
             init.method === "POST"
               ? {
@@ -274,7 +307,7 @@ describe("Resend staging provisioning controller", () => {
               : { data: [] },
           );
         }
-        if (String(url).endsWith("/webhooks")) {
+        if (pathname === "/webhooks") {
           return Response.json({
             data:
               init.method === "POST"
@@ -290,7 +323,7 @@ describe("Resend staging provisioning controller", () => {
               : {}),
           });
         }
-        if (String(url).endsWith("/webhooks/webhook-one")) {
+        if (pathname === "/webhooks/webhook-one") {
           return Response.json({
             endpoint,
             events: ["email.sent"],

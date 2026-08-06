@@ -56,10 +56,12 @@ only from those post-mutation reads. Existing provider DNS records must match
 the normalized tuple and report `proxied: false`; trailing DNS dots are removed
 before suffix checks and comparisons.
 
-Domain and webhook inventory must resolve to zero or one exact resource;
-duplicates fail. Existing webhooks are updated only under `bootstrap` or
-`apply` to the exact endpoint, enabled state, and complete application email
-event set. No provider or DNS deletion is supported.
+Domain, webhook, and runtime-key inventory traverses every Resend cursor page
+before matching and must resolve to zero or one exact resource; duplicates
+fail. Creation is forbidden until the complete inventory proves absence.
+Existing webhooks are updated only under `bootstrap` or `apply` to the exact
+endpoint, enabled state, and complete application email event set. No provider
+or DNS deletion is supported.
 
 During bootstrap, the full-access provisioning key creates the domain-scoped,
 sending-only runtime key. The controller streams only that runtime token and the

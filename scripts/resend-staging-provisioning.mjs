@@ -433,11 +433,35 @@ function unwrapCloudflare(payload, label) {
   return payload.result;
 }
 
+export async function listResendCollection(path, apiKey) {
+  const entries = [];
+  let after = null;
+  const seenCursors = new Set();
+  for (let page = 0; page < 100; page += 1) {
+    const query = new URLSearchParams({ limit: "100" });
+    if (after) query.set("after", after);
+    const payload = await apiJson(
+      RESEND_ORIGIN,
+      `${path}?${query.toString()}`,
+      { headers: resendHeaders(apiKey) },
+    );
+    expect(Array.isArray(payload?.data), "Resend inventory is invalid.");
+    entries.push(...payload.data);
+    if (payload.has_more !== true) return entries;
+    const cursor = String(payload.data.at(-1)?.id ?? "").trim();
+    expect(
+      cursor && !seenCursors.has(cursor),
+      "Resend inventory pagination cursor is invalid.",
+    );
+    seenCursors.add(cursor);
+    after = cursor;
+  }
+  throw new Error("Resend inventory exceeded the pagination limit.");
+}
+
 async function inventoryDomain(apiKey, domain) {
-  const list = await apiJson(RESEND_ORIGIN, "/domains", {
-    headers: resendHeaders(apiKey),
-  });
-  const matches = (list?.data ?? []).filter(
+  const list = await listResendCollection("/domains", apiKey);
+  const matches = list.filter(
     (entry) => String(entry?.name ?? "").toLowerCase() === domain,
   );
   expect(
@@ -469,10 +493,8 @@ export async function ensureDomain(apiKey, domain, canCreate) {
 }
 
 async function inventoryWebhook(apiKey, endpoint) {
-  const list = await apiJson(RESEND_ORIGIN, "/webhooks", {
-    headers: resendHeaders(apiKey),
-  });
-  const matches = (list?.data ?? []).filter(
+  const list = await listResendCollection("/webhooks", apiKey);
+  const matches = list.filter(
     (entry) => String(entry?.endpoint ?? "") === endpoint,
   );
   expect(
@@ -533,10 +555,8 @@ export async function ensureWebhook(apiKey, endpoint, canMutate) {
 }
 
 async function inventoryRuntimeSendingKey(apiKey) {
-  const list = await apiJson(RESEND_ORIGIN, "/api-keys", {
-    headers: resendHeaders(apiKey),
-  });
-  const matches = (list?.data ?? []).filter(
+  const list = await listResendCollection("/api-keys", apiKey);
+  const matches = list.filter(
     (entry) => String(entry?.name ?? "") === RUNTIME_API_KEY_NAME,
   );
   expect(matches.length <= 1, "Resend contains ambiguous runtime API keys.");

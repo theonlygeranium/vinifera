@@ -3,14 +3,6 @@
 ## [Unreleased]
 
 ### Changed
-- Persist the one-time Resend sending-only runtime key directly into the
-  protected staging environment immediately after creation and before any
-  fallible provider inventory, DNS reconciliation, or verification step. A
-  retry after an interrupted post-create check now records the existing key's
-  sanitized ID hash before rejecting incomplete reviewed policy, so the next
-  policy revision can authorize the already-persisted credential.
-  **Deployment impact:** bootstrap secret handoff ordering only; no new
-  provider operation and no credential value enters evidence or logs.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from
@@ -22,25 +14,19 @@
   secret binding only; no provider
   resource, winery data, fixture, model, integration, DNS, live-billing,
   mobile-store, or production mutation.
-- Add a disabled-by-default, trusted default-branch Gate 8 provisioning
-  controller for exact Resend domain/webhook inventory, two-stage reviewed DNS
-  authorization, idempotent Cloudflare record creation, asynchronous domain
-  verification, and direct protected staging secret handoff over stdin. Retain
-  only sanitized target/provider/DNS hashes and readiness evidence, reject
-  ambiguity or conflicting DNS, and support no deletion. **Deployment impact:**
-  source and protected manual workflow only; the empty target policy blocks all
-  provider and DNS calls until exact hashes are reviewed, and no hosted resource,
-  secret, Worker, or Gate 8 state changes in this commit.
-  Split the full-access provisioning key from a bootstrap-created,
-  domain-restricted sending-only runtime key; require the runtime-key ID in the
-  reviewed policy; classify the controller, workflow, and policy as
-  authority-high-risk; normalize trailing DNS dots before suffix checks; reject
-  proxied existing provider records; derive readiness only from post-mutation
-  Resend and Cloudflare inventories; and bind evidence to the exact source SHA,
-  policy digest, canonical repository, and workflow run identity.
-- Raise the documented Vitest regression floor from 569 to the verified 588
-  tests after adding the provisioning policy and workflow controls. **Deployment
-  impact:** QA documentation only; no additional hosted mutation.
+- Add the disabled-by-default trusted Gate 8 provisioning controller and its
+  complete review hardening: exact hashed target policy, all-page Resend
+  domain/webhook/runtime-key inventory before creation, two-stage DNS review,
+  idempotent Cloudflare reconciliation, asynchronous verification, exact-source
+  evidence binding, and post-mutation re-inventory. Split the provisioning key
+  from the domain-restricted sending-only runtime key, persist its one-time
+  token before fallible postchecks, and on interrupted-bootstrap retry emit the
+  existing key's sanitized ID hash before rejecting incomplete policy. Secrets
+  stream only over stdin and evidence retains hashes rather than raw targets or
+  credentials. Verification: 16/16 focused provisioning tests and 591/591 full
+  Vitest tests, app build, and Worker dry-run. **Deployment impact:** protected
+  manual workflow/source only; empty policy blocks provider/DNS mutation, no
+  deletion is supported, and source completion does not change Gate 8 status.
 - Remove the broad required-reviewer rule from the protected `staging` GitHub
   environment while retaining its staging-only branch policy and the
   repository's exact-candidate, provider-target, confirmation, health,
