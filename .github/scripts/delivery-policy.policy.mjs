@@ -1084,6 +1084,7 @@ test("trusted preview publisher never executes PR-head code beside credentials",
     workflow.indexOf("  publish:"),
   );
   assert.doesNotMatch(tokenlessPolicy, /GH_TOKEN|github\.token|\bsecrets\./);
+  assert.doesNotMatch(tokenlessPolicy, /continue-on-error: true/);
   assert.match(privileged, /name: Frontend preview evidence/);
   assert.match(privileged, /Fresh trusted default-branch checkout/);
   assert.match(privileged, /needs: validate/);
