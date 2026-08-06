@@ -1710,8 +1710,8 @@ jobs:
               --no-bundle --assets release/dist --env staging --strict \
               --secrets-file "${{ steps.worker-secrets.outputs.path }}" \
               --var "APP_ENV:staging" \
-              --var "APP_ORIGIN:https://vinifera-staging.edstratumlabs.ai" \
-              --var "ALLOWED_ORIGINS:https://vinifera-staging.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+              --var "APP_ORIGIN:$STAGING_WORKER_ORIGIN" \
+              --var "ALLOWED_ORIGINS:$STAGING_WORKER_ORIGIN,capacitor://localhost,https://localhost" \
               --var "LIVE_BILLING_ENABLED:false" \
               --var "DEPLOY_GIT_SHA:${{ steps.release-package.outputs.candidate_sha }}" \
               --tag "candidate-${{ steps.release-package.outputs.candidate_sha }}" \
@@ -1721,8 +1721,8 @@ jobs:
             npx wrangler versions upload release/worker/worker.js \
               --no-bundle --assets release/dist --env staging --strict \
               --var "APP_ENV:staging" \
-              --var "APP_ORIGIN:https://vinifera-staging.edstratumlabs.ai" \
-              --var "ALLOWED_ORIGINS:https://vinifera-staging.edstratumlabs.ai,capacitor://localhost,https://localhost" \
+              --var "APP_ORIGIN:$STAGING_WORKER_ORIGIN" \
+              --var "ALLOWED_ORIGINS:$STAGING_WORKER_ORIGIN,capacitor://localhost,https://localhost" \
               --var "LIVE_BILLING_ENABLED:false" \
               --var "DEPLOY_GIT_SHA:${{ steps.release-package.outputs.candidate_sha }}" \
               --tag "candidate-${{ steps.release-package.outputs.candidate_sha }}" \

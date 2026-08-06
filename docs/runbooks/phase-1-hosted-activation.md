@@ -112,6 +112,8 @@ After the database gate passes:
 1. Enable `STAGING_CLOUDFLARE_DEPLOY_ENABLED`.
 2. Dispatch the staging workflow from the verified `staging` commit.
 3. Require the deployment to target only `vinifera-staging` on `workers.dev`.
+   Until Gate 16 attaches a reviewed custom hostname, use that same isolated
+   `workers.dev` origin for `APP_ORIGIN`, Auth callbacks, and browser CORS.
 4. Verify `/api/health` returns JSON with service `vinifera-api`.
 5. Verify `/api/health/configuration` reports the Phase 1 database and Auth
    core configured before functional testing.

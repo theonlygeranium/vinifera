@@ -44,6 +44,13 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Use the protected isolated `STAGING_WORKER_ORIGIN` as the staging
+  `APP_ORIGIN` and browser CORS origin until custom-hostname Gate 16 is
+  activated. This keeps staff and member Auth callbacks on the same deployed
+  origin that owns their cookies and prevents hosted Gate 7 flows from being
+  redirected to an unattached custom domain. **Deployment impact:** changes
+  only staging Worker callback/CORS variables; production and DNS remain
+  untouched.
 - Retry isolated staging runtime verification during the short workers.dev
   propagation window after an immutable version reaches 100% traffic. Each
   attempt rechecks health, configuration, the database-backed branding route,

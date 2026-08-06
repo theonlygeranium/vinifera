@@ -40,6 +40,9 @@ resolution with end-to-end brand scoping, email-claim digest resolution, and
 early-webhook reconciliation.
 The staging deploy now requires `environment=staging` plus the exact promoted SHA,
 and the service-token bindings are included in the atomic Worker secret upload.
+The Gate 7 prerequisite repair also uses the protected isolated `workers.dev`
+origin for staging Auth callbacks and CORS; the unattached custom hostname is
+not used before Gate 16.
 
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
