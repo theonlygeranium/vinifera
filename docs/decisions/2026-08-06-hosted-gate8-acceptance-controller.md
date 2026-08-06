@@ -25,7 +25,8 @@ staging deployment validates all required communications bindings before
 upload, deploys those bindings atomically with the reviewed Worker version,
 and then unlocks an isolated `gate8-acceptance` job. That job runs
 `scripts/hosted-gate8-acceptance.mjs` with a bounded 70-minute wait and a fresh
-85-minute timeout, leaving 15 minutes for fixture retirement and evidence
+100-minute timeout: 15 minutes for setup, 70 minutes for provider delivery,
+and 15 minutes for fixture retirement and evidence
 upload. An activated staging Gate 8 workflow is not superseded by a later run;
 routine full-validation runs retain cancellation of obsolete work.
 

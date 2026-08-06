@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Reserved a bounded setup allowance in the hosted Gate 8 acceptance job so its
+  70-minute provider poll cannot consume the fixture-retirement window, and
+  corrected the documented exact Vitest floor to 584.
+
 ### Changed
 - Add the opt-in hosted Gate 8 acceptance controller and its complete review
   hardening: exact paginated Resend domain/webhook inventory, verified active

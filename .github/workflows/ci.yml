@@ -1957,7 +1957,7 @@ jobs:
       needs.deploy-staging.result == 'success' &&
       vars.STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 85
+    timeout-minutes: 100
     environment: staging
     steps:
       - name: Check out exact staging source

@@ -244,7 +244,7 @@ describe("hosted Gate 8 acceptance controller", () => {
     const gate8Job = workflow.slice(gate8JobStart);
     expect(deployJob).not.toContain("scripts/hosted-gate8-acceptance.mjs");
     expect(gate8Job).toContain("needs: deploy-staging");
-    expect(gate8Job).toContain("timeout-minutes: 85");
+    expect(gate8Job).toContain("timeout-minutes: 100");
     expect(gate8Job).toContain('HOSTED_GATE8_WAIT_SECONDS: "4200"');
     expect(workflow).toContain(
       "cancel-in-progress: ${{ github.ref != 'refs/heads/staging' || vars.STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED != 'true' }}",

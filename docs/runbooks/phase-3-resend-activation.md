@@ -144,8 +144,10 @@ promotion. The controller:
    audit evidence.
 
 The mutation runs only after the staging deployment job succeeds, in a
-dedicated 85-minute job with a bounded 70-minute provider wait. While the Gate
-8 toggle is active, a later staging run does not supersede the in-flight
+dedicated 100-minute job with a bounded 70-minute provider wait. The additional
+15-minute setup allowance keeps the existing 15-minute cleanup reserve intact
+after checkout, dependency installation, runtime discovery, and fixture setup.
+While the Gate 8 toggle is active, a later staging run does not supersede the in-flight
 workflow, preserving the reserved cleanup window for fixture retirement and
 sanitized evidence upload.
 
