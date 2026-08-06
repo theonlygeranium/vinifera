@@ -6,7 +6,10 @@
 - Complete Gate 8 provider inventory across every Resend cursor page, require
   every active brand sender identity to be verified, bound and authenticate
   both Worker health probes, strengthen no-mutation source guards, and align
-  the normative gate exit criteria and QA date. **Deployment impact:**
+  the normative gate exit criteria and QA date. Isolate the long acceptance
+  mutation in a fresh 85-minute post-deployment job, reserve 15 minutes after
+  its bounded provider wait for fixture retirement, and prevent an activated
+  staging run from being superseded before cleanup. **Deployment impact:**
   protected staging acceptance and documentation only; no provider mutation.
 - Raise the branch Vitest regression floor from 582 to the verified 583 tests
   after adding behavioral cursor-pagination coverage. **Deployment impact:**

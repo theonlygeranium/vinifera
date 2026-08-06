@@ -203,6 +203,20 @@ describe("hosted Gate 8 acceptance controller", () => {
     expect(workflow).toContain(
       "Gate 8 acceptance is enabled but required bindings are missing",
     );
+    const gate8JobStart = workflow.indexOf("\n  gate8-acceptance:");
+    expect(gate8JobStart).toBeGreaterThan(0);
+    const deployJob = workflow.slice(
+      workflow.indexOf("\n  deploy-staging:"),
+      gate8JobStart,
+    );
+    const gate8Job = workflow.slice(gate8JobStart);
+    expect(deployJob).not.toContain("scripts/hosted-gate8-acceptance.mjs");
+    expect(gate8Job).toContain("needs: deploy-staging");
+    expect(gate8Job).toContain("timeout-minutes: 85");
+    expect(gate8Job).toContain('HOSTED_GATE8_WAIT_SECONDS: "4200"');
+    expect(workflow).toContain(
+      "cancel-in-progress: ${{ github.ref != 'refs/heads/staging' || vars.STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED != 'true' }}",
+    );
   });
 
   it("performs read-only provider discovery and retains sanitized durable evidence", async () => {

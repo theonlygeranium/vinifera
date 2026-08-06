@@ -18,7 +18,7 @@ on:
 
 concurrency:
   group: vinifera-full-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/staging' || vars.STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED != 'true' }}
 
 permissions:
   actions: read
@@ -1931,8 +1931,51 @@ jobs:
             echo "::error::At least one requested Gate 10-16 readiness probe is blocked. Inspect the sanitized artifact."
             exit 1
           fi
-      - name: Run hosted Gate 8 acceptance when activated
-        if: steps.activation.outputs.ready == 'true' && vars.STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED == 'true'
+      - name: Remove temporary Worker secret bundle
+        if: always() && steps.worker-secrets.outputs.path != ''
+        shell: bash
+        run: rm -f "${{ steps.worker-secrets.outputs.path }}"
+
+      - name: Upload sanitized staging runtime evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: staging-runtime-evidence
+          path: |
+            ${{ runner.temp }}/vinifera-staging-runtime.json
+            ${{ runner.temp }}/vinifera-staging-release.json
+            ${{ runner.temp }}/stripe-test-catalog-verification.json
+            ${{ runner.temp }}/vinifera-hosted-gate7-acceptance.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  gate8-acceptance:
+    name: Hosted Gate 8 acceptance when activated
+    needs: deploy-staging
+    if: >-
+      always() &&
+      needs.deploy-staging.result == 'success' &&
+      vars.STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    environment: staging
+    steps:
+      - name: Check out exact staging source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.22.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run hosted Gate 8 acceptance
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
@@ -1958,21 +2001,11 @@ jobs:
           echo "- Real provider delivery and signed webhook reconciliation: passed" >> "$GITHUB_STEP_SUMMARY"
           echo "- One-shot fixture retired with durable email evidence retained: passed" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Remove temporary Worker secret bundle
-        if: always() && steps.worker-secrets.outputs.path != ''
-        shell: bash
-        run: rm -f "${{ steps.worker-secrets.outputs.path }}"
-
-      - name: Upload sanitized staging runtime evidence
+      - name: Upload sanitized Gate 8 evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: staging-runtime-evidence
-          path: |
-            ${{ runner.temp }}/vinifera-staging-runtime.json
-            ${{ runner.temp }}/vinifera-staging-release.json
-            ${{ runner.temp }}/stripe-test-catalog-verification.json
-            ${{ runner.temp }}/vinifera-hosted-gate7-acceptance.json
-            ${{ runner.temp }}/vinifera-hosted-gate8-acceptance.json
-          if-no-files-found: ignore
-          retention-days: 14
+          name: hosted-gate8-acceptance-${{ github.sha }}
+          path: ${{ runner.temp }}/vinifera-hosted-gate8-acceptance.json
+          if-no-files-found: error
+          retention-days: 90

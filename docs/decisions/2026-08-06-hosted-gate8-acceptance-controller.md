@@ -23,9 +23,11 @@ Add a separate, explicit staging toggle,
 `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED`. When it is `true`, the protected
 staging deployment validates all required communications bindings before
 upload, deploys those bindings atomically with the reviewed Worker version,
-and runs `scripts/hosted-gate8-acceptance.mjs` with a bounded 70-minute wait.
-The staging job has a 90-minute timeout to accommodate the next real hourly
-Cron Trigger plus deployment and evidence work.
+and then unlocks an isolated `gate8-acceptance` job. That job runs
+`scripts/hosted-gate8-acceptance.mjs` with a bounded 70-minute wait and a fresh
+85-minute timeout, leaving 15 minutes for fixture retirement and evidence
+upload. An activated staging Gate 8 workflow is not superseded by a later run;
+routine full-validation runs retain cancellation of obsolete work.
 
 The controller treats Resend as read-only. It inventories the configured
 sending domain and exact `/api/webhooks/resend` staging endpoint through
@@ -71,6 +73,9 @@ evidence from a reviewed exact staging candidate can mark the gate passed.
   path rather than a simulator or local shortcut.
 - The opt-in run can wait until the next hour and should be disabled after its
   one-shot evidence is accepted.
+- Activated Gate 8 runs consume a dedicated non-superseded job so another
+  staging run cannot cancel fixture retirement and earlier deployment work
+  cannot consume the cleanup timeout reserve.
 - Synthetic staging records are retired without deleting immutable delivery
   or audit history.
 - Missing, stale, or mismatched communications bindings stop deployment before

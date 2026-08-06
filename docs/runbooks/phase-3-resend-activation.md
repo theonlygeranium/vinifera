@@ -141,6 +141,12 @@ promotion. The controller:
 7. retires the member, tier, and release while retaining durable email and
    audit evidence.
 
+The mutation runs only after the staging deployment job succeeds, in a
+dedicated 85-minute job with a bounded 70-minute provider wait. While the Gate
+8 toggle is active, a later staging run does not supersede the in-flight
+workflow, preserving the reserved cleanup window for fixture retirement and
+sanitized evidence upload.
+
 The sanitized `vinifera-hosted-gate8-acceptance.json` artifact is necessary but
 does not by itself mark the gate passed; bind it to the reviewed candidate,
 Worker version, and protected staging run. Set the toggle back to `false` after
