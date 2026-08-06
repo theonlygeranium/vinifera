@@ -35,6 +35,11 @@ The artifact-supplied applicability must still equal the independently derived
 base-policy result. Invalid metadata, a moved base/head, unknown paths under the
 current base policy, or any classification error remains terminal.
 
+The trusted base classifier explicitly enumerates each remaining activation
+policy JSON file as authority-bearing high risk. Reviewed gate-policy changes
+can therefore produce non-applicable preview evidence while every other
+unknown `config/` path remains terminal.
+
 ## Consequences
 
 - Preview classification follows the exact trusted policy governing the PR.

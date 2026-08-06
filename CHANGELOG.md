@@ -1346,6 +1346,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Teach the trusted default-branch classifier the exact remaining-gate policy
+  filenames so non-frontend PRs can publish an authoritative non-applicable
+  preview result without weakening unknown-path fail-closed behavior.
+  **Deployment impact:** trusted preview classification only; no gate,
+  provider, database, Worker, DNS, billing, or mobile-store mutation.
 - **What changed:** Octopus Rule 8 now models assigned descendants of a shared
   `.from(...)` table builder as independent leaf chains. A regression combines
   a scoped select and unscoped delete from the same root and verifies the delete
