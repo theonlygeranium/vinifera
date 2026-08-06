@@ -379,15 +379,19 @@ export function authorizeDnsRecords(
   { requireComplete = false } = {},
 ) {
   const actual = records.map(dnsRecordPolicyEntry);
+  const actualKeys = actual.map((entry) => JSON.stringify(entry));
+  const policyKeys = policy.dnsRecords.map((entry) => JSON.stringify(entry));
+  expect(
+    new Set(actualKeys).size === actualKeys.length,
+    "Resend DNS inventory contains duplicate tuples.",
+  );
   const authorized = actual.filter((entry) =>
-    policy.dnsRecords.some(
-      (candidate) => JSON.stringify(candidate) === JSON.stringify(entry),
-    ),
+    policyKeys.includes(JSON.stringify(entry)),
   );
   if (requireComplete) {
     expect(
-      authorized.length === actual.length &&
-        policy.dnsRecords.length === actual.length,
+      actualKeys.length === policyKeys.length &&
+        actualKeys.every((entry) => policyKeys.includes(entry)),
       "Exact Resend DNS record policy is incomplete or stale.",
     );
   }

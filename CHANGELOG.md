@@ -17,7 +17,8 @@
 - Add the disabled-by-default trusted Gate 8 provisioning controller and its
   complete review hardening: exact hashed target policy, all-page Resend
   domain/webhook/runtime-key inventory before creation, two-stage DNS review,
-  idempotent Cloudflare reconciliation, asynchronous verification, exact-source
+  duplicate-proof exact DNS tuple-set comparison, idempotent Cloudflare
+  reconciliation, asynchronous verification, exact-source
   evidence binding, and post-mutation re-inventory. Split the provisioning key
   from the domain-restricted sending-only runtime key, persist its one-time
   token in an atomic domain-bound controller recovery envelope before fallible

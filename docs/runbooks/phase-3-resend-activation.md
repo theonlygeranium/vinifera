@@ -95,7 +95,9 @@ bindings, and a binding to another provider ID continue to fail closed.
 The sanitized artifact supplies the runtime key's ID hash and each returned
 record's `nameSha256`, `type`, `valueSha256`, and `priority`. Copy the exact key
 ID hash and complete tuple set into the policy in a second reviewed change; do
-not infer, shorten, or hand-edit provider values. If a post-creation check
+not infer, shorten, or hand-edit provider values. Duplicate provider tuples
+fail before set comparison, so one reviewed tuple cannot satisfy multiple
+inventory entries while another is absent. If a post-creation check
 interrupts the first bootstrap, a retry inventories the existing key, writes
 its sanitized ID hash into the failure artifact, and then fails closed until
 that hash is present in reviewed policy.

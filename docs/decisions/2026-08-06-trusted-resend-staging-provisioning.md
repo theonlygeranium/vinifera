@@ -55,7 +55,8 @@ proof. It refetches the exact Resend domain, webhook, and runtime-key inventory,
 re-inventories the Cloudflare zone and every DNS record, and derives readiness
 only from those post-mutation reads. Existing provider DNS records must match
 the normalized tuple and report `proxied: false`; trailing DNS dots are removed
-before suffix checks and comparisons.
+before suffix checks and comparisons. Duplicate Resend tuples are rejected
+before the actual and reviewed tuple sets are compared in both directions.
 
 Domain, webhook, and runtime-key inventory traverses every Resend cursor page
 before matching and must resolve to zero or one exact resource; duplicates

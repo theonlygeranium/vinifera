@@ -284,6 +284,27 @@ describe("Resend staging provisioning controller", () => {
         requireComplete: true,
       }),
     ).toThrow(/incomplete or stale/u);
+    const secondRecord = normalizeDnsRecord(
+      {
+        name: "send",
+        priority: 10,
+        record: "SPF",
+        type: "MX",
+        value: "feedback-smtp.us-east-1.amazonses.com",
+      },
+      "mail.staging.example.com",
+    );
+    const { policy: twoRecordPolicy } = enabledPolicy({
+      dnsRecords: [
+        dnsRecordPolicyEntry(record),
+        dnsRecordPolicyEntry(secondRecord),
+      ],
+    });
+    expect(() =>
+      authorizeDnsRecords([record, record], twoRecordPolicy, {
+        requireComplete: true,
+      }),
+    ).toThrow(/duplicate tuples/u);
   });
 
   it("inventories exact provider resources and creates only when authorized", async () => {
