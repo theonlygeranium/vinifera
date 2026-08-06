@@ -4,7 +4,7 @@
 
 ### Changed
 - Raise the documented Vitest regression floor from 550 to the verified
-  566-test hosted-acceptance and auth-presence repair head. **Deployment
+  568-test hosted-acceptance and Auth-provider repair head. **Deployment
   impact:** QA and agent documentation only; no runtime, provider, database,
   credential, billing, DNS, mobile-store, or production mutation.
 - Add an opt-in protected hosted Gate 7 acceptance controller that provisions
@@ -56,6 +56,15 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Align the hosted Supabase Auth Site URL and redirect allowlist with the exact
+  staging Worker callback namespace after Gate 7 run `31082627789` proved that
+  Supabase was replacing the requested PKCE callback with a fallback origin.
+  Inspect the `signInWithOtp` response and fail closed with a privacy-safe
+  configuration error when the provider rejects delivery; revoke only that
+  failed attempt's database context and preserve any earlier browser link
+  cookie until a new email is accepted. **Deployment
+  impact:** staging Supabase Auth configuration plus member magic-link error
+  handling; no production, live-billing, DNS, or mobile-store mutation.
 - Publish the Gate 7 run-bound handoff identifier and ephemeral public key to
   the protected staging environment variable
   `STAGING_HOSTED_ACCEPTANCE_MAGIC_LINK_HANDOFF`, then remove it when the wait
