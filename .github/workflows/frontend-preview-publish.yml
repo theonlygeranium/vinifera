@@ -21,12 +21,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     outputs:
-      applicable: ${{ steps.validate.outputs.applicable }}
-      base_sha: ${{ steps.validate.outputs.base_sha }}
-      head_ref: ${{ steps.validate.outputs.head_ref }}
-      head_sha: ${{ steps.validate.outputs.head_sha }}
-      pr_number: ${{ steps.validate.outputs.pr_number }}
-      publish_status: ${{ steps.validate.outputs.publish_status }}
+      applicable: ${{ steps.policy.outputs.applicable || steps.identity.outputs.applicable }}
+      base_sha: ${{ steps.policy.outputs.base_sha || steps.identity.outputs.base_sha }}
+      head_ref: ${{ steps.policy.outputs.head_ref || steps.identity.outputs.head_ref }}
+      head_sha: ${{ steps.policy.outputs.head_sha || steps.identity.outputs.head_sha }}
+      pr_number: ${{ steps.policy.outputs.pr_number || steps.identity.outputs.pr_number }}
+      publish_status: ${{ steps.policy.outputs.publish_status || steps.identity.outputs.publish_status }}
     steps:
       - name: Check out isolated default-branch validator
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -46,8 +46,8 @@ jobs:
           github-token: ${{ github.token }}
           run-id: ${{ github.event.workflow_run.id }}
 
-      - name: Validate artifact against live pull request
-        id: validate
+      - name: Validate artifact and live pull request identity
+        id: identity
         continue-on-error: true
         shell: bash
         env:
@@ -135,6 +135,27 @@ jobs:
               >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          printf 'evaluate_policy=true\napplicable=%s\ncandidate_eligible=%s\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
+            "$applicable" "$candidate_eligible" "$base_sha" "$head_ref" "$head_sha" "$pr_number" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Evaluate exact base policy without credentials
+        id: policy
+        if: steps.identity.outputs.evaluate_policy == 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          APPLICABLE: ${{ steps.identity.outputs.applicable }}
+          BASE_SHA: ${{ steps.identity.outputs.base_sha }}
+          CANDIDATE_ELIGIBLE: ${{ steps.identity.outputs.candidate_eligible }}
+          HEAD_REF: ${{ steps.identity.outputs.head_ref }}
+          HEAD_SHA: ${{ steps.identity.outputs.head_sha }}
+          PR_NUMBER: ${{ steps.identity.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/frontend-preview-candidate"
+          base_sha="$BASE_SHA"
+          head_sha="$HEAD_SHA"
           git cat-file -e "$base_sha^{commit}"
           git cat-file -e "$head_sha^{commit}"
           trusted_policy="$RUNNER_TEMP/trusted-delivery-policy.mjs"
@@ -166,11 +187,11 @@ jobs:
             echo "::error::Isolated preview policy returned an invalid result."
             exit 1
           fi
-          if [[ "$applicable" != "$trusted_applicable" ]]; then
+          if [[ "$APPLICABLE" != "$trusted_applicable" ]]; then
             echo "::error::Artifact preview applicability differs from trusted live-diff policy."
             exit 1
           fi
-          if [[ "$candidate_eligible" != "true" && "$trusted_applicable" == "true" ]]; then
+          if [[ "$CANDIDATE_ELIGIBLE" != "true" && "$trusted_applicable" == "true" ]]; then
             echo "::error::A non-candidate cannot require a preview."
             exit 1
           fi
@@ -180,7 +201,7 @@ jobs:
           fi
 
           printf 'publish_status=true\napplicable=%s\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
-            "$trusted_applicable" "$base_sha" "$head_ref" "$head_sha" "$pr_number" \
+            "$trusted_applicable" "$base_sha" "$HEAD_REF" "$head_sha" "$PR_NUMBER" \
             >> "$GITHUB_OUTPUT"
 
   publish:

@@ -1079,6 +1079,11 @@ test("trusted preview publisher never executes PR-head code beside credentials",
   assert.match(isolated, /trusted_applicable=\$\(env -i/);
   assert.doesNotMatch(isolated, /\bsecrets\./);
   assert.doesNotMatch(isolated, /contents: write/);
+  const tokenlessPolicy = workflow.slice(
+    workflow.indexOf("Evaluate exact base policy without credentials"),
+    workflow.indexOf("  publish:"),
+  );
+  assert.doesNotMatch(tokenlessPolicy, /GH_TOKEN|github\.token|\bsecrets\./);
   assert.match(privileged, /name: Frontend preview evidence/);
   assert.match(privileged, /Fresh trusted default-branch checkout/);
   assert.match(privileged, /needs: validate/);
@@ -1096,7 +1101,7 @@ test("trusted preview publisher never executes PR-head code beside credentials",
     workflow,
     /import[\s\S]*from "\.\/\.github\/scripts\/delivery-policy\.mjs"/,
   );
-  assert.match(workflow, /applicable" != "\$trusted_applicable/);
+  assert.match(workflow, /APPLICABLE" != "\$trusted_applicable/);
   assert.match(
     workflow,
     /Protected environment branches do not receive frontend preview deployments/,

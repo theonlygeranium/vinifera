@@ -20,8 +20,9 @@ without weakening PR/base/head binding or the immediate pre-merge check.
 
 The trusted frontend-preview publisher now loads its delivery classifier from
 the live pull request's exact validated `dev` base SHA only inside an isolated
-read-only job whose policy process receives a stripped environment. A separate
-fresh trusted runner re-downloads the candidate and revalidates the exact live
+read-only job. GitHub API identity validation exits before a distinct tokenless
+step launches the policy process with a stripped environment. A separate fresh
+trusted runner re-downloads the candidate and revalidates the exact live
 PR identity before any Pages credential is available; it executes neither base
 nor PR-head code. This avoids false `unknown_path_fail_closed` results without
 expanding the privileged execution boundary.

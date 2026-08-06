@@ -295,8 +295,9 @@
 ### Fixed
 - Load trusted frontend-preview delivery policy from the live pull request's
   exact validated `dev` base SHA rather than from potentially stale `main`, but
-  evaluate that base policy only in an isolated read-only job with credentials
-  stripped from the policy process. The privileged Pages publisher starts on a
+  evaluate that base policy only in a distinct tokenless step after the isolated
+  read-only identity step has exited, with credentials stripped from the policy
+  process. The privileged Pages publisher starts on a
   fresh runner, re-downloads the candidate, and revalidates exact PR/head/base
   identity without executing base or PR-head code. Newly reviewed base-policy
   paths therefore no longer fail as unknown solely because production promotion

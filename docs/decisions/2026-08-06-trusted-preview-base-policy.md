@@ -20,8 +20,9 @@ though the PR workflow correctly classified it from its current base.
 An isolated validation job with read-only repository permissions validates the
 live same-repository PR identity, extracts
 `.github/scripts/delivery-policy.mjs` from the exact base SHA, and imports it in
-a subprocess whose environment contains neither GitHub credentials nor runner
-output/control paths. That runner is discarded after classification.
+a distinct tokenless step after the GitHub API identity step has exited. Its
+subprocess environment contains neither GitHub credentials nor inherited runner
+control paths. That runner is discarded after classification.
 
 A separate privileged job starts from a fresh trusted default-branch checkout,
 re-downloads the exact candidate artifact, and revalidates its PR, head, base,
