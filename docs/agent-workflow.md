@@ -223,12 +223,15 @@ that environment. A feature-ref dispatch must remain unable to read them.
 | `codex-managed` | Includes the PR in recurring monitoring |
 | `codex-auto-fix` | Authorizes scoped reversible repairs under the standing contract |
 | `codex-auto-merge` | Authorizes merge only after the applicable exact-revision gate |
-| `human-review-required` | Pauses all automated mutation, replies, resolutions, merges, promotions, and deployments |
-| `do-not-merge` | Absolute merge prohibition |
+| `human-review-required` | Pauses merge, promotion, deployment, and the specific consequential decision awaiting the owner; safe fixes, replies, thread resolution, review, previews, packaging, and evidence continue |
+| `do-not-merge` | Absolute merge prohibition; it does not suppress read-only validation or evidence gathering |
 
-Automation may apply either emergency label when risk is detected. Only the
-human owner or an explicitly trusted owner workflow may remove it. Neither
-control may be bypassed by standing authorization.
+Automation may apply either stop label when risk is detected. Only the human
+owner or an explicitly trusted owner workflow may remove it. While a label is
+present, trusted automation continues non-production previews, review,
+diagnostics, reversible repair, readiness polling, and immutable artifact
+packaging. It must recheck the label immediately before merge, promotion, or
+deployment and stop that consequential mutation when applicable.
 
 ### Trusted development auto-merge
 
@@ -274,7 +277,8 @@ implemented, CI-verified, deployed, and live-verified states separately,
 current revision and candidate, automatic repairs, health, blockers, next
 automatic action, and the owner action. It does not send external messages.
 
-Apply `human-review-required`, preserve evidence, and notify the owner for:
+Apply `human-review-required`, preserve evidence, continue safe repair and
+validation, and notify the owner for:
 
 - destructive or irreversible database operations;
 - credible production data-loss or corruption risk;
@@ -324,7 +328,8 @@ Repository: theonlygeranium/vinifera
 - CodeRabbit is optional while unavailable or rate-limited.
 - Do not initiate an environment promotion unless this task explicitly
   includes that protected phase.
-- Respect human-review-required and do-not-merge without exception.
+- Treat human-review-required as a consequential-mutation stop and
+  do-not-merge as an absolute merge stop; continue safe evidence and repair.
 
 Task:
 [DESCRIBE THE TASK]

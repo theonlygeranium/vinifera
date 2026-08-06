@@ -93,6 +93,8 @@ describe("dev to staging promotion contract", () => {
     expect(workflow).toContain("(CodeRabbit optional)");
     expect(workflow).toContain("human-review-required");
     expect(workflow).toContain("do-not-merge");
+    expect(workflow.match(/human-review-required/g)).toHaveLength(1);
+    expect(workflow.match(/do-not-merge/g)).toHaveLength(1);
     expect(workflow).toContain("environment: promotion-control");
     expect(workflow).toContain(
       "Promotion control must be dispatched from refs/heads/main.",

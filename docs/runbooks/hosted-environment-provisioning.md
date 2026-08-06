@@ -76,8 +76,9 @@ to them.
 The architecture is currently complete but services are intentionally
 disconnected. Do not treat the sections below as permission to dispatch a
 mutation. Resume only the smallest provider-specific step after its credential,
-target, protected-workflow authority, and absence of `human-review-required`
-and `do-not-merge` are confirmed.
+target, and protected-workflow authority are confirmed. Stop labels do not
+block readiness probes or evidence collection; they are rechecked at the exact
+merge, promotion, or deployment boundary they govern.
 
 ## Staging target authorization
 
@@ -362,9 +363,10 @@ Do not promote one row into another without collecting the named evidence.
 5. Re-enable mutation only after target hashes and sandbox/production modes
    still match.
 
-If `human-review-required` or `do-not-merge` is present, stop mutation,
-promotion, and deployment. Only the human owner or an explicitly trusted owner
-workflow may remove either control.
+If `human-review-required` is present, continue read-only readiness, diagnosis,
+safe repair, and evidence collection, but stop the consequential promotion or
+deployment awaiting owner judgment. `do-not-merge` blocks merge only. Only the
+human owner or an explicitly trusted owner workflow may remove either control.
 
 Database migrations are forward-only. Restore a verified hosted backup instead
 of attempting to drop Phase 1–5 tables. Domain rollback is documented

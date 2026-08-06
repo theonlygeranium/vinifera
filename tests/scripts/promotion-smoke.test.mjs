@@ -25,7 +25,7 @@ function git(cwd, args) {
 
 function fixtureRepo() {
   const root = mkdtempSync(join(tmpdir(), "vinifera-promotion-smoke-"));
-  git(root, ["init", "-q", "--initial-branch=fixture"]);
+  git(root, ["init", "-q", "--initial-branch=fixture-root"]);
   git(root, ["config", "user.email", "test@example.invalid"]);
   git(root, ["config", "user.name", "Promotion Smoke Test"]);
   execFileSync("mkdir", ["-p", "public"], { cwd: root });

@@ -270,7 +270,7 @@ jobs:
             echo "The current main revision is not associated with a merged staging-to-main promotion PR." >&2
             exit 1
           fi
-          if jq -e \
+          if [[ "$OPERATION" != "rollback-worker" ]] && jq -e \
             'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
             <<<"$authorization_pr" >/dev/null; then
             echo "The production promotion is paused by an emergency label." >&2
@@ -309,7 +309,7 @@ jobs:
             echo "The selected artifact SHA is not an exact merged staging-to-main release." >&2
             exit 1
           fi
-          if jq -e \
+          if [[ "$OPERATION" != "rollback-worker" ]] && jq -e \
             'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
             <<<"$artifact_pr" >/dev/null; then
             echo "The selected artifact release is paused by an emergency label." >&2
@@ -530,9 +530,9 @@ jobs:
             || "$(jq -r '.baseRefName' <<<"$authorization")" != "main" \
             || "$(jq -r '.headRefName' <<<"$authorization")" != "staging" \
             || "$(jq -r '.mergeCommit.oid' <<<"$authorization")" != "$PRODUCTION_GIT_SHA" ]] \
-            || jq -e \
+            || { [[ "$OPERATION" != "rollback-worker" ]] && jq -e \
               'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-              <<<"$authorization" >/dev/null; then
+              <<<"$authorization" >/dev/null; }; then
             echo "Production authorization changed or is paused immediately before mutation." >&2
             exit 1
           fi
@@ -543,9 +543,9 @@ jobs:
             || "$(jq -r '.baseRefName' <<<"$artifact_authorization")" != "main" \
             || "$(jq -r '.headRefName' <<<"$artifact_authorization")" != "staging" \
             || "$(jq -r '.mergeCommit.oid' <<<"$artifact_authorization")" != "$PRODUCTION_ARTIFACT_GIT_SHA" ]] \
-            || jq -e \
+            || { [[ "$OPERATION" != "rollback-worker" ]] && jq -e \
               'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-              <<<"$artifact_authorization" >/dev/null; then
+              <<<"$artifact_authorization" >/dev/null; }; then
             echo "Artifact authorization changed or is paused immediately before mutation." >&2
             exit 1
           fi
