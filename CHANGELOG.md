@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Changed
+- Raise the documented Vitest regression floor from 550 to the verified
+  556-test hosted-acceptance exact head. **Deployment impact:** QA and agent
+  documentation only; no runtime, provider, database, credential, billing,
+  DNS, mobile-store, or production mutation.
 - Add an opt-in protected hosted Gate 7 acceptance controller that provisions
   two scoped synthetic tenants, verifies staff/member Auth and API/native RLS
   isolation, exercises Stripe test Checkout plus signed, duplicate, and forged
