@@ -92,6 +92,18 @@ export function validateMagicActionLink(rawLink, { callback, state, supabaseUrl 
   return link;
 }
 
+export function validateStripeCheckoutUrl(rawUrl) {
+  const checkoutUrl = new URL(rawUrl);
+  const sessionMatch = /\/(cs_test_[A-Za-z0-9_]+)$/u.exec(checkoutUrl.pathname);
+  if (
+    checkoutUrl.origin !== "https://checkout.stripe.com" ||
+    !sessionMatch?.[1]
+  ) {
+    throw new Error("Checkout did not return an exact Stripe test Session URL.");
+  }
+  return { sessionId: sessionMatch[1], url: checkoutUrl };
+}
+
 export function decryptMagicLinkEnvelope(envelope, privateKey, handoffId) {
   const parsed = JSON.parse(envelope);
   if (
@@ -546,6 +558,22 @@ async function main() {
       .eq("id", tenantA.organizationId)
       .single();
     if (billingError || !billingOrg.stripe_customer_id) throw billingError ?? new Error("Stripe customer is missing.");
+    const checkout = await request(
+      "/api/billing/checkout",
+      {
+        body: JSON.stringify({ attemptId: randomUUID(), planTier: "vine" }),
+        headers: { "content-type": "application/json", "x-vinifera-brand-id": tenantA.brandId },
+        method: "POST",
+      },
+      jarA,
+    );
+    expectStatus(checkout, 200, "Stripe test Checkout");
+    const { sessionId: checkoutSessionId } = validateStripeCheckoutUrl(
+      checkout.body?.data?.url,
+    );
+    runtime.checkoutSessionId = checkoutSessionId;
+    evidence.checks.checkout = true;
+
     const baseCreated = Math.floor(Date.now() / 1000);
     const subscriptionId = `sub_gate7${eventSuffix}`;
     const activeEvent = stripeEvent({
@@ -592,22 +620,6 @@ async function main() {
     expectStatus(memberSession, 200, "member cookie session");
     expect(memberSession.body?.data?.user?.id === tenantA.memberId, "Member callback resolved the wrong tenant member.");
     evidence.checks.memberMagicLink = true;
-
-    const checkout = await request(
-      "/api/billing/checkout",
-      {
-        body: JSON.stringify({ attemptId: randomUUID(), planTier: "vine" }),
-        headers: { "content-type": "application/json", "x-vinifera-brand-id": tenantA.brandId },
-        method: "POST",
-      },
-      jarA,
-    );
-    expectStatus(checkout, 200, "Stripe test Checkout");
-    const checkoutUrl = new URL(checkout.body?.data?.url);
-    expect(checkoutUrl.hostname.endsWith("stripe.com"), "Checkout did not return a Stripe URL.");
-    const sessionMatch = /\/(cs_test_[A-Za-z0-9_]+)$/u.exec(checkoutUrl.pathname);
-    if (sessionMatch) runtime.checkoutSessionId = sessionMatch[1];
-    evidence.checks.checkout = true;
 
     const duplicateActive = await deliver(activeEvent);
     expectStatus(duplicateActive, 200, "duplicate subscription webhook");

@@ -124,11 +124,19 @@ cookie values as an Auth family. Gate 7 remains pending a fresh exact-head run.
 Exact-head staging run `31082627789` passed runtime, staff Auth, and two-tenant
 RLS, then correctly rejected the emailed member action because Supabase had
 replaced the requested staging Worker PKCE callback with its fallback origin.
-The hosted Auth Site URL now equals `STAGING_WORKER_ORIGIN`, the full staging
-Worker callback namespace is allowlisted, and the application fails closed on
-an explicit `signInWithOtp` provider error by revoking the failed context while
-retaining the generic anonymous response. Gate 7 remains pending a fresh
-exact-head run.
+The staging database hostname tunnels to the self-hosted Supabase stack on
+Schubert, so its GoTrue `SITE_URL` and `ADDITIONAL_REDIRECT_URLS` now use the
+exact `STAGING_WORKER_ORIGIN` callback namespace. The application also fails
+closed on an explicit `signInWithOtp` provider error by revoking the failed
+context while retaining the generic anonymous response.
+
+Run `31087028401` then passed runtime, staff Auth, two-tenant RLS, and the real
+emailed member PKCE callback/session. It exposed an acceptance-order defect:
+the synthetic signed `active` webhook installed a non-provider subscription ID
+before Checkout, so the application correctly rejected reconciliation. The
+controller now creates and records the real Stripe test Checkout first, then
+delivers the active webhook before member-link issuance and the remaining
+billing lifecycle. Gate 7 remains pending a fresh reviewed exact-head run.
 
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
