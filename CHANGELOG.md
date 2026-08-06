@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Changed
+- Authorize the independently verified staging Cloudflare account by its
+  normalized SHA-256 target hash so the protected workflow may deploy only the
+  isolated `vinifera-staging` Worker after exact artifact and environment
+  checks. Retain empty fail-closed policy for unchecked hosted targets, route
+  the hosted target-policy file through the authority-high-risk CI lane, and
+  update the activation and delivery-policy regressions plus runbooks to match.
+  **Deployment impact:** enables the already owner-authorized staging Worker
+  mutation boundary and corrects CI classification; no production Worker, DNS,
+  database, billing, or mobile-store mutation.
 - Require the exact immutable release-candidate package to be created from
   trusted `main` while the reviewed `dev → staging` promotion PR remains open
   and before that PR is merged. The staging deployment then consumes the
