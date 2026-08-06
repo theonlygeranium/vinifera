@@ -501,7 +501,7 @@ refer to the canonical table below.
 | Provider | Purpose | Activation gate | Status | Missing-wiring behavior |
 |---|---|---:|---|---|
 | Supabase | Auth, PostgreSQL, RLS | 1, 3, 7, 9 | Gates 1, 3, 7, and 9 complete | Auth/data operations return `503 activation_required` |
-| Stripe | SaaS subscriptions and portal | 4, 19 | Gate 4 complete; Gate 19 pending | Billing operations return `503 activation_required` |
+| Stripe | SaaS subscriptions and portal | 4, 19 | Gate 4 complete; Gate 19 source controller ready but policy-disabled and unexecuted | Billing operations return `503 activation_required` |
 | Stripe PaymentIntents | Release charges, retries, refunds | 4, 6, 19 | Gate 4 complete; Gates 6 and 19 pending | Shipment billing returns `503 activation_required` |
 | EasyPost | Address verification, carrier rates, labels, tracking | 5, 13 | Gate 5 complete; Gate 13 pending | Shipping returns `503 activation_required` |
 | Resend | Transactional templates, stable per-message delivery, events | 8 | Pending | Delivery returns `503 activation_required`; durable work remains queued |
@@ -558,7 +558,7 @@ pending until its reviewed exact revision is deployed and reverified.
 | 16 | Add one winery custom hostname, complete DNS ownership and certificate activation, and verify sibling/unknown hosts cannot select its brand. | Pending |
 | 17 | Configure APNs and FCM, Apple/Google signing, privacy/store metadata, and prove magic links, secure storage, biometrics, push, camera, offline restore, and relock on physical devices. | Pending |
 | 18 | Install signed builds from TestFlight and the Play internal track. | Pending |
-| 19 | Replace Stripe test keys with approved live keys only under human supervision and run one controlled charge/refund. | Pending |
+| 19 | Under protected owner confirmation, use Stripe-hosted Checkout for exactly one allowlisted live subscription charge, prove signed webhook idempotency and application lifecycle convergence, refund it once, and cancel renewal. | Pending — source controller is default-disabled and has not executed |
 | 20 | Move the production custom domain only after every hosted exit criterion is evidenced. | Pending |
 
 ## File ownership

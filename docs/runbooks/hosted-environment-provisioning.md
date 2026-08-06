@@ -330,6 +330,34 @@ immutable commit, exact confirmation, and post-change health evidence.
 Reversion restores only the reviewed test bindings. Do not populate or execute
 this control while service connections are deferred.
 
+Gate 19 financial proof is a third, distinct control plane. Its
+`config/stripe-live-proof-policy.json` also ships disabled and with empty
+target hashes. It does not upload or deploy a Worker version and cannot change
+Stripe bindings. Before execution, independently review and populate exactly
+one SHA-256 hash for the live Stripe account, dedicated proof customer, exact
+brand UUID, exact organization UUID, live Price, canonical plan name, maximum
+integer cent amount, production Supabase origin, and production Worker origin.
+Configure the protected `production`
+environment with:
+
+```text
+PRODUCTION_STRIPE_LIVE_PROOF_BRAND_ID
+PRODUCTION_STRIPE_LIVE_PROOF_CUSTOMER_ID
+PRODUCTION_STRIPE_LIVE_PROOF_PRICE_ID
+PRODUCTION_STRIPE_LIVE_PROOF_PLAN
+PRODUCTION_STRIPE_LIVE_PROOF_MAX_AMOUNT_CENTS
+PRODUCTION_STRIPE_LIVE_PROOF_ORGANIZATION_ID
+PRODUCTION_STRIPE_LIVE_SECRET_KEY
+PRODUCTION_STRIPE_LIVE_WEBHOOK_SECRET
+PRODUCTION_SUPABASE_URL
+PRODUCTION_SUPABASE_SERVICE_ROLE_KEY
+PRODUCTION_WORKER_ORIGIN
+```
+
+The customer must map to exactly one independently billed production brand.
+Follow `stripe-live-proof.md` for the owner Checkout handoff, finalize dispatch,
+refund/cancellation evidence, and optional separate binding reversion.
+
 ## Mobile-release environment
 
 Compilation in normal CI uses:

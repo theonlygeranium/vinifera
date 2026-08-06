@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "apiVersion": "2026-02-25.clover",
+  "currency": "usd",
+  "confirmation": "AUTHORIZE ONE VINIFERA LIVE CHARGE AND REFUND",
+  "checkoutExpiresAfterSeconds": 3600,
+  "pollAttempts": 20,
+  "pollIntervalMilliseconds": 15000,
+  "metadata": {
+    "gate": "19",
+    "proofVersion": "2026-08-06-v1"
+  },
+  "targetHashes": {
+    "brandIdSha256": [],
+    "liveAccountIdSha256": [],
+    "customerIdSha256": [],
+    "priceIdSha256": [],
+    "planSha256": [],
+    "maximumAmountCentsSha256": [],
+    "organizationIdSha256": [],
+    "supabaseOriginSha256": [],
+    "workerOriginSha256": []
+  }
+}

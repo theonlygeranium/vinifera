@@ -113,7 +113,7 @@ stores do not block the private web beta.
 | 16 | Activate a winery custom hostname | pending | DNS ownership, active certificate, expected brand routing, and sibling/unknown-host denial | Track A — custom domains |
 | 17 | Prove physical-device mobile capabilities | pending | APNs/FCM, signing, privacy metadata, magic link, secure storage, biometrics, push, camera, offline restore, and relock evidence | Track A — mobile devices |
 | 18 | Install internal-track signed builds | pending | Successful TestFlight and Play internal-track installs from verified signed artifacts | Track A — store tracks |
-| 19 | Perform controlled Stripe live proof | pending | Human-supervised approved live keys plus one controlled charge and refund | Track A — live billing |
+| 19 | Perform controlled Stripe live proof | pending | Protected exact-main run; reviewed live account/customer/Price/plan/maximum/origin hashes; owner-completed Stripe-hosted Checkout; exactly one charge and one full refund; signed webhook replay remains idempotent; independent-brand lifecycle reaches active then canceled; subscription renewal cleanup and sanitized retained evidence | Track A — live billing |
 | 20 | Cut production domain to Worker | pending | All hosted exit criteria passed, approved cutover, live health/routes, and rollback evidence | Track A — production cutover |
 
 See `CONTINUITY_BRIEF.md` for the authoritative gate wording and

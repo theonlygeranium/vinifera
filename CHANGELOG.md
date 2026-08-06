@@ -3,6 +3,28 @@
 ## [Unreleased]
 
 ### Changed
+- Add a distinct, trusted-main, protected, default-disabled Gate 19 controller
+  for exactly one owner-completed Stripe-hosted live subscription charge and
+  one full refund. It hash-authorizes the live account, dedicated customer,
+  Price, plan, maximum cent amount, and Worker origin; rejects ambiguous or
+  additional PaymentIntent, Charge, or refund objects; hash-binds the exact
+  brand and organization; scopes lifecycle reads to that tenant; binds the
+  hosted Session to the same immutable main SHA; validates reused Session line
+  items and state; proves signed webhook replay idempotency and durable
+  independent-brand active/canceled application convergence; guarantees an
+  idempotent refund and renewal-cancellation recovery attempt after any
+  post-charge failure; derives financial counts from Stripe; retains only
+  hashed/timestamped evidence; and leaves optional Worker binding
+  reversion to the existing separate cutover workflow. **Deployment impact:**
+  source, protected workflow, policy, tests, ADR, and runbook only; the
+  checked-in policy remains disabled with empty hashes and no live Checkout,
+  charge, refund, credential, Worker, database, or provider mutation occurred.
+  Extend the existing bounded Git-fixture timeout to the staged classifier CLI
+  regression that exhibited the same concurrency-sensitive full-suite timeout;
+  its behavior and assertions are unchanged. **Verification:** 20/20 focused
+  Gate 19 cases, 9/9 promotion-smoke cases, 31/31 delivery-policy cases, and the
+  complete generated-types, TypeScript, 595/595 Vitest, Vite build, and Worker
+  dry-run package gate pass.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from
