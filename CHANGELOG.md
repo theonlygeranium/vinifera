@@ -56,6 +56,15 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Establish the reusable Gate 7 fixture's operational billing state through
+  the real signed Stripe `active` webhook before requesting a member magic
+  link. Cleanup intentionally restores `onboarding`, while the hosted
+  `register_member_auth_link_context` RPC permits member access only for
+  `active` or `grace`; the prior sequence requested Auth before exercising the
+  activation webhook. Duplicate, forged, past-due, restriction, suspension,
+  and recovery assertions remain in the same lifecycle. **Deployment impact:**
+  Stripe test-mode and protected staging acceptance ordering only; no
+  production, live-billing, credential, DNS, or mobile-store mutation.
 - Retain the Worker's sanitized structured error code and message when a hosted
   Gate 7 HTTP assertion fails. This distinguishes the member magic-link
   rate-recording and link-context database failure branches after exact-head

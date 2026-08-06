@@ -42,6 +42,13 @@ Before protected tenant assertions, each staff jar is validated directly with
 Supabase SSR and through the Worker's public staff-session route. These
 preflights retain only a sanitized Auth error code and boolean outcome.
 
+The reusable fixture begins each run in its cleanup baseline of `onboarding`.
+The controller therefore proves the signed Stripe `active` webhook first and
+only then requests a member magic link, matching the database rule that member
+link contexts require `active` or `grace` operational billing state. The later
+duplicate, forged, past-due, restriction, suspension, and recovery checks reuse
+that same lifecycle and event identity.
+
 Lifecycle time compression modifies only the dedicated fixture timestamps and
 invokes global reconciliation with the current time. It never advances the
 database-wide clock, so unrelated staging organizations cannot be restricted
