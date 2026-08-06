@@ -96,6 +96,14 @@ same status and error code, the controller now retains the sanitized structured
 message as well as the code on failed HTTP assertions. Gate 7 remains pending
 a fresh exact-head run that identifies and repairs the specific hosted RPC.
 
+Exact-head staging run `31081178042` identified that branch as
+`register_member_auth_link_context`: cleanup correctly restores the dedicated
+fixture to `onboarding`, but member-link registration permits only `active` or
+`grace` operational billing state. The controller now delivers and verifies
+its already-required signed Stripe `active` event before requesting the member
+magic link; the remaining duplicate/forged and degradation/recovery assertions
+retain their existing order. Gate 7 remains pending a fresh exact-head run.
+
 Exact-head staging run `31079570728` deployed the application-side chunk-cookie
 repair but reproduced the service-layer 401. The remaining discrepancy is in
 the controller's browser emulation: it retained `Set-Cookie` deletion records

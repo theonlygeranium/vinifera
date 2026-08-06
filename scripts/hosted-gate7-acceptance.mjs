@@ -513,6 +513,25 @@ async function main() {
     expect(memberRowsA.length === 1 && memberRowsA[0].id === tenantA.memberId, "Member native RLS did not isolate the member.");
     evidence.checks.twoTenantRls = true;
 
+    const { data: billingOrg, error: billingError } = await admin
+      .from("organizations")
+      .select("stripe_customer_id")
+      .eq("id", tenantA.organizationId)
+      .single();
+    if (billingError || !billingOrg.stripe_customer_id) throw billingError ?? new Error("Stripe customer is missing.");
+    const baseCreated = Math.floor(Date.now() / 1000);
+    const subscriptionId = `sub_gate7${eventSuffix}`;
+    const activeEvent = stripeEvent({
+      created: baseCreated,
+      customerId: billingOrg.stripe_customer_id,
+      eventId: `evt_gate7${eventSuffix}active`,
+      organizationId: tenantA.organizationId,
+      status: "active",
+      subscriptionId,
+    });
+    const firstActive = await deliver(activeEvent);
+    expectStatus(firstActive, 200, "signed active subscription webhook");
+
     const memberJar = new Map();
     const magicRequest = await request(
       "/api/auth/member/magic-link",
@@ -563,24 +582,6 @@ async function main() {
     if (sessionMatch) runtime.checkoutSessionId = sessionMatch[1];
     evidence.checks.checkout = true;
 
-    const { data: billingOrg, error: billingError } = await admin
-      .from("organizations")
-      .select("stripe_customer_id")
-      .eq("id", tenantA.organizationId)
-      .single();
-    if (billingError || !billingOrg.stripe_customer_id) throw billingError ?? new Error("Stripe customer is missing.");
-    const baseCreated = Math.floor(Date.now() / 1000);
-    const subscriptionId = `sub_gate7${eventSuffix}`;
-    const activeEvent = stripeEvent({
-      created: baseCreated,
-      customerId: billingOrg.stripe_customer_id,
-      eventId: `evt_gate7${eventSuffix}active`,
-      organizationId: tenantA.organizationId,
-      status: "active",
-      subscriptionId,
-    });
-    const firstActive = await deliver(activeEvent);
-    expectStatus(firstActive, 200, "signed active subscription webhook");
     const duplicateActive = await deliver(activeEvent);
     expectStatus(duplicateActive, 200, "duplicate subscription webhook");
     expect(duplicateActive.body?.data?.duplicate === true, "Duplicate webhook was not identified.");
