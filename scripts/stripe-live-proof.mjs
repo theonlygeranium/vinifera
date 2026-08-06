@@ -976,7 +976,6 @@ export async function finalizeLiveProof({
       "A valid live Checkout Session ID is required for finalize.",
     );
   }
-  await verifyWorkerHealth(fetcher, targets.workerOrigin, authority.gitSha);
   const accountHash = assertAccount(policy, await stripe.accounts.retrieve());
   assertCustomer(
     await stripe.customers.retrieve(targets.customerId),
@@ -1126,6 +1125,7 @@ export async function finalizeLiveProof({
       { fullyRefunded: existingRefunds.length === 1 },
     );
     refundRecoveryEligible = true;
+    await verifyWorkerHealth(fetcher, targets.workerOrigin, authority.gitSha);
     const priceAmountCents = assertPrice(
       await stripe.prices.retrieve(targets.priceId, { expand: ["product"] }),
       targets,

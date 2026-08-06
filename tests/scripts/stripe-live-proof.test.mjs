@@ -370,7 +370,7 @@ function applicationStore({
   };
 }
 
-function fetcher({ duplicate = true } = {}) {
+function fetcher({ duplicate = true, revision = gitSha } = {}) {
   return vi.fn(async (input) => {
     const url = new URL(input);
     if (url.pathname === "/api/health") {
@@ -378,7 +378,7 @@ function fetcher({ duplicate = true } = {}) {
         JSON.stringify({
           data: {
             environment: "production",
-            revision: gitSha,
+            revision,
             service: "vinifera-api",
             status: "ok",
           },
@@ -730,6 +730,37 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         targets,
       }),
     ).resolves.toMatchObject({ activeApplicationProven: true, verified: true });
+  });
+
+  it("refunds and cancels after payment when the production revision advances", async () => {
+    const { authority, env, policy, targets } = ready();
+    const stripe = stripeMock();
+    let failure;
+    try {
+      await finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher({ revision: "b".repeat(40) }),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure.message).toMatch(/capabilities are not ready/u);
+    expect(failure.gate19Recovery).toEqual({
+      cancellationAttempted: true,
+      refundAttempted: true,
+      refundSucceeded: true,
+      subscriptionCanceled: true,
+    });
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed before refund on wrong proof metadata", async () => {

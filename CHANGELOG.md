@@ -5,9 +5,11 @@
 ### Fixed
 
 - Moved mutable live Price revalidation inside Gate 19's post-payment recovery
-  boundary, accepted a durable out-of-order subscription-created event when
+  boundary, moved exact Worker-revision certification after metadata-bound
+  payment recovery eligibility so a concurrent deployment cannot strand a
+  live charge or renewal, accepted a durable out-of-order subscription-created event when
   independently verified active application state has converged, and aligned
-  the canonical QA documentation with the verified 601-test floor.
+  the canonical QA documentation with the verified 602-test floor.
 
 ### Changed
 
@@ -38,7 +40,7 @@
   regression that exhibited the same concurrency-sensitive full-suite timeout;
   its behavior and assertions are unchanged. **Verification:** 24/24 focused
   Gate 19 cases, 9/9 promotion-smoke cases, 31/31 delivery-policy cases, and the
-  complete generated-types, TypeScript, 599/599 Vitest, Vite build, and Worker
+  complete generated-types, TypeScript, 602/602 Vitest, Vite build, and Worker
   dry-run package gate pass.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
