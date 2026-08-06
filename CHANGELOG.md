@@ -4,7 +4,7 @@
 
 ### Changed
 - Raise the documented Vitest regression floor from 550 to the verified
-  568-test hosted-acceptance and Auth-provider repair head. **Deployment
+  569-test hosted-acceptance and Auth-provider repair head. **Deployment
   impact:** QA and agent documentation only; no runtime, provider, database,
   credential, billing, DNS, mobile-store, or production mutation.
 - Add an opt-in protected hosted Gate 7 acceptance controller that provisions
@@ -56,6 +56,17 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Run the reusable Gate 7 Stripe test Checkout before injecting the synthetic
+  signed `active` subscription webhook. Run `31087028401` proved the Auth and
+  two-tenant segments, then exposed that the prior order wrote a synthetic
+  subscription ID into the organization before Checkout; the application
+  correctly refused to reconcile that non-provider ID. The active webhook
+  still precedes member-link issuance so the portal authorization contract is
+  exercised in `active` state. Require the resulting provider URL to use the
+  exact HTTPS `checkout.stripe.com` host and a `cs_test_` Session path before
+  recording it for cleanup. **Deployment impact:** protected staging acceptance
+  ordering and test-mode Stripe objects only; no application runtime,
+  production, live-billing, DNS, credential, or mobile-store mutation.
 - Align the hosted Supabase Auth Site URL and redirect allowlist with the exact
   staging Worker callback namespace after Gate 7 run `31082627789` proved that
   Supabase was replacing the requested PKCE callback with a fallback origin.
