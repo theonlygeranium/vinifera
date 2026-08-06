@@ -688,7 +688,9 @@ describe("Resend staging provisioning controller", () => {
       new URL("scripts/resend-staging-provisioning.mjs", repositoryRoot),
       "utf8",
     );
-    expect(controller).toContain('["secret", "set", name, "--env", "staging"');
+    expect(controller).toContain(
+      '["secret", "set", name, "--env", environment, "--repo", repository]',
+    );
     expect(controller).toContain("child.stdin.end(value)");
     expect(controller).toContain(
       'setGitHubEnvironmentSecret(\n          "STAGING_RESEND_API_KEY"',

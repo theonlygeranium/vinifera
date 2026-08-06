@@ -32,8 +32,10 @@
   stream only over stdin and evidence retains hashes rather than raw targets or
   credentials. Run canonical-`main` provisioning through the dedicated
   `staging-acceptance-control` environment without broadening the staging
-  deployment environment's branch policy. Verification: 20/20 focused provisioning tests and 595/595 full
-  Vitest tests, app build, and Worker dry-run. **Deployment impact:** protected
+  deployment environment's branch policy. Keep the static secret-writer guard
+  aligned with its environment-parameterized, repository-bound command.
+  Verification: 20/20 focused provisioning tests and 595/595 full Vitest
+  tests, app build, and Worker dry-run. **Deployment impact:** protected
   manual workflow/source only; empty policy blocks provider/DNS mutation,
   deletion is restricted to same-attempt one-time-secret recovery, and source
   completion does not change Gate 8 status.
