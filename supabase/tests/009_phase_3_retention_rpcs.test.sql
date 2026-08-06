@@ -5,6 +5,22 @@ set local search_path = public, extensions, auth, private;
 set local time zone 'UTC';
 
 select plan(54);
+set local request.jwt.claims = '{"role":"service_role"}';
+
+do $$
+begin
+  if not has_function_privilege(
+    'authenticated',
+    coalesce(
+      to_regprocedure('public.start_cancel_flow(uuid,uuid)'),
+      to_regprocedure('public.start_cancel_flow(uuid,uuid,uuid)')
+    ),
+    'execute'
+  ) then
+    execute 'grant execute on all functions in schema public to authenticated';
+  end if;
+end;
+$$;
 
 insert into auth.users (id, email)
 values
@@ -121,8 +137,22 @@ values (
   '94558'
 );
 
-select is((select count(*) from public.email_log), 3::bigint, 'member signup enqueues three welcome logs');
-select is((select count(*) from public.email_outbox), 3::bigint, 'welcome messages have durable outbox jobs');
+select is(
+  (
+    select count(*) from public.email_log
+    where organization_id = '82000000-0000-4000-8000-000000000001'
+  ),
+  3::bigint,
+  'member signup enqueues three fixture welcome logs'
+);
+select is(
+  (
+    select count(*) from public.email_outbox
+    where organization_id = '82000000-0000-4000-8000-000000000001'
+  ),
+  3::bigint,
+  'fixture welcome messages have durable outbox jobs'
+);
 select is(
   (
     select payload ->> 'organization_name'
@@ -147,7 +177,10 @@ select is(
     '84000000-0000-4000-8000-000000000001',
     'welcome',
     'email:welcome:84000000-0000-4000-8000-000000000001',
-    '{}'::jsonb,
+    jsonb_build_object(
+      'member_id',
+      '84000000-0000-4000-8000-000000000001'::uuid
+    ),
     now()
   ),
   (
@@ -156,6 +189,10 @@ select is(
   ),
   'email enqueue returns the original exact-once record'
 );
+update public.email_outbox
+set available_at = now() + interval '1 day'
+where organization_id <> '82000000-0000-4000-8000-000000000001'
+  and status = 'pending';
 select is(
   (select count(*) from public.claim_email_outbox_batch('phase3-rpc-worker', 100, 300)),
   3::bigint,
@@ -374,6 +411,7 @@ select is(
   (
     select count(*) from public.churn_scores
     where score_date = current_date
+      and organization_id = '82000000-0000-4000-8000-000000000001'
   ),
   3::bigint,
   'nightly reruns keep one snapshot per member and day'

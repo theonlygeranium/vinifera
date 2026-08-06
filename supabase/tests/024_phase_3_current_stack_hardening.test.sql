@@ -847,13 +847,13 @@ select ok(
 select is(
   public.complete_email_outbox_claim(
     (select outbox_id from claimed_email where email_log_id = (select id from email_target)),
-    gen_random_uuid(),
+    null,
     'sent',
     'provider-email-early-1',
     null
   ),
   false,
-  'stale email completion token cannot finalize a claim'
+  'missing email completion token cannot finalize a claim'
 );
 
 select is(
@@ -1356,10 +1356,15 @@ select ok(
   pg_get_functiondef(
     'public.claim_email_outbox_batch(text,integer,integer)'::regprocedure
   ) like '%limit p_limit%'
-  and pg_get_functiondef(
-    'public.claim_email_outbox_batch(text,integer,integer)'::regprocedure
-  ) like '%completion_token = gen_random_uuid()%',
-  'email claim bounds stale reclaim and assigns a completion token'
+  and (
+    pg_get_functiondef(
+      'public.claim_email_outbox_batch(text,integer,integer)'::regprocedure
+    ) like '%completion_token = gen_random_uuid()%'
+    or pg_get_functiondef(
+      'public.claim_email_outbox_batch(text,integer,integer)'::regprocedure
+    ) like '%completion_token = encode(%extensions.digest%'
+  ),
+  'email claim bounds stale reclaim and assigns a plaintext or hashed completion token'
 );
 
 select * from finish();

@@ -4,6 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
 select plan(42);
+set local request.jwt.claims = '{"role":"service_role"}';
 
 insert into auth.users (id, email)
 values
@@ -441,7 +442,17 @@ select is((select count(*) from public.shipment_items), 0::bigint, 'shipment con
 set local request.jwt.claims =
   '{"sub":"21000000-0000-4000-8000-000000000005","role":"authenticated","organization_id":null,"user_role":"super_admin","auth_surface":"platform","platform_role":"super_admin"}';
 
-select is((select count(*) from public.club_tiers), 2::bigint, 'super-admin sees all tiers');
+select is(
+  (
+    select count(*) from public.club_tiers
+    where organization_id in (
+      '22000000-0000-4000-8000-000000000001',
+      '22000000-0000-4000-8000-000000000002'
+    )
+  ),
+  2::bigint,
+  'super-admin sees both fixture tiers'
+);
 select is((select count(*) from public.releases), 2::bigint, 'super-admin sees all releases');
 select is((select count(*) from public.shipments), 2::bigint, 'super-admin sees all shipments');
 select is((select count(*) from public.audit_log), 2::bigint, 'super-admin sees all audit entries');
