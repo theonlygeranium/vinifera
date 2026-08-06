@@ -57,6 +57,14 @@ admin-minted non-PKCE links, audit-blocked deletion, and premature transitions
 for unrelated staging tenants. Gate 7 remains pending until this repaired exact
 head passes the protected staging run.
 
+Protected staging run `31076438060` deployed the repaired candidate but stopped
+at its first staff-cookie assertion: hosted Supabase SSR returned its valid
+chunked cookie family while the controller checked only the unchunked base key.
+The follow-up repair recognizes base and dot-suffixed chunks for staff/member
+sessions without confusing the member-link state cookie. This is controller QA,
+not evidence of an application login failure; Gate 7 remains pending a fresh
+exact-head run.
+
 The host backup command was also replaced with
 `scripts/staging-db-backup.sh`. Its prerequisite check and a real custom-format
 dump completed on 2026-08-05; the existing daily cron continues to call the

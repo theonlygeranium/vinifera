@@ -551,7 +551,7 @@ then runs the remaining test and build gates. This keeps validation reproducible
 from a fresh checkout while leaving the generated artifact untracked.
 
 The current credential-independent architecture gate passes generated Worker
-types, TypeScript, 559/559 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+types, TypeScript, 560/560 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
 3 199/199, Phase 4 159/159, Phase 5 515/515 embedded PostgreSQL/pgTAP
 assertions, and the integrated Playwright suite with 155 passed and three
 hosted-only cases skipped, with zero axe violations in executed cases.

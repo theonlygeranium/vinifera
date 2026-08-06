@@ -46,6 +46,12 @@ export function cookieHeader(jar) {
   return [...jar.entries()].map(([name, value]) => `${name}=${value}`).join("; ");
 }
 
+export function hasCookieFamily(jar, baseName) {
+  return [...jar.keys()].some(
+    (name) => name === baseName || name.startsWith(`${baseName}.`),
+  );
+}
+
 export function plusAddress(base, tag) {
   const match = /^([^@+]+)(?:\+[^@]*)?@([^@]+)$/u.exec(base.trim().toLowerCase());
   if (!match) throw new Error("HOSTED_ACCEPTANCE_EMAIL_BASE must be an email address.");
@@ -285,7 +291,10 @@ async function main() {
       jar,
     );
     expectStatus(result, 200, `tenant ${label} login`);
-    expect(jar.has("vinifera-staff-auth"), `Tenant ${label} login omitted the staff cookie.`);
+    expect(
+      hasCookieFamily(jar, "vinifera-staff-auth"),
+      `Tenant ${label} login omitted the staff cookie.`,
+    );
     return jar;
   }
 
@@ -484,7 +493,10 @@ async function main() {
     expect(callbackLocation, "Supabase magic link omitted its callback location.");
     const callbackResult = await request(new URL(callbackLocation).toString(), { redirect: "manual" }, memberJar);
     expectStatus(callbackResult, 303, "member magic-link callback");
-    expect(memberJar.has("vinifera-member-auth"), "Member callback omitted its Auth cookie.");
+    expect(
+      hasCookieFamily(memberJar, "vinifera-member-auth"),
+      "Member callback omitted its Auth cookie.",
+    );
     const memberSession = await request("/api/auth/member/session", {}, memberJar);
     expectStatus(memberSession, 200, "member cookie session");
     expect(memberSession.body?.data?.user?.id === tenantA.memberId, "Member callback resolved the wrong tenant member.");

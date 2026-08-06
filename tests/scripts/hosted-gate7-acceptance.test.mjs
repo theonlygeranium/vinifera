@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   cookieHeader,
   decryptMagicLinkEnvelope,
+  hasCookieFamily,
   mergeCookieJar,
   plusAddress,
   splitSetCookieHeader,
@@ -38,6 +39,22 @@ describe("hosted Gate 7 acceptance controller", () => {
     expect(cookieHeader(jar)).toBe(
       "vinifera-member-auth-link=state.token; vinifera-member-brand=brand.token",
     );
+  });
+
+  it("recognizes unchunked and Supabase SSR chunked Auth cookie families", () => {
+    expect(hasCookieFamily(new Map([["vinifera-staff-auth", "token"]]), "vinifera-staff-auth")).toBe(true);
+    expect(
+      hasCookieFamily(
+        new Map([
+          ["vinifera-member-auth.0", "part-one"],
+          ["vinifera-member-auth.1", "part-two"],
+        ]),
+        "vinifera-member-auth",
+      ),
+    ).toBe(true);
+    expect(
+      hasCookieFamily(new Map([["vinifera-member-auth-link", "state"]]), "vinifera-member-auth"),
+    ).toBe(false);
   });
 
   it("validates the real Supabase magic link against the requested PKCE callback", () => {
