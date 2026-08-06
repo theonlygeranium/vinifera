@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Changed
+- Record hosted activation Gate 2 as `live-passed` after protected staging run
+  `31073800654` deployed the exact immutable candidate to the dedicated
+  Cloudflare staging account and retained matching revision, configuration,
+  Stripe test catalog, and database-backed runtime evidence. Keep Gate 7 open
+  for its complete two-tenant/Auth/billing lifecycle acceptance proof.
+  **Deployment impact:** documentation-only reconciliation of already completed
+  isolated staging deployment evidence; no provider, database, credential,
+  billing, DNS, mobile-store, or production mutation.
 - Authorize the dedicated `EdStratum Labs Staging` Cloudflare account by its
   normalized SHA-256 target hash and explicitly deny the known production
   account hash. Provision its account-scoped Workers/Queues deployment token,
