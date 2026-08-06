@@ -182,6 +182,12 @@ proof. The Worker job deploys only `vinifera-staging`, then requires:
 - the origin is the isolated `vinifera-staging.*.workers.dev` form; and
 - sanitized runtime evidence is retained as a workflow artifact.
 
+Workers.dev traffic can briefly continue serving the prior version immediately
+after a successful version deployment. Runtime verification retries the full
+health, configuration, and database-backed route contract for up to six
+attempts at two-second intervals. Every successful attempt must still identify
+the exact packaged Git SHA; exhaustion fails closed without recording evidence.
+
 Optional capabilities may remain false in staging while their credentials are
 pending. Their application paths continue returning explicit activation
 states.

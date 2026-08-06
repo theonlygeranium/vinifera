@@ -168,32 +168,56 @@ async function fetchJson(fetchImpl, url, timeoutMs) {
   }
 }
 
+function wait(milliseconds) {
+  return new Promise((resolveWait) => setTimeout(resolveWait, milliseconds));
+}
+
 export async function verifyHostedRuntime({
   fetchImpl = fetch,
+  maxAttempts = 6,
   now,
   origin,
   expectedRevision,
   requiredCapabilities = DEFAULT_REQUIRED_CAPABILITIES,
+  retryDelayMs = 2_000,
   timeoutMs = 10_000,
+  waitImpl = wait,
 }) {
   const validatedOrigin = stagingOrigin(origin);
-  const [healthPayload, configurationPayload, databasePayload] = await Promise.all([
-    fetchJson(fetchImpl, `${validatedOrigin}/api/health`, timeoutMs),
-    fetchJson(
-      fetchImpl,
-      `${validatedOrigin}/api/health/configuration`,
-      timeoutMs,
-    ),
-    fetchJson(fetchImpl, `${validatedOrigin}/api/portal/branding`, timeoutMs),
-  ]);
-  return buildHostedRuntimeEvidence({
-    configurationPayload,
-    databasePayload,
-    expectedRevision,
-    healthPayload,
-    now,
-    requiredCapabilities,
-  });
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+    throw new Error("Hosted runtime verification attempts must be positive.");
+  }
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const [healthPayload, configurationPayload, databasePayload] =
+        await Promise.all([
+          fetchJson(fetchImpl, `${validatedOrigin}/api/health`, timeoutMs),
+          fetchJson(
+            fetchImpl,
+            `${validatedOrigin}/api/health/configuration`,
+            timeoutMs,
+          ),
+          fetchJson(
+            fetchImpl,
+            `${validatedOrigin}/api/portal/branding`,
+            timeoutMs,
+          ),
+        ]);
+      return buildHostedRuntimeEvidence({
+        configurationPayload,
+        databasePayload,
+        expectedRevision,
+        healthPayload,
+        now,
+        requiredCapabilities,
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) await waitImpl(retryDelayMs);
+    }
+  }
+  throw lastError;
 }
 
 function parseArguments(argv) {

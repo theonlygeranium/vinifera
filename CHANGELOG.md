@@ -36,6 +36,13 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Retry isolated staging runtime verification during the short workers.dev
+  propagation window after an immutable version reaches 100% traffic. Each
+  attempt rechecks health, configuration, the database-backed branding route,
+  and the exact packaged Git SHA; six failed attempts still stop evidence
+  publication. **Deployment impact:** prevents transient stale-placeholder or
+  non-JSON responses from falsely failing an otherwise valid staging deploy;
+  no production, DNS, billing, database, or mobile-store mutation.
 - Accept current Wrangler `versions upload` output when it contains exactly one
   immutable Worker version ID but omits a preview URL. Staging now falls back to
   its protected, non-secret `STAGING_WORKER_ORIGIN` for post-deploy exact-SHA
