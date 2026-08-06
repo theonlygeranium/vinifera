@@ -56,6 +56,16 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Make the hosted Gate 7 cookie jar honor browser deletion semantics for
+  `Max-Age=0` and expired `Set-Cookie` values, and require a non-empty value
+  before treating a staff/member cookie family as present. This prevents a
+  cleared legacy base cookie from shadowing the valid Supabase SSR `.0`/`.1`
+  session chunks on the next request. Preflight each reconstructed jar directly
+  against Supabase and through the Worker's public staff-session route before
+  testing protected tenant APIs so any remaining boundary failure is precisely
+  attributable. **Deployment impact:** protected hosted
+  staging acceptance transport only; no application runtime, credential,
+  database, provider, DNS, billing, or mobile-store mutation.
 - Recognize Supabase SSR chunked staff and member session cookies in the
   production/staging auth-presence middleware. The hosted Gate 7 controller
   correctly replayed both cookie chunks, but the early defense-in-depth gate

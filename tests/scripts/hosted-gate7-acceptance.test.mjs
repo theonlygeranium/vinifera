@@ -33,7 +33,8 @@ describe("hosted Gate 7 acceptance controller", () => {
       headers: {
         get: () => "vinifera-member-auth-link=state.token; Path=/; HttpOnly, vinifera-member-brand=brand.token; Path=/; HttpOnly",
         getSetCookie: () => [
-          "vinifera-member-auth.0=part-one; Path=/; Expires=Thu, 06 Aug 2026 07:00:00 GMT; HttpOnly, vinifera-member-auth.1=part-two; Path=/; HttpOnly",
+          "vinifera-member-auth=; Path=/; Max-Age=0; HttpOnly",
+          "vinifera-member-auth.0=part-one; Path=/; Expires=Thu, 06 Aug 2037 07:00:00 GMT; HttpOnly, vinifera-member-auth.1=part-two; Path=/; HttpOnly",
         ],
       },
     };
@@ -57,6 +58,9 @@ describe("hosted Gate 7 acceptance controller", () => {
     ).toBe(true);
     expect(
       hasCookieFamily(new Map([["vinifera-member-auth-link", "state"]]), "vinifera-member-auth"),
+    ).toBe(false);
+    expect(
+      hasCookieFamily(new Map([["vinifera-member-auth", ""]]), "vinifera-member-auth"),
     ).toBe(false);
   });
 
