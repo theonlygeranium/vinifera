@@ -148,7 +148,8 @@ push
 shipping
 ```
 
-The same public proof requires `environment=production`, the exact artifact
+The Cloudflare attachment record and the public health proof must each require
+`environment=production`, plus the exact artifact
 Git SHA, the root surface, `/app/`, `/portal/`, and exact Apple and Android
 association payloads for the signed identities. The separate marketing root,
 app, and guide body digests must remain unchanged.

@@ -521,6 +521,7 @@ export async function probeWorkerDomainAttachment({
       if (
         domain?.hostname !== hostname ||
         domain?.service !== workerName ||
+        domain?.environment !== "production" ||
         domain?.zone_id !== zoneId
       ) {
         throw new Error(

@@ -6,7 +6,8 @@
 
 - Extended the production hostname cutover recovery boundary through the final
   marketing-content invariant check, so any late digest mismatch removes the
-  Worker domain and restores the retained Pages topology.
+  Worker domain and restores the retained Pages topology; custom-domain
+  verification also rejects any non-production Worker environment identity.
 
 ### Changed
 - Keep pre-cutover production Auth callbacks on the exact allowlisted
@@ -36,7 +37,7 @@
   impact:** source, policy, native
   association, and protected release-control behavior only; no provider,
   hostname, Worker deployment, billing, database, credential, or store-track
-  mutation was performed. The integrated regression gate passes 591/591
+  mutation was performed. The integrated regression gate passes 593/593
   Vitest tests, generated Worker types, TypeScript, the Vite build, and the
   Worker dry-run package.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind

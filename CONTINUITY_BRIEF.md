@@ -232,7 +232,7 @@ uses that live hostname consistently for production API/mobile associations
 and provides protected exact-confirmation attach/restore operations plus
 automatic prior-version rollback when a production deploy smoke fails. No
 provider attachment or production deployment was performed by that repair. Its
-complete local regression gate now passes 591/591 Vitest tests, generated Worker
+complete local regression gate now passes 593/593 Vitest tests, generated Worker
 types, TypeScript, the Vite build, and the Worker dry-run package. Version 0.5.0
 contains the complete Phase 1–5 connection-ready source architecture:
 

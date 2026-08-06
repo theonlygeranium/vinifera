@@ -179,6 +179,7 @@ function cloudflareMock({
   pagesStatus = "active",
   workerExists = true,
   workerDomain = false,
+  workerDomainEnvironment = "production",
 } = {}) {
   const calls = [];
   const state = {
@@ -305,7 +306,7 @@ function cloudflareMock({
           ? [
               {
                 ...(includeCertificateId ? { cert_id: certificateId } : {}),
-                environment: "production",
+                environment: workerDomainEnvironment,
                 hostname,
                 id: "worker-domain-1",
                 service: workerName,
@@ -319,7 +320,7 @@ function cloudflareMock({
       state.workerDomain = true;
       return json({
         ...(includeCertificateId ? { cert_id: certificateId } : {}),
-        environment: "production",
+        environment: workerDomainEnvironment,
         hostname,
         id: "worker-domain-1",
         service: workerName,
@@ -332,7 +333,7 @@ function cloudflareMock({
     ) {
       return json({
         ...(includeCertificateId ? { cert_id: certificateId } : {}),
-        environment: "production",
+        environment: workerDomainEnvironment,
         hostname,
         id: "worker-domain-1",
         service: workerName,
@@ -940,6 +941,19 @@ describe("Cloudflare production control plane", () => {
       service: workerName,
       zoneId,
     });
+  });
+
+  it("rejects a Worker domain attached to a non-production environment", async () => {
+    const mock = cloudflareMock({
+      workerDomain: true,
+      workerDomainEnvironment: "staging",
+    });
+    await expect(
+      probeWorkerDomainAttachment({
+        ...controlOptions(mock.fetcher),
+        domainId: "worker-domain-1",
+      }),
+    ).rejects.toThrow(/allowlisted target/);
   });
 
   it("restores Pages automatically when post-cutover Worker health fails", async () => {
