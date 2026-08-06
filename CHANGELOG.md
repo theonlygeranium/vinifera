@@ -102,7 +102,7 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
-- Give the three multi-branch promotion-smoke fixture tests a 15-second local
+- Give the three multi-branch promotion-smoke fixture tests a 30-second local
   Git budget instead of Vitest's 5-second default. Their assertions are
   synchronous and deterministic, but concurrent full-suite filesystem load
   repeatedly exceeded five seconds while isolated 9/9 runs passed. **Deployment
@@ -293,6 +293,13 @@
 - Reconcile Octopus↔Cloudflare deployment model (ADR: `2026-08-05-octopus-cloudflare-deployment-reconciliation.md`). Correct `AppHealthUrl` in `.octopus/variables.ocl` from `http://localhost:3000/health` to the real Worker health endpoint `https://vinifera-development.jeff-f69.workers.dev/health`. Deprecate PM2 `restart-application` step in `.octopus/deployment_process.ocl`, replacing it with a `verify-worker-health` evidence probe that checks the deployed Cloudflare Worker; merge the former `smoke-test` step into the probe. Reduce `.github/workflows/octopus-main-deploy.yml` to evidence-only — remove the non-functional "Deploy to Development" step and keep Octopus release creation as an audit record. Octopus now serves as review/orchestration and release-audit ledger; GitHub Actions owns Worker deployment via Wrangler. **Deployment impact:** CI/release-control and Octopus process configuration only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Fixed
+- Give the promotion-smoke local-drill fixture the same 30-second bounded Git
+  operation budget as the three multi-branch fixture tests. This prevents
+  full-suite host contention from exhausting Vitest's unrelated 5-second
+  default while preserving every assertion and command. **Deployment impact:**
+  test timing only; no application route, provider, database, credential,
+  billing, DNS, Worker activation, or production/mobile approval-gate state
+  changes.
 - Conclude OIDC service-account migration investigation: `OctopusDeploy/login@v2` OIDC exchange targets `localhost:8080/token/v1`, a sidecar provisioned only on Octopus Cloud-hosted runners. Self-hosted Octopus with GitHub-hosted runners cannot satisfy this requirement. Reverted both `octopus-main-deploy.yml` and `octopus-pr-quality-gates.yml` to the verified `api_key:` login path; retained `vinifera-gha` service account, dedicated Octopus team (`Teams-21`), Build Server role (`ScopedUserRoles-21`), and `OCTOPUS_SERVICE_ACCOUNT_ID` secret as prerequisites for a future attempt when a compatible token-exchange mechanism ships. **Deployment impact:** CI/release-control authentication behavior only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 - Split protected full-lane browser QA and database architecture checks into
   path-aware jobs so full validation still runs the common app/package gate but
