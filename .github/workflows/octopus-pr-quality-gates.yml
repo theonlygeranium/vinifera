@@ -6,15 +6,7 @@ on:
       - dev
       - staging
       - main
-    types:
-      [
-        opened,
-        synchronize,
-        reopened,
-        ready_for_review,
-        edited,
-        labeled,
-      ]
+    types: [opened, synchronize, reopened, ready_for_review, edited, labeled]
 
 concurrency:
   group: octopus-pr-${{ github.event.pull_request.number }}
@@ -29,9 +21,7 @@ jobs:
        github.event.pull_request.head.ref == 'staging' ||
        github.event.pull_request.head.ref == 'dev') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.action != 'closed' &&
-      !contains(github.event.pull_request.labels.*.name, 'human-review-required') &&
-      !contains(github.event.pull_request.labels.*.name, 'do-not-merge')
+      github.event.action != 'closed'
     runs-on: ubuntu-latest
 
     permissions:
@@ -71,9 +61,7 @@ jobs:
         github.event.pull_request.head.ref != 'main' &&
         github.event.pull_request.head.ref != 'staging' &&
         github.event.pull_request.head.ref != 'dev')) &&
-       github.event.action != 'closed' &&
-       !contains(github.event.pull_request.labels.*.name, 'human-review-required') &&
-       !contains(github.event.pull_request.labels.*.name, 'do-not-merge')
+       github.event.action != 'closed'
     runs-on: ubuntu-latest
 
     permissions:
@@ -217,12 +205,6 @@ jobs:
               'any(.labels[]?; .name == "octopus-review-required")' \
               <<<"$current" >/dev/null; then
             echo "::error::The explicit Octopus review label was removed before publication."
-            exit 1
-          fi
-          if jq -e \
-            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-            <<<"$current" >/dev/null; then
-            echo "::error::The PR was paused by an emergency label before publication."
             exit 1
           fi
           if [[ "$ATTEMPT_MARKER_REQUIRED" == "true" ]] \

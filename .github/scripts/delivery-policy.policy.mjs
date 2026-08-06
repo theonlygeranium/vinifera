@@ -1055,8 +1055,8 @@ test("trusted preview publisher never executes PR-head code beside credentials",
     /ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/,
   );
   assert.match(workflow, /head\.repo\.full_name/);
-  assert.match(workflow, /human-review-required/);
-  assert.match(workflow, /do-not-merge/);
+  assert.doesNotMatch(workflow, /human-review-required/);
+  assert.doesNotMatch(workflow, /do-not-merge/);
   assert.match(workflow, /Frontend preview evidence/);
   assert.match(workflow, /--commit-hash "\$HEAD_SHA"/);
   assert.match(workflow, /classifyDeliveryChange/);

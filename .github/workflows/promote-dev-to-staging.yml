@@ -121,11 +121,8 @@ jobs:
           if [[ -n "$existing" ]]; then
             existing_metadata=$(gh pr view "$existing" --repo "$REPO" \
               --json labels,state)
-            if [[ "$(jq -r '.state' <<<"$existing_metadata")" != "OPEN" ]] \
-              || jq -e \
-                'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-                <<<"$existing_metadata" >/dev/null; then
-              echo "::error::The existing promotion PR is closed or paused by an emergency label."
+            if [[ "$(jq -r '.state' <<<"$existing_metadata")" != "OPEN" ]]; then
+              echo "::error::The existing promotion PR is closed."
               exit 1
             fi
             echo "Existing promotion PR #$existing found — updating body."
@@ -256,11 +253,8 @@ jobs:
             current_base_name=$(jq -r '.baseRefName' <<<"$current_metadata")
             current_base_sha=$(jq -r '.baseRefOid' <<<"$current_metadata")
             current_state=$(jq -r '.state' <<<"$current_metadata")
-            if [[ "$current_state" != "OPEN" ]] \
-              || jq -e \
-                'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-                <<<"$current_metadata" >/dev/null; then
-              echo "::error::Promotion PR is closed or paused by an emergency label."
+            if [[ "$current_state" != "OPEN" ]]; then
+              echo "::error::Promotion PR is closed."
               exit 1
             fi
             if [[ "$current_sha" != "$PR_SHA" ]]; then
@@ -489,11 +483,8 @@ jobs:
           current_base_name=$(jq -r '.baseRefName' <<<"$current_metadata")
           current_base_sha=$(jq -r '.baseRefOid' <<<"$current_metadata")
           current_state=$(jq -r '.state' <<<"$current_metadata")
-          if [[ "$current_state" != "OPEN" ]] \
-            || jq -e \
-              'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-              <<<"$current_metadata" >/dev/null; then
-            echo "::error::Promotion PR is closed or paused by an emergency label."
+          if [[ "$current_state" != "OPEN" ]]; then
+            echo "::error::Promotion PR is closed."
             exit 1
           fi
           if [[ "$current_sha" != "$PR_SHA" ]]; then

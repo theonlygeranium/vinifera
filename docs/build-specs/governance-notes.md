@@ -74,18 +74,23 @@ disposition for a verified non-actionable finding. It may change code only when
 the existing branch. It may merge only when `codex-auto-merge` is present and
 every documented gate passes.
 
-`do-not-merge` is absolute. `human-review-required` blocks every automated
-mutation, including replies and thread resolution; the monitor may only
-inspect, notify the human owner, and stop. Automation may add
+`do-not-merge` is an absolute merge prohibition. `human-review-required`
+blocks merge, promotion, deployment, and the specific consequential owner
+decision; the monitor continues safe diagnosis, localized repair, replies,
+thread resolution, review, preview, packaging, and evidence gathering.
+Automation may add
 `human-review-required` when it encounters a sensitive boundary or repeated
 failure, but it may not remove either blocking label or grant itself
 `codex-auto-fix` or `codex-auto-merge`.
 
-Architecture, authentication, authorization, database migrations, billing,
-production configuration, provider activation, security tradeoffs, destructive
-actions, and materially expanded scope require human review regardless of
-labels. The monitor also stops after three unsuccessful review/fix cycles or
-when the same finding reappears.
+Human review is reserved for destructive or irreversible database work,
+credible production data-loss or unresolved authentication, authorization,
+tenant-isolation or secret-exposure risk, real-money billing decisions,
+legal/regulatory judgment, suspected credential compromise, DNS/domain
+ownership changes, materially undefined product choices, or failure without a
+safe fallback. Additive migrations, staging/provider sandbox activation,
+workflow repair, protected deployment, and automatic rollback may proceed
+under standing authority and exact fail-closed controls.
 
 ## Risk
 

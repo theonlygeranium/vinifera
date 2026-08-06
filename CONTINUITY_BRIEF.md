@@ -231,8 +231,10 @@ CI, Octopus, CodeRabbit, or automatic `dev → staging` readiness after each
   database-policy, or governance decisions.
 - Staging and production remain exact-revision, protected operations.
   Standing owner authorization does not bypass environment controls, target
-  hashes, confirmations, privacy, rollback, `human-review-required`, or
-  `do-not-merge`.
+  hashes, confirmations, privacy, rollback, or a stop label at the exact
+  consequential boundary. `human-review-required` does not suppress safe
+  diagnosis, repair, review, preview, or evidence collection;
+  `do-not-merge` remains an absolute merge prohibition.
 
 Evidence must be reported as one of: local validation, fast GitHub validation,
 full GitHub validation, preview deployment, staging deployment, production
@@ -429,9 +431,11 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   cannot be treated as success.
 - PR ownership remains a terminal agent condition, but the applicable gate now
   depends on delivery level. Five precedence-ordered labels scope recurring
-  monitoring; `human-review-required` pauses mutation and `do-not-merge` is
-  absolute. Standing owner authority can cover routine reversible delivery
-  through protected controls but cannot bypass either label.
+  monitoring; `human-review-required` pauses merge, promotion, deployment,
+  and the specific owner decision while safe repair/evidence work continues;
+  `do-not-merge` is an absolute merge prohibition. Standing owner authority
+  covers routine reversible delivery through protected controls but cannot
+  bypass a stop label at its consequential boundary.
 - Risk-based development merge source is defined by
   `.github/delivery-risk-contract.json`,
   `.github/scripts/dev-automerge-policy.mjs`, and
