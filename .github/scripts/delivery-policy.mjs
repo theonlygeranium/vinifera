@@ -129,6 +129,7 @@ const HIGH_RISK_FILES = new Set([
   ".env.example",
   ".nvmrc",
   "capacitor.config.json",
+  "config/hosted-target-allowlist.json",
   "package-lock.json",
   "package.json",
   "tests/e2e/smoke.spec.ts",
@@ -183,7 +184,12 @@ export function isAuthorityHighRiskPath(path) {
     path.startsWith(".github/") ||
     path.startsWith(".octopus/") ||
     path.startsWith("supabase/migrations/") ||
-    [".env.example", "package-lock.json", "wrangler.jsonc"].includes(path)
+    [
+      ".env.example",
+      "config/hosted-target-allowlist.json",
+      "package-lock.json",
+      "wrangler.jsonc",
+    ].includes(path)
   ) {
     return true;
   }

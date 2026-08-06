@@ -454,6 +454,7 @@ test("minimum mandated security and delivery paths are high-risk", () => {
     ".octopus/config.yml",
     "scripts/credential-envelope-rotation.mjs",
     "scripts/production-release.mjs",
+    "config/hosted-target-allowlist.json",
     "wrangler.jsonc",
     "package-lock.json",
     ".nvmrc",
@@ -481,6 +482,7 @@ test("minimum mandated security and delivery paths are high-risk", () => {
     ".octopus/config.yml",
     "scripts/credential-envelope-rotation.mjs",
     "scripts/production-release.mjs",
+    "config/hosted-target-allowlist.json",
     "wrangler.jsonc",
     "package-lock.json",
   ]) {

@@ -2,7 +2,9 @@
   "version": 1,
   "staging": {
     "supabaseProjectRefSha256": [],
-    "cloudflareAccountIdSha256": [],
+    "cloudflareAccountIdSha256": [
+      "9255ff49245aa55fe0593dd098290d4f31928f5607b79d3a8633579c1695dd01"
+    ],
     "cloudflareZoneIdSha256": [],
     "cloudflareFallbackOriginSha256": [],
     "fcmProjectIdSha256": [],
