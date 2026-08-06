@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   cookieHeader,
   decryptMagicLinkEnvelope,
+  expectStatus,
   hasCookieFamily,
   mergeCookieJar,
   plusAddress,
@@ -20,11 +21,29 @@ import {
 const repositoryRoot = new URL("../../", import.meta.url);
 
 describe("hosted Gate 7 acceptance controller", () => {
-  it("creates scoped plus-addresses without retaining an existing tag", () => {
+  it("creates scoped plus-addresses and retains only sanitized HTTP errors", () => {
     expect(plusAddress("Founder+old@EdStratumLabs.ai", "vinifera-g7-123")).toBe(
       "founder+vinifera-g7-123@edstratumlabs.ai",
     );
     expect(() => plusAddress("not-an-email", "tag")).toThrow(/email address/);
+    expect(() =>
+      expectStatus(
+        {
+          body: {
+            error: {
+              code: "configuration_error",
+              message: "Member sign-in is temporarily unavailable.",
+              requestId: "omitted-from-diagnostic",
+            },
+          },
+          response: { status: 503 },
+        },
+        200,
+        "member magic-link request",
+      ),
+    ).toThrow(
+      "member magic-link request: expected HTTP 200, received 503. configuration_error: Member sign-in is temporarily unavailable.",
+    );
   });
 
   it("splits and merges host-only cookies", () => {
