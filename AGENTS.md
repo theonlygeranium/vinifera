@@ -151,7 +151,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 569/569 Vitest; 155 passed Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 575/575 Vitest; 155 passed Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -192,7 +192,7 @@ workflows under `.github/workflows/`:
 | `dev-worker-release.yml` | Completed development deployment candidate | Prepared-disabled trusted immutable Worker upload, deploy, hosted verification, evidence, and automatic rollback |
 | `release-candidate-package.yml` | Manual, trusted default branch | Packages one exact fully certified `dev → staging` candidate without environment rebuild |
 | `delivery-control-center.yml` | Scheduled, manual | Maintains one exception-oriented delivery status issue |
-| `ci.yml` | Promotion PRs, staging/main, manual, nightly | Full release validation, selective/nightly Android, hidden promotion-smoke fast validation, and the exact `Vinifera Promotion Gate` aggregate |
+| `ci.yml` | Promotion PRs, staging/main, manual, nightly | Full release validation, selective/nightly Android, hidden promotion-smoke fast validation, the exact `Vinifera Promotion Gate` aggregate, and opt-in sanitized Gates 10–16 readiness evidence after an exact staging deployment |
 | `direct-push-guard.yml` | Push to main | Enforces no direct commits reach main without a merged PR; fails closed |
 | `hosted-readiness.yml` | Manual, unprotected | Read-only credential and hosted-target readiness report; performs no migration or deployment |
 | `octopus-main-deploy.yml` | Push to main, manual | Reconcile trusted Octopus configuration after the default-branch bootstrap |
@@ -253,7 +253,7 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 569 | `npm run check` |
+| Vitest unit/integration | 575 | `npm run check` |
 | Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |

@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Changed
+- Add independent opt-in Gates 10–16 staging readiness reports that bind
+  allowlisted configuration state to the exact deployed candidate, retain a
+  sanitized 90-day artifact, and explicitly prohibit a readiness report from
+  claiming gate completion. Include the previously omitted
+  `STAGING_ML_PLATFORM_ACTOR_USER_ID` binding in the atomic staging Worker
+  secret bundle so Gate 11 can reach its guarded actor validation when real
+  source and experiment prerequisites exist. **Deployment impact:** protected
+  staging workflow, documented read-only operator command, and optional Worker
+  secret binding only; no provider
+  resource, winery data, fixture, model, integration, DNS, live-billing,
+  mobile-store, or production mutation.
 - Remove the broad required-reviewer rule from the protected `staging` GitHub
   environment while retaining its staging-only branch policy and the
   repository's exact-candidate, provider-target, confirmation, health,
