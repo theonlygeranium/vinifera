@@ -56,6 +56,15 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Publish the Gate 7 run-bound handoff identifier and ephemeral public key to
+  the protected staging environment variable
+  `STAGING_HOSTED_ACCEPTANCE_MAGIC_LINK_HANDOFF`, then remove it when the wait
+  ends. GitHub does not expose workflow-command notices through the check-run
+  annotations API until the running step completes, so a notice cannot service
+  an in-step encrypted handoff. The existing notice remains as completed-run
+  evidence. **Deployment impact:** protected staging orchestration metadata
+  only; no credential, application runtime, database, provider, DNS, billing,
+  or mobile-store mutation.
 - Establish the reusable Gate 7 fixture's operational billing state through
   the real signed Stripe `active` webhook before requesting a member magic
   link. Cleanup intentionally restores `onboarding`, while the hosted
