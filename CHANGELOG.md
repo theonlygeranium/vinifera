@@ -3,6 +3,32 @@
 ## [Unreleased]
 
 ### Changed
+- Remove the broad required-reviewer rule from the protected `staging` GitHub
+  environment while retaining its staging-only branch policy and the
+  repository's exact-candidate, provider-target, confirmation, health,
+  rollback, and one-shot gate controls. Consequential production DNS,
+  real-money, mobile-store, destructive, and legal-provider boundaries remain
+  independently confirmed. **Deployment impact:** reversible staging workflow
+  jobs no longer wait for a generic environment approval; no Worker, provider,
+  database, credential, billing, DNS, mobile-store, or production mutation.
+- Correct the remaining-gates execution order so hosted ShipCompliant
+  activation (Gate 13) precedes the operational label proof (Gate 6), require
+  executable mobile API/association routes before Gates 17–18, and record that
+  the completed Gate 7 acceptance controller is disabled for unrelated staging
+  promotions in favor of one-shot gate-specific switches. **Deployment
+  impact:** sets the protected staging variable
+  `STAGING_HOSTED_ACCEPTANCE_ENABLED=false`; no Worker, database, provider,
+  billing, DNS, mobile-store, or production mutation.
+- Refine the orchestration manifest so bounded implementation work may be
+  delegated in isolated worktrees after read-only audits, while provider
+  mutation, integration review, hosted QA, promotion, and gate-completion
+  authority remain centralized with the chief orchestrator. **Deployment
+  impact:** collaboration documentation only; no runtime or hosted mutation.
+- Add the chief-orchestrator manifest for completing Gates 6, 8, and 10–20,
+  with non-overlapping read-only subagent audits, centralized mutation
+  authority, dependency-aware sequencing, and mandatory per-gate hosted QA.
+  **Deployment impact:** planning documentation only; no provider, database,
+  credential, billing, DNS, Worker, mobile-store, or production mutation.
 - Record hosted activation Gate 7 as `live-passed` after protected staging run
   `31089753727` deployed reviewed exact candidate
   `530a003b91642ebf40af01468b10e444116ef632` as Worker version
