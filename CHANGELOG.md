@@ -36,6 +36,13 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Accept current Wrangler `versions upload` output when it contains exactly one
+  immutable Worker version ID but omits a preview URL. Staging now falls back to
+  its protected, non-secret `STAGING_WORKER_ORIGIN` for post-deploy exact-SHA
+  runtime verification, while the production parser continues to require an
+  explicit version preview URL. **Deployment impact:** repairs the isolated
+  staging Worker activation path only; no production, DNS, billing, database,
+  or mobile-store mutation.
 - Reconcile the hosted activation ledger with the 2026-08-05 live re-audit:
   mark Gates 1, 3, 4, 5, and 9 `live-passed`, keep repaired Worker/acceptance
   Gates 2 and 7 pending exact-candidate staging deployment, and raise every
