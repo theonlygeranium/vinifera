@@ -899,7 +899,8 @@ The code must remain fail-closed until these external connections are active:
    `530a003b91642ebf40af01468b10e444116ef632`.
 8. **Pending; acceptance controller source-complete:** provision and verify the
    Resend sending domain and exact staging webhook, then enable
-   `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED` for one reviewed staging
+   the repository Actions variable `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED`
+   for one reviewed staging
    promotion. The protected controller waits for the real hourly Cron Trigger
    and requires idempotent welcome/pre-shipment delivery plus signed webhook
    reconciliation before retaining sanitized evidence. Provider/DNS

@@ -56,6 +56,15 @@ describe("hosted Gate 8 acceptance controller", () => {
     expect(requests[1]).toContain("after=domain-first");
   });
 
+  it("stops provider discovery when the controller cleanup boundary is reached", async () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+    await expect(
+      providerList("/domains", "re_test_key", Date.now() - 1),
+    ).rejects.toThrow(/pre-cleanup execution budget/u);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("scopes recipients and validates sender domains", () => {
     expect(plusAddress("Owner+old@Example.com", "vinifera-g8-run")).toBe(
       "owner+vinifera-g8-run@example.com",
@@ -245,6 +254,9 @@ describe("hosted Gate 8 acceptance controller", () => {
     expect(deployJob).not.toContain("scripts/hosted-gate8-acceptance.mjs");
     expect(gate8Job).toContain("needs: deploy-staging");
     expect(gate8Job).toContain("timeout-minutes: 100");
+    expect(gate8Job).toContain(
+      'HOSTED_GATE8_PRE_CLEANUP_SECONDS: "4200"',
+    );
     expect(gate8Job).toContain('HOSTED_GATE8_WAIT_SECONDS: "4200"');
     expect(workflow).toContain(
       "cancel-in-progress: ${{ github.ref != 'refs/heads/staging' || vars.STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED != 'true' }}",
@@ -257,8 +269,8 @@ describe("hosted Gate 8 acceptance controller", () => {
       "utf8",
     );
     expect(controller).toContain('method: "GET"');
-    expect(controller).toContain('providerList("/domains"');
-    expect(controller).toContain('providerList("/webhooks"');
+    expect(controller).toMatch(/providerList\(\s*"\/domains"/u);
+    expect(controller).toMatch(/providerList\(\s*"\/webhooks"/u);
     expect(controller).not.toMatch(
       /method:\s*"(?:POST|PUT|PATCH|DELETE)"/u,
     );
@@ -271,9 +283,15 @@ describe("hosted Gate 8 acceptance controller", () => {
     expect(controller).toContain('fixtureMode: "durable-one-shot-staging"');
     expect(controller).toContain('disposition: "durable-evidence-retained"');
     expect(controller).not.toMatch(/\.delete\(/u);
-    expect(controller).toContain("AbortSignal.timeout(15_000)");
+    expect(controller).toContain("remainingMilliseconds(preCleanupDeadline)");
+    expect(controller).toContain("const cleanupAdmin = hostedClient");
+    expect(controller).toContain("preCleanupDeadline");
     expect(controller).toContain('redirect: "error"');
     expect(controller).toContain("headers: access");
+    expect(controller).toContain("const asOf = new Date()");
+    expect(controller).toContain(
+      'localDate(brand.time_zone || "UTC", asOf)',
+    );
     expect(controller).toMatch(
       /\.from\("email_delivery_events"\)[\s\S]*?\.eq\("organization_id", staff\.organization_id\)[\s\S]*?\.eq\("brand_id", brandId\)[\s\S]*?\.in\("email_log_id", logIds\)/u,
     );
@@ -284,7 +302,7 @@ describe("hosted Gate 8 acceptance controller", () => {
     expect(controller).toContain("webhookIdSha256");
     const migration = await readFile(
       new URL(
-        "supabase/migrations/202608060032_gate8_scoped_pre_shipment_trigger.sql",
+        "supabase/migrations/202608060031_gate8_scoped_pre_shipment_trigger.sql",
         repositoryRoot,
       ),
       "utf8",

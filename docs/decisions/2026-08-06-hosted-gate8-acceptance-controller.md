@@ -19,16 +19,19 @@ deployed hourly scheduler to perform delivery.
 
 ## Decision
 
-Add a separate, explicit staging toggle,
+Add a separate, explicit repository-level Actions toggle,
 `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED`. When it is `true`, the protected
 staging deployment validates all required communications bindings before
 upload, deploys those bindings atomically with the reviewed Worker version,
 and then unlocks an isolated `gate8-acceptance` job. That job runs
-`scripts/hosted-gate8-acceptance.mjs` with a bounded 70-minute wait and a fresh
-100-minute timeout: 15 minutes for setup, 70 minutes for provider delivery,
-and 15 minutes for fixture retirement and evidence
+`scripts/hosted-gate8-acceptance.mjs` with a controller-wide 70-minute
+pre-cleanup deadline and a fresh 100-minute timeout: 15 minutes for runner
+setup, at most 70 minutes shared by discovery, fixture setup, and provider
+delivery, and 15 minutes for fixture retirement and evidence
 upload. An activated staging Gate 8 workflow is not superseded by a later run;
 routine full-validation runs retain cancellation of obsolete work.
+Repository scope is required because workflow concurrency and job conditions
+are evaluated before GitHub loads the protected `staging` environment.
 
 The controller treats Resend as read-only. It inventories the configured
 sending domain and exact `/api/webhooks/resend` staging endpoint through

@@ -2,26 +2,26 @@
 
 ## [Unreleased]
 
-### Fixed
-
-- Reserved a bounded setup allowance in the hosted Gate 8 acceptance job so its
-  70-minute provider poll cannot consume the fixture-retirement window, and
-  corrected the documented exact Vitest floor to 584.
-
 ### Changed
 - Add the opt-in hosted Gate 8 acceptance controller and its complete review
   hardening: exact paginated Resend domain/webhook inventory, verified active
   senders, Access-authenticated bounded Worker probes, an exact tenant/brand/
   member/release-scoped pre-shipment command with idempotent replay, explicitly
   tenant-scoped delivery/outbox polling, two completed provider deliveries and
-  signed delivered events, and durable sanitized evidence. Run the mutation in
+  signed delivered events, and durable sanitized evidence. Reserve unique
+  migration 031 for the scoped trigger so remaining gate branches can merge in
+  dependency order. Run the mutation in
   a non-superseded post-deployment job with 15 minutes reserved after the
-  provider wait for fixture retirement. Verification: 9/9 focused Gate 8 tests
-  and 584/584 full Vitest tests, app build, and Worker dry-run. **Deployment
+  provider wait for fixture retirement. Verification: 10/10 focused Gate 8 tests
+  and 585/585 full Vitest tests, app build, and Worker dry-run. **Deployment
   impact:** adds one forward service-role-only database RPC plus protected
   staging acceptance workflow/source; no provider/DNS or production mutation,
-  the toggle remains opt-in, and Gate 8 remains pending until reviewed hosted
-  evidence succeeds.
+  the repository-scoped toggle remains opt-in, the 100-minute job preserves a
+  15-minute setup allowance plus the 15-minute cleanup reserve around a
+  controller-wide 70-minute pre-cleanup deadline shared by provider discovery,
+  fixture setup, and delivery polling; fixture dates share the trigger timestamp, the
+  documented exact Vitest floor is 585, and Gate 8 remains pending until
+  reviewed hosted evidence succeeds.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from

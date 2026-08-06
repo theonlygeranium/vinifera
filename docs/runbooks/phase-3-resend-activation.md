@@ -62,7 +62,9 @@ Do not expose any of these values through Vite-prefixed variables or browser
 configuration.
 
 The protected staging deployment maps every value above into the immutable
-Worker upload. If `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED=true`, it fails
+Worker upload. `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED` is a repository-level
+Actions variable because GitHub evaluates job conditions before loading the
+`staging` environment. If it is `true`, deployment fails
 before deployment unless the complete binding set and
 `STAGING_HOSTED_ACCEPTANCE_EMAIL_BASE` environment variable are present and
 consistent.
@@ -124,7 +126,7 @@ before enabling them for a production winery.
 ### Protected one-shot Gate 8 acceptance
 
 After the provider domain and webhook prerequisites exist, set the protected
-staging variable `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED=true` for one reviewed
+repository Actions variable `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED=true` for one reviewed
 promotion. The controller:
 
 1. confirms the exact Resend domain is verified with sending, DKIM, and SPF;
@@ -135,7 +137,9 @@ promotion. The controller:
    the exact organization-, brand-, member-, and release-scoped command, and
    requires exactly one logical message of each type without scanning other
    tenants' due communications;
-5. waits up to 70 minutes for the actual deployed hourly Worker Cron Trigger;
+5. waits for the actual deployed hourly Worker Cron Trigger within the
+   controller-wide 70-minute pre-cleanup budget, shortening the delivery wait
+   by time already spent on discovery and fixture setup;
 6. requires two completed outbox records, two distinct provider messages, and
    a signed `email.delivered` webhook event for both (`email.sent` is not
    completion evidence), with every delivery table read scoped to the exact
@@ -144,9 +148,11 @@ promotion. The controller:
    audit evidence.
 
 The mutation runs only after the staging deployment job succeeds, in a
-dedicated 100-minute job with a bounded 70-minute provider wait. The additional
-15-minute setup allowance keeps the existing 15-minute cleanup reserve intact
-after checkout, dependency installation, runtime discovery, and fixture setup.
+dedicated 100-minute job with a bounded 70-minute controller pre-cleanup
+deadline. Checkout and dependency installation retain a 15-minute allowance;
+runtime/provider discovery, fixture setup, and delivery polling all consume the
+same 70-minute deadline, leaving the final 15 minutes for fixture retirement
+and evidence upload.
 While the Gate 8 toggle is active, a later staging run does not supersede the in-flight
 workflow, preserving the reserved cleanup window for fixture retirement and
 sanitized evidence upload.

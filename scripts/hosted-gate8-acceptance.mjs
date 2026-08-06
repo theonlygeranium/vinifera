@@ -195,14 +195,34 @@ function accessHeaders(clientId, clientSecret) {
   };
 }
 
-function hostedClient(url, key, headers) {
+function remainingMilliseconds(deadline) {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) {
+    throw new Error("Gate 8 exhausted its pre-cleanup execution budget.");
+  }
+  return Math.min(15_000, remaining);
+}
+
+function boundedFetch(deadline = null) {
+  return (input, init = {}) => {
+    const timeoutSignal = AbortSignal.timeout(
+      deadline === null ? 15_000 : remainingMilliseconds(deadline),
+    );
+    const signal = init.signal
+      ? AbortSignal.any([init.signal, timeoutSignal])
+      : timeoutSignal;
+    return fetch(input, { ...init, signal });
+  };
+}
+
+function hostedClient(url, key, headers, deadline = null) {
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
-    global: { headers },
+    global: { fetch: boundedFetch(deadline), headers },
   });
 }
 
-async function providerJson(path, apiKey) {
+async function providerJson(path, apiKey, deadline = null) {
   const response = await fetch(`${RESEND_API_ORIGIN}${path}`, {
     headers: {
       Accept: "application/json",
@@ -210,7 +230,9 @@ async function providerJson(path, apiKey) {
     },
     method: "GET",
     redirect: "error",
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(
+      deadline === null ? 15_000 : remainingMilliseconds(deadline),
+    ),
   });
   if (!response.ok) {
     await response.body?.cancel().catch(() => undefined);
@@ -221,13 +243,13 @@ async function providerJson(path, apiKey) {
   return response.json();
 }
 
-export async function providerList(path, apiKey) {
+export async function providerList(path, apiKey, deadline = null) {
   const rows = [];
   let after = null;
   for (let pageNumber = 0; pageNumber < 100; pageNumber += 1) {
     const query = new URLSearchParams({ limit: "100" });
     if (after) query.set("after", after);
-    const page = await providerJson(`${path}?${query}`, apiKey);
+    const page = await providerJson(`${path}?${query}`, apiKey, deadline);
     const pageRows = Array.isArray(page?.data) ? page.data : [];
     rows.push(...pageRows);
     if (page?.has_more !== true) return rows;
@@ -288,17 +310,32 @@ async function main() {
     required("CF_ACCESS_CLIENT_ID"),
     required("CF_ACCESS_CLIENT_SECRET"),
   );
-  const admin = hostedClient(
-    required("SUPABASE_URL"),
-    required("SUPABASE_SERVICE_ROLE_KEY"),
-    access,
-  );
   const emailBase = required("HOSTED_ACCEPTANCE_EMAIL_BASE");
   const waitSeconds = Number(process.env.HOSTED_GATE8_WAIT_SECONDS ?? "4200");
   expect(
     Number.isInteger(waitSeconds) && waitSeconds >= 60 && waitSeconds <= 4_500,
     "HOSTED_GATE8_WAIT_SECONDS must be between 60 and 4500.",
   );
+  const preCleanupSeconds = Number(
+    process.env.HOSTED_GATE8_PRE_CLEANUP_SECONDS ?? "4200",
+  );
+  expect(
+    Number.isInteger(preCleanupSeconds) &&
+      preCleanupSeconds >= 60 &&
+      preCleanupSeconds <= 4_200 &&
+      waitSeconds <= preCleanupSeconds,
+    "HOSTED_GATE8_PRE_CLEANUP_SECONDS must be 60-4200 and cover the delivery wait.",
+  );
+  const preCleanupDeadline = Date.now() + preCleanupSeconds * 1_000;
+  const supabaseUrl = required("SUPABASE_URL");
+  const serviceRoleKey = required("SUPABASE_SERVICE_ROLE_KEY");
+  const admin = hostedClient(
+    supabaseUrl,
+    serviceRoleKey,
+    access,
+    preCleanupDeadline,
+  );
+  const cleanupAdmin = hostedClient(supabaseUrl, serviceRoleKey, access);
   const runSuffix = `${process.env.GITHUB_RUN_ID ?? "local"}-${randomBytes(4).toString("hex")}`;
   const recipient = plusAddress(emailBase, `vinifera-g8-${runSuffix}`);
   const evidence = {
@@ -322,7 +359,7 @@ async function main() {
     const healthResponse = await fetch(new URL("/api/health", origin), {
       headers: access,
       redirect: "error",
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(remainingMilliseconds(preCleanupDeadline)),
     });
     const health = await responseBody(healthResponse);
     expect(
@@ -335,7 +372,7 @@ async function main() {
       {
         headers: access,
         redirect: "error",
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(remainingMilliseconds(preCleanupDeadline)),
       },
     );
     const configuration = await responseBody(configurationResponse);
@@ -349,7 +386,11 @@ async function main() {
     );
     evidence.checks.runtime = true;
 
-    const domains = await providerList("/domains", apiKey);
+    const domains = await providerList(
+      "/domains",
+      apiKey,
+      preCleanupDeadline,
+    );
     const domainSummary = domains.find(
       (domain) => String(domain?.name ?? "").toLowerCase() === sendingDomain,
     );
@@ -357,6 +398,7 @@ async function main() {
     const domain = await providerJson(
       `/domains/${encodeURIComponent(providerId(domainSummary.id, "domain identifier"))}`,
       apiKey,
+      preCleanupDeadline,
     );
     const validatedDomain = validateResendDomain(domain, sendingDomain);
     evidence.provider = {
@@ -368,7 +410,11 @@ async function main() {
     evidence.checks.domain = true;
 
     const webhookEndpoint = new URL("/api/webhooks/resend", origin).toString();
-    const webhooks = await providerList("/webhooks", apiKey);
+    const webhooks = await providerList(
+      "/webhooks",
+      apiKey,
+      preCleanupDeadline,
+    );
     const webhookSummary = webhooks.find(
       (webhook) => String(webhook?.endpoint ?? "") === webhookEndpoint,
     );
@@ -376,6 +422,7 @@ async function main() {
     const webhook = await providerJson(
       `/webhooks/${encodeURIComponent(providerId(webhookSummary.id, "webhook identifier"))}`,
       apiKey,
+      preCleanupDeadline,
     );
     const validatedWebhook = validateResendWebhook(webhook, webhookEndpoint);
     expect(
@@ -472,7 +519,8 @@ async function main() {
       status: "active",
     });
     if (memberError) throw memberError;
-    const today = localDate(brand.time_zone || "UTC");
+    const asOf = new Date();
+    const today = localDate(brand.time_zone || "UTC", asOf);
     const processingDate = addCalendarDays(today, preShipment.days_before);
     const { error: releaseError } = await admin.from("releases").insert({
       brand_id: brandId,
@@ -497,7 +545,6 @@ async function main() {
         tier_name: `Gate 8 Tier ${runSuffix}`,
       });
     if (releaseTierError) throw releaseTierError;
-    const asOf = new Date();
     const triggerArgs = scopedPreShipmentTriggerArgs(fixture, asOf);
     const firstEnqueue = await admin.rpc(
       "enqueue_scoped_pre_shipment_trigger",
@@ -533,7 +580,10 @@ async function main() {
     );
     evidence.checks.triggerIdempotency = true;
     const logIds = logicalRows.map((row) => row.id);
-    const deadline = Date.now() + waitSeconds * 1_000;
+    const deadline = Math.min(
+      Date.now() + waitSeconds * 1_000,
+      preCleanupDeadline,
+    );
     let deliveredRows = [];
     let deliveryEvents = [];
     let completedOutboxRows = [];
@@ -574,7 +624,11 @@ async function main() {
       ) {
         break;
       }
-      await new Promise((resolveWait) => setTimeout(resolveWait, 10_000));
+      const remaining = Math.max(0, deadline - Date.now());
+      if (remaining === 0) break;
+      await new Promise((resolveWait) =>
+        setTimeout(resolveWait, Math.min(10_000, remaining)),
+      );
     }
     expect(
       deliveryComplete({
@@ -610,7 +664,7 @@ async function main() {
     const cleanupErrors = [];
     const retiredAt = new Date().toISOString();
     if (fixture.releaseId) {
-      const processing = await admin
+      const processing = await cleanupAdmin
         .from("releases")
         .update({ status: "processing" })
         .eq("id", fixture.releaseId)
@@ -619,7 +673,7 @@ async function main() {
       if (processing.error) {
         cleanupErrors.push("release");
       } else {
-        const completed = await admin
+        const completed = await cleanupAdmin
           .from("releases")
           .update({ status: "completed" })
           .eq("id", fixture.releaseId)
@@ -629,7 +683,7 @@ async function main() {
       }
     }
     if (fixture.memberId) {
-      const result = await admin
+      const result = await cleanupAdmin
         .from("members")
         .update({
           cancelled_at: retiredAt,
@@ -642,7 +696,7 @@ async function main() {
       if (result.error) cleanupErrors.push("member");
     }
     if (fixture.tierId) {
-      const result = await admin
+      const result = await cleanupAdmin
         .from("club_tiers")
         .update({ active: false })
         .eq("id", fixture.tierId)
