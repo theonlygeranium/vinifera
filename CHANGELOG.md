@@ -4,6 +4,12 @@
 
 ### Changed
 - Narrow `human-review-required` from a global automation pause to a consequential-mutation stop. Exact-head review, safe repair, non-production previews, promotion readiness, and immutable artifact packaging now continue while merge/promotion/deployment boundaries remain fail closed. Verified rollback to a known prior reviewed Worker version is no longer blocked by a stop label. The ownership and agent workflow contracts now reserve additional human review for destructive, irreversible, production-data, unresolved auth/tenant, real-money, legal, credential-compromise, or DNS/domain decisions. **Deployment impact:** governance and trusted CI/release-control behavior only; no application route, provider, database, credential, billing, DNS, Worker, mobile-store, or production activation state changes.
+- Reconcile the protected `staging` history back into `dev` while retaining the
+  newer GitHub-owned Worker deployment model, exact neutral-branch promotion
+  fixture, and current Octopus workflow formatting. This removes branch-history
+  conflicts without reverting either branch's delivered behavior.
+  **Deployment impact:** branch ancestry and release-control history only; no
+  provider, database, Worker, billing, DNS, or production mutation.
 
 ### Fixed
 - Reconcile the hosted activation ledger with the 2026-08-05 live re-audit:
@@ -86,6 +92,12 @@
   only; no application route, provider, database, credential, billing, DNS,
   Worker activation, production/mobile approval-gate, or Cloudflare Access
   policy state changes.
+- Align `staging` package metadata with the verified `dev` dependency/tooling
+  state so future dev-to-staging promotions do not carry stale lockfile or
+  package-manager drift. **Deployment impact:** package-manager metadata only;
+  no application route, provider, database, credential, billing, DNS, Worker
+  activation, production/mobile approval-gate, or Cloudflare Access policy
+  state changes.
 - Add a protected-branch `dependency-tooling-tested` lane for package
   dependency and toolchain metadata changes so `package.json`/`package-lock.json`
   updates validate audit, typecheck, app build, Worker build, and shared mobile
