@@ -19,15 +19,12 @@ selection. This fixes the runner argument-length failure observed on PR #291
 without weakening PR/base/head binding or the immediate pre-merge check.
 
 The trusted frontend-preview publisher now loads its delivery classifier from
-the live pull request's exact validated `dev` base SHA. It continues to execute
-no PR-head code, while avoiding false `unknown_path_fail_closed` results when
-`dev` contains reviewed policy paths that have not yet promoted to `main`.
-
-Promotion-smoke tests that create and compare three local Git branches use a
-30-second per-test budget. The local-drill fixture uses the same bounded budget.
-Their logic is unchanged; the prior 5-second default repeatedly timed out only
-under concurrent full-suite filesystem load while the isolated suite passed
-9/9.
+the live pull request's exact validated `dev` base SHA only inside an isolated
+read-only job whose policy process receives a stripped environment. A separate
+fresh trusted runner re-downloads the candidate and revalidates the exact live
+PR identity before any Pages credential is available; it executes neither base
+nor PR-head code. This avoids false `unknown_path_fail_closed` results without
+expanding the privileged execution boundary.
 
 ## 2026-08-06 Gates 10-16 acceptance foundation
 

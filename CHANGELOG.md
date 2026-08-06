@@ -3,11 +3,6 @@
 ## [Unreleased]
 
 ### Changed
-- Apply the shared 30-second fixture-Git budget to the promotion classifier's
-  staged CLI test as well as the other repository-heavy promotion tests. This
-  prevents a correct subprocess invocation from inheriting Vitest's unrelated
-  five-second default under concurrent macOS CI load. **Deployment impact:**
-  test timing only; no workflow, branch, deployment, or runtime behavior.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from
@@ -299,12 +294,17 @@
 
 ### Fixed
 - Load trusted frontend-preview delivery policy from the live pull request's
-  exact validated `dev` base SHA rather than from potentially stale `main`.
-  The publisher still executes no PR-head code, but newly reviewed base-policy
-  paths no longer fail as unknown solely because production promotion has not
-  occurred. **Deployment impact:** trusted preview evidence classification
-  only; no application route, provider, database, credential, billing, DNS,
-  Worker activation, or production/mobile approval-gate state changes.
+  exact validated `dev` base SHA rather than from potentially stale `main`, but
+  evaluate that base policy only in an isolated read-only job with credentials
+  stripped from the policy process. The privileged Pages publisher starts on a
+  fresh runner, re-downloads the candidate, and revalidates exact PR/head/base
+  identity without executing base or PR-head code. Newly reviewed base-policy
+  paths therefore no longer fail as unknown solely because production promotion
+  has not occurred, without expanding the credentialed execution boundary.
+  **Deployment impact:** trusted preview evidence classification and Pages
+  publication workflow only; no application route, provider, database,
+  credential, billing, DNS, Worker activation, or production/mobile
+  approval-gate state changes.
 - Give the promotion-smoke local-drill fixture the same 30-second bounded Git
   operation budget as the three multi-branch fixture tests. This prevents
   full-suite host contention from exhausting Vitest's unrelated 5-second

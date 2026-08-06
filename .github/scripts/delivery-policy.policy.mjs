@@ -1069,6 +1069,24 @@ test("trusted preview publisher never executes PR-head code beside credentials",
   );
   assert.match(workflow, /TRUSTED_POLICY_PATH="\$trusted_policy"/);
   assert.match(workflow, /pathToFileURL\(process\.env\.TRUSTED_POLICY_PATH\)/);
+  const isolated = workflow.slice(
+    workflow.indexOf("  validate:"),
+    workflow.indexOf("  publish:"),
+  );
+  const privileged = workflow.slice(workflow.indexOf("  publish:"));
+  assert.match(isolated, /name: Isolated preview policy validation/);
+  assert.match(isolated, /persist-credentials: false/);
+  assert.match(isolated, /trusted_applicable=\$\(env -i/);
+  assert.doesNotMatch(isolated, /\bsecrets\./);
+  assert.doesNotMatch(isolated, /contents: write/);
+  assert.match(privileged, /name: Frontend preview evidence/);
+  assert.match(privileged, /Fresh trusted default-branch checkout/);
+  assert.match(privileged, /needs: validate/);
+  assert.doesNotMatch(privileged, /pathToFileURL|classifyDeliveryChange/);
+  assert.match(
+    privileged,
+    /Revalidate exact identity without base code execution/,
+  );
   assert.doesNotMatch(
     workflow,
     /import[\s\S]*from "\.\/\.github\/scripts\/delivery-policy\.mjs"/,

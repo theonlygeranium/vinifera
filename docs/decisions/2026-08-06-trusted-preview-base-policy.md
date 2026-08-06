@@ -17,12 +17,18 @@ though the PR workflow correctly classified it from its current base.
 
 ## Decision
 
-After the publisher validates the live same-repository PR identity and fetches
-its exact base and head commits, it extracts only
-`.github/scripts/delivery-policy.mjs` from the validated base SHA into a
-runner-local file. The publisher imports that base-policy module to classify
-the base-to-head diff. It never imports or executes policy or application code
-from the PR head.
+An isolated validation job with read-only repository permissions validates the
+live same-repository PR identity, extracts
+`.github/scripts/delivery-policy.mjs` from the exact base SHA, and imports it in
+a subprocess whose environment contains neither GitHub credentials nor runner
+output/control paths. That runner is discarded after classification.
+
+A separate privileged job starts from a fresh trusted default-branch checkout,
+re-downloads the exact candidate artifact, and revalidates its PR, head, base,
+repository, applicability, and live-open state against the isolated job's
+outputs. It never imports or executes the base policy or PR-head code. Only
+after that revalidation may the job install the trusted Wrangler toolchain and
+make Pages credentials available to the deploy step.
 
 The artifact-supplied applicability must still equal the independently derived
 base-policy result. Invalid metadata, a moved base/head, unknown paths under the
@@ -32,7 +38,7 @@ current base policy, or any classification error remains terminal.
 
 - Preview classification follows the exact trusted policy governing the PR.
 - `main`/`dev` promotion lag no longer creates false unknown-path failures.
-- PR-head code remains data-only beside Pages credentials.
+- Base and PR-head code remain data-only beside Pages credentials.
 - Existing emergency labels, same-repository checks, and exact-head evidence
   remain unchanged.
 
