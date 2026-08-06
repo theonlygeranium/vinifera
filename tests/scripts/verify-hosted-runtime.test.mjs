@@ -63,6 +63,15 @@ function response(payload) {
   };
 }
 
+function nonJsonResponse() {
+  return {
+    json: vi.fn(async () => {
+      throw new SyntaxError("stale non-JSON Worker response");
+    }),
+    ok: true,
+  };
+}
+
 describe("hosted runtime verifier", () => {
   it("accepts only an isolated staging Worker and emits credential-free evidence", async () => {
     const calls = [];
@@ -133,6 +142,35 @@ describe("hosted runtime verifier", () => {
           "https://01234567-vinifera-staging.account-subdomain.workers.dev",
       }),
     ).resolves.toMatchObject({ health: { revision: expectedRevision } });
+  });
+
+  it("retries transient stale Worker responses during deployment propagation", async () => {
+    let calls = 0;
+    const fetchImpl = vi.fn(async (url) => {
+      calls += 1;
+      if (calls <= 3) return nonJsonResponse();
+      return response(
+        String(url).endsWith("/api/health/configuration")
+          ? configurationPayload()
+          : String(url).endsWith("/api/portal/branding")
+            ? databasePayload()
+            : healthPayload(),
+      );
+    });
+    const waitImpl = vi.fn(async () => {});
+
+    await expect(
+      verifyHostedRuntime({
+        expectedRevision,
+        fetchImpl,
+        maxAttempts: 2,
+        origin: "https://vinifera-staging.account-subdomain.workers.dev",
+        retryDelayMs: 0,
+        waitImpl,
+      }),
+    ).resolves.toMatchObject({ health: { revision: expectedRevision } });
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
+    expect(waitImpl).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed when a core capability is not configured", () => {
