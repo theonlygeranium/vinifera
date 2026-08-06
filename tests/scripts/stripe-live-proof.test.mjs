@@ -851,8 +851,50 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         stripe,
         targets,
       }),
-    ).rejects.toThrow(/exactly one Charge/);
+    ).rejects.toThrow(/exactly one successful captured Charge/);
     expect(stripe.refunds.create).not.toHaveBeenCalled();
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("refunds the one captured Charge after an earlier failed Charge attempt", async () => {
+    const { authority, env, policy, targets } = ready();
+    const store = applicationStore();
+    const stripe = stripeMock({
+      charges: [
+        charge({
+          amount_captured: 0,
+          captured: false,
+          failure_code: "card_declined",
+          id: "ch_Gate19Declined",
+          paid: false,
+        }),
+        charge(),
+      ],
+    });
+    stripe.subscriptions.cancel.mockImplementation(async () => {
+      store.setCanceled();
+      return subscription({ status: "canceled" });
+    });
+
+    await expect(
+      finalizeLiveProof({
+        applicationStore: store,
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).resolves.toMatchObject({
+      chargeCount: 1,
+      chargeFullyRefunded: true,
+      refundCount: 1,
+      verified: true,
+    });
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
     expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
   });
 
@@ -1064,6 +1106,10 @@ describe("Gate 19 workflow isolation", () => {
     expect(workflow).toContain("environment:\n      name: production");
     expect(workflow).toContain("checkout.stripe.com");
     expect(workflow).toContain("timeout-minutes: 60");
+    expect(workflow).toContain("openssl cms");
+    expect(workflow).toContain("owner-handoff.p7m");
+    expect(workflow).not.toContain("[Open Stripe Checkout]($checkout_url)");
+    expect(workflow).not.toContain("Finalize Session: \\`$session_id\\`");
     expect(workflow).toContain("Stripe live billing cutover");
     expect(workflow).not.toMatch(/card(number|_number)|payment_method_data/i);
     expect(workflow).not.toContain("wrangler versions upload");

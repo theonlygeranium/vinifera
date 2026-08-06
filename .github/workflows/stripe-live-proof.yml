@@ -51,6 +51,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PRODUCTION_STRIPE_LIVE_PROOF_BRAND_ID: ${{ vars.PRODUCTION_STRIPE_LIVE_PROOF_BRAND_ID }}
       PRODUCTION_STRIPE_LIVE_PROOF_CUSTOMER_ID: ${{ vars.PRODUCTION_STRIPE_LIVE_PROOF_CUSTOMER_ID }}
+      PRODUCTION_STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE_BASE64: ${{ secrets.PRODUCTION_STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE_BASE64 }}
       PRODUCTION_STRIPE_LIVE_PROOF_MAX_AMOUNT_CENTS: ${{ vars.PRODUCTION_STRIPE_LIVE_PROOF_MAX_AMOUNT_CENTS }}
       PRODUCTION_STRIPE_LIVE_PROOF_ORGANIZATION_ID: ${{ vars.PRODUCTION_STRIPE_LIVE_PROOF_ORGANIZATION_ID }}
       PRODUCTION_STRIPE_LIVE_PROOF_PLAN: ${{ vars.PRODUCTION_STRIPE_LIVE_PROOF_PLAN }}
@@ -142,7 +143,21 @@ jobs:
           {
             echo "STRIPE_LIVE_PROOF_EVIDENCE_DIR=$evidence_dir"
             echo "STRIPE_LIVE_PROOF_HANDOFF=$RUNNER_TEMP/stripe-gate19-handoff-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+            echo "STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE=$RUNNER_TEMP/stripe-gate19-owner-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.pem"
           } >> "$GITHUB_ENV"
+
+      - name: Validate the owner-only handoff recipient
+        if: inputs.operation == 'prepare'
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$PRODUCTION_STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE_BASE64" ]]
+          printf '%s' "$PRODUCTION_STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE_BASE64" |
+            base64 --decode > "$STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE"
+          openssl x509 \
+            -in "$STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE" \
+            -noout \
+            -checkend 3600
 
       - name: Prepare exactly one hosted live Checkout handoff
         if: inputs.operation == 'prepare'
@@ -156,16 +171,20 @@ jobs:
           session_id=$(jq -er '.sessionId' "$STRIPE_LIVE_PROOF_HANDOFF")
           [[ "$checkout_url" == https://checkout.stripe.com/* ]]
           [[ "$session_id" =~ ^cs_live_[A-Za-z0-9]+$ ]]
+          openssl cms \
+            -encrypt \
+            -binary \
+            -aes-256-cbc \
+            -in "$STRIPE_LIVE_PROOF_HANDOFF" \
+            -outform DER \
+            -out "$STRIPE_LIVE_PROOF_EVIDENCE_DIR/owner-handoff.p7m" \
+            "$STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE"
+          [[ -s "$STRIPE_LIVE_PROOF_EVIDENCE_DIR/owner-handoff.p7m" ]]
           {
             echo "## Gate 19 hosted-payment handoff"
             echo
-            echo "The owner must complete this exact Stripe-hosted Checkout within its one-hour expiry:"
-            echo
-            echo "- [Open Stripe Checkout]($checkout_url)"
-            echo "- Finalize Session: \`$session_id\`"
-            echo "- Reuse proof nonce: \`$STRIPE_LIVE_PROOF_NONCE\`"
-            echo
-            echo "No card data is accepted by this workflow. After payment and webhook convergence, dispatch \`finalize\` with the same nonce and Session ID."
+            echo "Download the retained artifact and decrypt \`owner-handoff.p7m\` with the owner-held private key. The decrypted private handoff contains the Stripe-hosted Checkout URL and Session ID."
+            echo "No Checkout capability, Session ID, proof nonce, or card data is written to this summary."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify one charge, replay signed webhooks, refund once, and clean up
@@ -207,6 +226,10 @@ jobs:
           if [[ -n "${STRIPE_LIVE_PROOF_HANDOFF:-}" &&
                 "$STRIPE_LIVE_PROOF_HANDOFF" == "$RUNNER_TEMP"/stripe-gate19-handoff-* ]]; then
             rm -f -- "$STRIPE_LIVE_PROOF_HANDOFF"
+          fi
+          if [[ -n "${STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE:-}" &&
+                "$STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE" == "$RUNNER_TEMP"/stripe-gate19-owner-* ]]; then
+            rm -f -- "$STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE"
           fi
 
       - name: Upload sanitized Gate 19 evidence

@@ -22,6 +22,9 @@ Stripe bindings; use **Stripe live billing cutover** separately.
   subscription created/updated/deleted plus invoice success/failure events.
 - The execution inputs and secrets listed in
   `hosted-environment-provisioning.md` are populated in `production`.
+- `PRODUCTION_STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE_BASE64` contains a
+  base64-encoded PEM X.509 encryption certificate whose private key is held
+  only by the owner and whose validity extends beyond the Checkout handoff.
 
 ## Review target hashes
 
@@ -58,8 +61,23 @@ most one idempotent `cs_live_`
 Session for that nonce and exact main SHA. A reused Session is retrieved and
 must still be open, unpaid, unexpired, tenant-bound, and contain exactly one
 unit of the reviewed Price. Any other open Gate 19 Session for the dedicated
-customer blocks preparation. The workflow summary presents the only payment handoff.
-The owner opens that `checkout.stripe.com` link and completes payment there.
+customer blocks preparation. The workflow encrypts the private handoff as CMS
+`owner-handoff.p7m` to the configured owner certificate before artifact
+upload. The summary never contains the URL, Session ID, or proof nonce.
+
+The owner downloads the prepare artifact and decrypts locally with the
+matching certificate and private key:
+
+```bash
+openssl cms -decrypt -binary -inform DER \
+  -in owner-handoff.p7m \
+  -recip owner-certificate.pem \
+  -inkey owner-private-key.pem \
+  -out gate19-handoff.json
+```
+
+The owner opens the decrypted `checkoutUrl` on `checkout.stripe.com`, retains
+the decrypted `sessionId`, and completes payment there.
 No card number, CVC, payment method token, or browser payment data enters
 GitHub, Codex, the repository, or the controller.
 
@@ -85,6 +103,11 @@ two correctly signed replays. It then creates or
 safely resumes exactly one full refund, cancels the subscription immediately
 without proration, waits for application `canceled` state, verifies the applied
 deletion event, and repeats the two signed duplicate replays.
+
+Declined or otherwise failed Charge attempts associated with the one
+PaymentIntent do not prevent cleanup. Finalize selects exactly one successful,
+paid, captured Charge from the bounded attempt inventory and refunds that
+Charge; zero or multiple successful captured Charges fail closed.
 
 If `main` advances between the owner completing Checkout and cleanup, finalize
 still checks out and accepts the original prepare SHA only when it remains an

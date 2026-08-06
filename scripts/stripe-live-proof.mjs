@@ -1103,13 +1103,23 @@ export async function finalizeLiveProof({
     if (existingRefunds[0]) {
       assertExactRefund(existingRefunds[0], authority, policy, amountCents);
     }
-    const charges = assertBoundedInventory(
-      await stripe.charges.list({ payment_intent: paymentIntent.id, limit: 2 }),
+    const chargeAttempts = assertBoundedInventory(
+      await stripe.charges.list({
+        payment_intent: paymentIntent.id,
+        limit: 100,
+      }),
       "Stripe Charge",
+    );
+    const charges = chargeAttempts.filter(
+      (candidate) =>
+        candidate.livemode === true &&
+        candidate.paid === true &&
+        candidate.captured === true &&
+        candidate.failure_code == null,
     );
     if (charges.length !== 1) {
       throw new Error(
-        "The proof PaymentIntent does not contain exactly one Charge.",
+        "The proof PaymentIntent does not contain exactly one successful captured Charge.",
       );
     }
     const charge = assertExactCharge(

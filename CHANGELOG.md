@@ -15,7 +15,10 @@
   binds production health to the exact environment and deployed revision;
   scopes the organization billing collision check through the approved brand;
   preserves finalize cleanup against the original authorized merged SHA if
-  `main` advances after prepare; proves signed webhook replay idempotency and durable
+  `main` advances after prepare; encrypts the Checkout handoff to an owner-held
+  X.509 key instead of publishing its capability in the Actions summary;
+  tolerates failed Charge attempts while selecting and refunding exactly one
+  successful captured Charge; proves signed webhook replay idempotency and durable
   independent-brand active/canceled application convergence; guarantees an
   idempotent refund and renewal-cancellation recovery attempt after any
   post-charge failure; derives financial counts from Stripe; retains only
@@ -26,9 +29,9 @@
   charge, refund, credential, Worker, database, or provider mutation occurred.
   Extend the existing bounded Git-fixture timeout to the staged classifier CLI
   regression that exhibited the same concurrency-sensitive full-suite timeout;
-  its behavior and assertions are unchanged. **Verification:** 23/23 focused
+  its behavior and assertions are unchanged. **Verification:** 24/24 focused
   Gate 19 cases, 9/9 promotion-smoke cases, 31/31 delivery-policy cases, and the
-  complete generated-types, TypeScript, 598/598 Vitest, Vite build, and Worker
+  complete generated-types, TypeScript, 599/599 Vitest, Vite build, and Worker
   dry-run package gate pass.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a

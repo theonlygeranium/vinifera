@@ -34,8 +34,9 @@ The proof has two dispatches sharing one UUID nonce:
    Checkout Session only after verifying its exact line item, tenant metadata,
    immutable Git SHA, open/unpaid state, and expiration, and refuses any other
    open Gate 19 Session for that customer, then hands its
-   `checkout.stripe.com` URL to the owner. It accepts no card data and performs
-   no charge or refund.
+   private handoff to an owner-held X.509 encryption key. Only the encrypted
+   CMS artifact is retained; the job summary contains no Checkout URL, Session
+   ID, or nonce. It accepts no card data and performs no charge or refund.
 2. `finalize` accepts only that completed `cs_live_` Session. It requires one
    succeeded PaymentIntent and exactly one captured Charge in the proof window,
    exact revision metadata and brand-scoped application subject, an applied
@@ -59,6 +60,11 @@ SHA to be current `main`; finalize permits the original prepare SHA after
 bound to the merged `staging → main` authorization PR. Application billing
 identity reads bind both organization and customer collision checks through
 the exact approved independent brand relationship.
+
+Failed Charge attempts may precede the one successful captured Charge on the
+proof PaymentIntent. They remain part of the bounded inventory but do not block
+the refund path; zero or multiple successful captured Charges are ambiguous and
+stop the workflow.
 
 ## Consequences
 

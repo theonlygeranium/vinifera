@@ -343,6 +343,7 @@ environment with:
 ```text
 PRODUCTION_STRIPE_LIVE_PROOF_BRAND_ID
 PRODUCTION_STRIPE_LIVE_PROOF_CUSTOMER_ID
+PRODUCTION_STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE_BASE64
 PRODUCTION_STRIPE_LIVE_PROOF_PRICE_ID
 PRODUCTION_STRIPE_LIVE_PROOF_PLAN
 PRODUCTION_STRIPE_LIVE_PROOF_MAX_AMOUNT_CENTS
@@ -354,9 +355,12 @@ PRODUCTION_SUPABASE_SERVICE_ROLE_KEY
 PRODUCTION_WORKER_ORIGIN
 ```
 
-The customer must map to exactly one independently billed production brand.
-Follow `stripe-live-proof.md` for the owner Checkout handoff, finalize dispatch,
-refund/cancellation evidence, and optional separate binding reversion.
+The handoff certificate is a base64-encoded PEM X.509 certificate whose
+matching private key remains with the owner; the workflow uses it to retain
+only an encrypted Checkout handoff. The customer must map to exactly one
+independently billed production brand. Follow `stripe-live-proof.md` for local
+handoff decryption, the owner Checkout, finalize dispatch, refund/cancellation
+evidence, and optional separate binding reversion.
 
 ## Mobile-release environment
 
