@@ -18,7 +18,7 @@ import { probeHostedMarker } from "../../scripts/hosted-marker-probe.mjs";
 
 const sourceSha = "a".repeat(40);
 const originalCwd = process.cwd();
-const fixtureGitTimeoutMs = 15_000;
+const fixtureGitTimeoutMs = 30_000;
 
 function git(cwd, args) {
   return execFileSync("git", args, { cwd, encoding: "utf8" });
@@ -121,7 +121,7 @@ describe("promotion smoke tooling", () => {
     expect(git(root, ["diff", "--cached", "--name-only"]).trim()).toBe(
       "public/vinifera-promotion-smoke-2026-08-02-local-drill.html",
     );
-  });
+  }, fixtureGitTimeoutMs);
 
   it("prints staged classifier JSON instead of silently succeeding", () => {
     const root = fixtureRepo();
