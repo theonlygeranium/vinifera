@@ -517,6 +517,7 @@ export async function ensureRuntimeSendingKey(
   provisioningApiKey,
   domainId,
   canCreate,
+  persistToken = async () => {},
 ) {
   let key = await inventoryRuntimeSendingKey(provisioningApiKey);
   let token = null;
@@ -536,6 +537,9 @@ export async function ensureRuntimeSendingKey(
       /^re_[^\s]{8,}$/u.test(token),
       "Resend runtime sending credential format is invalid.",
     );
+    // Resend returns this value only once. Store it before any provider
+    // inventory or other fallible post-creation work can interrupt bootstrap.
+    await persistToken(token);
     key = await inventoryRuntimeSendingKey(provisioningApiKey);
     expect(
       key && String(key.id) === String(created?.id),
@@ -804,6 +808,12 @@ async function main() {
       provisioningApiKey,
       domainResult.domain.id,
       operation === "bootstrap",
+      async (token) =>
+        setGitHubEnvironmentSecret(
+          "STAGING_RESEND_API_KEY",
+          token,
+          process.env,
+        ),
     );
     const runtimeKeyAuthorization = authorizeRuntimeKey(
       runtimeKeyResult.key,

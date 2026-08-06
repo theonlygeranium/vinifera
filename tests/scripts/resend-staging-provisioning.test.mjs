@@ -292,27 +292,37 @@ describe("Resend staging provisioning controller", () => {
   });
 
   it("creates a distinct sending-only runtime key restricted to the exact domain", async () => {
+    const order = [];
     const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(Response.json({ data: [] }))
-      .mockResolvedValueOnce(
-        Response.json({ id: "runtime-key", token: "re_runtime_sender" }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({
-          data: [
-            {
-              id: "runtime-key",
-              name: "Vinifera staging runtime sender",
-            },
-          ],
-        }),
-      );
+      .fn(async (_url, init) => {
+        order.push(init.method === "POST" ? "create" : "inventory");
+        if (init.method === "POST") {
+          return Response.json({
+            id: "runtime-key",
+            token: "re_runtime_sender",
+          });
+        }
+        return Response.json({
+          data:
+            order.length === 1
+              ? []
+              : [
+                  {
+                    id: "runtime-key",
+                    name: "Vinifera staging runtime sender",
+                  },
+                ],
+        });
+      });
     vi.stubGlobal("fetch", fetchMock);
     const result = await ensureRuntimeSendingKey(
       "re_provisioning_admin",
       "domain-one",
       true,
+      async (token) => {
+        expect(token).toBe("re_runtime_sender");
+        order.push("persist");
+      },
     );
     expect(result).toMatchObject({
       disposition: "created",
@@ -323,6 +333,28 @@ describe("Resend staging provisioning controller", () => {
       name: "Vinifera staging runtime sender",
       permission: "sending_access",
     });
+    expect(order).toEqual(["inventory", "create", "persist", "inventory"]);
+  });
+
+  it("stops before post-creation inventory when one-time key persistence fails", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(
+        Response.json({ id: "runtime-key", token: "re_runtime_sender" }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      ensureRuntimeSendingKey(
+        "re_provisioning_admin",
+        "domain-one",
+        true,
+        async () => {
+          throw new Error("synthetic persistence failure");
+        },
+      ),
+    ).rejects.toThrow(/persistence failure/u);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("creates only absent exact DNS and refuses conflicting records", async () => {
@@ -455,6 +487,9 @@ describe("Resend staging provisioning controller", () => {
     );
     expect(controller).toContain('["secret", "set", name, "--env", "staging"');
     expect(controller).toContain("child.stdin.end(value)");
+    expect(controller).toContain(
+      'setGitHubEnvironmentSecret(\n          "STAGING_RESEND_API_KEY"',
+    );
     expect(controller).toContain('stdio: ["pipe", "ignore", "ignore"]');
     expect(controller).toContain("STAGING_RESEND_WEBHOOK_SECRET");
     expect(controller).toContain("STAGING_UNSUBSCRIBE_SIGNING_SECRET");

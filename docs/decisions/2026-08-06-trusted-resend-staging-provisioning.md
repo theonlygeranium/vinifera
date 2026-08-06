@@ -66,8 +66,11 @@ sending-only runtime key. The controller streams only that runtime token and the
 official webhook signing secret to `gh secret set` over stdin. It never writes
 the provisioning key to a Worker binding. An existing unsubscribe signing
 secret is preserved; one is generated only when the protected binding is
-absent. The staging deployment workflow already maps these environment secrets
-into its immutable Worker version upload.
+absent. Because Resend exposes a newly created runtime token only once, the
+controller writes that token to `STAGING_RESEND_API_KEY` immediately after its
+format check and before provider re-inventory, DNS work, or any other fallible
+postcheck. The staging deployment workflow already maps these environment
+secrets into its immutable Worker version upload.
 
 Evidence contains the validated exact git SHA, policy-file digest, canonical
 repository, workflow run ID/attempt, target hashes, provider/runtime-key
