@@ -18,6 +18,11 @@ and commit-status responses in runner-local JSON files before exact evidence
 selection. This fixes the runner argument-length failure observed on PR #291
 without weakening PR/base/head binding or the immediate pre-merge check.
 
+The trusted frontend-preview publisher now loads its delivery classifier from
+the live pull request's exact validated `dev` base SHA. It continues to execute
+no PR-head code, while avoiding false `unknown_path_fail_closed` results when
+`dev` contains reviewed policy paths that have not yet promoted to `main`.
+
 Promotion-smoke tests that create and compare three local Git branches use a
 30-second per-test budget. The local-drill fixture uses the same bounded budget.
 Their logic is unchanged; the prior 5-second default repeatedly timed out only

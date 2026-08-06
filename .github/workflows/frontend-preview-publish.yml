@@ -132,12 +132,17 @@ jobs:
             exit 0
           fi
           git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"
+          trusted_policy="$RUNNER_TEMP/trusted-delivery-policy.mjs"
+          git show "$base_sha":.github/scripts/delivery-policy.mjs \
+            > "$trusted_policy"
           trusted_applicable=$(BASE_SHA="$base_sha" HEAD_SHA="$head_sha" \
+            TRUSTED_POLICY_PATH="$trusted_policy" \
             node --input-type=module <<'NODE'
-          import {
+          import { pathToFileURL } from "node:url";
+          const {
             classifyDeliveryChange,
             readChangedRecords,
-          } from "./.github/scripts/delivery-policy.mjs";
+          } = await import(pathToFileURL(process.env.TRUSTED_POLICY_PATH).href);
           const result = classifyDeliveryChange(
             readChangedRecords(process.env.BASE_SHA, process.env.HEAD_SHA),
           );

@@ -1063,6 +1063,16 @@ test("trusted preview publisher never executes PR-head code beside credentials",
   assert.match(workflow, /--commit-hash "\$HEAD_SHA"/);
   assert.match(workflow, /classifyDeliveryChange/);
   assert.match(workflow, /readChangedRecords/);
+  assert.match(
+    workflow,
+    /git show "\$base_sha":\.github\/scripts\/delivery-policy\.mjs/,
+  );
+  assert.match(workflow, /TRUSTED_POLICY_PATH="\$trusted_policy"/);
+  assert.match(workflow, /pathToFileURL\(process\.env\.TRUSTED_POLICY_PATH\)/);
+  assert.doesNotMatch(
+    workflow,
+    /import[\s\S]*from "\.\/\.github\/scripts\/delivery-policy\.mjs"/,
+  );
   assert.match(workflow, /applicable" != "\$trusted_applicable/);
   assert.match(
     workflow,
