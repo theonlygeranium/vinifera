@@ -237,10 +237,10 @@ Before enabling this proof, set the hosted Supabase Auth Site URL to the exact
 `https://vinifera-staging.edstratum-labs-staging.workers.dev/**` as a redirect
 URL. A missing allowlist entry makes Supabase replace the requested PKCE
 callback with its fallback Site URL; the controller must reject that email as
-belonging to a different request. The Worker also treats an explicit
-`signInWithOtp` provider error as a privacy-safe `configuration_error` rather
-than reporting a successful request. A rejected attempt removes its new
-database context and leaves any prior browser link cookie untouched.
+belonging to a different request. The Worker inspects an explicit
+`signInWithOtp` provider error, removes that attempt's new database context,
+and leaves any prior browser link cookie untouched. The anonymous route still
+returns its generic response so the failure cannot reveal membership state.
 
 Run the complete browser suite against the staging Worker at 375, 768, and
 1440 pixels. Require zero axe WCAG 2.1 AA violations, touch targets of at least
