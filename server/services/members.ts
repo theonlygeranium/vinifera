@@ -1437,15 +1437,14 @@ export class CoreClubMemberService {
     }
     let candidate = header || null;
     if (!candidate) {
-      const { data, error } = await this.authenticatedSurfaceClient("staff")
-        .from("organizations")
-        .select("default_brand_id")
-        .eq("id", organizationId)
-        .single();
-      if (error || !data?.default_brand_id) {
+      const { data, error } = await this.admin.rpc(
+        "resolve_default_brand_id",
+        { p_organization_id: organizationId },
+      );
+      if (error || !data) {
         throw databaseError("The default brand could not be resolved.");
       }
-      candidate = String(data.default_brand_id);
+      candidate = String(data);
     }
     assertUuid(candidate, "Brand");
     const { data: brand, error: brandError } =

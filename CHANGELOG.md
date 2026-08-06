@@ -5,7 +5,8 @@
 ### Fixed
 - Re-audit hosted activation Gates 1–5, 7, and 9 against current provider,
   database, and runtime evidence. Repair Cloudflare Access propagation in the
-  member service, require staging identity plus the exact promoted Git SHA in
+  member service, route default-brand resolution through its tenant-scoped
+  admin RPC, require staging identity plus the exact promoted Git SHA in
   Worker evidence, accept immutable Wrangler preview origins, restore the
   skipped-database staging deployment path with `always()`, upload the Access
   service-token bindings, correct the Octopus health route, and replace the
