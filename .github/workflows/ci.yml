@@ -1328,7 +1328,7 @@ jobs:
       vars.STAGING_CLOUDFLARE_DEPLOY_ENABLED == 'true' &&
       (needs.database.result == 'success' || needs.database.result == 'skipped')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90
     environment: staging
     steps:
       - name: Check out source
@@ -1350,13 +1350,23 @@ jobs:
           CLOUDFLARE_ZONE_ID: ${{ secrets.STAGING_CLOUDFLARE_ZONE_ID }}
           COMPLIANCE_PROVIDER: ${{ secrets.STAGING_COMPLIANCE_PROVIDER }}
           EASYPOST_API_KEY: ${{ secrets.STAGING_EASYPOST_API_KEY }}
+          EMAIL_PROVIDER: ${{ secrets.STAGING_EMAIL_PROVIDER }}
+          EMAIL_SIMULATOR_ENABLED: ${{ secrets.STAGING_EMAIL_SIMULATOR_ENABLED }}
           FCM_PROJECT_ID: ${{ secrets.STAGING_FCM_PROJECT_ID }}
+          GATE8_ACCEPTANCE_ENABLED: ${{ vars.STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED }}
+          HOSTED_ACCEPTANCE_EMAIL_BASE: ${{ vars.STAGING_HOSTED_ACCEPTANCE_EMAIL_BASE }}
           MEMBER_BRAND_CONTEXT_SECRET: ${{ secrets.STAGING_MEMBER_BRAND_CONTEXT_SECRET }}
           QUICKBOOKS_ENVIRONMENT: ${{ secrets.STAGING_QUICKBOOKS_ENVIRONMENT }}
           RATE_LIMIT_PEPPER: ${{ secrets.STAGING_RATE_LIMIT_PEPPER }}
+          RESEND_API_KEY: ${{ secrets.STAGING_RESEND_API_KEY }}
+          RESEND_DOMAIN_VERIFIED: ${{ secrets.STAGING_RESEND_DOMAIN_VERIFIED }}
+          RESEND_FROM: ${{ secrets.STAGING_RESEND_FROM }}
+          RESEND_SENDING_DOMAIN: ${{ secrets.STAGING_RESEND_SENDING_DOMAIN }}
+          RESEND_WEBHOOK_SECRET: ${{ secrets.STAGING_RESEND_WEBHOOK_SECRET }}
           SHIPCOMPLIANT_BASE_URL: ${{ secrets.STAGING_SHIPCOMPLIANT_BASE_URL }}
           SHIPCOMPLIANT_ENDPOINT_MODE: ${{ secrets.STAGING_SHIPCOMPLIANT_ENDPOINT_MODE }}
           STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
+          UNSUBSCRIBE_SIGNING_SECRET: ${{ secrets.STAGING_UNSUBSCRIBE_SIGNING_SECRET }}
         run: |
           node --input-type=module <<'NODE'
           import { assertSecuritySecretSeparation } from "./scripts/lib/security-secret-guard.mjs";
@@ -1407,6 +1417,39 @@ jobs:
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::error::Staging deployment was explicitly enabled, but staging-scoped Cloudflare credentials are incomplete."
             exit 1
+          fi
+          if [[ "$GATE8_ACCEPTANCE_ENABLED" == "true" ]]; then
+            node --input-type=module <<'NODE'
+            const required = [
+              "EMAIL_PROVIDER",
+              "EMAIL_SIMULATOR_ENABLED",
+              "HOSTED_ACCEPTANCE_EMAIL_BASE",
+              "RESEND_API_KEY",
+              "RESEND_DOMAIN_VERIFIED",
+              "RESEND_FROM",
+              "RESEND_SENDING_DOMAIN",
+              "RESEND_WEBHOOK_SECRET",
+              "UNSUBSCRIBE_SIGNING_SECRET"
+            ];
+            const missing = required.filter((name) => !process.env[name]?.trim());
+            if (missing.length) {
+              throw new Error(`Gate 8 acceptance is enabled but required bindings are missing: ${missing.join(", ")}.`);
+            }
+            if (process.env.EMAIL_PROVIDER !== "resend" ||
+                process.env.EMAIL_SIMULATOR_ENABLED !== "false" ||
+                process.env.RESEND_DOMAIN_VERIFIED !== "true") {
+              throw new Error("Gate 8 requires Resend, the disabled simulator, and an explicitly verified domain.");
+            }
+            const fromDomain = process.env.RESEND_FROM.match(/@([^<>\s]+)>?$/u)?.[1]?.toLowerCase();
+            if (fromDomain !== process.env.RESEND_SENDING_DOMAIN.toLowerCase()) {
+              throw new Error("RESEND_FROM must use the configured staging sending domain.");
+            }
+            if (!process.env.HOSTED_ACCEPTANCE_EMAIL_BASE.includes("@") ||
+                process.env.UNSUBSCRIBE_SIGNING_SECRET.length < 32) {
+              throw new Error("Gate 8 acceptance bindings do not satisfy the staging contract.");
+            }
+            console.log("Verified the fail-closed Gate 8 staging binding contract.");
+            NODE
           fi
 
       - name: Use Node.js
@@ -1888,6 +1931,32 @@ jobs:
             echo "::error::At least one requested Gate 10-16 readiness probe is blocked. Inspect the sanitized artifact."
             exit 1
           fi
+      - name: Run hosted Gate 8 acceptance when activated
+        if: steps.activation.outputs.ready == 'true' && vars.STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED == 'true'
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
+          EMAIL_PROVIDER: ${{ secrets.STAGING_EMAIL_PROVIDER }}
+          EMAIL_SIMULATOR_ENABLED: ${{ secrets.STAGING_EMAIL_SIMULATOR_ENABLED }}
+          HOSTED_ACCEPTANCE_EMAIL_BASE: ${{ vars.STAGING_HOSTED_ACCEPTANCE_EMAIL_BASE }}
+          HOSTED_GATE8_WAIT_SECONDS: "4200"
+          RESEND_API_KEY: ${{ secrets.STAGING_RESEND_API_KEY }}
+          RESEND_DOMAIN_VERIFIED: ${{ secrets.STAGING_RESEND_DOMAIN_VERIFIED }}
+          RESEND_FROM: ${{ secrets.STAGING_RESEND_FROM }}
+          RESEND_SENDING_DOMAIN: ${{ secrets.STAGING_RESEND_SENDING_DOMAIN }}
+          RESEND_WEBHOOK_SECRET: ${{ secrets.STAGING_RESEND_WEBHOOK_SECRET }}
+          STAGING_WORKER_ORIGIN: ${{ vars.STAGING_WORKER_ORIGIN }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          UNSUBSCRIBE_SIGNING_SECRET: ${{ secrets.STAGING_UNSUBSCRIBE_SIGNING_SECRET }}
+        run: |
+          node scripts/hosted-gate8-acceptance.mjs \
+            --output "$RUNNER_TEMP/vinifera-hosted-gate8-acceptance.json"
+          echo "### Hosted Gate 8 acceptance" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Exact Resend domain and staging webhook readiness: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Welcome and pre-shipment lifecycle idempotency: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Real provider delivery and signed webhook reconciliation: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- One-shot fixture retired with durable email evidence retained: passed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove temporary Worker secret bundle
         if: always() && steps.worker-secrets.outputs.path != ''
@@ -1904,5 +1973,6 @@ jobs:
             ${{ runner.temp }}/vinifera-staging-release.json
             ${{ runner.temp }}/stripe-test-catalog-verification.json
             ${{ runner.temp }}/vinifera-hosted-gate7-acceptance.json
+            ${{ runner.temp }}/vinifera-hosted-gate8-acceptance.json
           if-no-files-found: ignore
           retention-days: 14

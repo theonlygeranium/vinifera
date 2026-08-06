@@ -37,17 +37,18 @@ disables that brand sender.
 
 ## 2. Configure repository secrets
 
-Add the following encrypted GitHub repository secrets:
+For the protected staging environment, add the following encrypted GitHub
+environment secrets (the Worker receives the unprefixed binding names):
 
 ```text
-EMAIL_PROVIDER=resend
-EMAIL_SIMULATOR_ENABLED=false
-RESEND_API_KEY
-RESEND_FROM
-RESEND_SENDING_DOMAIN
-RESEND_DOMAIN_VERIFIED=true
-RESEND_WEBHOOK_SECRET
-UNSUBSCRIBE_SIGNING_SECRET
+STAGING_EMAIL_PROVIDER=resend
+STAGING_EMAIL_SIMULATOR_ENABLED=false
+STAGING_RESEND_API_KEY
+STAGING_RESEND_FROM
+STAGING_RESEND_SENDING_DOMAIN
+STAGING_RESEND_DOMAIN_VERIFIED=true
+STAGING_RESEND_WEBHOOK_SECRET
+STAGING_UNSUBSCRIBE_SIGNING_SECRET
 ```
 
 `RESEND_FROM` must use `RESEND_SENDING_DOMAIN`, and
@@ -59,6 +60,12 @@ links.
 
 Do not expose any of these values through Vite-prefixed variables or browser
 configuration.
+
+The protected staging deployment maps every value above into the immutable
+Worker upload. If `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED=true`, it fails
+before deployment unless the complete binding set and
+`STAGING_HOSTED_ACCEPTANCE_EMAIL_BASE` environment variable are present and
+consistent.
 
 These bindings establish provider access and the default transactional sender;
 they do not mark every brand sender verified. A branded delivery must resolve a
@@ -113,6 +120,37 @@ Enable the welcome and pre-shipment templates for the staging winery.
 
 Repeat activation checks for decline, shipped, birthday, and re-engagement
 before enabling them for a production winery.
+
+### Protected one-shot Gate 8 acceptance
+
+After the provider domain and webhook prerequisites exist, set the protected
+staging variable `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED=true` for one reviewed
+promotion. The controller:
+
+1. confirms the exact Resend domain is verified with sending, DKIM, and SPF;
+2. confirms the exact staging webhook is enabled for every supported event and
+   that its provider signing secret matches the deployed binding;
+3. creates an isolated member and release in the dedicated acceptance tenant;
+4. enqueues welcome and pre-shipment work twice and requires exactly one
+   logical message of each type;
+5. waits up to 70 minutes for the actual deployed hourly Worker Cron Trigger;
+6. requires two completed outbox records, two distinct provider messages, and
+   a signed `email.delivered` webhook event for both (`email.sent` is not
+   completion evidence); and
+7. retires the member, tier, and release while retaining durable email and
+   audit evidence.
+
+The sanitized `vinifera-hosted-gate8-acceptance.json` artifact is necessary but
+does not by itself mark the gate passed; bind it to the reviewed candidate,
+Worker version, and protected staging run. Set the toggle back to `false` after
+the accepted one-shot run.
+
+Resend-domain, webhook, and DNS creation are deliberately not performed by the
+acceptance controller. A future trusted provisioning operation must authorize
+the exact sending-domain and Cloudflare zone hashes, run default-branch code,
+write the returned webhook signing secret directly to the staging environment,
+and publish only sanitized evidence. Until then, complete Sections 1–3 before
+enabling acceptance.
 
 ## 5. Verify independent daily work
 
