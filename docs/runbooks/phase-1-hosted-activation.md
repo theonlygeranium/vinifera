@@ -232,6 +232,16 @@ state before consumption, then removes the public handoff variable. Configure
 read and write repository environment variables. The completed-run Actions
 notice remains corroborating evidence, not the live transport.
 
+Before enabling this proof, set the hosted Supabase Auth Site URL to the exact
+`STAGING_WORKER_ORIGIN` and allow
+`https://vinifera-staging.edstratum-labs-staging.workers.dev/**` as a redirect
+URL. A missing allowlist entry makes Supabase replace the requested PKCE
+callback with its fallback Site URL; the controller must reject that email as
+belonging to a different request. The Worker inspects an explicit
+`signInWithOtp` provider error, removes that attempt's new database context,
+and leaves any prior browser link cookie untouched. The anonymous route still
+returns its generic response so the failure cannot reveal membership state.
+
 Run the complete browser suite against the staging Worker at 375, 768, and
 1440 pixels. Require zero axe WCAG 2.1 AA violations, touch targets of at least
 44 pixels, LCP below 2.5 seconds, CLS below 0.1, no horizontal overflow, and no
