@@ -18,6 +18,22 @@ and commit-status responses in runner-local JSON files before exact evidence
 selection. This fixes the runner argument-length failure observed on PR #291
 without weakening PR/base/head binding or the immediate pre-merge check.
 
+## 2026-08-06 Gates 10-16 acceptance foundation
+
+The protected staging deployment now supports independent opt-in readiness
+reports for Gates 10 through 16. Each report verifies the exact deployed
+candidate and only its gate's required configuration groups, retains a
+sanitized 90-day artifact, and fixes `completionClaimed=false`. It does not
+create or qualify the real winery, model, cohort, provider, multi-brand, or DNS
+evidence required to change a gate status.
+
+Gate 11's previously missing staging deployment binding is corrected:
+`STAGING_ML_PLATFORM_ACTOR_USER_ID` is uploaded atomically as
+`ML_PLATFORM_ACTOR_USER_ID`. Presence alone remains insufficient; the guarded
+qualification path must prove that it identifies an active platform
+super-admin. See `docs/runbooks/hosted-gates-10-16-evidence.md` and ADR
+`docs/decisions/2026-08-06-hosted-gates-readiness-evidence.md`.
+
 ## 2026-08-05 hosted activation re-audit
 
 The canonical Gate 1–5, 7, and 9 evidence was rechecked against the live

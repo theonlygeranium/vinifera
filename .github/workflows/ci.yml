@@ -1562,6 +1562,7 @@ jobs:
           INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION: ${{ secrets.STAGING_INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION }}
           INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS: ${{ secrets.STAGING_INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS }}
           MEMBER_BRAND_CONTEXT_SECRET: ${{ secrets.STAGING_MEMBER_BRAND_CONTEXT_SECRET }}
+          ML_PLATFORM_ACTOR_USER_ID: ${{ secrets.STAGING_ML_PLATFORM_ACTOR_USER_ID }}
           MOBILE_ANDROID_LATEST_VERSION: ${{ secrets.STAGING_MOBILE_ANDROID_LATEST_VERSION }}
           MOBILE_ANDROID_MINIMUM_VERSION: ${{ secrets.STAGING_MOBILE_ANDROID_MINIMUM_VERSION }}
           MOBILE_ANDROID_PACKAGE_NAME: ${{ secrets.STAGING_MOBILE_ANDROID_PACKAGE_NAME }}
@@ -1637,6 +1638,7 @@ jobs:
             "INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION",
             "INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS",
             "MEMBER_BRAND_CONTEXT_SECRET",
+            "ML_PLATFORM_ACTOR_USER_ID",
             "MOBILE_ANDROID_LATEST_VERSION",
             "MOBILE_ANDROID_MINIMUM_VERSION",
             "MOBILE_ANDROID_PACKAGE_NAME",
@@ -1795,6 +1797,97 @@ jobs:
           echo "- Member magic-link callback and cookie session: passed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Stripe test Checkout, signed webhook idempotency, grace, restriction, suspension, and recovery: passed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Dedicated staging fixtures restored to their reusable baseline: passed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect requested Gates 10-16 readiness evidence
+        id: hosted-gates10-16
+        if: always() && steps.activation.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          ML_PLATFORM_ACTOR_USER_ID: ${{ secrets.STAGING_ML_PLATFORM_ACTOR_USER_ID }}
+          STAGING_GATE_10_EVIDENCE_ENABLED: ${{ vars.STAGING_GATE_10_EVIDENCE_ENABLED }}
+          STAGING_GATE_11_EVIDENCE_ENABLED: ${{ vars.STAGING_GATE_11_EVIDENCE_ENABLED }}
+          STAGING_GATE_12_EVIDENCE_ENABLED: ${{ vars.STAGING_GATE_12_EVIDENCE_ENABLED }}
+          STAGING_GATE_13_EVIDENCE_ENABLED: ${{ vars.STAGING_GATE_13_EVIDENCE_ENABLED }}
+          STAGING_GATE_14_EVIDENCE_ENABLED: ${{ vars.STAGING_GATE_14_EVIDENCE_ENABLED }}
+          STAGING_GATE_15_EVIDENCE_ENABLED: ${{ vars.STAGING_GATE_15_EVIDENCE_ENABLED }}
+          STAGING_GATE_16_EVIDENCE_ENABLED: ${{ vars.STAGING_GATE_16_EVIDENCE_ENABLED }}
+          STAGING_WORKER_ORIGIN: ${{ vars.STAGING_WORKER_ORIGIN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_dir="$RUNNER_TEMP/hosted-gates10-16-readiness"
+          mkdir -p "$evidence_dir"
+          requested=false
+          failed=false
+          ml_actor_configured=false
+          if [[ -n "$ML_PLATFORM_ACTOR_USER_ID" ]]; then
+            ml_actor_configured=true
+          fi
+
+          for gate in 10 11 12 13 14 15 16; do
+            toggle_name="STAGING_GATE_${gate}_EVIDENCE_ENABLED"
+            if [[ "${!toggle_name:-}" != "true" ]]; then
+              continue
+            fi
+            requested=true
+            report="$evidence_dir/gate-${gate}.json"
+            set +e
+            node scripts/hosted-gates10-16-evidence.mjs \
+              --gate "$gate" \
+              --expected-revision "${{ steps.release-package.outputs.candidate_sha }}" \
+              --origin "$STAGING_WORKER_ORIGIN" \
+              --enabled true \
+              --confirmation "COLLECT VINIFERA GATE ${gate} READINESS EVIDENCE" \
+              --ml-actor-configured "$ml_actor_configured" \
+              --output "$report"
+            status=$?
+            set -e
+            if [[ "$status" -ne 0 ]]; then
+              failed=true
+            fi
+          done
+
+          echo "requested=$requested" >> "$GITHUB_OUTPUT"
+          echo "directory=$evidence_dir" >> "$GITHUB_OUTPUT"
+          if [[ "$requested" == "false" ]]; then
+            echo "No Gates 10-16 readiness evidence was requested." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          jq -s \
+            --arg candidate "${{ steps.release-package.outputs.candidate_sha }}" \
+            '{
+              schemaVersion: 1,
+              candidateRevision: $candidate,
+              evidenceLevel: "hosted-readiness",
+              completionClaimed: false,
+              reports: map({gate, result, blockers, externalEvidenceRemaining})
+            }' "$evidence_dir"/gate-*.json > "$evidence_dir/index.json"
+          echo "### Hosted Gates 10-16 readiness" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.reports[] | "- Gate \(.gate): \(.result); completion claimed: false"' \
+            "$evidence_dir/index.json" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$failed" == "true" ]]; then
+            exit 1
+          fi
+
+      - name: Upload sanitized Gates 10-16 readiness evidence
+        if: always() && steps.hosted-gates10-16.outputs.requested == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: hosted-gates10-16-readiness-${{ steps.release-package.outputs.candidate_sha }}
+          path: ${{ steps.hosted-gates10-16.outputs.directory }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Enforce requested Gates 10-16 readiness
+        if: always() && steps.hosted-gates10-16.outputs.requested == 'true'
+        env:
+          READINESS_OUTCOME: ${{ steps.hosted-gates10-16.outcome }}
+        run: |
+          if [[ "$READINESS_OUTCOME" != "success" ]]; then
+            echo "::error::At least one requested Gate 10-16 readiness probe is blocked. Inspect the sanitized artifact."
+            exit 1
+          fi
 
       - name: Remove temporary Worker secret bundle
         if: always() && steps.worker-secrets.outputs.path != ''

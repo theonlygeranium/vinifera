@@ -18,6 +18,11 @@ explanations, privacy-thresholded benchmarks, scheduled jobs, and
 ShipCompliant boundary are implemented. Production promotion remains closed
 until lawful real history and the time-based gates below exist.
 
+Before collecting gate-specific proof, use
+`docs/runbooks/hosted-gates-10-16-evidence.md` to bind configuration readiness
+to the exact staging revision. That shared report is not analytics, model, or
+benchmark completion evidence.
+
 ## 1. Establish provenance and retention
 
 For every participating winery, record:

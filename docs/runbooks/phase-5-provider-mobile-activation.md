@@ -14,6 +14,11 @@ The architecture is complete and the services in this runbook are currently
 disconnected. No activation, provider retry, DNS write, filing enrollment,
 live payment, or store submission is authorized merely by this document.
 
+For Gates 14 through 16, first collect the exact-revision configuration report
+described in `docs/runbooks/hosted-gates-10-16-evidence.md`. That readiness
+artifact never substitutes for provider reconciliation, multi-brand isolation,
+DNS ownership, or active-certificate evidence.
+
 ## 1. Shared production prerequisites
 
 1. Apply every Supabase migration in order and run `npm run qa:db:phase5`.

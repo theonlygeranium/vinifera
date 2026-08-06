@@ -37,6 +37,7 @@
     "qa:mobile:identity": "node scripts/verify-mobile-identity.mjs",
     "qa:local-seed": "node scripts/verify-local-seed.mjs",
     "ops:phase4:qualify-ml": "node scripts/qualify-phase4-ml.mjs",
+    "ops:hosted-gates10-16:evidence": "node scripts/hosted-gates10-16-evidence.mjs",
     "ops:promotion-smoke:create": "node scripts/promotion-smoke.mjs create",
     "ops:promotion-smoke:drill": "node scripts/promotion-smoke.mjs drill",
     "ops:promotion-smoke:hosted-probe": "node scripts/hosted-marker-probe.mjs",
