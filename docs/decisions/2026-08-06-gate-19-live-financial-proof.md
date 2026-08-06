@@ -32,7 +32,8 @@ The proof has two dispatches sharing one UUID nonce:
    customer, Price, maximum amount, and the hash-authorized independent-brand
    application mapping. It creates or reuses one idempotent subscription-mode
    Checkout Session only after verifying its exact line item, tenant metadata,
-   immutable Git SHA, open/unpaid state, and expiration, then hands its
+   immutable Git SHA, open/unpaid state, and expiration, and refuses any other
+   open Gate 19 Session for that customer, then hands its
    `checkout.stripe.com` URL to the owner. It accepts no card data and performs
    no charge or refund.
 2. `finalize` accepts only that completed `cs_live_` Session. It requires one
@@ -50,6 +51,14 @@ refund metadata, an over-limit amount, an unbounded provider inventory, a
 wrong tenant/brand mapping, absent live webhook persistence, or failed
 application convergence stops the workflow. Sanitized evidence contains only
 hashes, counts, booleans, timestamps, and final states.
+
+Both operations require the production Worker health response to identify the
+production environment and exact authorized release SHA. Prepare requires that
+SHA to be current `main`; finalize permits the original prepare SHA after
+`main` advances only when it remains in current `main` history and is still
+bound to the merged `staging → main` authorization PR. Application billing
+identity reads bind both organization and customer collision checks through
+the exact approved independent brand relationship.
 
 ## Consequences
 

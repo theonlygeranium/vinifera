@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertLiveProofAuthority,
   assertLiveProofTargets,
+  createApplicationStore,
   finalizeLiveProof,
   prepareLiveProof,
   sha256,
@@ -235,8 +236,8 @@ function stripeMock(overrides = {}) {
           data: overrides.sessions ?? [],
           has_more: false,
         })),
-        retrieve: vi.fn(async () =>
-          preparedSession ?? session(overrides.session),
+        retrieve: vi.fn(
+          async () => preparedSession ?? session(overrides.session),
         ),
       },
     },
@@ -258,20 +259,18 @@ function stripeMock(overrides = {}) {
     },
     invoicePayments: {
       list: vi.fn(async () => ({
-        data:
-          overrides.invoicePayments ??
-          [
-            {
-              amount_paid: amountCents,
-              id: "inpay_Gate19",
-              livemode: true,
-              payment: {
-                payment_intent: paymentIntent(),
-                type: "payment_intent",
-              },
-              status: "paid",
+        data: overrides.invoicePayments ?? [
+          {
+            amount_paid: amountCents,
+            id: "inpay_Gate19",
+            livemode: true,
+            payment: {
+              payment_intent: paymentIntent(),
+              type: "payment_intent",
             },
-          ],
+            status: "paid",
+          },
+        ],
         has_more: false,
       })),
     },
@@ -285,12 +284,12 @@ function stripeMock(overrides = {}) {
     prices: { retrieve: vi.fn(async () => price(overrides.price)) },
     charges: {
       list: vi.fn(async () => ({
-        data:
-          overrides.charges ??
-          [charge({
+        data: overrides.charges ?? [
+          charge({
             amount_refunded: refunds.length === 1 ? amountCents : 0,
             refunded: refunds.length === 1,
-          })],
+          }),
+        ],
         has_more: false,
       })),
       retrieve: vi.fn(async () =>
@@ -372,7 +371,14 @@ function fetcher({ duplicate = true } = {}) {
     const url = new URL(input);
     if (url.pathname === "/api/health") {
       return new Response(
-        JSON.stringify({ data: { service: "vinifera-api", status: "ok" } }),
+        JSON.stringify({
+          data: {
+            environment: "production",
+            revision: gitSha,
+            service: "vinifera-api",
+            status: "ok",
+          },
+        }),
         { headers: { "Content-Type": "application/json" } },
       );
     }
@@ -511,6 +517,39 @@ describe("Gate 19 hosted Checkout preparation", () => {
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
   });
 
+  it("fails before Checkout when production health is not the authorized release", async () => {
+    const { authority, env, policy, targets } = ready();
+    const staleHealth = fetcher();
+    staleHealth.mockImplementationOnce(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              environment: "production",
+              revision: "b".repeat(40),
+              service: "vinifera-api",
+              status: "ok",
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+    );
+    const stripe = stripeMock();
+    await expect(
+      prepareLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: staleHealth,
+        policy,
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/billing and webhook capabilities are not ready/);
+    expect(stripe.accounts.retrieve).not.toHaveBeenCalled();
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
   it("rejects a reused open Session whose line item is not the reviewed Price", async () => {
     const { authority, env, policy, targets } = ready();
     const store = applicationStore();
@@ -544,6 +583,88 @@ describe("Gate 19 hosted Checkout preparation", () => {
       }),
     ).rejects.toThrow(/exact open hosted live Checkout handoff/);
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects another open Gate 19 Session for the approved customer", async () => {
+    const { authority, env, policy, targets } = ready();
+    const store = applicationStore();
+    store.subject.mockResolvedValueOnce({
+      billing_mode: "independent",
+      id: brandId,
+      organization_id: organizationId,
+      subscription_status: "not_started",
+    });
+    const stripe = stripeMock({
+      sessions: [
+        {
+          id: "cs_live_OtherNonce",
+          metadata: metadata({
+            vinifera_proof_nonce: "22222222-2222-4222-8222-222222222222",
+          }),
+          status: "open",
+        },
+      ],
+    });
+    await expect(
+      prepareLiveProof({
+        applicationStore: store,
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/Another open Gate 19 Checkout Session/);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("Gate 19 tenant-scoped application lookup", () => {
+  it("binds the organization billing collision check through the approved brand", async () => {
+    const requests = [];
+    const store = createApplicationStore({
+      fetcher: vi.fn(async (input) => {
+        const url = new URL(input);
+        requests.push(url);
+        if (url.pathname.endsWith("/brands")) {
+          return new Response(
+            JSON.stringify([
+              {
+                billing_mode: "independent",
+                id: brandId,
+                organization_id: organizationId,
+              },
+            ]),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        }
+        return new Response(JSON.stringify([]), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+      serviceRoleKey: "service-role-test",
+      supabaseUrl: supabaseOrigin,
+    });
+
+    await expect(
+      store.subject({ brandId, customerId, organizationId }),
+    ).resolves.toMatchObject({ id: brandId, organization_id: organizationId });
+    const organizationRequest = requests.find((url) =>
+      url.pathname.endsWith("/organizations"),
+    );
+    expect(organizationRequest.searchParams.get("select")).toContain(
+      "brands!inner",
+    );
+    expect(organizationRequest.searchParams.get("brands.id")).toBe(
+      `eq.${brandId}`,
+    );
+    expect(organizationRequest.searchParams.get("brands.organization_id")).toBe(
+      `eq.${organizationId}`,
+    );
+    expect(
+      organizationRequest.searchParams.get("brands.stripe_customer_id"),
+    ).toBe(`eq.${customerId}`);
   });
 });
 
@@ -936,6 +1057,10 @@ describe("Gate 19 workflow isolation", () => {
     );
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain('[[ "$GITHUB_REF" == "refs/heads/main" ]]');
+    expect(workflow).toContain(
+      'if [[ "${{ inputs.operation }}" == "prepare" ]]',
+    );
+    expect(workflow).toContain("git merge-base --is-ancestor");
     expect(workflow).toContain("environment:\n      name: production");
     expect(workflow).toContain("checkout.stripe.com");
     expect(workflow).toContain("timeout-minutes: 60");
@@ -946,10 +1071,7 @@ describe("Gate 19 workflow isolation", () => {
     expect(workflow).not.toContain('"${{ inputs.checkout_session_id }}"');
     expect(workflow).toContain("PRODUCTION_STRIPE_LIVE_PROOF_BRAND_ID");
     expect(workflow).toContain("PRODUCTION_STRIPE_LIVE_PROOF_ORGANIZATION_ID");
-    const controller = await readFile(
-      "scripts/stripe-live-proof.mjs",
-      "utf8",
-    );
+    const controller = await readFile("scripts/stripe-live-proof.mjs", "utf8");
     expect(controller).toContain("brand_id: `eq.${subject.id}`");
     expect(controller).toContain(
       "organization_id: `eq.${subject.organization_id}`",

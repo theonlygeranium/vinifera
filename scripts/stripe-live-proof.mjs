@@ -354,7 +354,11 @@ function requestTimeout() {
   return AbortSignal.timeout(15000);
 }
 
-function createApplicationStore({ fetcher, serviceRoleKey, supabaseUrl }) {
+export function createApplicationStore({
+  fetcher,
+  serviceRoleKey,
+  supabaseUrl,
+}) {
   const origin = canonicalOrigin(supabaseUrl, "production Supabase origin");
   async function select(table, parameters) {
     const url = new URL(`/rest/v1/${table}`, origin);
@@ -412,7 +416,11 @@ function createApplicationStore({ fetcher, serviceRoleKey, supabaseUrl }) {
         }),
         select("organizations", {
           select:
-            "id,plan_tier,stripe_customer_id,stripe_subscription_id,subscription_status,access_status,stripe_state_updated_at",
+            "id,plan_tier,stripe_customer_id,stripe_subscription_id,subscription_status,access_status,stripe_state_updated_at,brands!inner(id,organization_id,billing_mode,stripe_customer_id)",
+          "brands.billing_mode": "eq.independent",
+          "brands.id": `eq.${targets.brandId}`,
+          "brands.organization_id": `eq.${targets.organizationId}`,
+          "brands.stripe_customer_id": `eq.${targets.customerId}`,
           id: `eq.${targets.organizationId}`,
           stripe_customer_id: `eq.${targets.customerId}`,
         }),
@@ -440,7 +448,7 @@ function createApplicationStore({ fetcher, serviceRoleKey, supabaseUrl }) {
   };
 }
 
-async function verifyWorkerHealth(fetcher, origin) {
+async function verifyWorkerHealth(fetcher, origin, expectedRevision) {
   const [healthResponse, configurationResponse] = await Promise.all([
     fetcher(new URL("/api/health", origin), { signal: requestTimeout() }),
     fetcher(new URL("/api/health/configuration", origin), {
@@ -457,6 +465,8 @@ async function verifyWorkerHealth(fetcher, origin) {
   if (
     health?.data?.service !== "vinifera-api" ||
     health?.data?.status !== "ok" ||
+    health?.data?.environment !== "production" ||
+    health?.data?.revision !== expectedRevision ||
     configuration?.data?.billing?.configured !== true ||
     configuration?.data?.webhook?.configured !== true
   ) {
@@ -543,7 +553,7 @@ export async function prepareLiveProof({
   stripe,
   targets,
 }) {
-  await verifyWorkerHealth(fetcher, targets.workerOrigin);
+  await verifyWorkerHealth(fetcher, targets.workerOrigin, authority.gitSha);
   const accountHash = assertAccount(policy, await stripe.accounts.retrieve());
   const customer = await stripe.customers.retrieve(targets.customerId);
   assertCustomer(customer, targets.customerId);
@@ -576,17 +586,28 @@ export async function prepareLiveProof({
       "The approved customer already has a non-canceled subscription.",
     );
   }
-  const sessions = assertBoundedInventory(
+  const gateSessions = assertBoundedInventory(
     await stripe.checkout.sessions.list({
       customer: targets.customerId,
       limit: 100,
     }),
     "Stripe Checkout Session",
   ).filter(
-    (session) =>
-      session.metadata?.vinifera_proof_nonce === authority.nonce &&
-      session.metadata?.vinifera_gate === policy.metadata.gate,
+    (session) => session.metadata?.vinifera_gate === policy.metadata.gate,
   );
+  const sessions = gateSessions.filter(
+    (session) => session.metadata?.vinifera_proof_nonce === authority.nonce,
+  );
+  const foreignOpenSession = gateSessions.find(
+    (session) =>
+      session.status === "open" &&
+      session.metadata?.vinifera_proof_nonce !== authority.nonce,
+  );
+  if (foreignOpenSession) {
+    throw new Error(
+      "Another open Gate 19 Checkout Session already exists for this customer.",
+    );
+  }
   if (sessions.length > 1) {
     throw new Error(
       "More than one Checkout Session exists for this proof nonce.",
@@ -951,7 +972,7 @@ export async function finalizeLiveProof({
       "A valid live Checkout Session ID is required for finalize.",
     );
   }
-  await verifyWorkerHealth(fetcher, targets.workerOrigin);
+  await verifyWorkerHealth(fetcher, targets.workerOrigin, authority.gitSha);
   const accountHash = assertAccount(policy, await stripe.accounts.retrieve());
   assertCustomer(
     await stripe.customers.retrieve(targets.customerId),
@@ -963,10 +984,7 @@ export async function finalizeLiveProof({
     policy,
   );
   const session = await stripe.checkout.sessions.retrieve(sessionId, {
-    expand: [
-      "line_items.data.price",
-      "subscription.latest_invoice",
-    ],
+    expand: ["line_items.data.price", "subscription.latest_invoice"],
   });
   const amountCents = assertSession(
     session,

@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+
 - Add a distinct, trusted-main, protected, default-disabled Gate 19 controller
   for exactly one owner-completed Stripe-hosted live subscription charge and
   one full refund. It hash-authorizes the live account, dedicated customer,
@@ -10,7 +11,11 @@
   additional PaymentIntent, Charge, or refund objects; hash-binds the exact
   brand and organization; scopes lifecycle reads to that tenant; binds the
   hosted Session to the same immutable main SHA; validates reused Session line
-  items and state; proves signed webhook replay idempotency and durable
+  items and state; blocks any other open Gate 19 Session for the customer;
+  binds production health to the exact environment and deployed revision;
+  scopes the organization billing collision check through the approved brand;
+  preserves finalize cleanup against the original authorized merged SHA if
+  `main` advances after prepare; proves signed webhook replay idempotency and durable
   independent-brand active/canceled application convergence; guarantees an
   idempotent refund and renewal-cancellation recovery attempt after any
   post-charge failure; derives financial counts from Stripe; retains only
@@ -21,9 +26,9 @@
   charge, refund, credential, Worker, database, or provider mutation occurred.
   Extend the existing bounded Git-fixture timeout to the staged classifier CLI
   regression that exhibited the same concurrency-sensitive full-suite timeout;
-  its behavior and assertions are unchanged. **Verification:** 20/20 focused
+  its behavior and assertions are unchanged. **Verification:** 23/23 focused
   Gate 19 cases, 9/9 promotion-smoke cases, 31/31 delivery-policy cases, and the
-  complete generated-types, TypeScript, 595/595 Vitest, Vite build, and Worker
+  complete generated-types, TypeScript, 598/598 Vitest, Vite build, and Worker
   dry-run package gate pass.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
@@ -124,6 +129,7 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+
 - Give the three multi-branch promotion-smoke fixture tests a 30-second local
   Git budget instead of Vitest's 5-second default. Their assertions are
   synchronous and deterministic, but concurrent full-suite filesystem load
@@ -292,16 +298,19 @@
 - Added `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` to `WorkerEnv` type.
 
 ### Added
+
 - Migration 024: `public.resolve_default_brand_id(p_organization_id uuid)` RPC — a SECURITY DEFINER wrapper around `private.default_brand_for_org`. Granted execute to both `service_role` and `anon` (PostgREST builds its schema cache as the `anon` role; without the `anon` grant, the RPC is invisible to PostgREST and returns 404).
 
-
 ### Fixed
+
 - Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure so CI policy tests can locate the embedded quality-gate runbook (22 test failures on `main`).
 
 ### Fixed
-- Fix the automated staging deployment pipeline in `ci.yml`: (1) the `deploy-staging` job's `if` condition referenced `vars.STAGING_CLOUDFLARE_DEPLOY_ENABLED`, but this variable was set as a staging *environment* variable, which is invisible to job-level `if` conditions (environment-level variables are only available on the runner after the job starts, per GitHub's context availability rules). Moved the variable to the repository level so it is visible in the `vars` context at job-evaluation time. (2) The `deploy-staging` job required `needs.database.result == 'success'`, but the `database` job is gated by `vars.STAGING_SUPABASE_MIGRATION_ENABLED == 'true'` (not set), so it is always `skipped`. A skipped job has `result == 'skipped'`, not `'success'`, which blocked `deploy-staging` unconditionally. Updated the condition to accept `skipped` since staging migrations are applied manually on the self-hosted Supabase stack, not via `supabase link`/`supabase db push` which targets Supabase Cloud. **Deployment impact:** CI/release-control pipeline only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
+
+- Fix the automated staging deployment pipeline in `ci.yml`: (1) the `deploy-staging` job's `if` condition referenced `vars.STAGING_CLOUDFLARE_DEPLOY_ENABLED`, but this variable was set as a staging _environment_ variable, which is invisible to job-level `if` conditions (environment-level variables are only available on the runner after the job starts, per GitHub's context availability rules). Moved the variable to the repository level so it is visible in the `vars` context at job-evaluation time. (2) The `deploy-staging` job required `needs.database.result == 'success'`, but the `database` job is gated by `vars.STAGING_SUPABASE_MIGRATION_ENABLED == 'true'` (not set), so it is always `skipped`. A skipped job has `result == 'skipped'`, not `'success'`, which blocked `deploy-staging` unconditionally. Updated the condition to accept `skipped` since staging migrations are applied manually on the self-hosted Supabase stack, not via `supabase link`/`supabase db push` which targets Supabase Cloud. **Deployment impact:** CI/release-control pipeline only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Fixed
+
 - Add CF Access service token headers (`CF-Access-Client-Id`, `CF-Access-Client-Secret`) to the `staging-rest-pre` and `staging-rest-pre-merge` REST probe jobs in `promote-dev-to-staging.yml`. Without these headers, the probes receive 302 redirects from the Cloudflare Access protection on `staging-db.edstratumlabs.ai` and cannot verify staging Supabase REST health during the dev→staging promotion pipeline. The `promotion-control` environment already has `STAGING_CF_ACCESS_CLIENT_ID` and `STAGING_CF_ACCESS_CLIENT_SECRET` secrets configured. **Deployment impact:** CI/release-control pipeline only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Changed
@@ -309,12 +318,15 @@
 - Added `workers_dev` and `preview_urls` flags to the staging Wrangler environment so the isolated staging Worker receives a public preview URL for health verification during Gate 2 activation.
 
 ### Fixed
+
 - Resolve 15 pgTAP test failures on staging database: add migration 023 (87 missing FK indexes across all phases), update 4 stale test files for renamed constraints/indexes, RPC signature change, and service-role-only security boundary. pgTAP suite now passes 258/258. **Deployment impact:** database schema (87 new non-unique indexes) and test files only; no application route, provider, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Changed
+
 - Reconcile Octopus↔Cloudflare deployment model (ADR: `2026-08-05-octopus-cloudflare-deployment-reconciliation.md`). Correct `AppHealthUrl` in `.octopus/variables.ocl` from `http://localhost:3000/health` to the real Worker health endpoint `https://vinifera-development.jeff-f69.workers.dev/health`. Deprecate PM2 `restart-application` step in `.octopus/deployment_process.ocl`, replacing it with a `verify-worker-health` evidence probe that checks the deployed Cloudflare Worker; merge the former `smoke-test` step into the probe. Reduce `.github/workflows/octopus-main-deploy.yml` to evidence-only — remove the non-functional "Deploy to Development" step and keep Octopus release creation as an audit record. Octopus now serves as review/orchestration and release-audit ledger; GitHub Actions owns Worker deployment via Wrangler. **Deployment impact:** CI/release-control and Octopus process configuration only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Fixed
+
 - Give the promotion-smoke local-drill fixture the same 30-second bounded Git
   operation budget as the three multi-branch fixture tests. This prevents
   full-suite host contention from exhausting Vitest's unrelated 5-second
@@ -672,6 +684,7 @@
   activation-gate state changes.
 
 ### Removed
+
 - Removed the temporary hidden promotion smoke artifact at
   `public/vinifera-promotion-smoke-2026-08-01.html` after the publishing drill
   reached production and its marker was verified on `vinifera.pages.dev`,
@@ -683,6 +696,7 @@
   `git diff --check`.
 
 ### Added
+
 - Added an unlinked, noindex static promotion smoke artifact at
   `public/vinifera-promotion-smoke-2026-08-02.html` so the protected
   `dev -> staging -> main` publishing workflow can be exercised again with a
@@ -816,6 +830,7 @@
   production resource change.
 
 ### Fixed
+
 - Reconciled `staging` ancestry back into `dev` after the Octopus workflow
   repair sequence so the next `dev → staging` promotion has a clean merge base
   instead of re-conflicting on already-reviewed deployment workflow files.
@@ -1051,7 +1066,7 @@
   Marketing interactions moved from CSP-blocked inline blocks to the
   self-hosted `public/marketing.js`, preserving signup enhancement, smooth
   scrolling, motion, and the mobile menu under the Worker's `script-src
-  'self'` policy.
+'self'` policy.
 - `CONTINUITY_BRIEF.md`: Pinned the Octopus bootstrap finding to the audited
   GitHub default-branch SHA and distinguished `main` runtime workflow code from
   the corrected but not-yet-promoted `dev` definition.
@@ -1101,6 +1116,7 @@
   readiness before marketing trial CTAs expose staff signup.
 
 ### Changed
+
 - `docs/build-specs/merge-cleanup-regression-audit-2026-07-28.md`,
   `docs/build-specs/README.md`, and `CONTINUITY_BRIEF.md`: Added an
   authoritative cross-agent handoff identifying each actor, authority,
@@ -1130,6 +1146,7 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
 ## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
 
 ### Fixed
+
 - `.octopus/runbooks/pr-quality-gates/runbook.ocl`: Resolves immutable PR base
   and head commits from GitHub, authenticates fetches with an ephemeral HTTP
   header, removes the authenticated remote before inspection, and enforces
@@ -1211,6 +1228,7 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
   one-time bootstrap exception for this workflow correction.
 
 ### Deployment impact
+
 - No application, routing, database, provider, Pages, or Worker resource is
   changed by this commit. The published Octopus `PR Quality Gates` snapshot
   must be updated before the GitHub gate is re-triggered. Future PR failures
@@ -1218,6 +1236,7 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
   auto-fix or AI-comment runbook is dispatched.
 
 ### Verification
+
 - Validate workflow syntax, run the repository docs-only CI lane, confirm
   CodeRabbit and zero unresolved review threads on the bootstrap PR, merge it
   to `dev`, then reopen the pending product PRs and require successful Octopus
@@ -1234,39 +1253,46 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
 ## [Unreleased] — 2026-07-28 (UI Testing Work Manifest)
 
 ### Added
+
 - `docs/build-specs/ui-test-manifest-2026-07-28.md`: Recorded SA-01 through
   SA-12 test-domain assignments, isolated worktree paths, sequencing,
   single-defect fix-branch conventions, baseline evidence, and activation
   safety boundaries before subagent dispatch.
 
 ### Verification
+
 - `npm run check`: 448/448 Vitest tests passed with TypeScript, Worker type,
   Vite build, and Worker dry-run checks successful.
 - `npm run qa:e2e`: 145/145 Playwright/axe tests passed.
 
 ### Deployment impact
+
 - Documentation only. No runtime, routing, provider, hosted environment, or
   activation-gate state changed.
 
 ## [Unreleased] — 2026-07-28 (Release Schedule Tier Visibility)
 
 ### Fixed
+
 - `src/client/staff/phase2/ReleasesPage.tsx`: Release schedule cards now name
   every participating club tier alongside their date, status, wine, member,
   and embargo metadata so staff can identify the targeted tier without opening
   each release.
 
 ### Tests
+
 - `tests/e2e/phase2.spec.ts`: Added a focused browser regression asserting
   that the Fall 2026 schedule card exposes its Founders Circle tier.
 
 ### Deployment impact
+
 - Staff UI only. No API contract, database, provider, routing, hosted
   environment, or activation-gate state changed.
 
 ## [Unreleased] — 2026-07-28 (Comprehensive UI Test Report)
 
 ### Added
+
 - **What changed:** Added the consolidated UI test report with workstream
   results, defect-to-PR traceability, integrated verification, evidence
   boundaries, open decisions, a pinned-base immutable integration
@@ -1283,30 +1309,33 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
 ## [Unreleased] — 2026-07-28 (UI Testing Spec Formatting Fix)
 
 ### Fixed
+
 - `docs/build-specs/vinifera-ui-testing-doc.md`: Stripped trailing whitespace from 5 lines (lines 2, 3, 4, 786, 788) to satisfy CI docs-lane `git diff --check` policy. No content change.
 
 ## [Unreleased] — 2026-07-28 (Three-Tier Environment)
 
 ### Added
+
 - Three-tier deployment architecture: `vinifera-dev` (dev branch), `vinifera-staging` (staging branch), `vinifera-live` (main branch).
 - `staging` branch created from `dev` at `f530c46deb1a`.
 - `vinifera-staging` Cloudflare Pages project provisioned at `vinifera-staging.edstratumlabs.ai` with CNAME + Cloudflare-proxied SSL.
 - Supabase staging project blocked by free plan 2-project limit — staging Pages project provisioned but temporarily shares dev Supabase project (`cfrqrllmyquggqjkzifs`) until Pro plan upgrade.
 
 ### Changed
+
 - `AGENTS.md`: Added three-tier environment model with mandatory PR routing rules (`dev` only for all agents). Updated deployment topology table (4 Cloudflare Pages projects). Updated agent coordination model with Prime Directive-level PR routing constraint.
 - `docs/build-specs/CODEX-DISPATCH-GUIDE.md`: All 6 session PR targets updated from `main` → `dev`. All Greptile references replaced with Octopus. Added three-tier environment model header with explicit routing rule. Merge order updated to reference `dev` checks.
 
 ### Architecture
+
 - Promotion pipeline: `feature/* → PR to dev → human promotes dev→staging → human approves staging→main`
 - Agents never open PRs against `staging` or `main` — enforced in AGENTS.md Section 7 and Section 9.
 - Supabase staging DB: upgrade to Pro plan at supabase.com/dashboard to provision a third isolated project.
 
-
-
 ## [Unreleased] — 2026-07-28
 
 ### Added
+
 - `dev` branch created from `main` at `d5b0e02d` as the primary integration branch for active development.
 - Two Cloudflare Pages projects provisioned: `vinifera-dev` (branch: `dev`) and `vinifera-live` (branch: `main`).
 - Custom domains configured: `vinifera-dev.edstratumlabs.ai` and `vinifera-live.edstratumlabs.ai` with Cloudflare-proxied DNS CNAMEs.
@@ -1315,13 +1344,12 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
 - `.env.example` updated with dedicated section documenting `vinifera-dev` and `vinifera-live` Cloudflare Pages environment variables and build configuration.
 
 ### Infrastructure
+
 - Build command for both Pages projects: `npm run build:pages` (`CF_PAGES=1 npm run build`)
 - Output directory: `dist/`
 - `scripts/build.mjs` confirmed to copy `/app` static prototype into `dist/` when `CF_PAGES=1`, preserving demo site at root domain.
 - Supabase Dev project: `Vinifera Dev` (`cfrqrllmyquggqjkzifs`, us-east-1, ACTIVE_HEALTHY)
 - Supabase Prod project: `Project Vinifera` (`lefbjbulzmtgidjbemzb`, ACTIVE_HEALTHY)
-
-
 
 All notable changes to this project will be documented in this file.
 
@@ -1439,6 +1467,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   syntax test, `npm run typecheck`, `npm run build`, and `git diff --check`.
 
 ### Changed
+
 - Replaced Greptile with Octopus as the AI code review tool (self-hosted). Greptile removed
   as a required GitHub branch protection check. Branch protection now requires only
   `Type, test, build, and package` and `Block direct push to main`.
@@ -1449,9 +1478,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   directory tree, ownership table, and tool registry accordingly.
 
 ### Added
+
 - ADR `docs/decisions/2026-07-28-switch-greptile-to-octopus.md` documenting the
   transition rationale, self-hosting approach, and rollback path.
-
 
 ### Removed
 
@@ -1491,7 +1520,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   against `CONTINUITY_BRIEF.md` activation gates 3 and 4, run
   `npm run check` to confirm 448 Vitest and 145 Playwright/axe counts,
   inspect ADR and updated ownership table in `AGENTS.md`.
-
 
 ### Added
 
@@ -1919,7 +1947,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   **Deployment impact:** GitHub Actions enforcement only; application,
   database, Worker, Pages, and provider behavior are unchanged.
   **Verification:** `node --test
-  .github/scripts/direct-push-guard.policy.mjs` (11 tests) and
+.github/scripts/direct-push-guard.policy.mjs` (11 tests) and
   `git diff --check`.
 - **What changed:** Release PATCH requests now reject empty bodies, direct
   status changes, ambiguous tier aliases, and unpaired tier IDs/prices; omit
@@ -1935,7 +1963,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   change; no database migration, provider activation, Pages route, or static
   asset changes are required. **Verification:** `npm run typecheck` and
   `npx vitest run tests/server/app.test.ts tests/server/core-club.test.ts
-  tests/server/retention.test.ts` (106 tests).
+tests/server/retention.test.ts` (106 tests).
 - Hardened extracted route boundaries after review: release tier/price sets and
   wine names now fail closed when inconsistent, partial email-template updates
   no longer inject `enabled: true`, padded emails normalize before validation,
@@ -2691,6 +2719,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.1.0] — 2026-07-26
 
 ### Added
+
 - Initial repository created from `github-deploy-template`
 - `AGENTS.md` — agent collaboration guide
 - `CONTINUITY_BRIEF.md` — drop-in context for new agent sessions
@@ -2716,6 +2745,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - "Investor's Guide" nav links in desktop nav, mobile drawer, and footer
 
 ### Fixed
+
 - Mobile navigation: hamburger visibility, positioning, and drawer functionality
 - Landing page CTA links pointing to `index.html` instead of `/app/`
 - App hamburger menu not opening on mobile
@@ -2734,6 +2764,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Guide page `aria-label` on divs without valid ARIA roles — added `role="group"`
 
 ### Changed
+
 - Hero gradient from dramatic near-black-to-gold to uniform deep burgundy for SVG illustration visibility
 - `--text-3` from `#9C8C78` to `#6B5D4A` for WCAG 2.1 AA compliance
 - `--text-muted` from `#9CA3AF` to `#5B6470` for WCAG 2.1 AA compliance

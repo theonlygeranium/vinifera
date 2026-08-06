@@ -11,7 +11,7 @@ on:
           - prepare
           - finalize
       git_sha:
-        description: Exact 40-character commit currently at canonical main
+        description: Exact authorized main release (current for prepare; original prepare release for finalize)
         required: true
         type: string
       proof_nonce:
@@ -94,7 +94,12 @@ jobs:
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "$STRIPE_LIVE_PROOF_GIT_SHA" ]]
           git fetch --no-tags origin main:refs/remotes/origin/main
-          [[ "$(git rev-parse origin/main)" == "$STRIPE_LIVE_PROOF_GIT_SHA" ]]
+          if [[ "${{ inputs.operation }}" == "prepare" ]]; then
+            [[ "$(git rev-parse origin/main)" == "$STRIPE_LIVE_PROOF_GIT_SHA" ]]
+          else
+            git merge-base --is-ancestor \
+              "$STRIPE_LIVE_PROOF_GIT_SHA" refs/remotes/origin/main
+          fi
           authorization_prs=$(gh api \
             -H "Accept: application/vnd.github+json" \
             "repos/$GITHUB_REPOSITORY/commits/$STRIPE_LIVE_PROOF_GIT_SHA/pulls")

@@ -52,10 +52,13 @@ confirmation: AUTHORIZE ONE VINIFERA LIVE CHARGE AND REFUND
 request_binding_reversion: true or false
 ```
 
-The run verifies every target and creates at most one idempotent `cs_live_`
+The run verifies that the production Worker reports the exact authorized
+revision and production environment, verifies every target, and creates at
+most one idempotent `cs_live_`
 Session for that nonce and exact main SHA. A reused Session is retrieved and
 must still be open, unpaid, unexpired, tenant-bound, and contain exactly one
-unit of the reviewed Price. The workflow summary presents the only payment handoff.
+unit of the reviewed Price. Any other open Gate 19 Session for the dedicated
+customer blocks preparation. The workflow summary presents the only payment handoff.
 The owner opens that `checkout.stripe.com` link and completes payment there.
 No card number, CVC, payment method token, or browser payment data enters
 GitHub, Codex, the repository, or the controller.
@@ -67,7 +70,7 @@ to converge, dispatch the same workflow with:
 
 ```text
 operation: finalize
-git_sha: <same exact current main SHA>
+git_sha: <same exact authorized main SHA used by prepare>
 proof_nonce: <same UUID>
 checkout_session_id: <cs_live_ value from prepare>
 confirmation: AUTHORIZE ONE VINIFERA LIVE CHARGE AND REFUND
@@ -82,6 +85,12 @@ two correctly signed replays. It then creates or
 safely resumes exactly one full refund, cancels the subscription immediately
 without proration, waits for application `canceled` state, verifies the applied
 deletion event, and repeats the two signed duplicate replays.
+
+If `main` advances between the owner completing Checkout and cleanup, finalize
+still checks out and accepts the original prepare SHA only when it remains an
+ancestor of current `main` and maps to its merged `staging → main`
+authorization PR. This preserves the metadata-bound refund and cancellation
+path without authorizing a different release.
 
 After the exact paid subscription and Charge are identified, any later error
 enters fail-safe recovery that independently attempts the same idempotent full
