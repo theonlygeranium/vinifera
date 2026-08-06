@@ -61,8 +61,12 @@ Domain, webhook, and runtime-key inventory traverses every Resend cursor page
 before matching and must resolve to zero or one exact resource; duplicates
 fail. Creation is forbidden until the complete inventory proves absence.
 Existing webhooks are updated only under `bootstrap` or `apply` to the exact
-endpoint, enabled state, and complete application email event set. No provider
-or DNS deletion is supported.
+endpoint, enabled state, and complete application email event set. DNS deletion
+is never supported. Provider deletion is limited to same-attempt rollback or
+an explicitly confirmed protected bootstrap replacing the single unbound
+resource at the reserved staging webhook endpoint or runtime-key name. No
+other operation can replace resources, and duplicate or mismatched inventory
+fails closed.
 
 During bootstrap, the full-access provisioning key creates the domain-scoped,
 sending-only runtime key. The controller streams only that runtime token and the
@@ -112,6 +116,9 @@ separate real lifecycle acceptance remain required.
 - A missing runtime-key ID follows the same two-phase contract with an exact
   domain-bound token envelope; existing keys require the persisted ID binding
   or that controlled bootstrap recovery.
+- If both the envelope store and immediate ID inventory fail, the next
+  protected bootstrap can delete and recreate only the single exact unbound
+  staging resource; read-only and apply operations cannot use that fallback.
 - The Worker receives only a domain-restricted `sending_access` credential, not
   the provisioning administrator credential.
 - The operation cannot run from pull-request code, staging code, or a stale

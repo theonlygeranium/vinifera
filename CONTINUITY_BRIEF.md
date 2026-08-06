@@ -914,7 +914,8 @@ The code must remain fail-closed until these external connections are active:
    One-time webhook and runtime-key credentials are durably bound to their
    exact endpoint or domain before missing-ID inventory, so an interrupted
    lookup can resume through protected controller recovery before any provider
-   update or readiness claim.
+   update or readiness claim; if both persistence and ID inventory fail, only
+   a later confirmed bootstrap can replace that single exact unbound resource.
    Evidence is bound to exact source SHA, policy digest, repository, and run.
    No provider, DNS, secret, or gate-status mutation has been performed by
    source completion.

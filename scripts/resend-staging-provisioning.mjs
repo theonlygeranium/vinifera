@@ -317,13 +317,15 @@ export function recordRuntimeCredential(
     disposition: runtimeKeyResult.disposition,
     domainRestricted:
       runtimeKeyResult.disposition === "created" ||
-      runtimeKeyResult.disposition === "recovered"
+      runtimeKeyResult.disposition === "recovered" ||
+      runtimeKeyResult.disposition === "replaced"
         ? true
         : null,
     idSha256: authorization.idHash,
     permission:
       runtimeKeyResult.disposition === "created" ||
-      runtimeKeyResult.disposition === "recovered"
+      runtimeKeyResult.disposition === "recovered" ||
+      runtimeKeyResult.disposition === "replaced"
         ? "sending_access"
         : null,
   };
@@ -537,15 +539,24 @@ export async function ensureWebhook(
   boundWebhookIdSha256,
   finalizeWebhookBinding,
   recoveryEnvelope,
+  canReplaceUnbound = false,
 ) {
   let webhook = await inventoryWebhook(apiKey, endpoint);
   let disposition = "existing";
+  let replacingUnbound = false;
   if (webhook) {
     const webhookIdSha256 = sha256(String(webhook.id));
     const recovery = parseWebhookRecovery(recoveryEnvelope, endpoint);
-    const hasValidBinding =
+    const hasBindingValue =
       typeof boundWebhookIdSha256 === "string" &&
+      boundWebhookIdSha256.trim().length > 0;
+    const hasValidBinding =
+      hasBindingValue &&
       SHA256_PATTERN.test(boundWebhookIdSha256);
+    expect(
+      !hasBindingValue || hasValidBinding,
+      "Persisted Resend webhook binding is malformed.",
+    );
     expect(
       !hasValidBinding || boundWebhookIdSha256 === webhookIdSha256,
       "Existing Resend webhook conflicts with the persisted signing-secret binding.",
@@ -557,9 +568,21 @@ export async function ensureWebhook(
       );
       await finalizeWebhookBinding(recovery.signingSecret, webhookIdSha256);
       disposition = "recovered";
-    } else {
+    } else if (hasValidBinding) {
       expect(
-        hasValidBinding,
+        boundWebhookIdSha256 === webhookIdSha256,
+        "Existing Resend webhook conflicts with the persisted signing-secret binding.",
+      );
+    } else if (canReplaceUnbound) {
+      await apiJson(
+        RESEND_ORIGIN,
+        `/webhooks/${encodeURIComponent(webhook.id)}`,
+        { headers: resendHeaders(apiKey), method: "DELETE" },
+      );
+      webhook = null;
+      replacingUnbound = true;
+    } else {
+      throw new Error(
         "Existing Resend webhook is not bound to the persisted signing secret.",
       );
     }
@@ -606,7 +629,7 @@ export async function ensureWebhook(
         } catch (inventoryError) {
           throw new AggregateError(
             [persistenceError, inventoryError],
-            "Webhook recovery failed and its provider ID could not be recovered; the protected recovery envelope permits an exact retry.",
+            "Webhook recovery failed and its provider ID could not be recovered; a later protected bootstrap must replace the exact unbound webhook.",
           );
         }
       }
@@ -629,7 +652,7 @@ export async function ensureWebhook(
       `/webhooks/${encodeURIComponent(createdId)}`,
       { headers: resendHeaders(apiKey) },
     );
-    disposition = "created";
+    disposition = replacingUnbound ? "replaced" : "created";
   } else if (webhook && !webhookIsExact(webhook, endpoint) && canMutate) {
     await apiJson(
       RESEND_ORIGIN,
@@ -685,12 +708,20 @@ export async function ensureRuntimeSendingKey(
   let key = await inventoryRuntimeSendingKey(provisioningApiKey);
   let token = null;
   let disposition = "existing";
+  let replacingUnbound = false;
   if (key) {
     const keyIdSha256 = sha256(String(key.id));
     const recovery = parseRuntimeKeyRecovery(recoveryEnvelope, domainId);
-    const hasValidBinding =
+    const hasBindingValue =
       typeof boundRuntimeKeyIdSha256 === "string" &&
+      boundRuntimeKeyIdSha256.trim().length > 0;
+    const hasValidBinding =
+      hasBindingValue &&
       SHA256_PATTERN.test(boundRuntimeKeyIdSha256);
+    expect(
+      !hasBindingValue || hasValidBinding,
+      "Persisted Resend runtime-key binding is malformed.",
+    );
     expect(
       !hasValidBinding || boundRuntimeKeyIdSha256 === keyIdSha256,
       "Existing Resend runtime key conflicts with the persisted token binding.",
@@ -703,9 +734,21 @@ export async function ensureRuntimeSendingKey(
       await finalizeRuntimeBinding(recovery.token, keyIdSha256);
       token = recovery.token;
       disposition = "recovered";
-    } else {
+    } else if (hasValidBinding) {
       expect(
-        hasValidBinding,
+        boundRuntimeKeyIdSha256 === keyIdSha256,
+        "Existing Resend runtime key conflicts with the persisted token binding.",
+      );
+    } else if (canCreate) {
+      await apiJson(
+        RESEND_ORIGIN,
+        `/api-keys/${encodeURIComponent(key.id)}`,
+        { headers: resendHeaders(provisioningApiKey), method: "DELETE" },
+      );
+      key = null;
+      replacingUnbound = true;
+    } else {
+      throw new Error(
         "Existing Resend runtime key is not bound to the persisted sending token.",
       );
     }
@@ -755,7 +798,7 @@ export async function ensureRuntimeSendingKey(
         } catch (inventoryError) {
           throw new AggregateError(
             [persistenceError, inventoryError],
-            "Runtime-key recovery failed and its provider ID could not be recovered; the protected recovery envelope permits an exact retry.",
+            "Runtime-key recovery failed and its provider ID could not be recovered; a later protected bootstrap must replace the exact unbound key.",
           );
         }
       }
@@ -778,7 +821,7 @@ export async function ensureRuntimeSendingKey(
       key && String(key.id) === createdId,
       "Post-creation runtime API key inventory did not match.",
     );
-    disposition = "created";
+    disposition = replacingUnbound ? "replaced" : "created";
   }
   return { disposition: key ? disposition : "absent", key, token };
 }
@@ -1096,6 +1139,7 @@ async function main() {
         );
       },
       process.env.STAGING_RESEND_WEBHOOK_RECOVERY,
+      operation === "bootstrap",
     );
     evidence.provider = {
       domainDisposition: domainResult.domain

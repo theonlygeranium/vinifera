@@ -87,6 +87,11 @@ only when its ID hashes to the protected
 `STAGING_RESEND_WEBHOOK_ID_SHA256` value written to the main-only controller
 environment or when that exact recovery envelope is finalized before any
 provider mutation.
+If a recovery-envelope write and provider ID inventory both fail, the next
+explicitly confirmed protected `bootstrap` may replace only the single unbound
+resource at the reserved webhook endpoint or runtime-key name. `probe`,
+`apply`, and `verify` cannot use this replacement path; duplicates, malformed
+bindings, and a binding to another provider ID continue to fail closed.
 The sanitized artifact supplies the runtime key's ID hash and each returned
 record's `nameSha256`, `type`, `valueSha256`, and `priority`. Copy the exact key
 ID hash and complete tuple set into the policy in a second reviewed change; do

@@ -29,6 +29,9 @@
   keys without their exact persisted token binding or controlled recovery; reuse the stable controller-owned
   unsubscribe secret across retries. If either one-time secret write fails,
   delete only the resource created by that attempt so a retry can recreate it;
+  if both envelope persistence and immediate ID recovery fail, allow only a
+  protected confirmed bootstrap to replace the single exact unbound reserved
+  webhook or runtime-key resource;
   malformed runtime-key creation responses enter the same rollback path, and
   inventoried webhooks require the persisted ID hash that binds their signing
   secret before readiness can pass;
@@ -43,7 +46,8 @@
   Verification: 21/21 focused provisioning tests and 596/596 full Vitest
   tests, app build, and Worker dry-run. **Deployment impact:** protected
   manual workflow/source only; empty policy blocks provider/DNS mutation,
-  deletion is restricted to same-attempt one-time-secret recovery, and source
+  provider deletion is restricted to same-attempt one-time-secret recovery or
+  protected-bootstrap replacement of one exact unbound reserved resource, and source
   completion does not change Gate 8 status.
 - Remove the broad required-reviewer rule from the protected `staging` GitHub
   environment while retaining its staging-only branch policy and the

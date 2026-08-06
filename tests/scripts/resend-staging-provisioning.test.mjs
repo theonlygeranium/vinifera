@@ -361,7 +361,7 @@ describe("Resend staging provisioning controller", () => {
     expect(requests.every((request) => request.method !== "DELETE")).toBe(true);
   });
 
-  it("recovers a missing webhook ID only after persisting its one-time secret", async () => {
+  it("retains controlled recovery when webhook persistence and ID lookup fail", async () => {
     const endpoint =
       "https://vinifera-staging.account.workers.dev/api/webhooks/resend";
     const order = [];
@@ -388,7 +388,10 @@ describe("Resend staging provisioning controller", () => {
         throw new Error(`Unexpected request: ${init.method} ${pathname}`);
       }),
     );
-    const persistWebhookRecovery = vi.fn(async () => order.push("persist"));
+    const persistWebhookRecovery = vi.fn(async () => {
+      order.push("persist");
+      throw new Error("synthetic recovery persistence outage");
+    });
     await expect(
       ensureWebhook(
         "re_test_key",
@@ -398,7 +401,7 @@ describe("Resend staging provisioning controller", () => {
         undefined,
         vi.fn(),
       ),
-    ).rejects.toThrow(/protected recovery envelope permits an exact retry/u);
+    ).rejects.toThrow(/later protected bootstrap must replace/u);
     expect(persistWebhookRecovery).toHaveBeenCalledWith(
       "whsec_created_once",
       sha256(endpoint),
@@ -407,7 +410,6 @@ describe("Resend staging provisioning controller", () => {
       "inventory",
       "create",
       "persist",
-      "recover-id",
       "recover-id",
     ]);
 
@@ -553,6 +555,85 @@ describe("Resend staging provisioning controller", () => {
     ).rejects.toThrow(/protected mutating operation/u);
     expect(finalizeWebhookBinding).not.toHaveBeenCalled();
     expect(methods).toEqual(["GET", "GET"]);
+
+    const replacementOrder = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init) => {
+        const pathname = new URL(String(url)).pathname;
+        if (pathname === "/webhooks" && init.method === "GET") {
+          replacementOrder.push("inventory-old");
+          return Response.json({
+            data: [{ endpoint, id: "webhook-existing" }],
+          });
+        }
+        if (
+          pathname === "/webhooks/webhook-existing" &&
+          init.method === "GET"
+        ) {
+          replacementOrder.push("retrieve-old");
+          return Response.json({
+            endpoint,
+            events: ["email.sent"],
+            id: "webhook-existing",
+            status: "disabled",
+          });
+        }
+        if (
+          pathname === "/webhooks/webhook-existing" &&
+          init.method === "DELETE"
+        ) {
+          replacementOrder.push("delete-old");
+          return new Response(null, { status: 204 });
+        }
+        if (pathname === "/webhooks" && init.method === "POST") {
+          replacementOrder.push("create-new");
+          return Response.json({
+            id: "webhook-replacement",
+            signing_secret: "whsec_replacement",
+          });
+        }
+        if (pathname === "/webhooks/webhook-replacement") {
+          replacementOrder.push("retrieve-new");
+          return Response.json({
+            endpoint,
+            events: [
+              "email.bounced",
+              "email.clicked",
+              "email.complained",
+              "email.delivered",
+              "email.delivery_delayed",
+              "email.failed",
+              "email.opened",
+              "email.sent",
+            ],
+            id: "webhook-replacement",
+            status: "enabled",
+          });
+        }
+        throw new Error(`Unexpected request: ${init.method} ${pathname}`);
+      }),
+    );
+    const replacement = await ensureWebhook(
+      "re_test_key",
+      endpoint,
+      true,
+      async () => replacementOrder.push("persist-recovery"),
+      undefined,
+      async () => replacementOrder.push("finalize"),
+      undefined,
+      true,
+    );
+    expect(replacement.disposition).toBe("replaced");
+    expect(replacementOrder).toEqual([
+      "inventory-old",
+      "retrieve-old",
+      "delete-old",
+      "create-new",
+      "persist-recovery",
+      "finalize",
+      "retrieve-new",
+    ]);
   });
 
   it("creates a distinct sending-only runtime key restricted to the exact domain", async () => {
@@ -639,7 +720,7 @@ describe("Resend staging provisioning controller", () => {
     expect(fetchMock.mock.calls[2][1].method).toBe("DELETE");
   });
 
-  it("recovers a missing runtime-key ID only after persisting its one-time token", async () => {
+  it("retains controlled recovery when runtime persistence and ID lookup fail", async () => {
     const order = [];
     const fetchMock = vi
       .fn()
@@ -665,16 +746,18 @@ describe("Resend staging provisioning controller", () => {
         "re_provisioning_admin",
         "domain-one",
         true,
-        async () => order.push("persist-recovery"),
+        async () => {
+          order.push("persist-recovery");
+          throw new Error("synthetic recovery persistence outage");
+        },
         undefined,
         vi.fn(),
       ),
-    ).rejects.toThrow(/protected recovery envelope permits an exact retry/u);
+    ).rejects.toThrow(/later protected bootstrap must replace/u);
     expect(order).toEqual([
       "inventory",
       "create",
       "persist-recovery",
-      "recover-id",
       "recover-id",
     ]);
 
@@ -718,6 +801,62 @@ describe("Resend staging provisioning controller", () => {
       sha256("runtime-key"),
     );
     expect(retryOrder).toEqual(["inventory", "finalize"]);
+
+    const replacementOrder = [];
+    let inventoryCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init) => {
+        const pathname = new URL(String(url)).pathname;
+        if (pathname === "/api-keys" && init.method === "GET") {
+          inventoryCount += 1;
+          replacementOrder.push(
+            inventoryCount === 1 ? "inventory-old" : "inventory-new",
+          );
+          return Response.json({
+            data: [
+              {
+                id: inventoryCount === 1 ? "runtime-key" : "runtime-replacement",
+                name: "Vinifera staging runtime sender",
+              },
+            ],
+          });
+        }
+        if (
+          pathname === "/api-keys/runtime-key" &&
+          init.method === "DELETE"
+        ) {
+          replacementOrder.push("delete-old");
+          return new Response(null, { status: 204 });
+        }
+        if (pathname === "/api-keys" && init.method === "POST") {
+          replacementOrder.push("create-new");
+          return Response.json({
+            id: "runtime-replacement",
+            token: "re_runtime_replacement",
+          });
+        }
+        throw new Error(`Unexpected request: ${init.method} ${pathname}`);
+      }),
+    );
+    const replaced = await ensureRuntimeSendingKey(
+      "re_provisioning_admin",
+      "domain-one",
+      true,
+      async () => replacementOrder.push("persist-recovery"),
+      undefined,
+      async () => replacementOrder.push("finalize"),
+    );
+    expect(replaced.disposition).toBe("replaced");
+    expect(replaced.token).toBe("re_runtime_replacement");
+    expect(replacementOrder).toEqual([
+      "inventory-old",
+      "delete-old",
+      "create-new",
+      "persist-recovery",
+      "finalize",
+      "inventory-new",
+    ]);
   });
 
   it("deletes a newly created runtime key when its token response is malformed", async () => {
@@ -893,7 +1032,7 @@ describe("Resend staging provisioning controller", () => {
     expect(controller).not.toContain("evidence.apiKey");
   });
 
-  it("uses the official provider mutation endpoints without destructive calls", async () => {
+  it("limits provider deletion to exact controlled recovery paths", async () => {
     const controller = await readFile(
       new URL("scripts/resend-staging-provisioning.mjs", repositoryRoot),
       "utf8",
@@ -903,11 +1042,13 @@ describe("Resend staging provisioning controller", () => {
     expect(controller).toContain('method: "PATCH"');
     expect(controller).toContain("/verify`");
     expect(controller).toContain("/dns_records`");
-    expect(controller.match(/method: "DELETE"/gu)).toHaveLength(2);
+    expect(controller.match(/method: "DELETE"/gu)).toHaveLength(4);
     expect(controller).toContain(
       '`/webhooks/${encodeURIComponent(createdId)}`',
     );
     expect(controller).toContain("STAGING_RESEND_WEBHOOK_ID_SHA256");
+    expect(controller).toContain('operation === "bootstrap"');
+    expect(controller).toContain("canReplaceUnbound");
     expect(controller).toContain('"staging-acceptance-control"');
     expect(controller).not.toContain("dns_records/batch");
   });
