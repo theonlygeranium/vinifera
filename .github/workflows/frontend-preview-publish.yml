@@ -124,12 +124,6 @@ jobs:
             echo "::error::Live pull-request identity differs from the candidate artifact."
             exit 1
           fi
-          if jq -e \
-            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-            <<<"$pr" >/dev/null; then
-            echo "::error::An emergency label blocks preview mutation."
-            exit 1
-          fi
           if [[ "$head_ref" == "main" || "$head_ref" == "staging" || "$head_ref" == "dev" ]]; then
             echo "::notice::Protected environment branches do not receive frontend preview deployments."
             printf 'publish_status=true\napplicable=false\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \

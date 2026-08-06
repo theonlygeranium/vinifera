@@ -158,8 +158,11 @@ trusted `octopus-review-required` boundary before fast validation can pass.
 Routine low- and medium-risk delivery may merge to `dev` only under explicit
 `codex-auto-merge` authority and immediate trusted revalidation. Promotion is a
 separate batched release candidate using `Type, test, build, and package` plus
-Octopus. Production, live billing, provider activation, credential rotation,
-DNS, destructive hosted data work, and emergency labels remain protected.
+Octopus. A `human-review-required` label stops consequential merge, promotion,
+and deployment decisions but no longer suppresses safe repair, review,
+non-production preview, packaging, or evidence collection. Production, live
+billing, credential rotation, DNS, and destructive hosted data work retain
+their independent protected confirmations.
 
 The machine-readable authority boundary lives in
 `.github/delivery-risk-contract.json`. The trusted default-branch

@@ -63,12 +63,6 @@ jobs:
             echo "::error::Selected candidate is not the one live dev-to-staging PR."
             exit 1
           fi
-          if jq -e \
-            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
-            <<<"$pr" >/dev/null; then
-            echo "::error::An emergency label blocks release packaging."
-            exit 1
-          fi
           checks=$(gh api --paginate \
             "repos/$REPOSITORY/commits/$CANDIDATE_SHA/check-runs?per_page=100" |
             jq -s '[.[].check_runs[]]')
