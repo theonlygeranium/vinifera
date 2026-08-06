@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Changed
+- Require the exact immutable release-candidate package to be created from
+  trusted `main` while the reviewed `dev → staging` promotion PR remains open
+  and before that PR is merged. The staging deployment then consumes the
+  successful, non-expired exact-SHA artifact without rebuilding. This corrects
+  the documented sequence after a staging activation attempt failed closed
+  because its already-merged candidate had no eligible package. **Deployment
+  impact:** release runbook and continuity guidance only; no application,
+  provider, database, credential, Worker, billing, DNS, or production mutation.
 - Narrow `human-review-required` from a global automation pause to a consequential-mutation stop. Exact-head review, safe repair, non-production previews, promotion readiness, and immutable artifact packaging now continue while merge/promotion/deployment boundaries remain fail closed. Verified rollback to a known prior reviewed Worker version is no longer blocked by a stop label. The ownership and agent workflow contracts now reserve additional human review for destructive, irreversible, production-data, unresolved auth/tenant, real-money, legal, credential-compromise, or DNS/domain decisions. **Deployment impact:** governance and trusted CI/release-control behavior only; no application route, provider, database, credential, billing, DNS, Worker, mobile-store, or production activation state changes.
 - Reconcile the protected `staging` history back into `dev` while retaining the
   newer GitHub-owned Worker deployment model, exact neutral-branch promotion
