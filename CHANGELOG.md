@@ -91,6 +91,14 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Stream trusted development auto-merge check-run and commit-status pages into
+  runner-local JSON files instead of passing the unbounded historical response
+  set through `jq --argjson`. This removes the operating-system argument-length
+  failure that blocked an otherwise valid documentation PR while retaining
+  exact PR/base/head evidence binding and immediate pre-merge revalidation.
+  **Deployment impact:** trusted development merge-control execution only; no
+  application, Worker, provider, database, credential, billing, DNS,
+  mobile-store, or production mutation.
 - Run the reusable Gate 7 Stripe test Checkout before injecting the synthetic
   signed `active` subscription webhook. Run `31087028401` proved the Auth and
   two-tenant segments, then exposed that the prior order wrote a synthetic

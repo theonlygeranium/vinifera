@@ -13,6 +13,11 @@
 
 Read `AGENTS.md`, the phase specification, and this brief before editing.
 
+The trusted development auto-merge evaluator now stores paginated check-run
+and commit-status responses in runner-local JSON files before exact evidence
+selection. This fixes the runner argument-length failure observed on PR #291
+without weakening PR/base/head binding or the immediate pre-merge check.
+
 ## 2026-08-05 hosted activation re-audit
 
 The canonical Gate 1–5, 7, and 9 evidence was rechecked against the live

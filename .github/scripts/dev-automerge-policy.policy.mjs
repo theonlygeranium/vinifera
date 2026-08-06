@@ -221,4 +221,8 @@ test("trusted workflow binds required check-runs to the live PR base and head", 
   assert.match(workflow, /\.number == \$pr_number/);
   assert.match(workflow, /\.base\.sha == \$base_sha/);
   assert.match(workflow, /\.head\.sha == \$head_sha/);
+  assert.match(workflow, /--slurpfile run_pages "\$check_runs_file"/);
+  assert.match(workflow, /--slurpfile status_pages "\$statuses_file"/);
+  assert.doesNotMatch(workflow, /--argjson runs/);
+  assert.doesNotMatch(workflow, /--argjson statuses/);
 });
