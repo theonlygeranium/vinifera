@@ -504,7 +504,9 @@ describe("Resend staging provisioning controller", () => {
     expect(workflow).toContain(
       "git fetch --no-tags origin main:refs/remotes/origin/main",
     );
-    expect(workflow).toContain("environment:\n      name: staging");
+    expect(workflow).toContain(
+      "environment:\n      name: staging-acceptance-control",
+    );
     expect(workflow).toContain(
       "RESEND_PROVISIONING_API_KEY: ${{ secrets.RESEND_PROVISIONING_API_KEY }}",
     );

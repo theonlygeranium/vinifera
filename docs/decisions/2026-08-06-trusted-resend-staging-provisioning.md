@@ -18,7 +18,8 @@ stale target policy, or an unrelated Cloudflare zone.
 
 ## Decision
 
-Add a manual, staging-protected workflow that executes only an immutable commit
+Add a manual workflow using the main-branch-only
+`staging-acceptance-control` environment that executes only an immutable commit
 equal to canonical `main`. It uses a full-access Resend provisioning credential,
 Cloudflare credentials, the protected staging Worker origin, exact operation
 confirmation, and `config/resend-staging-provisioning-policy.json`. The runtime
@@ -94,5 +95,6 @@ separate real lifecycle acceptance remain required.
   the provisioning administrator credential.
 - The operation cannot run from pull-request code, staging code, or a stale
   default-branch commit.
-- DNS/domain ownership mutation remains staging-environment protected and
-  explicitly confirmed.
+- DNS/domain ownership mutation remains protected by the separate main-only
+  acceptance-control environment and explicitly confirmed; the staging
+  deployment environment's branch policy is not broadened.

@@ -26,6 +26,13 @@ under concurrent full-suite filesystem load while the isolated suite passed
 
 ## 2026-08-06 Gates 10-16 acceptance foundation
 
+Canonical-`main` Resend provisioning now uses the separate
+`staging-acceptance-control` environment. This keeps its provider/DNS mutation
+credentials reachable from trusted default-branch code without broadening the
+staging deployment environment's staging-only branch policy. Its external
+Resend, Cloudflare-zone, and staging-secret-update credentials remain to be
+provisioned.
+
 The protected staging deployment now supports independent opt-in readiness
 reports for Gates 10 through 16. Each report verifies the exact deployed
 candidate and only its gate's required configuration groups, retains a

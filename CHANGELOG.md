@@ -23,7 +23,9 @@
   token before fallible postchecks, and on interrupted-bootstrap retry emit the
   existing key's sanitized ID hash before rejecting incomplete policy. Secrets
   stream only over stdin and evidence retains hashes rather than raw targets or
-  credentials. Verification: 16/16 focused provisioning tests and 591/591 full
+  credentials. Run canonical-`main` provisioning through the dedicated
+  `staging-acceptance-control` environment without broadening the staging
+  deployment environment's branch policy. Verification: 16/16 focused provisioning tests and 591/591 full
   Vitest tests, app build, and Worker dry-run. **Deployment impact:** protected
   manual workflow/source only; empty policy blocks provider/DNS mutation, no
   deletion is supported, and source completion does not change Gate 8 status.

@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
-      name: staging
+      name: staging-acceptance-control
       deployment: false
     steps:
       - name: Validate trusted default-branch target

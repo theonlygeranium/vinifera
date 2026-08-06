@@ -32,7 +32,10 @@ production sender.
 
 Staging provider and DNS mutation runs only through
 `.github/workflows/resend-staging-provisioning.yml` from an immutable commit
-equal to canonical `main`. Its exact operation confirmations are:
+equal to canonical `main`. The workflow reads mutation credentials from the
+main-branch-only `staging-acceptance-control` environment and writes only the
+resulting runtime bindings into the separate `staging` deployment environment.
+Its exact operation confirmations are:
 
 ```text
 PROBE VINIFERA STAGING RESEND
@@ -86,9 +89,11 @@ The sender remains `pending` until Resend reports both domain verification and
 sending capability. Replacing the address resets verification; clearing it
 disables that brand sender.
 
-## 2. Configure repository secrets
+## 2. Configure protected controller secrets
 
-The provisioning workflow consumes these repository secrets:
+The provisioning workflow consumes these secrets from
+`staging-acceptance-control` (repository-level values with the same names may
+be used only where already governed there):
 
 ```text
 RESEND_PROVISIONING_API_KEY
@@ -102,9 +107,9 @@ used only by the protected controller. Bootstrap creates a separate
 domain-restricted `sending_access` key and writes only that token to
 `STAGING_RESEND_API_KEY`; the provisioning key is never a Worker runtime secret.
 
-`STAGING_GITHUB_VARIABLES_TOKEN` in the protected staging environment must be
-authorized to update that environment's Actions secrets. The controller streams
-values directly into `gh secret set` and writes these staging environment
+`STAGING_GITHUB_VARIABLES_TOKEN` in `staging-acceptance-control` must be
+authorized to update the separate `staging` environment's Actions secrets. The
+controller streams values directly into `gh secret set` and writes these staging environment
 bindings without workflow outputs or artifacts:
 
 ```text
