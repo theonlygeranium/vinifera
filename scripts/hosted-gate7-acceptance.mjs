@@ -27,7 +27,7 @@ export function splitSetCookieHeader(value) {
 
 export function setCookieHeaders(response) {
   if (typeof response.headers.getSetCookie === "function") {
-    return response.headers.getSetCookie();
+    return response.headers.getSetCookie().flatMap(splitSetCookieHeader);
   }
   return splitSetCookieHeader(response.headers.get("set-cookie"));
 }
