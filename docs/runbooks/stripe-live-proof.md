@@ -81,6 +81,13 @@ the decrypted `sessionId`, and completes payment there.
 No card number, CVC, payment method token, or browser payment data enters
 GitHub, Codex, the repository, or the controller.
 
+Immediately before either protected operation reaches Stripe, the workflow
+force-fetches current `main` and revalidates the exact merged `staging → main`
+authorization PR and emergency labels. `prepare` still requires the release to
+be current `main`; `finalize` requires the original release to remain an
+ancestor of current `main`. Authority drift during dependency installation or
+controller QA therefore stops before any financial mutation.
+
 ## Finalize, refund, and clean up
 
 After Stripe shows payment complete and the application webhook has had time
@@ -95,14 +102,53 @@ confirmation: AUTHORIZE ONE VINIFERA LIVE CHARGE AND REFUND
 request_binding_reversion: true or false
 ```
 
-Finalize fails closed unless it finds the exact paid Session, one succeeded
-PaymentIntent, exactly one captured Charge in the proof window, the reviewed
+Finalize fails closed unless it finds the exact paid Session, that Session's
+immutable initial invoice, one succeeded PaymentIntent, exactly one captured
+Charge in the proof window, the reviewed
 amount, same-main-SHA metadata, the brand-scoped application subject in
 `active` state, an applied live subscription event, and duplicate responses to
 two correctly signed replays. It then creates or
 safely resumes exactly one full refund, cancels the subscription immediately
 without proration, waits for application `canceled` state, verifies the applied
 deletion event, and repeats the two signed duplicate replays.
+
+The customer PaymentIntent inventory is queried at Stripe with the Checkout
+proof-window lower bound only after the exact invoice PaymentIntent and
+captured Charge have established refund eligibility. A concurrent or duplicate
+proof-window payment therefore still fails closed, but cannot strand the
+authorized Charge outside the idempotent refund-and-cancel recovery path.
+Mutable Session and subscription metadata are certified only after that same
+recovery boundary, so post-payment metadata drift fails the proof while still
+refunding the exact Charge and canceling renewal.
+If delayed finalization finds additional captured payments in the proof window,
+it validates each invoice against the exact proof subscription and refunds all
+of them before failing the one-charge gate. Cleanup attempts every validated
+payment refund even when an earlier refund remains pending or fails, then
+cancels renewal and reports the combined recovery failures. An unrelated
+customer payment is never treated as proof-subscription recovery and cannot
+discard renewal payments already validated for cleanup.
+The initial Checkout payment remains pre-armed for recovery while later
+subscription payments are discovered independently, so a transient repeated
+lookup cannot remove the already-proven initial Charge from cleanup.
+Proof-window PaymentIntent discovery fixes both the Checkout-relative start and
+controller-observed end, follows at most ten provider pages, and retains each
+validated subscription payment as it goes. An invalid or runaway later page
+therefore fails the proof without discarding known cleanup targets.
+Immediately after renewal is canceled, the controller re-scans through a new
+fixed end. A subscription payment that succeeded across the cancellation
+boundary is added to recovery, refunded, and fails the one-charge proof.
+If an upstream proof check fails first, fail-safe cleanup uses the same order:
+confirm renewal is canceled, re-scan the bounded payment window even on an
+already-canceled retry, then attempt every retained refund while aggregating
+provider, inventory-validation, and cleanup errors.
+PaymentIntents that remain capable of settling block certification. After
+application cancellation and webhook replay converge, the controller repeats
+the bounded payment inventory immediately before emitting verified evidence;
+any newly settled subscription payment is retained for refund and fails the
+one-charge proof.
+Subscription event pagination stops when the event for the exact subscription
+is found, so unrelated high-volume account history cannot invalidate an
+otherwise exact lifecycle proof.
 
 Declined or otherwise failed Charge attempts associated with the one
 PaymentIntent do not prevent cleanup. Finalize selects exactly one successful,
@@ -120,19 +166,29 @@ including current Price/Product drift after the owner paid,
 enters fail-safe recovery that independently attempts the same idempotent full
 refund and renewal cancellation. The failure artifact records only recovery
 booleans. If a prior run stopped during cleanup, rerun `finalize` with the same
-inputs. It must reuse the exact refund and requires the durable processed
-created event plus independently verified active application state to prove
-prior activation. An older created event may be `ignored` when a newer event
-already advanced the subject; it will not invent or create another refund.
-An unrelated or second refund is a hard failure.
+inputs. It must reuse the exact refund and requires the exact durably applied
+subscription-created, subscription-updated, or invoice-payment event that
+advanced the tenant-scoped subject to active. An older created event may be
+`ignored` when a later applied event performed that transition; canceled
+recovery uses the latest qualifying applied activation before cancellation.
+Because Stripe timestamps have one-second resolution, canceled recovery also
+accepts a qualifying activation at the same timestamp as the canceled subject;
+event type and lifecycle validation exclude the deletion transition.
+A pending exact refund is resumed. One
+terminally failed or canceled exact refund attempt may be replaced under a new
+idempotency key; more than one terminal failure or more than one recoverable or
+successful refund is ambiguous and fails closed. Evidence counts only the one
+successful full refund as the financial mutation. An unrelated refund is a
+hard failure.
 
 ## Evidence and optional binding reversion
 
 Retain both workflow runs. The artifact intentionally contains only the exact
 Git SHA, reviewed target hashes, provider-object hashes, proof-nonce hash,
 amount, counts, booleans, application-state hashes, and timestamps. The raw
-Checkout URL exists only in the prepare summary and private runner handoff,
-which is deleted before artifact upload.
+Checkout URL is retained only inside the encrypted prepare artifact; the
+plaintext runner handoff is deleted before upload and the Actions summary
+contains decryption instructions only.
 
 When `request_binding_reversion=true`, the final summary instructs the owner to
 dispatch **Stripe live billing cutover** with operation `revert`, its distinct

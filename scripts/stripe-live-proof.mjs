@@ -14,6 +14,7 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OPERATIONS = new Set(["prepare", "finalize"]);
 const PLANS = new Set(["vine", "cellar", "estate", "reserve"]);
+const TERMINAL_PAYMENT_INTENT_STATUSES = new Set(["canceled", "succeeded"]);
 
 export function sha256(value) {
   return createHash("sha256")
@@ -381,6 +382,26 @@ export function createApplicationStore({
     return result;
   }
   return {
+    async activationEvents(subject, { recoveryMode = false } = {}) {
+      const rows = await select("subscription_events", {
+        select:
+          "id,organization_id,brand_id,event_type,stripe_event_id,stripe_created_at,livemode,payload,processing_status,processed_at",
+        brand_id: `eq.${subject.id}`,
+        event_type:
+          "in.(customer.subscription.created,customer.subscription.updated,invoice.payment_succeeded)",
+        limit: "100",
+        order: "stripe_created_at.desc",
+        organization_id: `eq.${subject.organization_id}`,
+        processing_status: "eq.applied",
+        stripe_created_at: `${recoveryMode ? "lte" : "eq"}.${subject.stripe_state_updated_at}`,
+      });
+      if (rows.length === 0 || rows.length > 100) {
+        throw new Error(
+          "The application activation transition inventory is empty or unbounded.",
+        );
+      }
+      return rows;
+    },
     async event(eventId, subject, expectedType) {
       const rows = await select("subscription_events", {
         select:
@@ -676,8 +697,7 @@ export async function prepareLiveProof({
   };
 }
 
-function assertSession(session, policy, authority, targets, sessionId) {
-  exactMetadata(policy, authority, targets, session.metadata);
+function assertSession(session, policy, targets, sessionId) {
   const items = session.line_items?.data ?? [];
   if (
     session.id !== sessionId ||
@@ -706,23 +726,40 @@ function eventObject(event) {
 }
 
 async function exactStripeEvent(stripe, type, subscriptionId, createdAfter) {
-  const inventory = assertBoundedInventory(
-    await stripe.events.list({
+  const inventory = [];
+  let startingAfter;
+  for (let page = 0; page < 10; page += 1) {
+    const result = await stripe.events.list({
       created: { gte: Math.max(0, createdAfter - 60) },
       limit: 100,
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
       type,
-    }),
-    `Stripe ${type} event`,
-  ).filter(
-    (event) =>
-      event.livemode === true && eventObject(event)?.id === subscriptionId,
-  );
-  if (inventory.length !== 1) {
-    throw new Error(
-      `Exactly one ${type} event is required for the proof subscription.`,
+    });
+    if (!result || !Array.isArray(result.data)) {
+      throw new Error(`Stripe ${type} event inventory is invalid.`);
+    }
+    inventory.push(
+      ...result.data.filter(
+        (event) =>
+          event.livemode === true && eventObject(event)?.id === subscriptionId,
+      ),
     );
+    if (inventory.length > 1) {
+      throw new Error(
+        `Exactly one ${type} event is required for the proof subscription.`,
+      );
+    }
+    if (inventory.length === 1) return inventory[0];
+    if (result.has_more !== true) break;
+    const lastId = result.data.at(-1)?.id;
+    if (!lastId || page === 9) {
+      throw new Error(`Stripe ${type} event inventory exceeded its bound.`);
+    }
+    startingAfter = lastId;
   }
-  return inventory[0];
+  throw new Error(
+    `Exactly one ${type} event is required for the proof subscription.`,
+  );
 }
 
 export function stripeSignature(payload, secret, timestamp) {
@@ -799,6 +836,89 @@ function assertEventLifecycle(eventRow, expectedType, subject, expectedStatus) {
   }
 }
 
+function assertActivationEventLifecycle(eventRow, subject) {
+  const event = eventRow?.payload;
+  const object = event?.data?.object;
+  const subscriptionId =
+    eventRow?.event_type === "invoice.payment_succeeded"
+      ? stripeObjectId(
+          object?.parent?.subscription_details?.subscription ??
+            object?.subscription,
+        )
+      : object?.id;
+  const provesActive =
+    eventRow?.event_type === "invoice.payment_succeeded"
+      ? object?.status === "paid"
+      : object?.status === "active";
+  const subscriptionMetadataMatches =
+    eventRow?.event_type === "invoice.payment_succeeded" ||
+    (object?.metadata?.organization_id === subject.organization_id &&
+      object?.metadata?.brand_id === subject.id &&
+      object?.metadata?.billing_mode === "independent");
+  if (
+    eventRow?.processing_status !== "applied" ||
+    ![
+      "customer.subscription.created",
+      "customer.subscription.updated",
+      "invoice.payment_succeeded",
+    ].includes(eventRow?.event_type) ||
+    event?.id !== eventRow.stripe_event_id ||
+    event?.type !== eventRow.event_type ||
+    event?.livemode !== true ||
+    subscriptionId !== subject.stripe_subscription_id ||
+    !provesActive ||
+    !subscriptionMetadataMatches
+  ) {
+    throw new Error(
+      "The durable applied event does not prove the active application transition.",
+    );
+  }
+  assertEventSubject(eventRow, subject);
+  return event;
+}
+
+function activationEventPrecedence(eventType) {
+  return {
+    "customer.subscription.created": 1,
+    "customer.subscription.updated": 2,
+    "invoice.payment_succeeded": 3,
+  }[eventType] ?? 0;
+}
+
+function selectActivationEvent(eventRows, subject) {
+  const candidates = [];
+  for (const eventRow of eventRows) {
+    try {
+      candidates.push({
+        event: assertActivationEventLifecycle(eventRow, subject),
+        eventRow,
+      });
+    } catch {
+      // Rows sharing Stripe's second-resolution timestamp can represent an
+      // earlier incomplete transition. Only lifecycle-proving rows qualify.
+    }
+  }
+  if (candidates.length === 0) {
+    throw new Error(
+      "No durably applied event proves the active application transition.",
+    );
+  }
+  candidates.sort((left, right) => {
+    const time = String(right.eventRow.stripe_created_at).localeCompare(
+      String(left.eventRow.stripe_created_at),
+    );
+    if (time !== 0) return time;
+    const precedence =
+      activationEventPrecedence(right.eventRow.event_type) -
+      activationEventPrecedence(left.eventRow.event_type);
+    if (precedence !== 0) return precedence;
+    return String(left.eventRow.stripe_event_id).localeCompare(
+      String(right.eventRow.stripe_event_id),
+    );
+  });
+  return candidates[0];
+}
+
 function assertSubjectMetadata(subject, metadata) {
   if (
     metadata?.organization_id !== subject.organization_id ||
@@ -873,15 +993,184 @@ function assertExactRefund(refund, authority, policy, amountCents) {
 
 async function refundInventory(stripe, paymentIntentId) {
   const refunds = assertBoundedInventory(
-    await stripe.refunds.list({ payment_intent: paymentIntentId, limit: 2 }),
+    await stripe.refunds.list({ payment_intent: paymentIntentId, limit: 3 }),
     "Stripe refund",
   );
-  if (refunds.length > 1) {
+  if (refunds.length > 2) {
     throw new Error(
-      "A second financial mutation already exists for this proof payment.",
+      "Stripe refund recovery exceeded its bounded attempt inventory.",
     );
   }
   return refunds;
+}
+
+function classifyExactRefunds(refunds, authority, policy, amountCents) {
+  for (const refund of refunds) {
+    assertExactRefund(refund, authority, policy, amountCents);
+  }
+  const terminalFailures = refunds.filter((refund) =>
+    ["canceled", "failed"].includes(refund.status),
+  );
+  const recoverable = refunds.filter(
+    (refund) => !["canceled", "failed"].includes(refund.status),
+  );
+  if (terminalFailures.length > 1 || recoverable.length > 1) {
+    throw new Error(
+      "Stripe refund recovery contains ambiguous proof mutations.",
+    );
+  }
+  return { recoverable, terminalFailures };
+}
+
+async function exactSubscriptionRecoveryPayments({
+  candidates,
+  policy,
+  stripe,
+  subscription,
+  targets,
+}) {
+  const recoveries = [];
+  let validationError;
+  for (const candidate of candidates) {
+    try {
+      if (
+        candidate?.livemode !== true ||
+        candidate.status !== "succeeded" ||
+        stripeObjectId(candidate.customer) !== targets.customerId ||
+        !Number.isSafeInteger(candidate.amount_received) ||
+        candidate.amount_received < 1 ||
+        candidate.currency !== policy.currency
+      ) {
+        throw new Error(
+          "A proof-window PaymentIntent is not an exact live subscription payment.",
+        );
+      }
+      const chargeAttempts = assertBoundedInventory(
+        await stripe.charges.list({
+          payment_intent: candidate.id,
+          limit: 100,
+        }),
+        "Stripe recovery Charge",
+      );
+      const charges = chargeAttempts.filter(
+        (charge) =>
+          charge.livemode === true &&
+          charge.paid === true &&
+          charge.captured === true &&
+          charge.failure_code == null,
+      );
+      if (charges.length !== 1 || !stripeObjectId(charges[0].invoice)) {
+        throw new Error(
+          "A proof-window PaymentIntent lacks one exact captured invoice Charge.",
+        );
+      }
+      const invoice = await stripe.invoices.retrieve(
+        stripeObjectId(charges[0].invoice),
+      );
+      if (
+        invoice?.livemode !== true ||
+        invoice.status !== "paid" ||
+        stripeObjectId(invoice.customer) !== targets.customerId ||
+        stripeObjectId(
+          invoice.parent?.subscription_details?.subscription ??
+            invoice.subscription,
+        ) !== subscription.id
+      ) {
+        throw new Error(
+          "A proof-window payment does not belong to the exact proof subscription.",
+        );
+      }
+      assertExactCharge(
+        charges[0],
+        candidate,
+        invoice,
+        targets,
+        policy,
+        candidate.amount_received,
+        { fullyRefunded: charges[0].refunded === true },
+      );
+      recoveries.push({
+        amountCents: candidate.amount_received,
+        paymentIntent: candidate,
+      });
+    } catch (error) {
+      validationError ??= error;
+    }
+  }
+  return { recoveries, validationError };
+}
+
+async function discoverProofWindowPayments({
+  initialPaymentIntent,
+  policy,
+  recoveryPayments,
+  sessionCreatedAt,
+  stripe,
+  subscription,
+  targets,
+  windowEnd,
+}) {
+  const succeededPaymentIds = new Set();
+  let validationError;
+  let startingAfter;
+  for (let page = 0; page < 10; page += 1) {
+    const result = await stripe.paymentIntents.list({
+      created: {
+        gte: Math.max(0, sessionCreatedAt - 60),
+        lte: windowEnd,
+      },
+      customer: targets.customerId,
+      limit: 100,
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    });
+    if (!result || !Array.isArray(result.data)) {
+      throw new Error(
+        "Stripe proof-window PaymentIntent inventory is invalid.",
+      );
+    }
+    const succeededPayments = result.data.filter(
+      (candidate) => candidate.status === "succeeded",
+    );
+    if (
+      result.data.some((candidate) =>
+        !TERMINAL_PAYMENT_INTENT_STATUSES.has(candidate.status),
+      )
+    ) {
+      validationError ??= new Error(
+        "A proof-window PaymentIntent remains capable of settling.",
+      );
+    }
+    for (const candidate of succeededPayments) {
+      if (candidate.id) succeededPaymentIds.add(candidate.id);
+    }
+    const recoveryInventory = await exactSubscriptionRecoveryPayments({
+      candidates: succeededPayments.filter(
+        (candidate) => candidate.id !== initialPaymentIntent.id,
+      ),
+      policy,
+      stripe,
+      subscription,
+      targets,
+    });
+    const recoveryPaymentIds = new Set(
+      recoveryPayments.map((candidate) => candidate.paymentIntent.id),
+    );
+    recoveryPayments.push(
+      ...recoveryInventory.recoveries.filter(
+        (candidate) => !recoveryPaymentIds.has(candidate.paymentIntent.id),
+      ),
+    );
+    validationError ??= recoveryInventory.validationError;
+    if (result.has_more !== true) break;
+    const lastId = result.data.at(-1)?.id;
+    if (!lastId || page === 9) {
+      throw new Error(
+        "Stripe proof-window PaymentIntent inventory exceeded its bound.",
+      );
+    }
+    startingAfter = lastId;
+  }
+  return { succeededPaymentIds, validationError };
 }
 
 async function ensureExactRefund({
@@ -893,11 +1182,15 @@ async function ensureExactRefund({
   stripe,
 }) {
   const refunds = await refundInventory(stripe, paymentIntent.id);
-  let refund = refunds[0];
+  const classified = classifyExactRefunds(
+    refunds,
+    authority,
+    policy,
+    amountCents,
+  );
+  let refund = classified.recoverable[0];
   let createdThisRun = false;
-  if (refund) {
-    assertExactRefund(refund, authority, policy, amountCents);
-  } else {
+  if (!refund) {
     refund = await stripe.refunds.create(
       {
         amount: amountCents,
@@ -911,7 +1204,7 @@ async function ensureExactRefund({
       },
       {
         idempotencyKey: `vinifera-gate19-refund-${sha256(
-          `${authority.gitSha}:${authority.nonce}:${paymentIntent.id}`,
+          `${authority.gitSha}:${authority.nonce}:${paymentIntent.id}:${classified.terminalFailures.map((candidate) => candidate.id).sort().join(":")}`,
         ).slice(0, 40)}`,
       },
     );
@@ -977,17 +1270,13 @@ export async function finalizeLiveProof({
     );
   }
   const accountHash = assertAccount(policy, await stripe.accounts.retrieve());
-  assertCustomer(
-    await stripe.customers.retrieve(targets.customerId),
-    targets.customerId,
-  );
+  const customer = await stripe.customers.retrieve(targets.customerId);
   const session = await stripe.checkout.sessions.retrieve(sessionId, {
-    expand: ["line_items.data.price", "subscription.latest_invoice"],
+    expand: ["invoice", "line_items.data.price", "subscription"],
   });
   const amountCents = assertSession(
     session,
     policy,
-    authority,
     targets,
     sessionId,
   );
@@ -1000,23 +1289,12 @@ export async function finalizeLiveProof({
   if (!subscription || typeof subscription !== "object") {
     throw new Error("The proof subscription was not expanded or retrievable.");
   }
-  exactMetadata(policy, authority, targets, subscription.metadata);
-  if (
-    subscription.livemode !== true ||
-    stripeObjectId(subscription.customer) !== targets.customerId ||
-    !["active", "canceled"].includes(subscription.status)
-  ) {
-    throw new Error(
-      "The proof subscription is not the expected live lifecycle object.",
-    );
-  }
-
   let paymentIntent;
   let proofCompleted = false;
-  let refundRecoveryEligible = false;
+  let recoveryPayments = [];
   let failure;
   try {
-    let invoice = subscription.latest_invoice;
+    let invoice = session.invoice;
     if (typeof invoice === "string") {
       invoice = await stripe.invoices.retrieve(invoice);
     }
@@ -1073,29 +1351,17 @@ export async function finalizeLiveProof({
         "The proof PaymentIntent is ambiguous, unpaid, or over policy.",
       );
     }
-    const succeededPayments = assertBoundedInventory(
-      await stripe.paymentIntents.list({
-        customer: targets.customerId,
-        limit: 100,
-      }),
-      "Stripe PaymentIntent",
-    ).filter(
-      (candidate) =>
-        candidate.status === "succeeded" &&
-        candidate.created >= session.created - 60,
+    recoveryPayments = [{ amountCents, paymentIntent }];
+    const existingRefundInventory = await refundInventory(
+      stripe,
+      paymentIntent.id,
     );
-    if (
-      succeededPayments.length !== 1 ||
-      succeededPayments[0].id !== paymentIntent.id
-    ) {
-      throw new Error(
-        "The live-proof customer has more than one proof-window payment.",
-      );
-    }
-    const existingRefunds = await refundInventory(stripe, paymentIntent.id);
-    if (existingRefunds[0]) {
-      assertExactRefund(existingRefunds[0], authority, policy, amountCents);
-    }
+    const existingRefunds = classifyExactRefunds(
+      existingRefundInventory,
+      authority,
+      policy,
+      amountCents,
+    ).recoverable;
     const chargeAttempts = assertBoundedInventory(
       await stripe.charges.list({
         payment_intent: paymentIntent.id,
@@ -1122,9 +1388,52 @@ export async function finalizeLiveProof({
       targets,
       policy,
       amountCents,
-      { fullyRefunded: existingRefunds.length === 1 },
+      { fullyRefunded: existingRefunds[0]?.status === "succeeded" },
     );
-    refundRecoveryEligible = true;
+    const paymentDiscovery = await discoverProofWindowPayments({
+      initialPaymentIntent: paymentIntent,
+      policy,
+      recoveryPayments,
+      sessionCreatedAt: session.created,
+      stripe,
+      subscription,
+      targets,
+      windowEnd: Math.floor(now().getTime() / 1000),
+    });
+    const { succeededPaymentIds } = paymentDiscovery;
+    if (!succeededPaymentIds.has(paymentIntent.id)) {
+      throw new Error(
+        "The exact initial proof payment is absent from recovery inventory.",
+      );
+    }
+    if (paymentDiscovery.validationError) {
+      throw paymentDiscovery.validationError;
+    }
+    if (
+      succeededPaymentIds.size !== 1 ||
+      !succeededPaymentIds.has(paymentIntent.id)
+    ) {
+      throw new Error(
+        "The live-proof customer has more than one proof-window payment.",
+      );
+    }
+    assertCustomer(customer, targets.customerId);
+    if (session.client_reference_id !== `gate19:${authority.nonce}`) {
+      throw new Error(
+        "The completed live Checkout Session does not match the proof nonce.",
+      );
+    }
+    exactMetadata(policy, authority, targets, session.metadata);
+    exactMetadata(policy, authority, targets, subscription.metadata);
+    if (
+      subscription.livemode !== true ||
+      stripeObjectId(subscription.customer) !== targets.customerId ||
+      !["active", "canceled"].includes(subscription.status)
+    ) {
+      throw new Error(
+        "The proof subscription is not the expected live lifecycle object.",
+      );
+    }
     await verifyWorkerHealth(fetcher, targets.workerOrigin, authority.gitSha);
     const priceAmountCents = assertPrice(
       await stripe.prices.retrieve(targets.priceId, { expand: ["product"] }),
@@ -1159,41 +1468,26 @@ export async function finalizeLiveProof({
     );
     assertSubjectMetadata(preRefundSubject, session.metadata);
     assertSubjectMetadata(preRefundSubject, subscription.metadata);
-    const createdEvent = await poll(
-      () =>
-        exactStripeEvent(
-          stripe,
-          "customer.subscription.created",
-          subscription.id,
-          session.created,
-        ),
-      policy,
-      sleep,
-    );
-    const appliedCreatedEvent = await poll(
-      () =>
-        applicationStore.event(
-          createdEvent.id,
+    const activation = await poll(
+      async () =>
+        selectActivationEvent(
+          await applicationStore.activationEvents(preRefundSubject, {
+            recoveryMode: preRefundStatus === "canceled",
+          }),
           preRefundSubject,
-          "customer.subscription.created",
         ),
       policy,
       sleep,
     );
-    assertEventSubject(appliedCreatedEvent, preRefundSubject);
-    assertEventLifecycle(
-      appliedCreatedEvent,
-      "customer.subscription.created",
-      preRefundSubject,
-      "active",
-    );
+    const { event: activationEvent, eventRow: appliedActivationEvent } =
+      activation;
     const webhookSecret = assertLiveSecret(
       env.PRODUCTION_STRIPE_LIVE_WEBHOOK_SECRET,
       "whsec_",
       "live webhook secret",
     );
     await replayAppliedEvent({
-      event: createdEvent,
+      event: activationEvent,
       fetcher,
       webhookSecret,
       workerOrigin: targets.workerOrigin,
@@ -1210,6 +1504,27 @@ export async function finalizeLiveProof({
     const refund = refundResult.refund;
     const cleanup = await ensureSubscriptionCanceled(stripe, subscription);
     subscription = cleanup.subscription;
+    const postCancelPaymentDiscovery = await discoverProofWindowPayments({
+      initialPaymentIntent: paymentIntent,
+      policy,
+      recoveryPayments,
+      sessionCreatedAt: session.created,
+      stripe,
+      subscription,
+      targets,
+      windowEnd: Math.floor(now().getTime() / 1000),
+    });
+    if (postCancelPaymentDiscovery.validationError) {
+      throw postCancelPaymentDiscovery.validationError;
+    }
+    if (
+      postCancelPaymentDiscovery.succeededPaymentIds.size !== 1 ||
+      !postCancelPaymentDiscovery.succeededPaymentIds.has(paymentIntent.id)
+    ) {
+      throw new Error(
+        "The canceled live-proof subscription has more than one proof-window payment.",
+      );
+    }
     const canceledSubject = await poll(
       () =>
         assertApplicationState(
@@ -1256,7 +1571,33 @@ export async function finalizeLiveProof({
       webhookSecret,
       workerOrigin: targets.workerOrigin,
     });
-    const finalRefunds = await refundInventory(stripe, paymentIntent.id);
+    const finalPaymentDiscovery = await discoverProofWindowPayments({
+      initialPaymentIntent: paymentIntent,
+      policy,
+      recoveryPayments,
+      sessionCreatedAt: session.created,
+      stripe,
+      subscription,
+      targets,
+      windowEnd: Math.floor(now().getTime() / 1000),
+    });
+    if (finalPaymentDiscovery.validationError) {
+      throw finalPaymentDiscovery.validationError;
+    }
+    if (
+      finalPaymentDiscovery.succeededPaymentIds.size !== 1 ||
+      !finalPaymentDiscovery.succeededPaymentIds.has(paymentIntent.id)
+    ) {
+      throw new Error(
+        "Final reconciliation found another proof-window payment.",
+      );
+    }
+    const finalRefunds = classifyExactRefunds(
+      await refundInventory(stripe, paymentIntent.id),
+      authority,
+      policy,
+      amountCents,
+    ).recoverable;
     if (finalRefunds.length !== 1 || finalRefunds[0].id !== refund.id) {
       throw new Error(
         "Final reconciliation did not retain exactly one full refund.",
@@ -1278,7 +1619,7 @@ export async function finalizeLiveProof({
       activeApplicationProven: true,
       amountCents,
       applicationActivationEvidenceSha256: sha256(
-        `${appliedCreatedEvent.id}:${eventObject(appliedCreatedEvent.payload)?.status}:${appliedCreatedEvent.processed_at}`,
+        `${appliedActivationEvent.id}:${appliedActivationEvent.event_type}:${appliedActivationEvent.stripe_created_at}:${appliedActivationEvent.processed_at}`,
       ),
       applicationCanceledStateSha256: sha256(
         `${canceledSubject.id}:canceled:${canceledSubject.stripe_state_updated_at}`,
@@ -1293,7 +1634,9 @@ export async function finalizeLiveProof({
       checkoutSessionIdSha256: sha256(session.id),
       cleanupPerformed: cleanup.cleanupPerformed,
       completedAt: now().toISOString(),
-      createdWebhookEventIdSha256: sha256(createdEvent.id),
+      activationWebhookEventIdSha256: sha256(
+        appliedActivationEvent.stripe_event_id,
+      ),
       deletedWebhookEventIdSha256: sha256(deletedEvent.id),
       financialMutationCount: charges.length + finalRefunds.length,
       finalApplicationState: "canceled",
@@ -1320,26 +1663,11 @@ export async function finalizeLiveProof({
     if (!proofCompleted) {
       const recovery = {
         cancellationAttempted: true,
-        refundAttempted: refundRecoveryEligible,
+        refundAttempted: false,
         refundSucceeded: false,
         subscriptionCanceled: false,
       };
       const recoveryErrors = [];
-      if (refundRecoveryEligible) {
-        try {
-          await ensureExactRefund({
-            amountCents,
-            authority,
-            paymentIntent,
-            policy,
-            sleep,
-            stripe,
-          });
-          recovery.refundSucceeded = true;
-        } catch (error) {
-          recoveryErrors.push(error);
-        }
-      }
       try {
         const cleanup = await ensureSubscriptionCanceled(stripe, subscription);
         subscription = cleanup.subscription;
@@ -1347,11 +1675,56 @@ export async function finalizeLiveProof({
       } catch (error) {
         recoveryErrors.push(error);
       }
+      if (
+        recovery.subscriptionCanceled &&
+        recoveryPayments.length > 0 &&
+        paymentIntent?.id
+      ) {
+        try {
+          // This best-effort boundary scan discovers any subscription renewal
+          // that settled while failure-path cancellation completed.
+          const recoveryDiscovery = await discoverProofWindowPayments({
+            initialPaymentIntent: paymentIntent,
+            policy,
+            recoveryPayments,
+            sessionCreatedAt: session.created,
+            stripe,
+            subscription,
+            targets,
+            windowEnd: Math.floor(now().getTime() / 1000),
+          });
+          if (recoveryDiscovery.validationError) {
+            recoveryErrors.push(recoveryDiscovery.validationError);
+          }
+        } catch (error) {
+          recoveryErrors.push(error);
+        }
+      }
+      recovery.refundAttempted = recoveryPayments.length > 0;
+      const refundErrors = [];
+      if (recoveryPayments.length > 0) {
+        for (const recoveryPayment of recoveryPayments) {
+          try {
+            await ensureExactRefund({
+              amountCents: recoveryPayment.amountCents,
+              authority,
+              paymentIntent: recoveryPayment.paymentIntent,
+              policy,
+              sleep,
+              stripe,
+            });
+          } catch (error) {
+            refundErrors.push(error);
+            recoveryErrors.push(error);
+          }
+        }
+        recovery.refundSucceeded = refundErrors.length === 0;
+      }
       attachRecoveryEvidence(failure, recovery);
       if (recoveryErrors.length > 0) {
         const aggregate = new AggregateError(
           failure ? [failure, ...recoveryErrors] : recoveryErrors,
-          "Gate 19 failed and its financial recovery did not fully reconcile.",
+          `Gate 19 failed${failure?.message ? `: ${failure.message}` : ""}; financial recovery did not fully reconcile.`,
         );
         attachRecoveryEvidence(aggregate, recovery);
         throw aggregate;

@@ -165,6 +165,7 @@ function subscription(overrides = {}) {
 }
 
 function session(overrides = {}) {
+  const initialSubscription = subscription();
   return {
     amount_total: amountCents,
     created: 1000,
@@ -172,6 +173,7 @@ function session(overrides = {}) {
     client_reference_id: `gate19:${nonce}`,
     customer: customerId,
     id: sessionId,
+    invoice: initialSubscription.latest_invoice,
     expires_at: 2_000_000_000,
     line_items: { data: [{ price: { id: priceId }, quantity: 1 }] },
     livemode: true,
@@ -179,7 +181,7 @@ function session(overrides = {}) {
     mode: "subscription",
     payment_status: "paid",
     status: "complete",
-    subscription: subscription(),
+    subscription: initialSubscription,
     url: "https://checkout.stripe.com/c/pay/gate19",
     ...overrides,
   };
@@ -227,6 +229,7 @@ function stripeMock(overrides = {}) {
             expires_at: input.expires_at,
             metadata: input.metadata,
             payment_status: "unpaid",
+            invoice: null,
             status: "open",
             subscription: null,
           });
@@ -242,20 +245,30 @@ function stripeMock(overrides = {}) {
       },
     },
     customers: {
-      retrieve: vi.fn(async () => ({ id: customerId, livemode: true })),
+      retrieve: vi.fn(async () =>
+        overrides.customer ?? { id: customerId, livemode: true },
+      ),
     },
     events: {
-      list: vi.fn(async ({ type }) => ({
-        data: [
-          type === "customer.subscription.created"
-            ? createdEvent
-            : deletedEvent,
-        ],
-        has_more: false,
-      })),
+      list: vi.fn(async (input) =>
+        overrides.eventList
+          ? overrides.eventList(input, { createdEvent, deletedEvent })
+          : {
+              data: [
+                input.type === "customer.subscription.created"
+                  ? createdEvent
+                  : deletedEvent,
+              ],
+              has_more: false,
+            },
+      ),
     },
     invoices: {
-      retrieve: vi.fn(async () => currentSubscription.latest_invoice),
+      retrieve: vi.fn(async (id) =>
+        overrides.invoiceRetrieve
+          ? overrides.invoiceRetrieve(id)
+          : currentSubscription.latest_invoice,
+      ),
     },
     invoicePayments: {
       list: vi.fn(async () => ({
@@ -275,23 +288,43 @@ function stripeMock(overrides = {}) {
       })),
     },
     paymentIntents: {
-      list: vi.fn(async () => ({
-        data: overrides.paymentIntents ?? [paymentIntent()],
-        has_more: false,
-      })),
+      list: vi.fn(async (input) =>
+        overrides.paymentIntentList
+          ? overrides.paymentIntentList(input)
+          : {
+              data: overrides.paymentIntents ?? [paymentIntent()],
+              has_more: false,
+            },
+      ),
       retrieve: vi.fn(async () => paymentIntent()),
     },
     prices: { retrieve: vi.fn(async () => price(overrides.price)) },
     charges: {
-      list: vi.fn(async () => ({
-        data: overrides.charges ?? [
-          charge({
-            amount_refunded: refunds.length === 1 ? amountCents : 0,
-            refunded: refunds.length === 1,
-          }),
-        ],
-        has_more: false,
-      })),
+      list: vi.fn(async (input) =>
+        overrides.chargeList
+          ? overrides.chargeList(input)
+          : {
+              data: overrides.charges ?? [
+                charge({
+                  amount_refunded: refunds.some(
+                    (refund) =>
+                      refund.status === "succeeded" &&
+                      (!refund.payment_intent ||
+                        refund.payment_intent === paymentIntentId),
+                  )
+                    ? amountCents
+                    : 0,
+                  refunded: refunds.some(
+                    (refund) =>
+                      refund.status === "succeeded" &&
+                      (!refund.payment_intent ||
+                        refund.payment_intent === paymentIntentId),
+                  ),
+                }),
+              ],
+              has_more: false,
+            },
+      ),
       retrieve: vi.fn(async () =>
         charge({ amount_refunded: amountCents, refunded: true }),
       ),
@@ -301,15 +334,30 @@ function stripeMock(overrides = {}) {
         const created = {
           amount: input.amount,
           currency: "usd",
-          id: refundId,
+          id:
+            input.payment_intent === paymentIntentId
+              ? refundId
+              : `re_${input.payment_intent}`,
           livemode: true,
           metadata: input.metadata,
+          payment_intent: input.payment_intent,
           status: "succeeded",
         };
         refunds.push(created);
         return created;
       }),
-      list: vi.fn(async () => ({ data: refunds, has_more: false })),
+      list: vi.fn(async (input) =>
+        overrides.refundList
+          ? overrides.refundList(input, refunds)
+          : {
+              data: refunds.filter(
+                (refund) =>
+                  !refund.payment_intent ||
+                  refund.payment_intent === input.payment_intent,
+              ),
+              has_more: false,
+            },
+      ),
       retrieve: vi.fn(async (id) => refunds.find((refund) => refund.id === id)),
     },
     subscriptions: {
@@ -327,11 +375,45 @@ function stripeMock(overrides = {}) {
 }
 
 function applicationStore({
-  createdProcessingStatus = "applied",
-  createdStatus = "active",
+  activationStatus = "active",
+  activationType = "customer.subscription.created",
 } = {}) {
   let status = "active";
+  const activationObject =
+    activationType === "invoice.payment_succeeded"
+      ? {
+          customer: customerId,
+          id: "in_Gate19Activation",
+          object: "invoice",
+          parent: {
+            subscription_details: { subscription: subscriptionId },
+            type: "subscription_details",
+          },
+          status: activationStatus === "active" ? "paid" : activationStatus,
+        }
+      : {
+          id: subscriptionId,
+          metadata: metadata(),
+          status: activationStatus,
+        };
   return {
+    activationEvents: vi.fn(async () => [{
+      brand_id: brandId,
+      event_type: activationType,
+      id: createdEventId,
+      livemode: true,
+      organization_id: organizationId,
+      payload: {
+        data: { object: activationObject },
+        id: createdEventId,
+        livemode: true,
+        type: activationType,
+      },
+      processed_at: "2026-08-06T00:00:00.000Z",
+      processing_status: "applied",
+      stripe_created_at: "2026-08-06T00:00:00.000Z",
+      stripe_event_id: createdEventId,
+    }]),
     event: vi.fn(async (eventId) => ({
       brand_id: brandId,
       event_type:
@@ -346,13 +428,12 @@ function applicationStore({
           object: {
             id: subscriptionId,
             metadata: metadata(),
-            status: eventId === createdEventId ? createdStatus : "canceled",
+            status: "canceled",
           },
         },
       },
       processed_at: "2026-08-06T00:00:00.000Z",
-      processing_status:
-        eventId === createdEventId ? createdProcessingStatus : "applied",
+      processing_status: "applied",
     })),
     setCanceled() {
       status = "canceled";
@@ -453,6 +534,13 @@ describe("Gate 19 reviewed authority", () => {
         }),
       ),
     ).toThrow(/UUID/);
+    expect(() =>
+      assertLiveProofAuthority(
+        policy,
+        "prepare",
+        environment({ STRIPE_LIVE_PROOF_GIT_SHA: "abc123" }),
+      ),
+    ).toThrow(/immutable main-branch Git SHA/);
     expect(() =>
       assertLiveProofTargets(
         policy,
@@ -625,6 +713,51 @@ describe("Gate 19 hosted Checkout preparation", () => {
 });
 
 describe("Gate 19 tenant-scoped application lookup", () => {
+  it("binds the applied activation event to the exact tenant and state timestamp", async () => {
+    let request;
+    const activationRow = {
+      brand_id: brandId,
+      event_type: "invoice.payment_succeeded",
+      organization_id: organizationId,
+      processing_status: "applied",
+      stripe_event_id: createdEventId,
+    };
+    const store = createApplicationStore({
+      fetcher: vi.fn(async (input) => {
+        request = new URL(input);
+        return new Response(JSON.stringify([activationRow]), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+      serviceRoleKey: "service-role-test",
+      supabaseUrl: supabaseOrigin,
+    });
+    const subject = {
+      id: brandId,
+      organization_id: organizationId,
+      stripe_state_updated_at: "2026-08-06T00:00:00.000Z",
+    };
+    await expect(store.activationEvents(subject)).resolves.toEqual([
+      activationRow,
+    ]);
+    expect(request.pathname).toMatch(/\/subscription_events$/u);
+    expect(request.searchParams.get("brand_id")).toBe(`eq.${brandId}`);
+    expect(request.searchParams.get("organization_id")).toBe(
+      `eq.${organizationId}`,
+    );
+    expect(request.searchParams.get("processing_status")).toBe("eq.applied");
+    expect(request.searchParams.get("stripe_created_at")).toBe(
+      "eq.2026-08-06T00:00:00.000Z",
+    );
+    expect(request.searchParams.get("limit")).toBe("100");
+    await expect(
+      store.activationEvents(subject, { recoveryMode: true }),
+    ).resolves.toEqual([activationRow]);
+    expect(request.searchParams.get("stripe_created_at")).toBe(
+      "lte.2026-08-06T00:00:00.000Z",
+    );
+  });
+
   it("binds the organization billing collision check through the approved brand", async () => {
     const requests = [];
     const store = createApplicationStore({
@@ -709,9 +842,32 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
     expect(JSON.stringify(result)).not.toContain(paymentIntentId);
   });
 
-  it("accepts a durable out-of-order created event after active state converges", async () => {
+  it("selects the applied invoice activation from a tied incomplete creation event", async () => {
     const { authority, env, policy, targets } = ready();
-    const store = applicationStore({ createdProcessingStatus: "ignored" });
+    const store = applicationStore({
+      activationType: "invoice.payment_succeeded",
+    });
+    const [invoiceActivation] = await store.activationEvents();
+    store.activationEvents.mockResolvedValue([
+      {
+        ...invoiceActivation,
+        event_type: "customer.subscription.created",
+        payload: {
+          data: {
+            object: {
+              id: subscriptionId,
+              metadata: metadata(),
+              status: "incomplete",
+            },
+          },
+          id: "evt_Gate19IncompleteCreated",
+          livemode: true,
+          type: "customer.subscription.created",
+        },
+        stripe_event_id: "evt_Gate19IncompleteCreated",
+      },
+      invoiceActivation,
+    ]);
     const stripe = stripeMock();
     stripe.subscriptions.cancel.mockImplementation(async () => {
       store.setCanceled();
@@ -730,6 +886,47 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         targets,
       }),
     ).resolves.toMatchObject({ activeApplicationProven: true, verified: true });
+  });
+
+  it("binds recovery to the Checkout initial invoice after a renewal exists", async () => {
+    const { authority, env, policy, targets } = ready();
+    const store = applicationStore();
+    const renewalSubscription = subscription({
+      latest_invoice: {
+        customer: customerId,
+        id: "in_LaterRenewal",
+        livemode: true,
+        parent: {
+          subscription_details: { subscription: subscriptionId },
+          type: "subscription_details",
+        },
+        status: "open",
+      },
+    });
+    const stripe = stripeMock({
+      session: { subscription: renewalSubscription },
+      subscription: renewalSubscription,
+    });
+    stripe.subscriptions.cancel.mockImplementation(async () => {
+      store.setCanceled();
+      return subscription({ status: "canceled" });
+    });
+    await expect(
+      finalizeLiveProof({
+        applicationStore: store,
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).resolves.toMatchObject({ verified: true });
+    expect(stripe.invoicePayments.list).toHaveBeenCalledWith(
+      expect.objectContaining({ invoice: "in_Gate19Invoice" }),
+    );
   });
 
   it("refunds and cancels after payment when the production revision advances", async () => {
@@ -763,7 +960,479 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
     expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
   });
 
-  it("fails closed before refund on wrong proof metadata", async () => {
+  it("re-scans after failure-path cancellation and refunds a boundary renewal", async () => {
+    const { authority, env, policy, targets } = ready();
+    const renewalPayment = paymentIntent({
+      created: 2_593_001,
+      id: "pi_Gate19Renewal",
+    });
+    const renewalInvoice = {
+      customer: customerId,
+      id: "in_Gate19Renewal",
+      livemode: true,
+      parent: {
+        subscription_details: { subscription: subscriptionId },
+        type: "subscription_details",
+      },
+      status: "paid",
+    };
+    let inventoryCalls = 0;
+    const stripe = stripeMock({
+      chargeList: async (input) => ({
+        data: [
+          input.payment_intent === renewalPayment.id
+            ? charge({
+                id: "ch_Gate19Renewal",
+                invoice: renewalInvoice.id,
+                payment_intent: renewalPayment.id,
+              })
+            : charge(),
+        ],
+        has_more: false,
+      }),
+      invoiceRetrieve: async (id) =>
+        id === renewalInvoice.id
+          ? renewalInvoice
+          : subscription().latest_invoice,
+      paymentIntentList: async () => {
+        inventoryCalls += 1;
+        return {
+          data:
+            inventoryCalls === 1
+              ? [paymentIntent()]
+              : [paymentIntent(), renewalPayment],
+          has_more: false,
+        };
+      },
+    });
+
+    await expect(
+      finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher({ revision: "b".repeat(40) }),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/capabilities are not ready/);
+    expect(stripe.paymentIntents.list).toHaveBeenCalledTimes(2);
+    expect(
+      stripe.refunds.create.mock.calls.map(([input]) => input.payment_intent),
+    ).toEqual([paymentIntentId, renewalPayment.id]);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-scans an already-canceled recovery and refunds a retained renewal", async () => {
+    const { authority, env, policy, targets } = ready();
+    const canceledSubscription = subscription({ status: "canceled" });
+    const renewalPayment = paymentIntent({
+      created: 2_593_001,
+      id: "pi_Gate19RetainedRenewal",
+    });
+    const renewalInvoice = {
+      customer: customerId,
+      id: "in_Gate19RetainedRenewal",
+      livemode: true,
+      parent: {
+        subscription_details: { subscription: subscriptionId },
+        type: "subscription_details",
+      },
+      status: "paid",
+    };
+    let inventoryCalls = 0;
+    const stripe = stripeMock({
+      chargeList: async (input) => ({
+        data: [
+          input.payment_intent === renewalPayment.id
+            ? charge({
+                id: "ch_Gate19RetainedRenewal",
+                invoice: renewalInvoice.id,
+                payment_intent: renewalPayment.id,
+              })
+            : charge(),
+        ],
+        has_more: false,
+      }),
+      invoiceRetrieve: async (id) =>
+        id === renewalInvoice.id
+          ? renewalInvoice
+          : canceledSubscription.latest_invoice,
+      paymentIntentList: async () => {
+        inventoryCalls += 1;
+        return {
+          data:
+            inventoryCalls === 1
+              ? [paymentIntent()]
+              : [paymentIntent(), renewalPayment],
+          has_more: false,
+        };
+      },
+      session: { subscription: canceledSubscription },
+      subscription: canceledSubscription,
+    });
+
+    await expect(
+      finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/lacks the exact prior refund/);
+    expect(stripe.paymentIntents.list).toHaveBeenCalledTimes(2);
+    expect(
+      stripe.refunds.create.mock.calls.map(([input]) => input.payment_intent),
+    ).toEqual([paymentIntentId, renewalPayment.id]);
+    expect(stripe.subscriptions.cancel).not.toHaveBeenCalled();
+  });
+
+  it("fails recovery closed when a boundary renewal cannot be validated", async () => {
+    const { authority, env, policy, targets } = ready();
+    const renewalPayment = paymentIntent({
+      created: 2_593_001,
+      id: "pi_Gate19UnvalidatedRenewal",
+    });
+    let inventoryCalls = 0;
+    const stripe = stripeMock({
+      chargeList: async (input) => ({
+        data: input.payment_intent === renewalPayment.id ? [] : [charge()],
+        has_more: false,
+      }),
+      paymentIntentList: async () => {
+        inventoryCalls += 1;
+        return {
+          data:
+            inventoryCalls === 1
+              ? [paymentIntent()]
+              : [paymentIntent(), renewalPayment],
+          has_more: false,
+        };
+      },
+    });
+
+    let failure;
+    try {
+      await finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher({ revision: "b".repeat(40) }),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure.message).toMatch(/financial recovery did not fully reconcile/);
+    expect(failure.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringMatching(/one exact captured invoice Charge/),
+        }),
+      ]),
+    );
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks certification and recovers a processing renewal that settles", async () => {
+    const { authority, env, policy, targets } = ready();
+    const processingRenewal = paymentIntent({
+      created: 2_593_001,
+      id: "pi_Gate19ProcessingRenewal",
+      status: "processing",
+    });
+    const settledRenewal = { ...processingRenewal, status: "succeeded" };
+    const renewalInvoice = {
+      customer: customerId,
+      id: "in_Gate19ProcessingRenewal",
+      livemode: true,
+      parent: {
+        subscription_details: { subscription: subscriptionId },
+        type: "subscription_details",
+      },
+      status: "paid",
+    };
+    let inventoryCalls = 0;
+    const stripe = stripeMock({
+      chargeList: async (input) => ({
+        data: [
+          input.payment_intent === settledRenewal.id
+            ? charge({
+                id: "ch_Gate19ProcessingRenewal",
+                invoice: renewalInvoice.id,
+                payment_intent: settledRenewal.id,
+              })
+            : charge(),
+        ],
+        has_more: false,
+      }),
+      invoiceRetrieve: async (id) =>
+        id === renewalInvoice.id
+          ? renewalInvoice
+          : subscription().latest_invoice,
+      paymentIntentList: async () => {
+        inventoryCalls += 1;
+        return {
+          data:
+            inventoryCalls === 1
+              ? [paymentIntent()]
+              : [
+                  paymentIntent(),
+                  inventoryCalls === 2 ? processingRenewal : settledRenewal,
+                ],
+          has_more: false,
+        };
+      },
+    });
+
+    await expect(
+      finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/capable of settling/);
+    expect(stripe.paymentIntents.list).toHaveBeenCalledTimes(3);
+    expect(
+      stripe.refunds.create.mock.calls.map(([input]) => input.payment_intent),
+    ).toEqual([paymentIntentId, settledRenewal.id]);
+  });
+
+  it("blocks a proof-window PaymentIntent awaiting a payment method", async () => {
+    const { authority, env, policy, targets } = ready();
+    const stripe = stripeMock({
+      paymentIntents: [
+        paymentIntent(),
+        paymentIntent({
+          id: "pi_Gate19RequiresPaymentMethod",
+          status: "requires_payment_method",
+        }),
+      ],
+    });
+
+    await expect(
+      finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/capable of settling/);
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("repeats payment inventory immediately before certification", async () => {
+    const { authority, env, policy, targets } = ready();
+    const store = applicationStore();
+    const lateRenewal = paymentIntent({
+      created: 2_593_001,
+      id: "pi_Gate19LateRenewal",
+    });
+    const renewalInvoice = {
+      customer: customerId,
+      id: "in_Gate19LateRenewal",
+      livemode: true,
+      parent: {
+        subscription_details: { subscription: subscriptionId },
+        type: "subscription_details",
+      },
+      status: "paid",
+    };
+    let inventoryCalls = 0;
+    const stripe = stripeMock({
+      chargeList: async (input) => ({
+        data: [
+          input.payment_intent === lateRenewal.id
+            ? charge({
+                id: "ch_Gate19LateRenewal",
+                invoice: renewalInvoice.id,
+                payment_intent: lateRenewal.id,
+              })
+            : charge(),
+        ],
+        has_more: false,
+      }),
+      invoiceRetrieve: async (id) =>
+        id === renewalInvoice.id
+          ? renewalInvoice
+          : subscription().latest_invoice,
+      paymentIntentList: async () => {
+        inventoryCalls += 1;
+        return {
+          data:
+            inventoryCalls < 3
+              ? [paymentIntent()]
+              : [paymentIntent(), lateRenewal],
+          has_more: false,
+        };
+      },
+    });
+    stripe.subscriptions.cancel.mockImplementation(async () => {
+      store.setCanceled();
+      return subscription({ status: "canceled" });
+    });
+
+    await expect(
+      finalizeLiveProof({
+        applicationStore: store,
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/Final reconciliation found another proof-window payment/);
+    expect(stripe.paymentIntents.list).toHaveBeenCalledTimes(4);
+    expect(
+      stripe.refunds.create.mock.calls.map(([input]) => input.payment_intent),
+    ).toEqual([paymentIntentId, lateRenewal.id]);
+  });
+
+  it("refunds and cancels when paid subscription metadata drifts", async () => {
+    const { authority, env, policy, targets } = ready();
+    const driftedSubscription = subscription({
+      metadata: metadata({ vinifera_proof_nonce: "drifted" }),
+    });
+    const stripe = stripeMock({
+      session: { subscription: driftedSubscription },
+      subscription: driftedSubscription,
+    });
+    let failure;
+    try {
+      await finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure.message).toMatch(/metadata mismatch/u);
+    expect(failure.gate19Recovery).toMatchObject({
+      refundAttempted: true,
+      refundSucceeded: true,
+      subscriptionCanceled: true,
+    });
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("pages bounded account event inventory to find exact proof events", async () => {
+    const { authority, env, policy, targets } = ready();
+    const store = applicationStore();
+    const stripe = stripeMock({
+      eventList: async (input, events) => {
+        if (!input.starting_after) {
+          return {
+            data: Array.from({ length: 100 }, (_, index) => ({
+              data: { object: { id: `sub_Other${index}` } },
+              id: `evt_Other${index}`,
+              livemode: true,
+              type: input.type,
+            })),
+            has_more: true,
+          };
+        }
+        return {
+          data: [
+            input.type === "customer.subscription.created"
+              ? events.createdEvent
+              : events.deletedEvent,
+          ],
+          has_more: false,
+        };
+      },
+    });
+    stripe.subscriptions.cancel.mockImplementation(async () => {
+      store.setCanceled();
+      return subscription({ status: "canceled" });
+    });
+    await expect(
+      finalizeLiveProof({
+        applicationStore: store,
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).resolves.toMatchObject({ verified: true });
+    expect(stripe.events.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops event pagination as soon as the exact proof event is found", async () => {
+    const { authority, env, policy, targets } = ready();
+    const store = applicationStore();
+    const stripe = stripeMock({
+      eventList: async (input, events) => ({
+        data: [
+          input.type === "customer.subscription.created"
+            ? events.createdEvent
+            : events.deletedEvent,
+        ],
+        has_more: true,
+      }),
+    });
+    stripe.subscriptions.cancel.mockImplementation(async () => {
+      store.setCanceled();
+      return subscription({ status: "canceled" });
+    });
+    await expect(
+      finalizeLiveProof({
+        applicationStore: store,
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).resolves.toMatchObject({ verified: true });
+    expect(stripe.events.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("refunds and cancels after paid Session metadata drifts", async () => {
     const { authority, env, policy, targets } = ready();
     const stripe = stripeMock({
       session: { metadata: metadata({ vinifera_gate: "18" }) },
@@ -781,7 +1450,100 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         targets,
       }),
     ).rejects.toThrow(/metadata mismatch/);
-    expect(stripe.refunds.create).not.toHaveBeenCalled();
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("refunds and cancels after a paid Session proof-reference drift", async () => {
+    const { authority, env, policy, targets } = ready();
+    const stripe = stripeMock({
+      session: {
+        client_reference_id:
+          "gate19:22222222-2222-4222-8222-222222222222",
+      },
+    });
+    await expect(
+      finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/does not match the proof nonce/);
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("arms payment recovery before refund inventory can fail", async () => {
+    const { authority, env, policy, targets } = ready();
+    let calls = 0;
+    const stripe = stripeMock({
+      refundList: async () => {
+        calls += 1;
+        if (calls === 1) throw new Error("refund inventory unavailable");
+        return { data: [], has_more: false };
+      },
+    });
+    let failure;
+    try {
+      await finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure.message).toMatch(/refund inventory unavailable/u);
+    expect(failure.gate19Recovery).toMatchObject({
+      refundAttempted: true,
+      refundSucceeded: true,
+      subscriptionCanceled: true,
+    });
+  });
+
+  it("refunds and cancels a paid Session when the dedicated customer was deleted", async () => {
+    const { authority, env, policy, targets } = ready();
+    const stripe = stripeMock({
+      customer: { deleted: true, id: customerId },
+    });
+    let failure;
+    try {
+      await finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure.message).toMatch(/customer contract does not match/u);
+    expect(failure.gate19Recovery).toMatchObject({
+      refundAttempted: true,
+      refundSucceeded: true,
+      subscriptionCanceled: true,
+    });
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a Session prepared by a different immutable main SHA", async () => {
@@ -802,7 +1564,8 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         targets,
       }),
     ).rejects.toThrow(/vinifera_git_sha/);
-    expect(stripe.refunds.create).not.toHaveBeenCalled();
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed when the completed amount differs from the reviewed Price", async () => {
@@ -858,7 +1621,7 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
     expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
   });
 
-  it("fails closed before refund when a second proof-window payment exists", async () => {
+  it("refunds the proof payment and cancels when another customer payment exists", async () => {
     const { authority, env, policy, targets } = ready();
     const stripe = stripeMock({
       paymentIntents: [
@@ -878,8 +1641,407 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         stripe,
         targets,
       }),
+    ).rejects.toThrow(/exactly one captured Charge/);
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains captured renewal recovery when another customer payment is invalid", async () => {
+    const { authority, env, policy, targets } = ready();
+    const renewalPayment = paymentIntent({
+      amount_received: amountCents,
+      created: 2_593_001,
+      id: "pi_Gate19Renewal",
+    });
+    const renewalInvoice = {
+      customer: customerId,
+      id: "in_Gate19Renewal",
+      livemode: true,
+      parent: {
+        subscription_details: { subscription: subscriptionId },
+        type: "subscription_details",
+      },
+      status: "paid",
+    };
+    const unrelatedPayment = paymentIntent({
+      created: 2_593_002,
+      id: "pi_UnrelatedLaterPayment",
+    });
+    const unrelatedInvoice = {
+      ...renewalInvoice,
+      id: "in_UnrelatedLaterPayment",
+      parent: {
+        subscription_details: { subscription: "sub_Unrelated" },
+        type: "subscription_details",
+      },
+    };
+    const stripe = stripeMock({
+      chargeList: async (input) => ({
+        data: [
+          input.payment_intent === renewalPayment.id
+            ? charge({
+                id: "ch_Gate19Renewal",
+                invoice: renewalInvoice.id,
+                payment_intent: renewalPayment.id,
+              })
+            : input.payment_intent === unrelatedPayment.id
+              ? charge({
+                  id: "ch_UnrelatedLaterPayment",
+                  invoice: unrelatedInvoice.id,
+                  payment_intent: unrelatedPayment.id,
+                })
+            : charge(),
+        ],
+        has_more: false,
+      }),
+      invoiceRetrieve: async (id) =>
+        id === renewalInvoice.id
+          ? renewalInvoice
+          : id === unrelatedInvoice.id
+            ? unrelatedInvoice
+          : subscription().latest_invoice,
+      paymentIntents: [paymentIntent(), unrelatedPayment, renewalPayment],
+    });
+    await expect(
+      finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/does not belong to the exact proof subscription/);
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(2);
+    expect(stripe.refunds.create.mock.calls.map(([input]) => input.payment_intent)).toEqual(
+      expect.arrayContaining([paymentIntentId, renewalPayment.id]),
+    );
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves the initial refund when renewal discovery is transiently unavailable", async () => {
+    const { authority, env, policy, targets } = ready();
+    const renewalPayment = paymentIntent({
+      created: 2_593_001,
+      id: "pi_Gate19Renewal",
+    });
+    const stripe = stripeMock({
+      chargeList: async (input) => {
+        if (input.payment_intent === renewalPayment.id) {
+          throw new Error("transient renewal Charge lookup failure");
+        }
+        return { data: [charge()], has_more: false };
+      },
+      paymentIntents: [paymentIntent(), renewalPayment],
+    });
+
+    await expect(
+      finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/transient renewal Charge lookup failure/);
+    expect(
+      stripe.refunds.create.mock.calls.map(([input]) => input.payment_intent),
+    ).toEqual([paymentIntentId]);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("pages the proof window and retains a later captured renewal for recovery", async () => {
+    const { authority, env, policy, targets } = ready();
+    const renewalPayment = paymentIntent({
+      created: 2_593_001,
+      id: "pi_Gate19Renewal",
+    });
+    const renewalInvoice = {
+      customer: customerId,
+      id: "in_Gate19Renewal",
+      livemode: true,
+      parent: {
+        subscription_details: { subscription: subscriptionId },
+        type: "subscription_details",
+      },
+      status: "paid",
+    };
+    const firstPageTail = "pi_PageOneTail";
+    const stripe = stripeMock({
+      chargeList: async (input) => ({
+        data: [
+          input.payment_intent === renewalPayment.id
+            ? charge({
+                id: "ch_Gate19Renewal",
+                invoice: renewalInvoice.id,
+                payment_intent: renewalPayment.id,
+              })
+            : charge(),
+        ],
+        has_more: false,
+      }),
+      invoiceRetrieve: async (id) =>
+        id === renewalInvoice.id
+          ? renewalInvoice
+          : subscription().latest_invoice,
+      paymentIntentList: async (input) =>
+        input.starting_after
+          ? { data: [renewalPayment], has_more: false }
+          : {
+              data: [
+                paymentIntent(),
+                ...Array.from({ length: 99 }, (_, index) => ({
+                  id: index === 98 ? firstPageTail : `pi_Failed${index}`,
+                  status: "canceled",
+                })),
+              ],
+              has_more: true,
+            },
+    });
+
+    await expect(
+      finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
     ).rejects.toThrow(/more than one proof-window payment/);
-    expect(stripe.refunds.create).not.toHaveBeenCalled();
+    expect(stripe.paymentIntents.list).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ starting_after: firstPageTail }),
+    );
+    expect(
+      stripe.refunds.create.mock.calls.map(([input]) => input.payment_intent),
+    ).toEqual([paymentIntentId, renewalPayment.id]);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-scans after cancellation and refunds a renewal that won the boundary race", async () => {
+    const { authority, env, policy, targets } = ready();
+    const renewalPayment = paymentIntent({
+      created: 2_593_001,
+      id: "pi_Gate19Renewal",
+    });
+    const renewalInvoice = {
+      customer: customerId,
+      id: "in_Gate19Renewal",
+      livemode: true,
+      parent: {
+        subscription_details: { subscription: subscriptionId },
+        type: "subscription_details",
+      },
+      status: "paid",
+    };
+    let inventoryCalls = 0;
+    const stripe = stripeMock({
+      chargeList: async (input) => ({
+        data: [
+          input.payment_intent === renewalPayment.id
+            ? charge({
+                id: "ch_Gate19Renewal",
+                invoice: renewalInvoice.id,
+                payment_intent: renewalPayment.id,
+              })
+            : charge(),
+        ],
+        has_more: false,
+      }),
+      invoiceRetrieve: async (id) =>
+        id === renewalInvoice.id
+          ? renewalInvoice
+          : subscription().latest_invoice,
+      paymentIntentList: async () => {
+        inventoryCalls += 1;
+        return {
+          data:
+            inventoryCalls === 1
+              ? [paymentIntent()]
+              : [paymentIntent(), renewalPayment],
+          has_more: false,
+        };
+      },
+      paymentIntents: [paymentIntent(), renewalPayment],
+    });
+
+    await expect(
+      finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/canceled live-proof subscription has more than one/);
+    expect(stripe.paymentIntents.list).toHaveBeenCalledTimes(3);
+    expect(
+      stripe.refunds.create.mock.calls.map(([input]) => input.payment_intent),
+    ).toEqual([paymentIntentId, renewalPayment.id]);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds proof-window pagination while preserving known recovery", async () => {
+    const { authority, env, policy, targets } = ready();
+    let page = 0;
+    const stripe = stripeMock({
+      paymentIntentList: async () => {
+        page += 1;
+        return {
+          data: [
+            ...(page === 1 ? [paymentIntent()] : []),
+            { id: `pi_PageTail${page}`, status: "requires_payment_method" },
+          ],
+          has_more: true,
+        };
+      },
+    });
+
+    await expect(
+      finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/PaymentIntent inventory exceeded its bound/);
+    expect(stripe.paymentIntents.list).toHaveBeenCalledTimes(20);
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("attempts every captured-payment refund when an earlier refund remains pending", async () => {
+    const { authority, env, policy, targets } = ready();
+    const renewalPayment = paymentIntent({
+      created: 2_593_001,
+      id: "pi_Gate19Renewal",
+    });
+    const renewalInvoice = {
+      customer: customerId,
+      id: "in_Gate19Renewal",
+      livemode: true,
+      parent: {
+        subscription_details: { subscription: subscriptionId },
+        type: "subscription_details",
+      },
+      status: "paid",
+    };
+    const stripe = stripeMock({
+      chargeList: async (input) => ({
+        data: [
+          input.payment_intent === renewalPayment.id
+            ? charge({
+                id: "ch_Gate19Renewal",
+                invoice: renewalInvoice.id,
+                payment_intent: renewalPayment.id,
+              })
+            : charge(),
+        ],
+        has_more: false,
+      }),
+      invoiceRetrieve: async (id) =>
+        id === renewalInvoice.id
+          ? renewalInvoice
+          : subscription().latest_invoice,
+      paymentIntents: [paymentIntent(), renewalPayment],
+    });
+    stripe.refunds.create.mockImplementation(async (input) => ({
+      amount: input.amount,
+      currency: "usd",
+      id:
+        input.payment_intent === paymentIntentId
+          ? refundId
+          : `re_${input.payment_intent}`,
+      livemode: true,
+      metadata: input.metadata,
+      payment_intent: input.payment_intent,
+      status:
+        input.payment_intent === paymentIntentId ? "pending" : "succeeded",
+    }));
+    stripe.refunds.retrieve.mockImplementation(async (id) => ({
+      amount: amountCents,
+      currency: "usd",
+      id,
+      livemode: true,
+      metadata: {
+        vinifera_gate: "19",
+        vinifera_proof_nonce: nonce,
+        vinifera_proof_version: "2026-08-06-v1",
+      },
+      payment_intent: id === refundId ? paymentIntentId : renewalPayment.id,
+      status: id === refundId ? "pending" : "succeeded",
+    }));
+
+    await expect(
+      finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).rejects.toThrow(/financial recovery did not fully reconcile/);
+    expect(
+      stripe.refunds.create.mock.calls.map(([input]) => input.payment_intent),
+    ).toEqual([paymentIntentId, renewalPayment.id]);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds PaymentIntent inventory to the exact Checkout proof window", async () => {
+    const { authority, env, policy, targets } = ready();
+    const store = applicationStore();
+    const stripe = stripeMock({
+      paymentIntentList: async (input) => {
+        // session().created is 1000; the proof window includes a 60s margin.
+        expect(input.created).toEqual({ gte: 940, lte: 2_600_000 });
+        return { data: [paymentIntent()], has_more: false };
+      },
+    });
+    stripe.subscriptions.cancel.mockImplementation(async () => {
+      store.setCanceled();
+      return subscription({ status: "canceled" });
+    });
+    await expect(
+      finalizeLiveProof({
+        applicationStore: store,
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+        now: () => new Date(2_600_000 * 1000),
+      }),
+    ).resolves.toMatchObject({ verified: true });
+    expect(stripe.paymentIntents.list).toHaveBeenCalledWith(
+      expect.objectContaining({ created: { gte: 940, lte: 2_600_000 } }),
+    );
   });
 
   it("fails closed when the initial invoice has multiple paid payment objects", async () => {
@@ -942,7 +2104,7 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         targets,
       }),
     ).rejects.toThrow(/exactly one successful captured Charge/);
-    expect(stripe.refunds.create).not.toHaveBeenCalled();
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
     expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
   });
 
@@ -1002,8 +2164,9 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         },
       ],
     });
-    await expect(
-      finalizeLiveProof({
+    let failure;
+    try {
+      await finalizeLiveProof({
         applicationStore: applicationStore(),
         authority,
         env,
@@ -1013,8 +2176,14 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         sleep: vi.fn(),
         stripe,
         targets,
-      }),
-    ).rejects.toThrow(/existing refund does not match/);
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure.errors.some((error) =>
+      /existing refund does not match/u.test(error.message),
+    )).toBe(true);
     expect(stripe.refunds.create).not.toHaveBeenCalled();
   });
 
@@ -1059,9 +2228,48 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
     expect(stripe.subscriptions.cancel).not.toHaveBeenCalled();
   });
 
-  it("refuses to claim prior activation when durable created-event state is not active", async () => {
+  it("replaces one exact terminally failed refund during recovery", async () => {
     const { authority, env, policy, targets } = ready();
-    const store = applicationStore({ createdStatus: "canceled" });
+    const store = applicationStore();
+    const stripe = stripeMock({
+      refunds: [
+        {
+          amount: amountCents,
+          currency: "usd",
+          id: "re_Gate19Failed",
+          livemode: true,
+          metadata: {
+            vinifera_gate: "19",
+            vinifera_proof_nonce: nonce,
+            vinifera_proof_version: "2026-08-06-v1",
+          },
+          status: "failed",
+        },
+      ],
+    });
+    stripe.subscriptions.cancel.mockImplementation(async () => {
+      store.setCanceled();
+      return subscription({ status: "canceled" });
+    });
+    await expect(
+      finalizeLiveProof({
+        applicationStore: store,
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).resolves.toMatchObject({ refundCount: 1, verified: true });
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses to claim prior activation when the durable applied event is not active", async () => {
+    const { authority, env, policy, targets } = ready();
+    const store = applicationStore({ activationStatus: "canceled" });
     store.setCanceled();
     const stripe = stripeMock({
       refunds: [
@@ -1092,7 +2300,7 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         stripe,
         targets,
       }),
-    ).rejects.toThrow(/does not prove the expected application lifecycle/);
+    ).rejects.toThrow(/active application transition/);
   });
 
   it("fails a canceled no-refund state but recovers the exact full refund", async () => {
@@ -1124,7 +2332,11 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
       amount: amountCents,
       currency: "usd",
       livemode: true,
-      metadata: { vinifera_gate: "19", vinifera_proof_nonce: nonce },
+      metadata: {
+        vinifera_gate: "19",
+        vinifera_proof_nonce: nonce,
+        vinifera_proof_version: "2026-08-06-v1",
+      },
       status: "succeeded",
     };
     const stripe = stripeMock({
@@ -1133,8 +2345,9 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         { ...matchingRefund, id: "re_SecondRefund" },
       ],
     });
-    await expect(
-      finalizeLiveProof({
+    let failure;
+    try {
+      await finalizeLiveProof({
         applicationStore: applicationStore(),
         authority,
         env,
@@ -1144,8 +2357,14 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         sleep: vi.fn(),
         stripe,
         targets,
-      }),
-    ).rejects.toThrow(/second financial mutation/);
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure.errors.some((error) =>
+      /ambiguous proof mutations/u.test(error.message),
+    )).toBe(true);
     expect(stripe.refunds.create).not.toHaveBeenCalled();
   });
 

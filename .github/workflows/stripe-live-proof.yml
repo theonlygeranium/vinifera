@@ -86,7 +86,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
           ref: ${{ inputs.git_sha }}
 
       - name: Revalidate current main and reviewed production release
@@ -158,6 +158,35 @@ jobs:
             -in "$STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE" \
             -noout \
             -checkend 3600
+
+      - name: Revalidate release authority immediately before financial mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --no-tags origin main:refs/remotes/origin/main
+          if [[ "${{ inputs.operation }}" == "prepare" ]]; then
+            [[ "$(git rev-parse origin/main)" == "$STRIPE_LIVE_PROOF_GIT_SHA" ]]
+          else
+            git merge-base --is-ancestor \
+              "$STRIPE_LIVE_PROOF_GIT_SHA" refs/remotes/origin/main
+          fi
+          authorization_prs=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$GITHUB_REPOSITORY/commits/$STRIPE_LIVE_PROOF_GIT_SHA/pulls")
+          authorization_pr=$(jq -c \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg release_sha "$STRIPE_LIVE_PROOF_GIT_SHA" \
+            '[.[] |
+              select(.merged_at != null) |
+              select(.base.ref == "main") |
+              select(.head.ref == "staging") |
+              select(.merge_commit_sha == $release_sha) |
+              select(.head.repo.full_name == $repository)] |
+             sort_by(.merged_at) | last // empty' <<<"$authorization_prs")
+          [[ -n "$authorization_pr" ]]
+          ! jq -e \
+            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+            <<<"$authorization_pr" >/dev/null
 
       - name: Prepare exactly one hosted live Checkout handoff
         if: inputs.operation == 'prepare'

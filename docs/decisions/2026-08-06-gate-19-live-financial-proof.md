@@ -38,17 +38,20 @@ The proof has two dispatches sharing one UUID nonce:
    CMS artifact is retained; the job summary contains no Checkout URL, Session
    ID, or nonce. It accepts no card data and performs no charge or refund.
 2. `finalize` accepts only that completed `cs_live_` Session. It requires one
-   succeeded PaymentIntent and exactly one captured Charge in the proof window,
-   exact revision metadata and brand-scoped application subject, an applied
-   live subscription event, and two duplicate responses to
-   a freshly signed replay of the exact Stripe event before refunding. It
-   creates at most one full refund under an idempotency key, resumes safely if
-   that exact refund already exists, cancels renewal, waits for application
+   succeeded PaymentIntent and exactly one captured Charge from the Checkout
+   Session's immutable initial invoice, exact revision metadata and
+   brand-scoped application subject, an applied live subscription event, and
+   two duplicate responses to a freshly signed replay before refunding. It
+   creates one full refund under an idempotency key, resumes safely if that
+   exact refund already exists, cancels renewal, waits for application
    `canceled` state, and repeats the signed-idempotency proof for the deletion
-   event.
+   event. If delayed finalization discovers later captured invoice payments
+   belonging to the exact proof subscription, it refunds each before failing
+   the one-charge acceptance contract.
 
-More than one proof-window payment or Charge, more than one refund, unrelated existing
-refund metadata, an over-limit amount, an unbounded provider inventory, a
+More than one proof-window payment or successful Charge, more than one
+terminally failed refund attempt, more than one recoverable or successful
+refund, unrelated existing refund metadata, an over-limit amount, an unbounded provider inventory, a
 wrong tenant/brand mapping, absent live webhook persistence, or failed
 application convergence stops the workflow. Sanitized evidence contains only
 hashes, counts, booleans, timestamps, and final states.
@@ -72,13 +75,14 @@ The owner performs payment only on Stripe Checkout. Once the exact paid
 subscription and single Charge are validated, every later failure—including
 mutable Price/Product drift—enters an idempotent refund-and-cancellation
 recovery boundary. A stopped finalize run
-can continue cleanup without issuing another refund, but any distinct second
-refund is a hard failure. The controller never claims active-to-canceled
+can continue cleanup without issuing another successful refund for the same
+payment. One terminally failed exact refund may be replaced; ambiguous or
+unrelated refunds fail closed. The controller never claims active-to-canceled
 convergence from a literal: first execution observes active application state,
-while a recovery run requires the durable processed created event plus the
-independently verified active subject to prove that prior state. An older
-created event may be durably `ignored` when a newer event already advanced the
-subject. A request to restore test bindings is recorded in evidence and must be
+while a canceled recovery requires the durable creation event itself to have
+been applied. An ignored creation event remains acceptable only while an
+independently observed active subject still exists. A request to restore test
+bindings is recorded in evidence and must be
 executed through the separate protected live-billing cutover workflow; the
 proof controller has no Wrangler deployment or secret-update capability.
 

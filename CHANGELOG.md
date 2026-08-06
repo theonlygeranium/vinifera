@@ -7,9 +7,46 @@
 - Moved mutable live Price revalidation inside Gate 19's post-payment recovery
   boundary, moved exact Worker-revision certification after metadata-bound
   payment recovery eligibility so a concurrent deployment cannot strand a
-  live charge or renewal, accepted a durable out-of-order subscription-created event when
-  independently verified active application state has converged, and aligned
-  the canonical QA documentation with the verified 602-test floor.
+  live charge or renewal, deferred subscription certification until the exact
+  payment is recovery-eligible, bounded customer PaymentIntent inventory to
+  the Checkout proof window after establishing refund eligibility, stopped
+  account event pagination after finding the exact subscription event,
+  resumed pending refunds and bounded replacement of one terminally failed
+  exact refund without counting it as a successful financial mutation,
+  bound delayed finalization to the Checkout Session's immutable initial
+  invoice instead of the subscription's mutable latest renewal invoice,
+  deferred mutable Checkout Session metadata certification until the exact
+  paid Charge is refund-eligible,
+  discovered and fully refunded every captured invoice payment belonging to
+  the exact proof subscription when delayed finalization encounters renewal,
+  retained each validated renewal recovery even when a later customer payment
+  is unrelated or invalid,
+  deferred current-customer certification until the paid Charge is recoverable,
+  and bound activation to the exact durably applied created, updated, or invoice
+  event that advanced the tenant-scoped application state while disambiguating
+  incomplete events sharing Stripe's second-resolution timestamp,
+  armed refund recovery immediately after the paid PaymentIntent is proven,
+  continued attempting every validated captured-payment refund when an earlier
+  refund remains pending or fails to reconcile,
+  retained the pre-armed initial payment while independently discovering later
+  subscription payments even when repeated provider lookup fails,
+  paged the start/end-bounded proof-window PaymentIntent inventory while
+  retaining each validated subscription payment for recovery,
+  included same-second applied activation events during canceled retries,
+  re-scanned the subscription-bound payment window after cancellation and
+  retained any renewal that won the pre-cancellation boundary race,
+  applied the same cancel-then-rescan recovery order after upstream failures
+  and already-canceled retries, failed recovery closed when boundary inventory
+  could not be validated, blocked potentially settling PaymentIntents, and
+  repeated the payment inventory immediately before certification,
+  bound the completed Session client reference to the exact proof nonce, and
+  retained authenticated private-repository Git access for immediate release
+  authority revalidation,
+  re-fetched current main and the exact merged staging authorization
+  immediately before every live Checkout/refund mutation,
+  accepted out-of-order subscription creation when a later applied event
+  independently proves the active application transition, and aligned
+  the canonical QA documentation with the verified 624-test floor.
 
 ### Changed
 
@@ -38,10 +75,11 @@
   charge, refund, credential, Worker, database, or provider mutation occurred.
   Extend the existing bounded Git-fixture timeout to the staged classifier CLI
   regression that exhibited the same concurrency-sensitive full-suite timeout;
-  its behavior and assertions are unchanged. **Verification:** 24/24 focused
-  Gate 19 cases, 9/9 promotion-smoke cases, 31/31 delivery-policy cases, and the
-  complete generated-types, TypeScript, 602/602 Vitest, Vite build, and Worker
-  dry-run package gate pass.
+  its behavior and assertions are unchanged. **Verification:** `npm test --
+  --run tests/scripts/stripe-live-proof.test.mjs` (49/49), the 9/9
+  promotion-smoke and 31/31 delivery-policy suites, `npm run check` (generated
+  types, TypeScript, 624/624 Vitest, Vite build, and Worker dry-run), and `npm
+  run qa:e2e` (155 passed Playwright/axe).
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from
