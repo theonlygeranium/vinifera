@@ -1,16 +1,21 @@
 # Activation readiness
 
-**Last reviewed:** 2026-08-05
+**Last reviewed:** 2026-08-06
 **Allowed statuses:** `pending`, `local-verified`, `live-passed`
 
-Five composite gates are `live-passed`: Gates 1, 3, 4, 5, and 9. The 2026-08-05
+Six composite gates are `live-passed`: Gates 1, 2, 3, 4, 5, and 9. The 2026-08-05
 hosted re-audit proved exact 30-version staging migration-ledger parity and
 331/331 canonical native pgTAP assertions, retained Supabase Auth hook/OTP/
 Google/SMTP configuration, accepted one resent signed Stripe test webhook
-exactly once, and reverified an EasyPost test address with ZIP+4. Gates 2 and 7
-were reopened because the deployed staging Worker did not identify itself as
-staging or expose an exact revision and one member Supabase client path omitted
-Cloudflare Access headers. All other gates remain `pending`.
+exactly once, and reverified an EasyPost test address with ZIP+4. Gate 2 passed
+on 2026-08-06 when protected run `31073800654` deployed immutable candidate
+`f3512e7f36df7bc332ec3e59bca33c4153a835d4` as Worker version
+`b3180ad7-64d6-440d-b609-09ee6e95bac5` in the dedicated staging Cloudflare
+account. Its retained runtime artifact and an independent live probe both
+passed the exact revision, staging identity, core configuration, Stripe test
+catalog, and database-backed branding contracts. Gate 7 remains `pending` for
+the complete hosted two-tenant/Auth/billing lifecycle proof. All other gates
+remain `pending`.
 
 Partial local evidence:
 
@@ -21,19 +26,19 @@ Partial local evidence:
 - Gate 15: two local organizations/default brands with staff isolation; no
   independent billing or hostname-derived member context.
 
-The Gate 2/7 repair candidate carries Access service-token headers through all
+The deployed Gate 2/7 repair carries Access service-token headers through all
 member Supabase client paths and requires `environment=staging`, the exact
 promoted revision, and a successful database-backed route before deployment
 evidence can pass. Those two gates remain pending until this exact reviewed
-candidate reaches staging and the hosted acceptance suite succeeds.
+candidate is live in staging. Gate 7 remains pending until the hosted acceptance
+suite succeeds.
 
-The dedicated staging Cloudflare account target is now authorized by its
-reviewed SHA-256 hash, while the known production account is explicitly
-denied. Its protected environment credential is account-scoped to Workers and
-Queues, and the staging queue plus isolated Worker bootstrap are provisioned.
-The deployment remains restricted to `vinifera-staging`, the protected
-`staging` environment, and the exact immutable candidate artifact; Gate 2
-remains pending until deployment and runtime evidence pass.
+The dedicated staging Cloudflare account target is authorized by its reviewed
+SHA-256 hash, while the known production account is explicitly denied. Its
+protected environment credential is account-scoped to Workers and Queues, and
+the staging queue plus isolated Worker are provisioned. The successful
+deployment remains restricted to `vinifera-staging`, the protected `staging`
+environment, and the exact immutable candidate artifact.
 
 ## Activation phases
 
@@ -66,7 +71,7 @@ stores do not block the private web beta.
 | Gate | Description | Status | Evidence required for `live-passed` | Owner |
 |---:|---|---|---|---|
 | 1 | Apply migrations to staging Supabase and run linked pgTAP/RLS | live-passed | Authorized project hash, successful migration job, exact 30-version ledger parity, and 331/331 linked native pgTAP assertions | Track A — staging database |
-| 2 | Deploy isolated staging Worker | pending | Authorized account hash, Workers Scripts edit token, successful version/deploy, and readiness output | Track A — staging Worker |
+| 2 | Deploy isolated staging Worker | live-passed | Protected run `31073800654`, immutable package run `31073683792`, Worker version `b3180ad7-64d6-440d-b609-09ee6e95bac5`, retained runtime artifact `8956720306`, and independent exact-revision/configuration/database probe | Track A — staging Worker |
 | 3 | Activate Supabase Auth | live-passed | Custom token hook, 900-second OTP, Google OAuth, SMTP, and staff/member callback proof retained in hosted configuration | Track A — authentication |
 | 4 | Activate Stripe test catalog and webhook | live-passed | Reconciled four-price test catalog and one resent signed subscription webhook accepted exactly once | Track A — Stripe test |
 | 5 | Activate EasyPost test fulfillment | live-passed | Test credential, validated winery origin, simulator disabled, and deliverable address verification with ZIP+4 | Track A — fulfillment |

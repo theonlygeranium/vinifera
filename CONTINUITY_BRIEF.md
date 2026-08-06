@@ -1,6 +1,6 @@
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-08-05
+**Last updated:** 2026-08-06
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
 
 ## Project identity
@@ -23,8 +23,14 @@ custom hook, 900-second OTP, Google provider, and SMTP configuration; Stripe
 accepted a resent signed subscription event exactly once; and EasyPost test
 address verification remains deliverable with ZIP+4.
 
-Gates 2 and 7 were reopened pending deployment of this repair candidate.
-The stable staging Worker reported `environment=production` and no revision;
+Gate 2 is live-passed. Protected run `31073800654` deployed immutable candidate
+`f3512e7f36df7bc332ec3e59bca33c4153a835d4` as Worker version
+`b3180ad7-64d6-440d-b609-09ee6e95bac5` in the dedicated staging account. The
+retained runtime artifact and an independent live probe passed staging identity,
+exact revision, core configuration, Stripe test catalog, and database-backed
+branding checks. Gate 7 remains pending for the complete hosted acceptance
+lifecycle. Before the repair, the stable staging Worker reported
+`environment=production` and no revision;
 member/tier requests failed because one Supabase client factory omitted the
 Cloudflare Access service token; and native current-stack pgTAP files contained
 stale JWT, seed-count, privilege, ML-attribution, qualification, and alert
@@ -725,10 +731,9 @@ The code must remain fail-closed until these external connections are active:
    exact project hash and repository variable
    `STAGING_SUPABASE_MIGRATION_ENABLED=true` to apply `supabase/migrations/`
    and run `supabase test db --linked`.
-2. Give the staging Cloudflare token Workers Scripts edit permission and set
-   the exact account hash plus repository variable
-   `STAGING_CLOUDFLARE_DEPLOY_ENABLED=true` only for the isolated
-   `vinifera-staging` Worker.
+2. **Live-passed 2026-08-06:** the reviewed account hash, protected credential,
+   immutable package, isolated `vinifera-staging` deployment, and exact runtime
+   readiness contract passed in run `31073800654`.
 3. Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP.
 4. When service activation is explicitly resumed, reconcile the
    created-or-unknown Stripe test Price from run `30218801133`, then

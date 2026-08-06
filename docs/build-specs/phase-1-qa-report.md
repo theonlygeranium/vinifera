@@ -1,8 +1,8 @@
 # Phase 1 QA report — Foundation
 
-**Date:** 2026-07-26
+**Date:** 2026-07-26; hosted evidence updated 2026-08-06
 **Candidate:** Phase 1 Worker foundation
-**Gate status:** Local architecture and QA pass; hosted provider activation and exit criterion remain pending.
+**Gate status:** Local architecture and QA pass; isolated staging Worker activation passes; the complete hosted Phase 1 exit criterion remains pending Gate 7 acceptance.
 
 ## Outcome
 
@@ -38,6 +38,7 @@ Phase 1 is not marked complete because the real hosted Supabase and Stripe test-
 | Database migration | Pass in embedded PostgreSQL | migrations 001–012; Stripe subject locks, webhook-wait reconciliation, and later-phase schema remain green |
 | pgTAP suites | Pass locally | Current Phase 5 migration/pgTAP gate 279/279 across suites 013–022; native hosted Supabase run pending |
 | Hosted activation controls | Pass in source | Staging target hashes fail closed; linked pgTAP and core Worker configuration are mandatory when activated |
+| Isolated staging Worker | Live pass — [run 31073800654](https://github.com/theonlygeranium/vinifera/actions/runs/31073800654) | Immutable candidate `f3512e7f36df7bc332ec3e59bca33c4153a835d4`, package run `31073683792`, Worker version `b3180ad7-64d6-440d-b609-09ee6e95bac5`, and retained artifact `8956720306`; exact revision, staging identity, required configuration, Stripe test catalog, and database-backed canonical branding all passed |
 | Production release/rollback control | Pass in source | First bootstrap has no route; custom-domain movement retains Pages and requires all Phase 1–5 capabilities |
 | Read-only hosted readiness | Pass — [run 30217462802](https://github.com/theonlygeranium/vinifera/actions/runs/30217462802) | Supabase Auth and Stripe test API are reachable; Phase 1 tables, four Stripe Prices, webhook secret, staging-scoped credentials, and Workers-capable Cloudflare authority remain pending |
 | Stripe test catalog control | Probe pass — [run 30218422165](https://github.com/theonlygeranium/vinifera/actions/runs/30218422165); 16/16 focused tests | Sanitized evidence confirmed a test-mode generic credential and no probe write; protected bootstrap run [30218801133](https://github.com/theonlygeranium/vinifera/actions/runs/30218801133) left the first test Price created-or-unknown, then failed closed because the response did not expand its Product. The controller now requests Product expansion. Connections are deferred, so no retry was attempted |
