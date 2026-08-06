@@ -42,6 +42,13 @@ The controller remains disabled unless
 `STAGING_HOSTED_ACCEPTANCE_ENABLED=true`. A source-complete controller does not
 change Gate 7 status; only a successful reviewed exact-candidate run does.
 
+The defense-in-depth auth-presence middleware recognizes the same cookie family
+as the Supabase SSR service client: the exact staff/member base name or a
+numeric chunk suffix such as `.0` or `.1`. It parses cookie names rather than
+using a broad prefix match, so link-context and malformed similarly prefixed
+cookies do not satisfy the early presence gate. The service layer remains the
+authoritative validator of the reconstructed session.
+
 ## Consequences
 
 - Gate 7 obtains repeatable provider-backed evidence instead of relying on
