@@ -935,7 +935,7 @@ The code must remain fail-closed until these external connections are active:
     The controller binds prepare/finalize to the same main SHA and exact tenant,
     validates reused Checkout line items, and enters idempotent refund plus
     cancellation recovery after any post-charge failure. Local source QA passes
-    all 20 dedicated adversarial cases and the complete 595/595
+    all 20 dedicated adversarial cases and the complete 601/601
     Vitest/type/build/Worker-package regression gate.
 20. Move the production custom domain only after every hosted exit criterion is
     evidenced.

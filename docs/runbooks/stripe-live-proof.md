@@ -115,12 +115,15 @@ ancestor of current `main` and maps to its merged `staging → main`
 authorization PR. This preserves the metadata-bound refund and cancellation
 path without authorizing a different release.
 
-After the exact paid subscription and Charge are identified, any later error
+After the exact paid subscription and Charge are identified, any later error,
+including current Price/Product drift after the owner paid,
 enters fail-safe recovery that independently attempts the same idempotent full
 refund and renewal cancellation. The failure artifact records only recovery
 booleans. If a prior run stopped during cleanup, rerun `finalize` with the same
-inputs. It must reuse the exact refund and requires the durable applied created
-event to prove prior active state; it will not invent or create another refund.
+inputs. It must reuse the exact refund and requires the durable processed
+created event plus independently verified active application state to prove
+prior activation. An older created event may be `ignored` when a newer event
+already advanced the subject; it will not invent or create another refund.
 An unrelated or second refund is a hard failure.
 
 ## Evidence and optional binding reversion

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Moved mutable live Price revalidation inside Gate 19's post-payment recovery
+  boundary, accepted a durable out-of-order subscription-created event when
+  independently verified active application state has converged, and aligned
+  the canonical QA documentation with the verified 601-test floor.
+
 ### Changed
 
 - Add a distinct, trusted-main, protected, default-disabled Gate 19 controller

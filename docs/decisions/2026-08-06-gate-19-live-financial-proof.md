@@ -69,13 +69,16 @@ stop the workflow.
 ## Consequences
 
 The owner performs payment only on Stripe Checkout. Once the exact paid
-subscription and single Charge are validated, every later failure enters an
-idempotent refund-and-cancellation recovery boundary. A stopped finalize run
+subscription and single Charge are validated, every later failure—including
+mutable Price/Product drift—enters an idempotent refund-and-cancellation
+recovery boundary. A stopped finalize run
 can continue cleanup without issuing another refund, but any distinct second
 refund is a hard failure. The controller never claims active-to-canceled
 convergence from a literal: first execution observes active application state,
-while a recovery run requires the durable applied created event to prove that
-prior state. A request to restore test bindings is recorded in evidence and must be
+while a recovery run requires the durable processed created event plus the
+independently verified active subject to prove that prior state. An older
+created event may be durably `ignored` when a newer event already advanced the
+subject. A request to restore test bindings is recorded in evidence and must be
 executed through the separate protected live-billing cutover workflow; the
 proof controller has no Wrangler deployment or secret-update capability.
 

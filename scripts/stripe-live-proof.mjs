@@ -395,10 +395,14 @@ export function createApplicationStore({
         );
       }
       const row = rows[0];
+      const durableStatuses =
+        expectedType === "customer.subscription.created"
+          ? ["applied", "ignored"]
+          : ["applied"];
       if (
         row.livemode !== true ||
         row.event_type !== expectedType ||
-        row.processing_status !== "applied" ||
+        !durableStatuses.includes(row.processing_status) ||
         !row.processed_at
       ) {
         throw new Error("The signed live webhook is not durably applied.");
@@ -978,11 +982,6 @@ export async function finalizeLiveProof({
     await stripe.customers.retrieve(targets.customerId),
     targets.customerId,
   );
-  const priceAmountCents = assertPrice(
-    await stripe.prices.retrieve(targets.priceId, { expand: ["product"] }),
-    targets,
-    policy,
-  );
   const session = await stripe.checkout.sessions.retrieve(sessionId, {
     expand: ["line_items.data.price", "subscription.latest_invoice"],
   });
@@ -993,11 +992,6 @@ export async function finalizeLiveProof({
     targets,
     sessionId,
   );
-  if (amountCents !== priceAmountCents) {
-    throw new Error(
-      "The completed live Checkout amount does not equal the reviewed Price.",
-    );
-  }
   let subscription = session.subscription;
   if (typeof subscription === "string") {
     subscription = await stripe.subscriptions.retrieve(subscription, {
@@ -1132,6 +1126,16 @@ export async function finalizeLiveProof({
       { fullyRefunded: existingRefunds.length === 1 },
     );
     refundRecoveryEligible = true;
+    const priceAmountCents = assertPrice(
+      await stripe.prices.retrieve(targets.priceId, { expand: ["product"] }),
+      targets,
+      policy,
+    );
+    if (amountCents !== priceAmountCents) {
+      throw new Error(
+        "The completed live Checkout amount does not equal the reviewed Price.",
+      );
+    }
     if (subscription.status === "canceled" && !existingRefunds[0]) {
       throw new Error(
         "A canceled proof subscription lacks the exact prior refund required for recovery.",

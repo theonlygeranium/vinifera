@@ -326,7 +326,10 @@ function stripeMock(overrides = {}) {
   };
 }
 
-function applicationStore({ createdStatus = "active" } = {}) {
+function applicationStore({
+  createdProcessingStatus = "applied",
+  createdStatus = "active",
+} = {}) {
   let status = "active";
   return {
     event: vi.fn(async (eventId) => ({
@@ -348,7 +351,8 @@ function applicationStore({ createdStatus = "active" } = {}) {
         },
       },
       processed_at: "2026-08-06T00:00:00.000Z",
-      processing_status: "applied",
+      processing_status:
+        eventId === createdEventId ? createdProcessingStatus : "applied",
     })),
     setCanceled() {
       status = "canceled";
@@ -705,6 +709,29 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
     expect(JSON.stringify(result)).not.toContain(paymentIntentId);
   });
 
+  it("accepts a durable out-of-order created event after active state converges", async () => {
+    const { authority, env, policy, targets } = ready();
+    const store = applicationStore({ createdProcessingStatus: "ignored" });
+    const stripe = stripeMock();
+    stripe.subscriptions.cancel.mockImplementation(async () => {
+      store.setCanceled();
+      return subscription({ status: "canceled" });
+    });
+    await expect(
+      finalizeLiveProof({
+        applicationStore: store,
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      }),
+    ).resolves.toMatchObject({ activeApplicationProven: true, verified: true });
+  });
+
   it("fails closed before refund on wrong proof metadata", async () => {
     const { authority, env, policy, targets } = ready();
     const stripe = stripeMock({
@@ -750,7 +777,7 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
   it("fails closed when the completed amount differs from the reviewed Price", async () => {
     const { authority, env, policy, targets } = ready();
     const stripe = stripeMock({
-      session: { amount_total: amountCents - 1 },
+      price: { unit_amount: amountCents - 1 },
     });
     await expect(
       finalizeLiveProof({
@@ -765,7 +792,39 @@ describe("Gate 19 one-charge and one-refund finalization", () => {
         targets,
       }),
     ).rejects.toThrow(/does not equal the reviewed Price/);
-    expect(stripe.refunds.create).not.toHaveBeenCalled();
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("refunds and cancels when the reviewed Price drifts after payment", async () => {
+    const { authority, env, policy, targets } = ready();
+    const stripe = stripeMock({ price: { active: false } });
+    let failure;
+    try {
+      await finalizeLiveProof({
+        applicationStore: applicationStore(),
+        authority,
+        env,
+        fetcher: fetcher(),
+        policy,
+        sessionId,
+        sleep: vi.fn(),
+        stripe,
+        targets,
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure.message).toMatch(/Price, plan, or maximum amount/);
+    expect(failure.gate19Recovery).toEqual({
+      cancellationAttempted: true,
+      refundAttempted: true,
+      refundSucceeded: true,
+      subscriptionCanceled: true,
+    });
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed before refund when a second proof-window payment exists", async () => {
