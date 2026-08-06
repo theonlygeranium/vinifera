@@ -4,7 +4,7 @@
 
 ### Changed
 - Raise the documented Vitest regression floor from 550 to the verified
-  556-test hosted-acceptance exact head. **Deployment impact:** QA and agent
+  559-test hosted-acceptance exact head. **Deployment impact:** QA and agent
   documentation only; no runtime, provider, database, credential, billing,
   DNS, mobile-store, or production mutation.
 - Add an opt-in protected hosted Gate 7 acceptance controller that provisions
@@ -56,6 +56,15 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Repair the hosted Gate 7 controller after exact-head review: consume the real
+  emailed PKCE magic link through a run-bound encrypted handoff, retain two
+  reusable audit-safe staging fixtures and restore their mutable billing state
+  with cleanup failures treated as fatal, and compress lifecycle timestamps
+  only on the fixture while global reconciliation uses current time. Add
+  regression coverage and update the activation ADR/runbook/continuity trail.
+  **Deployment impact:** changes the opt-in protected staging acceptance job and
+  its synthetic test data only; no production, DNS, live billing, or
+  mobile-store mutation.
 - Use the protected isolated `STAGING_WORKER_ORIGIN` as the staging
   `APP_ORIGIN` and browser CORS origin until custom-hostname Gate 16 is
   activated. This keeps staff and member Auth callbacks on the same deployed
