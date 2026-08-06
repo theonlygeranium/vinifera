@@ -174,12 +174,12 @@ function wait(milliseconds) {
 
 export async function verifyHostedRuntime({
   fetchImpl = fetch,
-  maxAttempts = 6,
+  maxAttempts = 13,
   now,
   origin,
   expectedRevision,
   requiredCapabilities = DEFAULT_REQUIRED_CAPABILITIES,
-  retryDelayMs = 2_000,
+  retryDelayMs = 5_000,
   timeoutMs = 10_000,
   waitImpl = wait,
 }) {

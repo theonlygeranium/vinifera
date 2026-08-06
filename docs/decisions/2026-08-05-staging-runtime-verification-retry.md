@@ -13,8 +13,8 @@ a release failure even though the deployed version was correct.
 
 ## Decision
 
-Retry the complete isolated staging runtime contract up to six times with a
-two-second delay. A retry is allowed for transport, status, JSON, stale SHA,
+Retry the complete isolated staging runtime contract up to thirteen times with
+a five-second delay. A retry is allowed for transport, status, JSON, stale SHA,
 configuration, or database-route validation failures. Evidence is written only
 after one attempt passes health, required capabilities, the database-backed
 route, and the exact packaged Git SHA together.
@@ -25,3 +25,7 @@ route, and the exact packaged Git SHA together.
 - Mixed old/new endpoint responses cannot be combined into passing evidence.
 - Exhausted retries retain fail-closed behavior and publish no live evidence.
 - Production deployment and verification behavior is unchanged.
+
+The retry window reflects observed workers.dev convergence: one successful
+100% deployment still served the prior exact candidate after 12 seconds and
+converged within the following 30 seconds.
