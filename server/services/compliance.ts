@@ -200,8 +200,37 @@ function normalizedPath(value: string, label: string): string {
   return path;
 }
 
-function providerFailure(message: string): AppError {
-  return new AppError(502, "upstream_error", message);
+class ShipCompliantProviderError extends AppError {
+  readonly failureKind: "provider-error" | "timeout";
+
+  constructor(
+    message: string,
+    failureKind: "provider-error" | "timeout" = "provider-error",
+  ) {
+    super(502, "upstream_error", message);
+    this.failureKind = failureKind;
+  }
+}
+
+function providerFailure(
+  message: string,
+  failureKind: "provider-error" | "timeout" = "provider-error",
+): AppError {
+  return new ShipCompliantProviderError(message, failureKind);
+}
+
+function isDeadlineAbort(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "AbortError" || error.name === "TimeoutError")
+  );
+}
+
+export function isShipCompliantTimeout(error: unknown): boolean {
+  return (
+    error instanceof ShipCompliantProviderError &&
+    error.failureKind === "timeout"
+  );
 }
 
 function remainingRequestBudget(deadlineAt: number): number {
@@ -371,6 +400,10 @@ export class ShipCompliantProvider implements ComplianceProvider {
       this.configuration.tokenPath,
     );
     let response: globalThis.Response;
+    let payload: {
+      access_token?: unknown;
+      expires_in?: unknown;
+    };
     try {
       response = await this.fetcher(tokenUrl, {
         body: new URLSearchParams({ grant_type: "client_credentials" }),
@@ -385,13 +418,19 @@ export class ShipCompliantProvider implements ComplianceProvider {
         redirect: "error",
         signal: AbortSignal.timeout(remainingRequestBudget(deadlineAt)),
       });
-    } catch {
+      payload = (await response.json().catch((error: unknown) => {
+        if (isDeadlineAbort(error)) throw error;
+        return {};
+      })) as typeof payload;
+    } catch (error) {
+      if (isDeadlineAbort(error)) {
+        throw providerFailure(
+          "ShipCompliant authentication timed out.",
+          "timeout",
+        );
+      }
       throw providerFailure("ShipCompliant authentication is unavailable.");
     }
-    const payload = (await response.json().catch(() => ({}))) as {
-      access_token?: unknown;
-      expires_in?: unknown;
-    };
     if (
       !response.ok ||
       typeof payload.access_token !== "string" ||
@@ -418,13 +457,17 @@ export class ShipCompliantProvider implements ComplianceProvider {
     const deadlineAt = Date.now() + REQUEST_DEADLINE_MS;
     const accessToken = await this.accessToken(deadlineAt);
     if (Date.now() >= deadlineAt) {
-      throw providerFailure("ShipCompliant compliance verification timed out.");
+      throw providerFailure(
+        "ShipCompliant compliance verification timed out.",
+        "timeout",
+      );
     }
     const checkUrl = absoluteEndpoint(
       this.configuration.baseUrl,
       this.configuration.checkPath,
     );
     let response: globalThis.Response;
+    let payload: unknown;
     try {
       response = await this.fetcher(checkUrl, {
         body: JSON.stringify({
@@ -470,10 +513,21 @@ export class ShipCompliantProvider implements ComplianceProvider {
         redirect: "error",
         signal: AbortSignal.timeout(remainingRequestBudget(deadlineAt)),
       });
-    } catch {
-      throw providerFailure("ShipCompliant compliance verification timed out.");
+      payload = await response.json().catch((error: unknown) => {
+        if (isDeadlineAbort(error)) throw error;
+        return {};
+      });
+    } catch (error) {
+      if (isDeadlineAbort(error)) {
+        throw providerFailure(
+          "ShipCompliant compliance verification timed out.",
+          "timeout",
+        );
+      }
+      throw providerFailure(
+        "ShipCompliant compliance verification is unavailable.",
+      );
     }
-    const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw providerFailure("ShipCompliant rejected the compliance request.");
     }
