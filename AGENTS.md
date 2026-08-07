@@ -151,6 +151,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
+Verification: <commands run and results, e.g. "npm run check; 585/585 Vitest; 155 passed Playwright/axe">
 Verification: <commands run and results, e.g. "npm run check; 596/596 Vitest; 155 passed Playwright/axe">
 ```
 
@@ -250,6 +251,11 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 ## 6. Quality Assurance
 
+### Current verified test counts (2026-08-06 Gate 8 controller baseline)
+
+| Suite | Count | Command |
+|-------|-------|---------|
+| Vitest unit/integration | 585 | `npm run check` |
 ### Current verified test counts (2026-08-06 Resend provisioning baseline)
 
 | Suite | Count | Command |
