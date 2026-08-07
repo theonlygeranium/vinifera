@@ -78,10 +78,17 @@ surface:
   that **weakens a hard-stop workflow or `.octopus` rule**.
 - Legal/regulatory or materially-undefined product decisions.
 
-The delivery-risk classifier intentionally continues to mark `.github/`,
-`.octopus/`, `supabase/migrations/`, and auth/billing/credential/DNS paths as
-high-risk so they are **never auto-merged** and always reach the owner. This is
-deliberate and consistent with §4.
+The delivery-risk classifier
+(`.github/scripts/delivery-policy.mjs`) continues to mark `.octopus/`,
+`supabase/migrations/`, deletions, and auth/billing/credential/DNS runtime paths
+as **high-risk**, so those are never auto-merged and always reach the owner.
+Note that pure `.github/workflows/` + `.github/scripts/` + docs edits that carry
+a `CHANGELOG.md` entry classify as the **medium-risk `release-control-tested`**
+fast-lane (this PR is an example); they are therefore auto-merge *eligible* but
+still gated by the **owner-held `codex-auto-merge` label**, the emergency-label
+check, and this ADR's §4 lock. In other words, changes to these governance and
+CI-control files are governed by owner authority + the locked directive rather
+than by a hard high-risk classification.
 
 ### 4. Locked decision — do not reverse without owner approval
 
