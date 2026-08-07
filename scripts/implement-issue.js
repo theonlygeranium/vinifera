@@ -100,25 +100,26 @@ Constraints:
   console.log(`\n\n📊 Run completed:`);
   console.log(`   Status: ${finalRun.status}`);
   console.log(`   Duration: ${finalRun.durationMs ? (finalRun.durationMs / 1000).toFixed(1) + "s" : "N/A"}`);
-  if (finalRun.pushedBranches?.length) {
-    console.log(`   Pushed branches: ${finalRun.pushedBranches.join(", ")}`);
+  if (finalRun.git?.branches?.length) {
+    console.log(`   Pushed branches: ${finalRun.git.branches.map(b => b.branch).join(", ")}`);
   }
-  if (finalRun.prUrl) {
-    console.log(`   PR URL: ${finalRun.prUrl}`);
+  const prUrl = finalRun.git?.branches?.find(b => b.prUrl)?.prUrl;
+  if (prUrl) {
+    console.log(`   PR URL: ${prUrl}`);
   }
   if (finalRun.result) {
     console.log(`   Result: ${finalRun.result.substring(0, 200)}...`);
   }
 
   // If a PR was created, optionally trigger Bugbot review
-  if (finalRun.prUrl) {
+  if (prUrl) {
     const bugbotKey = process.env.CURSOR_API_KEY; // Bugbot uses the same key (requires admin:* scope)
     console.log(`\n🔍 Triggering Bugbot review${args.dryRunBugbot ? " (dry-run)" : ""}...`);
     try {
       const bugbot = new BugbotClient(bugbotKey);
       const reviewResult = args.dryRunBugbot
-        ? await bugbot.dryRunReview(finalRun.prUrl)
-        : await bugbot.triggerReview(finalRun.prUrl);
+        ? await bugbot.dryRunReview(prUrl)
+        : await bugbot.triggerReview(prUrl);
       console.log(`   Review queued: ${reviewResult.message}`);
       console.log(`   Request ID: ${reviewResult.request_id}`);
     } catch (err) {
@@ -133,8 +134,8 @@ Constraints:
     agentId: agent.id,
     runId: finalRun.id,
     status: finalRun.status,
-    pushedBranches: finalRun.pushedBranches || [],
-    prUrl: finalRun.prUrl || null,
+    pushedBranches: finalRun.git?.branches?.map(b => b.branch) || [],
+    prUrl: prUrl || null,
     durationMs: finalRun.durationMs || null,
   }, null, 2));
 

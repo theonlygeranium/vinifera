@@ -83,7 +83,7 @@ class CursorClient {
   /**
    * List Cloud Agents.
    * @param {Object} query - { limit?, cursor?, prUrl?, includeArchived? }
-   * @returns {Promise<{ data: Array, cursor: string }>}
+   * @returns {Promise<{ items: Array, nextCursor: string }>}
    */
   async listAgents(query = {}) {
     return this._request("GET", "/v1/agents", null, query);
@@ -113,7 +113,7 @@ class CursorClient {
    * List runs for an agent.
    * @param {string} agentId
    * @param {Object} query - { limit?, cursor? }
-   * @returns {Promise<{ data: Array, cursor: string }>}
+   * @returns {Promise<{ items: Array, nextCursor: string }>}
    */
   async listRuns(agentId, query = {}) {
     return this._request("GET", `/v1/agents/${agentId}/runs`, null, query);
@@ -123,7 +123,7 @@ class CursorClient {
    * Get a specific run.
    * @param {string} agentId
    * @param {string} runId
-   * @returns {Promise<Object>} Run object with status, result, pushedBranches
+   * @returns {Promise<Object>} Run object with status, result, git.branches
    */
   async getRun(agentId, runId) {
     return this._request("GET", `/v1/agents/${agentId}/runs/${runId}`);
@@ -141,7 +141,7 @@ class CursorClient {
 
   /**
    * Wait for a run to reach a terminal state.
-   * Polls the run status until COMPLETED, ERROR, or CANCELLED.
+   * Polls the run status until FINISHED, ERROR, CANCELLED, or EXPIRED.
    * @param {string} agentId
    * @param {string} runId
    * @param {Object} options - { pollIntervalMs: 3000, timeoutMs: 600000, onPoll: (run) => void }
@@ -155,7 +155,7 @@ class CursorClient {
     } = options;
 
     const startTime = Date.now();
-    const terminalStates = ["COMPLETED", "ERROR", "CANCELLED", "completed", "error", "cancelled"];
+    const terminalStates = ["FINISHED", "ERROR", "CANCELLED", "EXPIRED", "finished", "error", "cancelled", "expired"];
 
     while (true) {
       const run = await this.getRun(agentId, runId);
@@ -210,7 +210,7 @@ class CursorClient {
       if (err.status === 409 && cancelIfBusy) {
         // Agent is busy — find and cancel the active run
         const runs = await this.listRuns(agentId, { limit: 1 });
-        const activeRun = runs.data?.[0];
+        const activeRun = runs.items?.[0];
         if (activeRun && ["RUNNING", "CREATING", "running", "creating"].includes(activeRun.status)) {
           await this.cancelRun(agentId, activeRun.id);
         }

@@ -77,8 +77,9 @@ async function main() {
     if (error) {
       console.log(`  ❌ ${task.name}: ERROR — ${error.message}`);
     } else {
-      console.log(`  ${run.status === "COMPLETED" || run.status === "completed" ? "✅" : "⚠️"} ${task.name}: ${run.status}`);
-      if (run.prUrl) console.log(`     PR: ${run.prUrl}`);
+      console.log(`  ${run.status === "FINISHED" || run.status === "finished" ? "✅" : "⚠️"} ${task.name}: ${run.status}`);
+      const prUrl = run?.git?.branches?.find(b => b.prUrl)?.prUrl;
+      if (prUrl) console.log(`     PR: ${prUrl}`);
     }
   }
 
@@ -88,8 +89,8 @@ async function main() {
     agentId: agent?.id,
     runId: run?.id,
     status: run?.status || "ERROR",
-    prUrl: run?.prUrl || null,
-    pushedBranches: run?.pushedBranches || [],
+    prUrl: run?.git?.branches?.find(b => b.prUrl)?.prUrl || null,
+    pushedBranches: run?.git?.branches?.map(b => b.branch) || [],
     error: error?.message,
   }));
 

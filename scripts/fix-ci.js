@@ -98,8 +98,8 @@ Instructions:
 
   console.log(`\n\n📊 Fix completed:`);
   console.log(`   Status: ${finalRun.status}`);
-  if (finalRun.pushedBranches?.length) {
-    console.log(`   Pushed to: ${finalRun.pushedBranches.join(", ")}`);
+  if (finalRun.git?.branches?.length) {
+    console.log(`   Pushed to: ${finalRun.git.branches.map(b => b.branch).join(", ")}`);
   }
   if (finalRun.result) {
     console.log(`   Result: ${finalRun.result.substring(0, 300)}`);
