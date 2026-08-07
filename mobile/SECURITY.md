@@ -29,10 +29,11 @@ guard fails closed if secure storage is requested outside a native shell.
 - bundle/package ID: `ai.edstratumlabs.vinifera`;
 - version: `0.5.0` (`5`);
 - only custom scheme: `vinifera.ai`;
-- only universal-link host: `vinifera.edstratumlabs.ai`; and
+- only universal-link host: `vinifera-live.edstratumlabs.ai`; and
 - only external routes: `/portal`, `/portal/auth`, and `/app/fulfillment`.
 
-The runtime rejects lookalike schemes, sibling subdomains, unknown hosts, and
+The runtime rejects the separate `vinifera.edstratumlabs.ai` marketing host,
+lookalike schemes, sibling subdomains, unknown hosts, and
 routes outside that exact list. iOS AASA, Android App Links, native manifests,
 the mobile authentication redirect, Capacitor configuration, and native
 version fields are checked by `npm run qa:mobile:identity`. Changing any of

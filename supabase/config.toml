@@ -49,8 +49,8 @@ additional_redirect_urls = [
   "http://localhost:8788/api/auth/member/callback",
   "http://127.0.0.1:8788/api/auth/staff/callback",
   "http://127.0.0.1:8788/api/auth/member/callback",
-  "https://vinifera.edstratumlabs.ai/api/auth/staff/callback",
-  "https://vinifera.edstratumlabs.ai/api/auth/member/callback",
+  "https://vinifera-live.edstratumlabs.ai/api/auth/staff/callback",
+  "https://vinifera-live.edstratumlabs.ai/api/auth/member/callback",
 ]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
