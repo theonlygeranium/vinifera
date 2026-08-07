@@ -572,6 +572,7 @@ from a fresh checkout while leaving the generated artifact untracked.
 
 The current credential-independent architecture gate passes generated Worker
 types, TypeScript, 586/586 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+types, TypeScript, 593/593 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
 types, TypeScript, 585/585 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
 types, TypeScript, 596/596 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
 3 199/199, Phase 4 159/159, Phase 5 515/515 embedded PostgreSQL/pgTAP
@@ -583,6 +584,9 @@ release controls pass 15/15, mobile-release controls 7/7, mobile-acceptance
 controls 11/11, Stripe catalog controls 16/16, and mobile identity passes.
 These are local architecture results, not service-connection or hosted exit
 evidence.
+production-release controls pass 24/24, mobile-release controls 8/8, Stripe catalog
+controls 16/16, and mobile identity passes. These are local architecture
+results, not service-connection or hosted exit evidence.
 
 `npm run build` runs Vite, then copies the marketing site, investor guide, and static metadata into `dist/`. The original `app` prototype is retained in source as a visual reference and is not included in the authenticated production bundle.
 

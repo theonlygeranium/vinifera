@@ -4,11 +4,7 @@
   "versionCode": 5,
   "versionName": "0.5.0",
   "customScheme": "vinifera.ai",
-  "universalLinkHost": "vinifera.edstratumlabs.ai",
-  "externalDeepLinkPaths": [
-    "/portal",
-    "/portal/auth",
-    "/app/fulfillment"
-  ],
+  "universalLinkHost": "vinifera-live.edstratumlabs.ai",
+  "externalDeepLinkPaths": ["/portal", "/portal/auth", "/app/fulfillment"],
   "mobileAuthRedirectPath": "/portal/auth"
 }

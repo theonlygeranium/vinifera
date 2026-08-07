@@ -123,20 +123,39 @@ jobs:
           MOBILE_ANDROID_PACKAGE_NAME: ${{ secrets.MOBILE_ANDROID_PACKAGE_NAME }}
           MOBILE_ANDROID_SIGNING_CERT_SHA256: ${{ secrets.MOBILE_ANDROID_SIGNING_CERT_SHA256 }}
           MOBILE_BUILD_CONFIRMATION: ${{ inputs.build_confirmation }}
-          MOBILE_BUILD_PROFILE: production-authorized
+          MOBILE_BUILD_PROFILE: production-precutover
           MOBILE_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.MOBILE_GOOGLE_SERVICES_JSON_BASE64 }}
           MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "true"
           MOBILE_RELEASE_GIT_SHA: ${{ inputs.git_sha }}
           MOBILE_RELEASE_ACTION: ${{ inputs.release_action }}
           MOBILE_UPLOAD_CONFIRMATION: ${{ inputs.upload_confirmation }}
-          VITE_MOBILE_API_ORIGIN: https://vinifera.edstratumlabs.ai
+          VITE_MOBILE_API_ORIGIN: ${{ vars.PRODUCTION_WORKER_ORIGIN }}
         run: node scripts/mobile-release.mjs validate-environment --platform android
 
-      - name: Build production-authorized native web bundle
+      - name: Verify exact pre-cutover Android Worker and association routes
         env:
-          MOBILE_BUILD_PROFILE: production-authorized
+          MOBILE_ANDROID_KEYSTORE_BASE64: ${{ secrets.MOBILE_ANDROID_KEYSTORE_BASE64 }}
+          MOBILE_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.MOBILE_ANDROID_KEYSTORE_PASSWORD }}
+          MOBILE_ANDROID_KEY_ALIAS: ${{ secrets.MOBILE_ANDROID_KEY_ALIAS }}
+          MOBILE_ANDROID_KEY_PASSWORD: ${{ secrets.MOBILE_ANDROID_KEY_PASSWORD }}
+          MOBILE_ANDROID_PACKAGE_NAME: ${{ secrets.MOBILE_ANDROID_PACKAGE_NAME }}
+          MOBILE_ANDROID_SIGNING_CERT_SHA256: ${{ secrets.MOBILE_ANDROID_SIGNING_CERT_SHA256 }}
+          MOBILE_BUILD_CONFIRMATION: ${{ inputs.build_confirmation }}
+          MOBILE_BUILD_PROFILE: production-precutover
+          MOBILE_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.MOBILE_GOOGLE_SERVICES_JSON_BASE64 }}
           MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "true"
-          VITE_MOBILE_API_ORIGIN: https://vinifera.edstratumlabs.ai
+          MOBILE_RELEASE_ACTION: ${{ inputs.release_action }}
+          MOBILE_RELEASE_GIT_SHA: ${{ inputs.git_sha }}
+          MOBILE_UPLOAD_CONFIRMATION: ${{ inputs.upload_confirmation }}
+          GOOGLE_PLAY_RELEASE_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_RELEASE_SERVICE_ACCOUNT_JSON_BASE64 }}
+          VITE_MOBILE_API_ORIGIN: ${{ vars.PRODUCTION_WORKER_ORIGIN }}
+        run: node scripts/mobile-release.mjs verify-precutover-origin --platform android --output "$RUNNER_TEMP/android-precutover-origin.json"
+
+      - name: Build pre-cutover production Worker native web bundle
+        env:
+          MOBILE_BUILD_PROFILE: production-precutover
+          MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "true"
+          VITE_MOBILE_API_ORIGIN: ${{ vars.PRODUCTION_WORKER_ORIGIN }}
         run: |
           npm run build:mobile:web
           npx cap sync android
@@ -221,7 +240,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: android-mobile-release-evidence
-          path: ${{ runner.temp }}/android-mobile-release-evidence.json
+          path: |
+            ${{ runner.temp }}/android-mobile-release-evidence.json
+            ${{ runner.temp }}/android-precutover-origin.json
           if-no-files-found: error
           retention-days: 14
 
@@ -262,7 +283,7 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           MOBILE_APPLE_TEAM_ID: ${{ secrets.MOBILE_APPLE_TEAM_ID }}
           MOBILE_BUILD_CONFIRMATION: ${{ inputs.build_confirmation }}
-          MOBILE_BUILD_PROFILE: production-authorized
+          MOBILE_BUILD_PROFILE: production-precutover
           MOBILE_IOS_APP_STORE_PROFILE_BASE64: ${{ secrets.MOBILE_IOS_APP_STORE_PROFILE_BASE64 }}
           MOBILE_IOS_BUNDLE_ID: ${{ secrets.MOBILE_IOS_BUNDLE_ID }}
           MOBILE_IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.MOBILE_IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
@@ -271,14 +292,33 @@ jobs:
           MOBILE_RELEASE_GIT_SHA: ${{ inputs.git_sha }}
           MOBILE_RELEASE_ACTION: ${{ inputs.release_action }}
           MOBILE_UPLOAD_CONFIRMATION: ${{ inputs.upload_confirmation }}
-          VITE_MOBILE_API_ORIGIN: https://vinifera.edstratumlabs.ai
+          VITE_MOBILE_API_ORIGIN: ${{ vars.PRODUCTION_WORKER_ORIGIN }}
         run: node scripts/mobile-release.mjs validate-environment --platform ios
 
-      - name: Build production-authorized native web bundle
+      - name: Verify exact pre-cutover iOS Worker and association routes
         env:
-          MOBILE_BUILD_PROFILE: production-authorized
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY_BASE64 }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          MOBILE_APPLE_TEAM_ID: ${{ secrets.MOBILE_APPLE_TEAM_ID }}
+          MOBILE_BUILD_CONFIRMATION: ${{ inputs.build_confirmation }}
+          MOBILE_BUILD_PROFILE: production-precutover
+          MOBILE_IOS_APP_STORE_PROFILE_BASE64: ${{ secrets.MOBILE_IOS_APP_STORE_PROFILE_BASE64 }}
+          MOBILE_IOS_BUNDLE_ID: ${{ secrets.MOBILE_IOS_BUNDLE_ID }}
+          MOBILE_IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.MOBILE_IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          MOBILE_IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.MOBILE_IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
           MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "true"
-          VITE_MOBILE_API_ORIGIN: https://vinifera.edstratumlabs.ai
+          MOBILE_RELEASE_ACTION: ${{ inputs.release_action }}
+          MOBILE_RELEASE_GIT_SHA: ${{ inputs.git_sha }}
+          MOBILE_UPLOAD_CONFIRMATION: ${{ inputs.upload_confirmation }}
+          VITE_MOBILE_API_ORIGIN: ${{ vars.PRODUCTION_WORKER_ORIGIN }}
+        run: node scripts/mobile-release.mjs verify-precutover-origin --platform ios --output "$RUNNER_TEMP/ios-precutover-origin.json"
+
+      - name: Build pre-cutover production Worker native web bundle
+        env:
+          MOBILE_BUILD_PROFILE: production-precutover
+          MOBILE_PRODUCTION_ORIGIN_AUTHORIZED: "true"
+          VITE_MOBILE_API_ORIGIN: ${{ vars.PRODUCTION_WORKER_ORIGIN }}
         run: |
           npm run build:mobile:web
           npx cap sync ios
@@ -477,7 +517,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ios-mobile-release-evidence
-          path: ${{ runner.temp }}/ios-mobile-release-evidence.json
+          path: |
+            ${{ runner.temp }}/ios-mobile-release-evidence.json
+            ${{ runner.temp }}/ios-precutover-origin.json
           if-no-files-found: error
           retention-days: 14
 
