@@ -223,6 +223,7 @@ export function isAuthorityHighRiskPath(path) {
       "config/shipcompliant-staging-acceptance-policy.json",
       "config/resend-staging-provisioning-policy.json",
       "package-lock.json",
+      "scripts/hosted-gate14-integration-acceptance.mjs",
       "wrangler.jsonc",
     ].includes(path)
   ) {

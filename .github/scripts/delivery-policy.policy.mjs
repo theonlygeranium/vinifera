@@ -496,6 +496,7 @@ test("minimum mandated security and delivery paths are high-risk", () => {
     "supabase/migrations/999.sql",
     ".octopus/config.yml",
     "scripts/credential-envelope-rotation.mjs",
+    "scripts/hosted-gate14-integration-acceptance.mjs",
     "scripts/hosted-gate6-phase2-acceptance.mjs",
     "scripts/production-release.mjs",
     "config/gate6-staging-acceptance-policy.json",

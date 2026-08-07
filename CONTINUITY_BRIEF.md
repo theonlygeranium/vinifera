@@ -942,6 +942,16 @@ criterion can pass.
 
 ## Activation gates
 
+Gate 14 now has a source-complete protected provider-lifecycle acceptance
+controller. Its checked-in policy and one-shot switch remain disabled. A pass
+requires four active winery-specific encrypted connections, the complete
+Klaviyo/Avalara/Meta evidence matrix, and QuickBooks OAuth plus serialized
+rolling-token lifecycle against one exact tenant, a tree-identical staging
+merge/candidate pair, and database-attested stored credential envelopes.
+The checked-in acceptance scope excludes the candidate SHA; that revision is
+bound only after immutability by the protected manifest/dispatch and exact
+staging-tree/live-runtime checks, avoiding a self-referential Git hash.
+
 The code must remain fail-closed until these external connections are active:
 
 1. Add staging-environment Supabase management credentials, then set the
