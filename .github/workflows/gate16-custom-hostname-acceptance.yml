@@ -1,0 +1,82 @@
+name: Gate 16 custom hostname acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      control_sha: { description: Exact canonical main SHA, required: true, type: string }
+      candidate_revision: { description: Exact deployed staging SHA, required: true, type: string }
+      confirmation: { description: Exact Gate 16 runbook confirmation, required: true, type: string }
+permissions: { contents: read, deployments: none }
+concurrency: { group: vinifera-gate16-custom-hostname-acceptance, cancel-in-progress: false }
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: { name: staging-acceptance-control, deployment: false }
+    steps:
+      - name: Validate immutable canonical source
+        env: { CONTROL_SHA: "${{ inputs.control_sha }}", CANDIDATE_REVISION: "${{ inputs.candidate_revision }}" }
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "theonlygeranium/vinifera" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$CONTROL_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { fetch-depth: 0, persist-credentials: false, ref: "${{ inputs.control_sha }}" }
+      - name: Verify canonical main and exact staging candidate
+        env: { CONTROL_SHA: "${{ inputs.control_sha }}", CANDIDATE_REVISION: "${{ inputs.candidate_revision }}" }
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$CONTROL_SHA" ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main staging:refs/remotes/origin/staging
+          [[ "$(git rev-parse origin/main)" == "$CONTROL_SHA" ]]
+          [[ "$(git rev-parse origin/staging)" == "$CANDIDATE_REVISION" ]]
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with: { node-version: 22.22.0, cache: npm }
+      - run: npm ci
+      - name: Install browser for loaded-resource evidence
+        run: npx playwright install --with-deps chromium
+      - run: npm run qa:gate16-acceptance
+      - name: Revalidate canonical authority before acceptance
+        env: { CONTROL_SHA: "${{ inputs.control_sha }}", CANDIDATE_REVISION: "${{ inputs.candidate_revision }}" }
+        run: |
+          set -euo pipefail
+          git fetch --force --no-tags origin main:refs/remotes/origin/main staging:refs/remotes/origin/staging
+          [[ "$(git rev-parse origin/main)" == "$CONTROL_SHA" ]]
+          [[ "$(git rev-parse origin/staging)" == "$CANDIDATE_REVISION" ]]
+      - name: Run protected custom-hostname acceptance
+        env:
+          GATE16_ACCEPTANCE_CONFIRMATION: "${{ inputs.confirmation }}"
+          GATE16_CANDIDATE_REVISION: "${{ inputs.candidate_revision }}"
+          GATE16_CONTROL_SHA: "${{ inputs.control_sha }}"
+          CLOUDFLARE_API_TOKEN: "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          STAGING_GATE16_ACCEPTANCE_ENABLED: "${{ vars.STAGING_GATE16_ACCEPTANCE_ENABLED }}"
+          STAGING_GATE16_ACCEPTANCE_MANIFEST: "${{ secrets.STAGING_GATE16_ACCEPTANCE_MANIFEST }}"
+          STAGING_GATE16_ACCEPTANCE_MANIFEST_SHA256: "${{ secrets.STAGING_GATE16_ACCEPTANCE_MANIFEST_SHA256 }}"
+        run: node scripts/hosted-gate16-custom-hostname-acceptance.mjs --output "$RUNNER_TEMP/gate16-custom-hostname-acceptance.json"
+      - name: Revalidate authority before retaining evidence
+        env: { CONTROL_SHA: "${{ inputs.control_sha }}", CANDIDATE_REVISION: "${{ inputs.candidate_revision }}" }
+        run: |
+          set -uo pipefail
+          report="$RUNNER_TEMP/gate16-custom-hostname-acceptance.json"
+          authority_error=""
+          if ! git fetch --force --no-tags origin main:refs/remotes/origin/main staging:refs/remotes/origin/staging; then
+            authority_error="Canonical ref refresh failed after acceptance."
+          elif [[ "$(git rev-parse origin/main 2>/dev/null || true)" != "$CONTROL_SHA" || "$(git rev-parse origin/staging 2>/dev/null || true)" != "$CANDIDATE_REVISION" ]]; then
+            authority_error="Canonical main or staging authority drifted after acceptance."
+          fi
+          if [[ -n "$authority_error" ]]; then
+            if jq --arg blocker "$authority_error" '.passed = false | .completionClaimed = false | .blockers += [$blocker]' "$report" > "$report.invalid"; then
+              mv "$report.invalid" "$report"
+            else
+              mv "$report" "$report.unretained"
+            fi
+            exit 1
+          fi
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: gate16-custom-hostname-${{ inputs.candidate_revision }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gate16-custom-hostname-acceptance.json
+          if-no-files-found: error
+          retention-days: 90

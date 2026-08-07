@@ -62,7 +62,10 @@ import {
   uniqueMobileClubBrandId,
   validatedTheme,
 } from "../../server/services/integrations";
-import { ProductionIntegrationService } from "../../server/services/webhooks";
+import {
+  portalBrandIdentity,
+  ProductionIntegrationService,
+} from "../../server/services/webhooks";
 import { providerForJob } from "../../server/services/integration-runtime";
 import { brandAllowsOperationalAccess } from "../../server/services/core-club";
 import {
@@ -346,6 +349,17 @@ describe("mobile bootstrap tenant isolation", () => {
 });
 
 describe("provider activation runtime seams", () => {
+  it("publishes only exact tenant and brand identity digests for public branding", async () => {
+    const identity = await portalBrandIdentity({
+      brand_id: integrationId,
+      organization_id: organizationId,
+    });
+    expect(identity.brandIdSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(identity.organizationIdSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(identity)).not.toContain(integrationId);
+    expect(JSON.stringify(identity)).not.toContain(organizationId);
+  });
+
   it("resolves only allowlisted env credential bindings without exposing values", () => {
     const credentials = resolveExternalIntegrationCredentials<{
       accessToken: string;
