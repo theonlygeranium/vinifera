@@ -79,6 +79,7 @@ const RELEASE_CONTROL_FASTLANE_PREFIXES = Object.freeze([
 
 const OPERATOR_TOOLING_FILES = new Set([
   ".github/pull_request_template.md",
+  "AGENTS.md",
   "CHANGELOG.md",
   "IMPLEMENTATION_GUIDE.md",
   "package.json",

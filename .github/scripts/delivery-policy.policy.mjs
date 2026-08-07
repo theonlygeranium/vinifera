@@ -258,6 +258,7 @@ test("cursor integration tooling selects operator-tooling lane with changelog", 
     record("A", "openapi/cursor-cloud-agents-connector.json"),
     record("A", "scripts/cursor-client.js"),
     record("A", "scripts/implement-issue.js"),
+    record("A", "AGENTS.md"),
     record("A", "IMPLEMENTATION_GUIDE.md"),
     record("A", "CHANGELOG.md"),
   ]);
