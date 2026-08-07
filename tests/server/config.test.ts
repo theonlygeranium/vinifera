@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { createHash } from "node:crypto";
 import {
   assertAvalaraBaseUrlEnvironment,
   assertProviderEnvironment,
@@ -12,100 +11,12 @@ import {
   type ProtectedProvider,
 } from "../../server/config";
 import { securitySecretTestFixture } from "../fixtures/security-secrets";
-import { encryptIntegrationCredentials } from "../../server/integrations/security";
 
 describe("hosted environment security boundaries", () => {
   it("reports only a SHA-256 binding for the runtime Supabase origin", async () => {
-    const report = await getRuntimeConfigurationReport({
-      SUPABASE_URL: "https://project-ref.supabase.co/path?ignored=true",
-    });
-    expect(report.database.bindingHashes).toEqual({
-      supabaseUrlSha256:
-        "9dcce8c56abe928a625bf27c35eb9407f96c853744564d92b4b3c5e650c062b5",
-    });
+    const report = await getRuntimeConfigurationReport({ SUPABASE_URL: "https://project-ref.supabase.co/path?ignored=true" });
+    expect(report.database.bindingHashes).toEqual({ supabaseUrlSha256: "9dcce8c56abe928a625bf27c35eb9407f96c853744564d92b4b3c5e650c062b5" });
     expect(JSON.stringify(report)).not.toContain("project-ref.supabase.co");
-  });
-  it("reports only key-version set and active-version bindings for the runtime keyring", async () => {
-    const environment = {
-      INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION: "key-2026-07",
-      INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS: JSON.stringify({
-        "key-2026-06": Buffer.alloc(32, 1).toString("base64"),
-        "key-2026-07": Buffer.alloc(32, 2).toString("base64"),
-      }),
-    };
-    const proofs = await Promise.all(
-      ["avalara", "klaviyo", "meta", "quickbooks"].map(
-        async (integrationType, index) => {
-          const targetId = `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
-          return {
-            brandId: "00000000-0000-4000-8000-000000000098",
-            integrationType,
-            organizationId: "00000000-0000-4000-8000-000000000099",
-            targetId,
-            envelope: await encryptIntegrationCredentials(
-              environment,
-              {
-                integrationType,
-                organizationId: "00000000-0000-4000-8000-000000000099",
-                targetId,
-              },
-              { token: "proof" },
-            ),
-          };
-        },
-      ),
-    );
-    const report = await getRuntimeConfigurationReport({
-      ...environment,
-      INTEGRATION_CREDENTIAL_ACCEPTANCE_PROOFS: JSON.stringify(proofs),
-    });
-    expect(report.integrationEncryption.bindingHashes).toEqual({
-      acceptedConnectionIdsSha256:
-        "66b10ee832884325130488d8ce667e59deaac41f27a1b4c0986a8ab2698cc296",
-      acceptedEnvelopeScopeSha256: createHash("sha256")
-        .update(
-          JSON.stringify(
-            proofs
-              .map((proof) => ({
-                brandId: proof.brandId,
-                ciphertextSha256: createHash("sha256")
-                  .update(proof.envelope.ciphertext)
-                  .digest("hex"),
-                integrationType: proof.integrationType,
-                ivSha256: createHash("sha256")
-                  .update(proof.envelope.iv)
-                  .digest("hex"),
-                keyIdSha256: createHash("sha256")
-                  .update(proof.envelope.keyVersion)
-                  .digest("hex"),
-                organizationId: proof.organizationId,
-                targetId: proof.targetId,
-              }))
-              .sort((left, right) =>
-                left.integrationType.localeCompare(right.integrationType),
-              ),
-          ),
-        )
-        .digest("hex"),
-      activeVersionSha256:
-        "f0fcbf45b0b7cf33ff3f80c8b73985b37512c61233a7bff26270d37bd20179db",
-      keyringVersionsSha256:
-        "496c9e07951ec840998c847141323442cff0224522265661d4c757570e6285b9",
-    });
-    expect(JSON.stringify(report)).not.toContain(
-      Buffer.alloc(32, 2).toString("base64"),
-    );
-    expect(JSON.stringify(report)).not.toContain("key-2026-07");
-  });
-  it("withholds runtime keyring evidence for malformed material or undecryptable proofs", async () => {
-    const malformed = await getRuntimeConfigurationReport({
-      INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION: "key-2026-07",
-      INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS: JSON.stringify({
-        "key-2026-07": "wrong-length",
-      }),
-      INTEGRATION_CREDENTIAL_ACCEPTANCE_PROOFS: "[]",
-    });
-    expect(malformed.integrationEncryption.bindingHashes).toBeUndefined();
   });
   it("uses secure cookies for staging and production only", () => {
     expect(usesSecureCookies({ APP_ENV: "development" })).toBe(false);
@@ -233,11 +144,17 @@ describe("hosted environment security boundaries", () => {
 
     expect(missing.security).toEqual({
       configured: false,
-      missing: ["RATE_LIMIT_PEPPER", "MEMBER_BRAND_CONTEXT_SECRET"],
+      missing: [
+        "RATE_LIMIT_PEPPER",
+        "MEMBER_BRAND_CONTEXT_SECRET",
+      ],
     });
     expect(reused.security).toEqual({
       configured: false,
-      missing: ["RATE_LIMIT_PEPPER", "MEMBER_BRAND_CONTEXT_SECRET"],
+      missing: [
+        "RATE_LIMIT_PEPPER",
+        "MEMBER_BRAND_CONTEXT_SECRET",
+      ],
     });
     expect(configured.security).toEqual({
       configured: true,
@@ -251,7 +168,9 @@ describe("hosted environment security boundaries", () => {
     });
 
     expect(report.compliance.configured).toBe(false);
-    expect(report.compliance.missing).toContain("SHIPCOMPLIANT_TOKEN_PATH");
+    expect(report.compliance.missing).toContain(
+      "SHIPCOMPLIANT_TOKEN_PATH",
+    );
   });
 
   it("allows Avalara sandbox but rejects its production endpoint in staging", () => {

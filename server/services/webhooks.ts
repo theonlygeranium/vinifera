@@ -759,6 +759,20 @@ function randomOpaqueToken(): string {
   );
 }
 
+export async function portalBrandIdentity(row: Record<string, unknown>): Promise<{
+  brandIdSha256: string;
+  organizationIdSha256: string;
+}> {
+  const brandId = String(row.brand_id ?? "");
+  const organizationId = String(row.organization_id ?? "");
+  assertUuid(brandId, "Resolved brand");
+  assertUuid(organizationId, "Resolved organization");
+  return {
+    brandIdSha256: await sha256(brandId),
+    organizationIdSha256: await sha256(organizationId),
+  };
+}
+
 export class ProductionIntegrationService
   extends ProductionAnalyticsService
   implements IntegrationService
@@ -842,6 +856,7 @@ export class ProductionIntegrationService
         primaryColor: row.primary_color,
         secondaryColor: row.secondary_color,
       },
+      identity: await portalBrandIdentity(row),
       mode: "custom",
     };
   }
@@ -1081,15 +1096,14 @@ export class ProductionIntegrationService
     let candidate =
       supplied ?? (header && header !== "all" ? header.trim() : null);
     if (!candidate) {
-      const { data, error } = await this.staffClient()
-        .from("organizations")
-        .select("default_brand_id")
-        .eq("id", this.organizationId(principal))
-        .single();
-      if (error || !data?.default_brand_id) {
+      const { data, error } = await this.admin.rpc(
+        "resolve_default_brand_id",
+        { p_organization_id: this.organizationId(principal) },
+      );
+      if (error || !data) {
         throw databaseError("The default brand could not be resolved.");
       }
-      candidate = String(data.default_brand_id);
+      candidate = String(data);
     }
     assertUuid(candidate, "Brand");
     const { data: brand, error: brandError } = await this.staffClient()
@@ -1931,6 +1945,8 @@ export class ProductionIntegrationService
           .select(
             "id,registered,registration_count,response_hash,verified_at",
           )
+          .eq("organization_id", this.organizationId(principal))
+          .eq("brand_id", existing.brand_id)
           .eq("connection_id", existing.id)
           .order("verified_at", { ascending: false })
           .limit(1)
@@ -1938,6 +1954,8 @@ export class ProductionIntegrationService
         this.staffClient()
           .from("avalara_filing_registration_statuses")
           .select("id")
+          .eq("organization_id", this.organizationId(principal))
+          .eq("brand_id", existing.brand_id)
           .eq("connection_id", existing.id)
           .not("stale_at", "is", null),
       ]);
@@ -1950,6 +1968,8 @@ export class ProductionIntegrationService
           .select(
             "filing_calendar_id,region_code,filing_frequency,registration_status,verified_at",
           )
+          .eq("organization_id", this.organizationId(principal))
+          .eq("brand_id", existing.brand_id)
           .eq("connection_id", existing.id)
           .eq("snapshot_id", snapshot.id)
           .is("stale_at", null)
@@ -2245,21 +2265,23 @@ export class ProductionIntegrationService
     slug: string;
   }): Promise<Record<string, unknown>> {
     const principal = await this.requireStaff(["owner", "admin"]);
-    const { data, error } = await this.staffClient()
-      .from("brands")
-      .insert({
-        billing_mode: input.billingMode,
-        default_shipping_charge_cents:
-          input.defaultShippingChargeCents ?? 0,
-        description: input.description ?? "",
-        name: input.name,
-        organization_id: this.organizationId(principal),
-        slug: input.slug,
-      })
-      .select("*")
-      .single();
-    if (error || !data) throw databaseError("The brand could not be created.");
-    await this.audit(principal, "brand.created", "brand", data.id, {
+    const organizationId = this.organizationId(principal);
+    const { data: created, error: createError } = await this.staffClient().rpc(
+      "create_brand_with_profile",
+      {
+        p_billing_mode: input.billingMode,
+        p_default_shipping_charge_cents: input.defaultShippingChargeCents ?? 0,
+        p_description: input.description ?? "",
+        p_name: input.name,
+        p_organization_id: organizationId,
+        p_slug: input.slug,
+      },
+    );
+    const data = rpcRow(created);
+    if (createError || !data) throw databaseError("The brand could not be created.");
+    const createdBrandId = String(data.id ?? "");
+    assertUuid(createdBrandId, "Brand");
+    await this.audit(principal, "brand.created", "brand", createdBrandId, {
       billing_mode: input.billingMode,
     });
     return toRedactedPublicRecord(data);
@@ -2302,9 +2324,7 @@ export class ProductionIntegrationService
     if (Object.hasOwn(input, "emailSenderAddress") || Object.hasOwn(input, "emailSenderName")) {
       const { data: existingSender } = await this.staffClient()
         .from("brand_sender_identities")
-        .select(
-          "id,from_name,from_email,status,provider_identity_id,verified_at",
-        )
+        .select("id,from_name,from_email")
         .eq("organization_id", this.organizationId(principal))
         .eq("brand_id", brandId)
         .maybeSingle();
@@ -2344,30 +2364,15 @@ export class ProductionIntegrationService
         );
       }
       formatBrandSender({ fromEmail, fromName });
-      const senderUnchanged =
-        existingSender?.status !== "disabled" &&
-        existingSender?.from_name === fromName &&
-        existingSender?.from_email === fromEmail;
-      const { error: senderError } = await this.staffClient()
-        .from("brand_sender_identities")
-        .upsert(
-          {
-            brand_id: brandId,
-            from_email: fromEmail,
-            from_name: fromName,
-            organization_id: this.organizationId(principal),
-            provider_identity_id: senderUnchanged
-              ? (existingSender?.provider_identity_id ?? null)
-              : null,
-            status: senderUnchanged
-              ? (existingSender?.status ?? "pending")
-              : "pending",
-            verified_at: senderUnchanged
-              ? (existingSender?.verified_at ?? null)
-              : null,
-          },
-          { onConflict: "organization_id,brand_id" },
-        );
+      const { error: senderError } = await this.staffClient().rpc(
+        "upsert_brand_sender_identity",
+        {
+          p_brand_id: brandId,
+          p_from_email: fromEmail,
+          p_from_name: fromName,
+          p_organization_id: this.organizationId(principal),
+        },
+      );
       if (senderError) throw databaseError("The brand sender identity could not be updated.");
       }
     }

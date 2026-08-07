@@ -11,116 +11,27 @@ import {
   assertFcmProjectTarget,
   assertShipCompliantTarget,
 } from "./provider-targets";
-import {
-  decryptIntegrationCredentials,
-  validateIntegrationCredentialKeyring,
-  type EncryptedCredentialEnvelope,
-} from "./integrations/security";
 
 export type ProviderEnvironment = "live" | "production" | "sandbox" | "test";
 export type ProtectedProvider = "APNs" | "Avalara" | "QuickBooks" | "Stripe";
 export type StripeCredentialMode = "live" | "test";
 
-function capability(
-  env: WorkerEnv,
-  names: Array<keyof WorkerEnv>,
-): ConfigurationCapability {
+function capability(env: WorkerEnv, names: Array<keyof WorkerEnv>): ConfigurationCapability {
   const missing = names.filter((name) => !env[name]).map(String);
   return { configured: missing.length === 0, missing };
 }
 
 async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-export async function getRuntimeConfigurationReport(
-  env: WorkerEnv,
-): Promise<ConfigurationReport> {
+export async function getRuntimeConfigurationReport(env: WorkerEnv): Promise<ConfigurationReport> {
   const report = getConfigurationReport(env);
   try {
-    if (env.SUPABASE_URL)
-      report.database.bindingHashes = {
-        supabaseUrlSha256: await sha256(new URL(env.SUPABASE_URL).origin),
-      };
+    if (env.SUPABASE_URL) report.database.bindingHashes = { supabaseUrlSha256: await sha256(new URL(env.SUPABASE_URL).origin) };
   } catch {
     // The ordinary configured/missing report remains fail-closed for malformed values.
-  }
-  try {
-    if (
-      env.INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION &&
-      env.INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS
-    ) {
-      const keyring = validateIntegrationCredentialKeyring(env);
-      const rawProofs = JSON.parse(
-        env.INTEGRATION_CREDENTIAL_ACCEPTANCE_PROOFS ?? "null",
-      ) as unknown;
-      if (!Array.isArray(rawProofs) || rawProofs.length !== 4)
-        throw new Error("Acceptance proofs are unavailable.");
-      const providers = new Set(["avalara", "klaviyo", "meta", "quickbooks"]);
-      const connectionIds: string[] = [];
-      const proofScopes: Array<Record<string, string>> = [];
-      for (const proof of rawProofs) {
-        if (!proof || typeof proof !== "object")
-          throw new Error("Acceptance proof is invalid.");
-        const value = proof as {
-          brandId?: string;
-          envelope?: EncryptedCredentialEnvelope;
-          integrationType?: string;
-          organizationId?: string;
-          targetId?: string;
-        };
-        if (
-          !value.brandId ||
-          !value.integrationType ||
-          !providers.delete(value.integrationType) ||
-          !value.organizationId ||
-          !value.targetId ||
-          !value.envelope
-        )
-          throw new Error("Acceptance proof scope is invalid.");
-        await decryptIntegrationCredentials(
-          env,
-          {
-            integrationType: value.integrationType,
-            organizationId: value.organizationId,
-            targetId: value.targetId,
-          },
-          value.envelope,
-        );
-        connectionIds.push(value.targetId);
-        proofScopes.push({
-          brandId: value.brandId,
-          ciphertextSha256: await sha256(value.envelope.ciphertext),
-          integrationType: value.integrationType,
-          ivSha256: await sha256(value.envelope.iv),
-          keyIdSha256: await sha256(value.envelope.keyVersion),
-          organizationId: value.organizationId,
-          targetId: value.targetId,
-        });
-      }
-      report.integrationEncryption.bindingHashes = {
-        acceptedConnectionIdsSha256: await sha256(
-          JSON.stringify(connectionIds.sort()),
-        ),
-        acceptedEnvelopeScopeSha256: await sha256(
-          JSON.stringify(
-            proofScopes.sort((left, right) =>
-              left.integrationType!.localeCompare(right.integrationType!),
-            ),
-          ),
-        ),
-        activeVersionSha256: await sha256(keyring.activeVersion),
-        keyringVersionsSha256: await sha256(JSON.stringify(keyring.versions)),
-      };
-    }
-  } catch {
-    // Invalid keyrings remain represented by the ordinary fail-closed report.
   }
   return report;
 }
@@ -190,10 +101,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
                   ]
                 : ["COMPLIANCE_PROVIDER"],
           };
-  if (
-    env.COMPLIANCE_PROVIDER === "shipcompliant" &&
-    env.SHIPCOMPLIANT_BASE_URL
-  ) {
+  if (env.COMPLIANCE_PROVIDER === "shipcompliant" && env.SHIPCOMPLIANT_BASE_URL) {
     try {
       if (new URL(env.SHIPCOMPLIANT_BASE_URL).protocol !== "https:") {
         throw new Error("ShipCompliant must use HTTPS.");
@@ -256,11 +164,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
     communications.configured = false;
     communications.missing.push("RESEND_DOMAIN_VERIFIED");
   }
-  if (
-    env.EMAIL_PROVIDER === "resend" &&
-    env.RESEND_FROM &&
-    env.RESEND_SENDING_DOMAIN
-  ) {
+  if (env.EMAIL_PROVIDER === "resend" && env.RESEND_FROM && env.RESEND_SENDING_DOMAIN) {
     const fromAddress = env.RESEND_FROM.match(
       /(?:<)?([^<>\s]+@([^<>\s]+))(?:>)?$/,
     )?.[1];
@@ -310,7 +214,10 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
     "CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN",
     "CLOUDFLARE_ZONE_ID",
   ]);
-  if (env.CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN && env.CLOUDFLARE_ZONE_ID) {
+  if (
+    env.CLOUDFLARE_CUSTOM_HOSTNAME_ORIGIN &&
+    env.CLOUDFLARE_ZONE_ID
+  ) {
     try {
       assertCloudflareCustomHostnameTarget({
         appEnvironment: env.APP_ENV,
@@ -366,12 +273,8 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
     app: capability(env, ["APP_ORIGIN", "ALLOWED_ORIGINS"]),
     database: capability(env, [
       "SUPABASE_URL",
-      env.SUPABASE_PUBLISHABLE_KEY
-        ? "SUPABASE_PUBLISHABLE_KEY"
-        : "SUPABASE_ANON_KEY",
-      env.SUPABASE_SECRET_KEY
-        ? "SUPABASE_SECRET_KEY"
-        : "SUPABASE_SERVICE_ROLE_KEY",
+      env.SUPABASE_PUBLISHABLE_KEY ? "SUPABASE_PUBLISHABLE_KEY" : "SUPABASE_ANON_KEY",
+      env.SUPABASE_SECRET_KEY ? "SUPABASE_SECRET_KEY" : "SUPABASE_SERVICE_ROLE_KEY",
     ]),
     billing,
     compliance,
@@ -380,8 +283,7 @@ export function getConfigurationReport(env: WorkerEnv): ConfigurationReport {
     webhook: capability(env, ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]),
     googleOAuth: {
       configured: env.GOOGLE_OAUTH_ENABLED === "true",
-      missing:
-        env.GOOGLE_OAUTH_ENABLED === "true" ? [] : ["GOOGLE_OAUTH_ENABLED"],
+      missing: env.GOOGLE_OAUTH_ENABLED === "true" ? [] : ["GOOGLE_OAUTH_ENABLED"],
     },
     email: {
       configured: env.AUTH_EMAIL_ENABLED === "true",
@@ -476,7 +378,10 @@ export function assertQuickBooksRedirectUri(
       "QuickBooks OAuth requires a canonical HTTPS application callback.",
     );
   }
-  const expected = new URL("/api/integrations/quickbooks/callback", appOrigin);
+  const expected = new URL(
+    "/api/integrations/quickbooks/callback",
+    appOrigin,
+  );
   if (redirect.href !== expected.href) {
     throw new AppError(
       503,
@@ -488,10 +393,7 @@ export function assertQuickBooksRedirectUri(
 }
 
 export function stripeCredentialMode(env: WorkerEnv): StripeCredentialMode {
-  const secretKey = requireConfigured(
-    env.STRIPE_SECRET_KEY,
-    "STRIPE_SECRET_KEY",
-  );
+  const secretKey = requireConfigured(env.STRIPE_SECRET_KEY, "STRIPE_SECRET_KEY");
   const match = secretKey.match(/^(?:rk|sk)_(live|test)_/);
   if (!match) {
     throw new AppError(
