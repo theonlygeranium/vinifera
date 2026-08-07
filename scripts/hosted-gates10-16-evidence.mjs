@@ -1,6 +1,12 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { collectGate15CoreEvidence } from "./hosted-gate15-core-evidence.mjs";
+
+const TARGET_ALLOWLIST_PATH = new URL(
+  "../config/hosted-target-allowlist.json",
+  import.meta.url,
+);
 
 const GATE_REQUIREMENTS = Object.freeze({
   10: ["app", "database"],
@@ -14,7 +20,11 @@ const GATE_REQUIREMENTS = Object.freeze({
 
 const EXTERNAL_EVIDENCE_REMAINING = Object.freeze({
   10: ["real-winery-source-reconciliation", "metric-and-csv-reconciliation"],
-  11: ["active-platform-actor", "qualified-production-history", "completed-30-day-comparison"],
+  11: [
+    "active-platform-actor",
+    "qualified-production-history",
+    "completed-30-day-comparison",
+  ],
   12: ["ten-opted-in-contributors", "quarterly-report-delivery"],
   13: ["vendor-sandbox-contract", "decision-matrix-and-label-recovery"],
   14: ["provider-account-connections", "provider-lifecycle-reconciliation"],
@@ -32,15 +42,21 @@ const APPROVED_STAGING_ORIGINS = new Set([
 function checkedGate(value) {
   const gate = Number(value);
   if (!Number.isInteger(gate) || !Object.hasOwn(GATE_REQUIREMENTS, gate)) {
-    throw new Error("Hosted evidence gate must be an integer from 10 through 16.");
+    throw new Error(
+      "Hosted evidence gate must be an integer from 10 through 16.",
+    );
   }
   return gate;
 }
 
 function checkedRevision(value) {
-  const revision = String(value ?? "").trim().toLowerCase();
+  const revision = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (!SHA_PATTERN.test(revision)) {
-    throw new Error("Hosted evidence requires an exact 40-character candidate revision.");
+    throw new Error(
+      "Hosted evidence requires an exact 40-character candidate revision.",
+    );
   }
   return revision;
 }
@@ -50,7 +66,9 @@ function checkedOrigin(value) {
   try {
     origin = new URL(String(value ?? "").trim());
   } catch {
-    throw new Error("Hosted evidence requires a canonical HTTPS Worker origin.");
+    throw new Error(
+      "Hosted evidence requires a canonical HTTPS Worker origin.",
+    );
   }
   if (
     origin.protocol !== "https:" ||
@@ -61,17 +79,27 @@ function checkedOrigin(value) {
     origin.search ||
     origin.hash
   ) {
-    throw new Error("Hosted evidence requires a canonical HTTPS Worker origin.");
+    throw new Error(
+      "Hosted evidence requires a canonical HTTPS Worker origin.",
+    );
   }
   if (!APPROVED_STAGING_ORIGINS.has(origin.origin)) {
-    throw new Error("Hosted evidence origin is not an approved staging target.");
+    throw new Error(
+      "Hosted evidence origin is not an approved staging target.",
+    );
   }
   return origin;
 }
 
 function safeMissingNames(value) {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter((name) => typeof name === "string" && SAFE_MISSING_NAME.test(name)))].sort();
+  return [
+    ...new Set(
+      value.filter(
+        (name) => typeof name === "string" && SAFE_MISSING_NAME.test(name),
+      ),
+    ),
+  ].sort();
 }
 
 async function boundedJson(response) {
@@ -92,7 +120,9 @@ async function boundedJson(response) {
     }
     chunks.push(value);
   }
-  const body = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8");
+  const body = Buffer.concat(
+    chunks.map((chunk) => Buffer.from(chunk)),
+  ).toString("utf8");
   return JSON.parse(body);
 }
 
@@ -120,10 +150,20 @@ function configurationEvidence(payload, names) {
   return Object.fromEntries(
     names.map((name) => {
       const entry = data[name];
-      if (!entry || typeof entry !== "object" || typeof entry.configured !== "boolean") {
+      if (
+        !entry ||
+        typeof entry !== "object" ||
+        typeof entry.configured !== "boolean"
+      ) {
         throw new Error(`Hosted configuration group ${name} is invalid.`);
       }
-      return [name, { configured: entry.configured, missing: safeMissingNames(entry.missing) }];
+      return [
+        name,
+        {
+          configured: entry.configured,
+          missing: safeMissingNames(entry.missing),
+        },
+      ];
     }),
   );
 }
@@ -142,6 +182,8 @@ export async function collectHostedGateEvidence({
   fetchImpl = fetch,
   now = () => new Date(),
   timeoutMs = 10_000,
+  gate15Collector,
+  gate15Options,
 }) {
   const gate = checkedGate(rawGate);
   const expectedRevision = checkedRevision(rawExpectedRevision);
@@ -180,7 +222,8 @@ export async function collectHostedGateEvidence({
       service: health.service === "vinifera-api" ? "vinifera-api" : null,
       status: health.status === "ok" ? "ok" : null,
     };
-    if (runtime.environment !== "staging") blockers.push("runtime_environment_mismatch");
+    if (runtime.environment !== "staging")
+      blockers.push("runtime_environment_mismatch");
     if (!runtime.exactRevision) blockers.push("runtime_revision_mismatch");
     if (runtime.service !== "vinifera-api" || runtime.status !== "ok") {
       blockers.push("runtime_health_invalid");
@@ -209,6 +252,27 @@ export async function collectHostedGateEvidence({
   const actorPresence = gate === 11 ? Boolean(mlActorConfigured) : null;
   if (gate === 11 && !actorPresence) blockers.push("ml_platform_actor_missing");
 
+  let gateSpecificEvidence = null;
+  if (gate === 15 && gate15Collector) {
+    if (blockers.length === 0) {
+      gateSpecificEvidence = await gate15Collector({
+        ...gate15Options,
+        expectedRevision,
+        workerOrigin: origin.origin,
+      });
+      if (gateSpecificEvidence.result !== "core-ready") {
+        blockers.push("gate15_core_isolation_blocked");
+      }
+    } else {
+      gateSpecificEvidence = {
+        evidenceLevel: "hosted-core-partial",
+        result: "not-started",
+        completionClaimed: false,
+        externalEvidenceRemaining: ["hostname-context-after-gate-16"],
+      };
+    }
+  }
+
   const uniqueBlockers = [...new Set(blockers)].sort();
   return {
     schemaVersion: 1,
@@ -222,7 +286,11 @@ export async function collectHostedGateEvidence({
     configuration,
     mlPlatformActorConfigured: actorPresence,
     blockers: uniqueBlockers,
-    externalEvidenceRemaining: [...EXTERNAL_EVIDENCE_REMAINING[gate]],
+    externalEvidenceRemaining:
+      gate === 15 && gateSpecificEvidence?.result === "core-ready"
+        ? [...gateSpecificEvidence.externalEvidenceRemaining]
+        : [...EXTERNAL_EVIDENCE_REMAINING[gate]],
+    gateSpecificEvidence,
     completionClaimed: false,
   };
 }
@@ -233,7 +301,9 @@ function parseArguments(argv) {
     const name = argv[index];
     const value = argv[index + 1];
     if (!name?.startsWith("--") || value === undefined) {
-      throw new Error("Hosted gate evidence arguments must be --name value pairs.");
+      throw new Error(
+        "Hosted gate evidence arguments must be --name value pairs.",
+      );
     }
     values[name.slice(2)] = value;
   }
@@ -243,7 +313,22 @@ function parseArguments(argv) {
 async function main() {
   const args = parseArguments(process.argv.slice(2));
   const gate = checkedGate(args.gate);
-  const outputPath = resolve(args.output ?? `hosted-gate-${gate}-readiness.json`);
+  const outputPath = resolve(
+    args.output ?? `hosted-gate-${gate}-readiness.json`,
+  );
+  const gate15Options =
+    gate === 15
+      ? {
+          accessClientId: process.env.CF_ACCESS_CLIENT_ID,
+          accessClientSecret: process.env.CF_ACCESS_CLIENT_SECRET,
+          allowlist: JSON.parse(await readFile(TARGET_ALLOWLIST_PATH, "utf8")),
+          anonKey: process.env.SUPABASE_ANON_KEY,
+          emailBase: process.env.GATE15_ACCEPTANCE_EMAIL_BASE,
+          runId: process.env.GITHUB_RUN_ID ?? "local",
+          serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          supabaseUrl: process.env.SUPABASE_URL,
+        }
+      : undefined;
   const report = await collectHostedGateEvidence({
     gate,
     expectedRevision: args["expected-revision"],
@@ -251,18 +336,46 @@ async function main() {
     enabled: args.enabled === "true",
     confirmation: args.confirmation,
     mlActorConfigured: args["ml-actor-configured"] === "true",
+    gate15Collector: gate === 15 ? collectGate15CoreEvidence : undefined,
+    gate15Options,
   });
   await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+  await writeFile(outputPath, `${JSON.stringify(report, null, 2)}\n`, {
+    mode: 0o600,
+  });
   process.stdout.write(
     `Gate ${gate} hosted readiness: ${report.result}; completion claimed: false\n`,
   );
   if (report.result !== "ready") process.exitCode = 2;
 }
 
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  main().catch((error) => {
-    console.error(error instanceof Error ? error.message : "Hosted gate evidence failed.");
+if (
+  process.argv[1] &&
+  pathToFileURL(resolve(process.argv[1])).href === import.meta.url
+) {
+  main().catch(async () => {
+    const args = parseArguments(process.argv.slice(2));
+    const outputPath = resolve(
+      args.output ?? "hosted-gate-readiness-failure.json",
+    );
+    await mkdir(dirname(outputPath), { recursive: true });
+    await writeFile(
+      outputPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          gate: Number.isInteger(Number(args.gate)) ? Number(args.gate) : null,
+          evidenceLevel: "hosted-readiness",
+          result: "blocked",
+          blockers: ["collector_preflight_failed"],
+          completionClaimed: false,
+        },
+        null,
+        2,
+      )}\n`,
+      { mode: 0o600 },
+    );
+    console.error("Hosted gate evidence failed during sanitized preflight.");
     process.exitCode = 1;
   });
 }

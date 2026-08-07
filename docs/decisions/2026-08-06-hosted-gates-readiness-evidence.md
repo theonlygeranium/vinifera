@@ -45,7 +45,9 @@ Every report is an allowlisted schema with `evidenceLevel` set to
 `hosted-readiness` and `completionClaimed` fixed to `false`. It records public
 runtime identity, configuration booleans and missing binding names, blockers,
 and the external evidence that remains. Provider bodies, credentials, member
-records, and operational payloads are excluded. Requested reports are retained
+records, and operational payloads are excluded. Gate 15 may append its bounded
+run-scoped `hosted-core-partial` result after readiness passes; the separate
+Gate 15 ADR defines its target authorization, mutations, and cleanup. Requested reports are retained
 for 90 days in one exact-candidate artifact. A blocked requested probe fails
 the protected run after the artifact is uploaded.
 
@@ -63,8 +65,9 @@ experiment gates.
   after that one deployment attempt.
 - A configuration-ready report cannot change a canonical gate status.
 - Gate-specific hosted/provider evidence and regression QA remain mandatory.
-- No provider resource, fixture, DNS record, model, or integration connection
-  is created by this foundation.
+- The shared foundation creates no provider resource, DNS record, model, or
+  external account. Gate 15's explicit extension creates only temporary
+  synthetic database/Auth fixtures and requires complete cleanup.
 
 ## Verification
 

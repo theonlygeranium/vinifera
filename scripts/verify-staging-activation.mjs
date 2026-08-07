@@ -21,6 +21,7 @@ if (operation === "hash") {
     "fcm-project": "FCM_PROJECT_ID",
     "shipcompliant-origin": "SHIPCOMPLIANT_BASE_URL",
     supabase: "SUPABASE_PROJECT_ID",
+    "supabase-origin": "SUPABASE_URL",
   }[kind];
   if (!environmentName) {
     throw new Error("Hash operation target is unsupported.");
@@ -34,6 +35,7 @@ if (operation === "hash") {
     "fcm-project": "FCM_PROJECT_ID",
     "shipcompliant-origin": "SHIPCOMPLIANT_BASE_URL",
     supabase: "SUPABASE_PROJECT_ID",
+    "supabase-origin": "SUPABASE_URL",
   }[kind];
   if (!environmentName) {
     throw new Error("Target verification target is unsupported.");

@@ -90,7 +90,7 @@ vinifera/
 │   ├── decisions/          # Architectural Decision Records (ADRs)
 │   ├── build-specs/        # BS-01 through BS-06 specs and dispatch guide
 │   └── agent-workflow.md   # Branching, PR, and review loop rules
-├── .github/workflows/      # 21 CI/CD workflows (see Section 5)
+├── .github/workflows/      # 19 CI/CD workflows (see Section 5)
 ├── .octopus/               # Octopus architectural boundary rules
 ├── AGENTS.md               # YOU ARE HERE — agent collaboration guide
 ├── CONTINUITY_BRIEF.md     # Drop-in context for new agent sessions
@@ -151,10 +151,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 <body — what changed and why>
 
-Verification: <commands run and results, e.g. "npm run check; 624/624 Vitest; npm run qa:e2e; 155 passed Playwright/axe">
-Verification: <commands run and results, e.g. "npm run check; 593/593 Vitest; 155 passed Playwright/axe">
-Verification: <commands run and results, e.g. "npm run check; 585/585 Vitest; 155 passed Playwright/axe">
-Verification: <commands run and results, e.g. "npm run check; 596/596 Vitest; 155 passed Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 587/587 Vitest; 155 passed Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -198,22 +195,15 @@ workflows under `.github/workflows/`:
 | `ci.yml` | Promotion PRs, staging/main, manual, nightly | Full release validation, selective/nightly Android, hidden promotion-smoke fast validation, the exact `Vinifera Promotion Gate` aggregate, and opt-in sanitized Gates 10–16 readiness evidence after an exact staging deployment |
 | `direct-push-guard.yml` | Push to main | Enforces no direct commits reach main without a merged PR; fails closed |
 | `hosted-readiness.yml` | Manual, unprotected | Read-only credential and hosted-target readiness report; performs no migration or deployment |
-| `hosted-activation-exit.yml` | Manual, trusted current `main` | Packages a 90-day exact-revision exit artifact only when the canonical ledger records Gates 1–19 as live-passed with retained evidence; performs no hosted mutation |
 | `octopus-main-deploy.yml` | Push to main, manual | Reconcile trusted Octopus configuration after the default-branch bootstrap |
-| `octopus-access-smoke.yml` | Manual, trusted default branch | Verify the protected Octopus ingress and Access identity without executing PR-head code |
 | `octopus-pr-quality-gates.yml` | Promotion PRs and explicit high-risk review requests | Validate same-repository PR source and publish the trusted Octopus result for the exact PR/head/base/attempt |
 | `octopus-security-audit.yml` | Scheduled, manual | Run the trusted Octopus security audit |
-| `production-worker-release.yml` | Manual, protected | Bootstrap, upload, deploy, or roll back the production Worker with automatic prior-version recovery; attach `vinifera-live.edstratumlabs.ai` only after exact Gates 1–19 exit evidence, or independently restore its verified `vinifera-live` Pages fallback. The marketing hostname is never a target. |
+| `production-worker-release.yml` | Manual, protected | Bootstrap, upload, deploy, or roll back the production Worker without domain/Pages mutation (credential-gated) |
 | `promote-dev-to-staging.yml` | Manual/owner-authorized | Open/update, validate, and auto-merge a consolidated `dev` to `staging` promotion unless dry-run or explicitly disabled; never starts after every `dev` push |
 | `stripe-test-catalog.yml` | Manual, mixed | Stripe test Price catalog probe/verify without reviewer approval; bootstrap remains staging-protected |
-| `gate6-staging-acceptance.yml` | Manual, protected | Exact-candidate Phase 2 Stripe/EasyPost acceptance after matching Gate 13 evidence (default-disabled) |
-| `resend-staging-provisioning.yml` | Manual, protected | Trusted default-branch Resend domain/webhook bootstrap, exact-policy Cloudflare DNS application, protected staging secret handoff, and sanitized verification evidence |
 | `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
-| `stripe-live-proof.yml` | Manual, protected | Default-disabled two-dispatch Gate 19 proof: one Stripe-hosted live Checkout handoff, then exact charge/webhook/refund/application-lifecycle reconciliation and renewal cleanup. It never changes Worker bindings. |
 | `credential-envelope-rotation.yml` | Manual, protected | Rotate encrypted credential envelopes |
 | `mobile-release.yml` | Manual, protected | Signed iOS/Android artifacts for TestFlight and Play internal tracks |
-| `mobile-acceptance.yml` | Manual, protected | Default-disabled exact-release physical-device and internal-track evidence for Gates 17–18 |
-| `mobile-release.yml` | Manual, protected | Signed iOS/Android artifacts for TestFlight and Play internal tracks after exact pre-cutover production Worker revision and association proof |
 
 ### Deployment topology
 
@@ -259,22 +249,11 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 ## 6. Quality Assurance
 
-### Current verified test counts (2026-08-06 hosted-gate QA baseline)
+### Current verified test counts (2026-08-05 hosted-gate QA baseline)
 
 | Suite | Count | Command |
 |-------|-------|---------|
-| Vitest unit/integration | 593 | `npm run check` |
-### Current verified test counts (2026-08-06 Gate 8 controller baseline)
-
-| Suite | Count | Command |
-|-------|-------|---------|
-| Vitest unit/integration | 585 | `npm run check` |
-### Current verified test counts (2026-08-06 Resend provisioning baseline)
-
-| Suite | Count | Command |
-|-------|-------|---------|
-| Vitest unit/integration | 624 | `npm run check` |
-| Vitest unit/integration | 596 | `npm run check` |
+| Vitest unit/integration | 587 | `npm run check` |
 | Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |
@@ -482,58 +461,3 @@ packaging, and evidence gathering while paused; stop only the merge,
 promotion, deployment, or other boundary-crossing mutation that requires the
 owner's decision. `do-not-merge` is an absolute merge prohibition. Only the
 owner or an explicitly trusted owner workflow may remove either control.
-
----
-
-## Cursor Cloud specific instructions
-
-These notes cover non-obvious startup/run details for the Cursor Cloud VM. The
-startup update script already runs `npm ci` and `npx playwright install
-chromium`, so dependencies and the Chromium E2E browser are present. Standard
-lint/test/build/run commands live in `package.json` and `docs/setup.md` — refer
-to those rather than duplicating them.
-
-### Docker daemon (required for the full stack)
-
-The VM has Docker Engine installed but **no systemd**, so the daemon is not
-started automatically. Start it once per session before `npm run dev`:
-
-```bash
-sudo dockerd > /tmp/dockerd.log 2>&1 &   # then wait until `docker info` succeeds
-```
-
-- The `ubuntu` user is already in the `docker` group. In a shell started before
-  the group was applied, run docker/`npm run dev` via `sg docker -c "…"`; fresh
-  login shells pick the group up automatically.
-- This VM runs Docker 29 with the **fuse-overlayfs** storage driver, so
-  `/etc/docker/daemon.json` sets `"features": { "containerd-snapshotter": false
-  }`. Do not remove that — fuse-overlayfs will not initialize otherwise.
-- The first `npm run dev` may re-pull the pinned Supabase images if the local
-  image cache was not preserved; this is slow but requires no extra steps.
-
-### Running the app
-
-- Full integrated stack: `npm run dev` (needs the Docker daemon above). It boots
-  Supabase (Postgres/Auth/Studio/Mailpit), applies migrations + seed, seeds
-  local Auth, then serves the Worker at `http://127.0.0.1:8788/app/`, Vite at
-  `http://127.0.0.1:5173/app/`, Studio at `http://127.0.0.1:54323`, and Mailpit
-  at `http://127.0.0.1:54324`.
-- Frontend-only (no Docker): `npm run dev:frontend`.
-- E2E (`npm run qa:e2e`) starts its own `wrangler dev` Worker on port 8787 and
-  is credential-independent — it does **not** require Docker or Supabase.
-
-### Seeded local login (from `scripts/bootstrap-local-auth.mjs`)
-
-Only present after `npm run dev` seeds Auth. Password is `ViniferaLocal1!`
-(override via `VINIFERA_LOCAL_TEST_PASSWORD`).
-
-- Staff owners: `owner.sunrise@example.com`, `owner.pacific@example.com`
-- Members: `member.sunrise@example.com`, `member.pacific@example.com`
-
-### Known test caveat
-
-`tests/scripts/promotion-smoke.test.mjs` occasionally times out on a cold run
-because it builds throwaway git fixture repos under the default 5s per-test
-timeout (a different case fails each cold run). It is not a code defect — a warm
-re-run, or `npx vitest run tests/scripts/promotion-smoke.test.mjs
---testTimeout=60000`, passes all 9.
