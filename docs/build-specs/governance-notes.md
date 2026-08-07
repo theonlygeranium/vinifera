@@ -100,7 +100,35 @@ technical gates, but neither is a substitute for a second authorized reviewer
 on credential-bearing deployment environments. Label-gated automation narrows
 authority but does not create an independent human approval boundary.
 
-## Recommended human configuration
+## Owner decision (2026-08-07) — automation-first approvals
+
+The owner has chosen to **minimize human approvals for reversible delivery** and
+be **alerted only for critical escalations**. See
+`docs/decisions/2026-08-07-automated-approval-delegation.md`. This is a
+deliberate, owner-approved trade-off; agents must not reverse or re-tighten it
+without the owner's explicit approval and a superseding ADR.
+
+Under this decision the *security-hardening* recommendations below (second
+reviewer, required approvals, `prevent_self_review=true`) are **intentionally
+deferred** — they are the opposite of the owner's current goal. They remain
+documented as the alternative direction if the owner later wants true
+independent review on the production/billing tier.
+
+### Owner GitHub settings to apply for the loosening
+
+These are external GitHub controls (not representable by repository code) and
+should be applied by the owner or via an admin-scoped token:
+
+- [ ] Set required reviewers to **0** on the `promotion-control`, `staging`, and
+  `development-worker` environments (keep them for secret scoping only).
+- [ ] Keep required reviewers on `production` and `mobile-release` (these remain
+  human-gated critical escalations).
+- [ ] Confirm the two new workflows are present on the default branch so their
+  `workflow_run`/`schedule` triggers activate.
+- [ ] Optional: add an `ESCALATION_WEBHOOK_URL` secret to also receive alerts in
+  Slack/Teams; the GitHub issue `@`-mention works without it.
+
+## Recommended human configuration (deferred — security-hardening alternative)
 
 - [ ] Add at least one trusted collaborator who can independently review
   production changes.

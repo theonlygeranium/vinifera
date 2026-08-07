@@ -1,0 +1,71 @@
+# Auto-promote dev → staging.
+#
+# LOCKED DECISION — see docs/decisions/2026-08-07-automated-approval-delegation.md.
+# This dispatcher removes the manual "click dispatch" step for the reversible
+# dev → staging promotion. It does NOT weaken any gate: it only invokes the
+# existing, unchanged promote-dev-to-staging.yml, which keeps every fail-closed
+# control (staging REST probes, exact-head Vinifera Promotion Gate, Octopus,
+# active-review + emergency-label checks, exact-SHA merge guard).
+#
+# Do not disable, gut, or revert this workflow without the human owner's explicit
+# approval and a superseding ADR. A future agent may read "fewer approvals" as a
+# security regression; per the ADR it is an intentional, owner-approved trade-off.
+
+name: Auto-promote dev to staging
+
+on:
+  # Runs right after a successful trusted merge into dev.
+  workflow_run:
+    workflows: ["Trusted development auto-merge"]
+    types: [completed]
+  # Hourly safety net so an ahead dev is never left unpromoted.
+  schedule:
+    - cron: "17 * * * *"
+  # Manual escape hatch (still hands-off: no inputs required).
+  workflow_dispatch: {}
+
+concurrency:
+  group: vinifera-auto-promote-dev-to-staging
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  dispatch:
+    name: Dispatch promotion when dev is ahead of staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only act on a successful upstream auto-merge run (schedule/dispatch always allowed).
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch owner-approved auto-promotion
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Compare the live default-branch tips: promote only when dev leads staging.
+          ahead_by=$(gh api "repos/$REPO/compare/staging...dev" --jq '.ahead_by' 2>/dev/null || echo "")
+          if [[ ! "$ahead_by" =~ ^[0-9]+$ ]]; then
+            echo "::warning::Could not compare staging...dev (missing branch or access); skipping."
+            exit 0
+          fi
+          if (( ahead_by == 0 )); then
+            echo "dev is not ahead of staging; nothing to promote."
+            echo "### Auto-promotion: no-op (dev not ahead of staging)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "dev is ${ahead_by} commit(s) ahead of staging; dispatching promotion."
+          gh workflow run promote-dev-to-staging.yml \
+            --ref main \
+            -f authorization_reason="Standing owner-approved automation (auto-promotion, ADR 2026-08-07-automated-approval-delegation)" \
+            -f dry_run=false \
+            -f auto_merge=true
+          echo "### Auto-promotion dispatched (dev ${ahead_by} commit(s) ahead of staging)" >> "$GITHUB_STEP_SUMMARY"

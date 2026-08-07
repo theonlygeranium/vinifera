@@ -1,0 +1,125 @@
+# Escalation alert.
+#
+# LOCKED DECISION — see docs/decisions/2026-08-07-automated-approval-delegation.md.
+# This is the owner's "alert-only" channel. The routine, reversible delivery path
+# is intentionally automated and silent; this workflow pings the owner ONLY when a
+# genuine human decision is pending:
+#   1. an emergency label (human-review-required / do-not-merge) is applied, or
+#   2. a consequential protected workflow run is requested (production Worker,
+#      live billing, Gate 19 live proof, credential rotation, mobile store release).
+#
+# It notifies by opening a GitHub issue that @-mentions the owner, and optionally
+# POSTs to ESCALATION_WEBHOOK_URL (e.g. Slack) when that secret is configured.
+#
+# Do not disable or narrow this workflow without the human owner's explicit
+# approval and a superseding ADR.
+
+name: Escalation alert
+
+on:
+  pull_request_target:
+    types: [labeled]
+  workflow_run:
+    workflows:
+      - "Production Worker release"
+      - "Stripe live billing cutover"
+      - "Stripe Gate 19 live charge and refund proof"
+      - "Credential envelope key rotation"
+      - "Signed mobile internal release"
+    types: [requested]
+
+concurrency:
+  group: vinifera-escalation-${{ github.event_name }}-${{ github.event.label.name || github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  alert:
+    name: Notify owner of pending decision
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only fire for the two escalation signals; ignore all other label changes.
+    if: >-
+      (github.event_name == 'pull_request_target' &&
+        (github.event.label.name == 'human-review-required' ||
+         github.event.label.name == 'do-not-merge')) ||
+      github.event_name == 'workflow_run'
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Compose escalation
+        id: compose
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          LABEL_NAME: ${{ github.event.label.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_ACTOR: ${{ github.event.sender.login }}
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          WF_URL: ${{ github.event.workflow_run.html_url }}
+          WF_ACTOR: ${{ github.event.workflow_run.actor.login }}
+          WF_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request_target" ]]; then
+            title="[escalation] \"${LABEL_NAME}\" applied to PR #${PR_NUMBER}"
+            {
+              echo "title=${title}"
+              echo "body<<EOF"
+              echo "@theonlygeranium — a change is paused pending your decision."
+              echo ""
+              echo "- **Signal:** emergency label \`${LABEL_NAME}\` applied"
+              echo "- **PR:** [#${PR_NUMBER}](${PR_URL}) — ${PR_TITLE}"
+              echo "- **Applied by:** ${PR_ACTOR}"
+              echo ""
+              echo "Automation will not merge, promote, or deploy this change while the label is present."
+              echo "Remove the label (owner only) to resume, or leave it to keep the change paused."
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            title="[escalation] \"${WF_NAME}\" requested — awaiting your approval"
+            {
+              echo "title=${title}"
+              echo "body<<EOF"
+              echo "@theonlygeranium — a consequential protected workflow was requested and needs your decision."
+              echo ""
+              echo "- **Workflow:** [${WF_NAME}](${WF_URL})"
+              echo "- **Requested by:** ${WF_ACTOR}"
+              echo "- **Ref:** ${WF_BRANCH}"
+              echo ""
+              echo "This is one of the human-gated boundaries (production / live billing / credentials / mobile store)."
+              echo "Approve the protected environment and provide the exact confirmation phrase only if you intend to proceed."
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open escalation issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE_TITLE: ${{ steps.compose.outputs.title }}
+          ISSUE_BODY: ${{ steps.compose.outputs.body }}
+        run: |
+          set -euo pipefail
+          gh issue create --repo "$REPO" --title "$ISSUE_TITLE" --body "$ISSUE_BODY"
+          echo "### Escalation raised: ${ISSUE_TITLE}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Optional webhook notification
+        env:
+          ESCALATION_WEBHOOK_URL: ${{ secrets.ESCALATION_WEBHOOK_URL }}
+          ISSUE_TITLE: ${{ steps.compose.outputs.title }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ESCALATION_WEBHOOK_URL:-}" ]]; then
+            echo "No ESCALATION_WEBHOOK_URL configured; GitHub issue mention is the only channel."
+            exit 0
+          fi
+          payload=$(printf '{"text": %s}' "$(jq -Rn --arg t "$ISSUE_TITLE" '$t')")
+          curl -sS -X POST -H "Content-Type: application/json" \
+            --max-time 15 --retry 2 --retry-delay 5 \
+            -d "$payload" "$ESCALATION_WEBHOOK_URL" >/dev/null \
+            && echo "Webhook notified." \
+            || echo "::warning::Webhook POST failed; GitHub issue mention still delivered."

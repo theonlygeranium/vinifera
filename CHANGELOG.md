@@ -24,6 +24,25 @@
   classifier so that promotion diffs containing Cursor Pro+ integration
   tooling no longer fail closed with `unknown_path_fail_closed`.
 
+### Changed
+- Automate reversible delivery approvals and add an alert-only escalation model
+  (owner-authorized; ADR `docs/decisions/2026-08-07-automated-approval-delegation.md`).
+  Add `.github/workflows/promote-dev-to-staging-auto.yml` to auto-dispatch the
+  unchanged, fail-closed `promote-dev-to-staging.yml` when `dev` is ahead of
+  `staging`, and `.github/workflows/escalation-alert.yml` to notify the owner only
+  when an emergency label is applied or a consequential protected workflow
+  (production Worker, live billing, Gate 19 live proof, credential rotation,
+  mobile store) is requested. Record the locked decision — including that agents
+  must not reverse or re-tighten it without explicit owner approval and a
+  superseding ADR — in `AGENTS.md` (new §11), `docs/agent-workflow.md`, and
+  `docs/build-specs/governance-notes.md`. **Deployment impact:** governance and
+  CI-control process only; both workflows are inert until they reach the default
+  branch and the referenced secrets/environment settings are provisioned. No
+  application route, provider, database, credential, billing, DNS, Worker
+  activation, production/mobile approval-gate, or Cloudflare Access policy state
+  changes; the human-gated production/billing/DNS/credential/mobile/governance
+  boundaries are unchanged.
+
 - Integrate Gate 15 core same-organization isolation into the canonical Gates
   10–16 exact-candidate evidence flow. Require an exact reviewed Supabase-origin
   hash before client creation; use a predeclared, dependency-ordered all-settled
