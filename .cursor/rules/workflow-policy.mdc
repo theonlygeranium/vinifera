@@ -1,0 +1,41 @@
+---
+globs:
+  - ".github/workflows/**"
+  - ".github/**"
+alwaysApply: false
+---
+# Workflow Policy — Two-Speed Validation
+
+This rule applies when working with GitHub Actions workflows, CI configuration, or deployment pipelines.
+
+## Two-Speed Model
+
+The Vinifera project enforces two-speed validation:
+
+1. **Dev fast checks** — Routine CI for PRs targeting `dev`. Fast feedback, broad coverage. Runs on every PR.
+2. **Vinifera Promotion Gate** — Comprehensive validation for promotions (`dev → staging`, `staging → main`). Includes Octopus deployment integration. Triggered by promotion workflows only.
+
+## Preview Workflows
+
+Preview/publish workflows (e.g., `frontend-preview-publish.yml`) run in the Dev fast checks lane. By design, they must **NOT** contain `human-review-required` or `do-not-merge` label checks. This is asserted by the project's own policy test (`two-speed-review-policy.test.mjs` line 159). Do not add these checks to preview workflows — doing so will fail the policy test.
+
+## Promotion Workflows
+
+Promotion workflows **must** contain `human-review-required` and `do-not-merge` label checks. These are the gating mechanism for the Promotion Gate. Do not remove or weaken these checks.
+
+## CI Check Structure
+
+- Dev fast checks: lint, type-check, unit tests, integration tests, build verification
+- Promotion Gate: all Dev fast checks plus hosted acceptance tests, database verification, Octopus deployment, deployment smoke tests
+
+## What Not to Do
+
+- Do not add emergency label checks to preview workflows (the policy test explicitly forbids this)
+- Do not remove label checks from promotion workflows
+- Do not create workflows that bypass the two-speed model
+- Do not add `auto-merge` or `auto-approve` steps to any workflow
+- Do not modify the `revalidate` step in privileged `publish` jobs without understanding the label TOCTOU implications
+
+## Cloud Agent CI Interaction
+
+Cursor cloud agents may fix CI failures on PRs they create, but only within the Dev fast checks lane. Cloud agents must not interact with promotion workflows. If a CI failure appears to be in a promotion workflow, surface it for human review rather than attempting to fix it.

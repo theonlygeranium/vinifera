@@ -26,6 +26,11 @@ trusted runner re-downloads the candidate and revalidates the exact live
 PR identity before any Pages credential is available; it executes neither base
 nor PR-head code. This avoids false `unknown_path_fail_closed` results without
 expanding the privileged execution boundary.
+Promotion-smoke tests that create and compare three local Git branches use a
+30-second per-test budget. The local-drill and staged-classifier fixtures use
+the same bounded budget. Their logic is unchanged; the prior five-second
+default repeatedly timed out only under concurrent full-suite filesystem load
+while the isolated suite passed.
 
 ## 2026-08-06 Gates 10-16 acceptance foundation
 
