@@ -62,7 +62,9 @@ describe("hosted Gates 10-16 readiness evidence", () => {
       result: "ready",
       runtime: { exactRevision: true, environment: "staging", reachable: true },
     });
-    expect(report.externalEvidenceRemaining).toContain("completed-30-day-comparison");
+    expect(report.externalEvidenceRemaining).toContain(
+      "completed-30-day-comparison",
+    );
   });
 
   it("fails closed on revision drift, incomplete configuration, and a missing actor", async () => {
@@ -153,7 +155,43 @@ describe("hosted Gates 10-16 readiness evidence", () => {
     expect(report.result).toBe("ready");
     expect(report.configuration).not.toHaveProperty("unrelatedSecret");
     expect(report.completionClaimed).toBe(false);
-    expect(report.externalEvidenceRemaining).toContain("vendor-sandbox-contract");
+    expect(report.externalEvidenceRemaining).toContain(
+      "vendor-sandbox-contract",
+    );
+  });
+
+  it("runs Gate 15 core evidence only after exact runtime readiness", async () => {
+    const gate15Collector = vi.fn(async () => ({
+      result: "core-ready",
+      completionClaimed: false,
+      externalEvidenceRemaining: ["hostname-context-after-gate-16"],
+    }));
+    const report = await collectHostedGateEvidence({
+      confirmation: "COLLECT VINIFERA GATE 15 READINESS EVIDENCE",
+      enabled: true,
+      expectedRevision: candidate,
+      fetchImpl: fetchFor({
+        app: { configured: true, missing: [] },
+        billing: { configured: true, missing: [] },
+        database: { configured: true, missing: [] },
+        security: { configured: true, missing: [] },
+      }),
+      gate: 15,
+      gate15Collector,
+      gate15Options: { marker: "bounded" },
+      now: fixedNow,
+      origin,
+    });
+    expect(gate15Collector).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedRevision: candidate,
+        marker: "bounded",
+        workerOrigin: origin,
+      }),
+    );
+    expect(report.result).toBe("ready");
+    expect(report.gateSpecificEvidence.result).toBe("core-ready");
+    expect(report.completionClaimed).toBe(false);
   });
 
   it("requires an explicit gate toggle, exact confirmation, SHA, and canonical origin", async () => {
@@ -165,11 +203,14 @@ describe("hosted Gates 10-16 readiness evidence", () => {
       gate: 10,
       origin,
     };
-    await expect(collectHostedGateEvidence({ ...base, enabled: false })).rejects.toThrow(
-      /not enabled/,
-    );
     await expect(
-      collectHostedGateEvidence({ ...base, confirmation: "COLLECT SOMETHING ELSE" }),
+      collectHostedGateEvidence({ ...base, enabled: false }),
+    ).rejects.toThrow(/not enabled/);
+    await expect(
+      collectHostedGateEvidence({
+        ...base,
+        confirmation: "COLLECT SOMETHING ELSE",
+      }),
     ).rejects.toThrow(/confirmation is invalid/);
     await expect(
       collectHostedGateEvidence({ ...base, expectedRevision: "main" }),
@@ -178,7 +219,10 @@ describe("hosted Gates 10-16 readiness evidence", () => {
       collectHostedGateEvidence({ ...base, origin: `${origin}/api` }),
     ).rejects.toThrow(/canonical HTTPS Worker origin/);
     await expect(
-      collectHostedGateEvidence({ ...base, origin: "https://attacker.example" }),
+      collectHostedGateEvidence({
+        ...base,
+        origin: "https://attacker.example",
+      }),
     ).rejects.toThrow(/not an approved staging target/);
     expect(base.fetchImpl).not.toHaveBeenCalled();
   });
