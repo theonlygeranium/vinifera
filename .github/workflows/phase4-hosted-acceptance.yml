@@ -1,0 +1,137 @@
+name: Phase 4 hosted acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      gate:
+        description: Gate 10, 11, or 12
+        required: true
+        type: choice
+        options: ["10", "11", "12"]
+      control_sha:
+        description: Exact canonical main SHA containing this controller
+        required: true
+        type: string
+      candidate_revision:
+        description: Exact revision already deployed to staging
+        required: true
+        type: string
+      confirmation:
+        description: Exact gate-specific confirmation from the runbook
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  deployments: none
+
+concurrency:
+  group: vinifera-phase4-hosted-acceptance-${{ inputs.gate }}
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    name: Gate ${{ inputs.gate }} hosted acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: staging-acceptance-control
+      deployment: false
+    steps:
+      - name: Validate immutable canonical source
+        env:
+          CONTROL_SHA: ${{ inputs.control_sha }}
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "theonlygeranium/vinifera" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$CONTROL_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+      - name: Check out immutable control source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.control_sha }}
+      - name: Verify canonical main and staging candidate
+        env:
+          CONTROL_SHA: ${{ inputs.control_sha }}
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$CONTROL_SHA" ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main staging:refs/remotes/origin/staging
+          [[ "$(git rev-parse origin/main)" == "$CONTROL_SHA" ]]
+          [[ "$(git rev-parse origin/staging)" == "$CANDIDATE_REVISION" ]]
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.22.0
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Verify controller suite
+        run: npm run qa:phase4-hosted-acceptance
+      - name: Revalidate canonical authority before acceptance
+        env:
+          CONTROL_SHA: ${{ inputs.control_sha }}
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+        run: |
+          set -euo pipefail
+          git fetch --force --no-tags origin main:refs/remotes/origin/main staging:refs/remotes/origin/staging
+          [[ "$(git rev-parse origin/main)" == "$CONTROL_SHA" ]]
+          [[ "$(git rev-parse origin/staging)" == "$CANDIDATE_REVISION" ]]
+      - name: Run selected protected acceptance
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
+          GATE_ACCEPTANCE_CONFIRMATION: ${{ inputs.confirmation }}
+          GATE_CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          GATE_CONTROL_SHA: ${{ inputs.control_sha }}
+          GATE_NUMBER: ${{ inputs.gate }}
+          STAGING_GATE10_ACCEPTANCE_ENABLED: ${{ vars.STAGING_GATE10_ACCEPTANCE_ENABLED }}
+          STAGING_GATE10_ACCEPTANCE_MANIFEST: ${{ secrets.STAGING_GATE10_ACCEPTANCE_MANIFEST }}
+          STAGING_GATE10_ACCEPTANCE_MANIFEST_SHA256: ${{ secrets.STAGING_GATE10_ACCEPTANCE_MANIFEST_SHA256 }}
+          STAGING_GATE11_ACCEPTANCE_ENABLED: ${{ vars.STAGING_GATE11_ACCEPTANCE_ENABLED }}
+          STAGING_GATE11_ACCEPTANCE_MANIFEST: ${{ secrets.STAGING_GATE11_ACCEPTANCE_MANIFEST }}
+          STAGING_GATE11_ACCEPTANCE_MANIFEST_SHA256: ${{ secrets.STAGING_GATE11_ACCEPTANCE_MANIFEST_SHA256 }}
+          STAGING_GATE12_ACCEPTANCE_ENABLED: ${{ vars.STAGING_GATE12_ACCEPTANCE_ENABLED }}
+          STAGING_GATE12_ACCEPTANCE_MANIFEST: ${{ secrets.STAGING_GATE12_ACCEPTANCE_MANIFEST }}
+          STAGING_GATE12_ACCEPTANCE_MANIFEST_SHA256: ${{ secrets.STAGING_GATE12_ACCEPTANCE_MANIFEST_SHA256 }}
+          STAGING_WORKER_ORIGIN: ${{ vars.STAGING_WORKER_ORIGIN }}
+          SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node scripts/hosted-phase4-acceptance.mjs --output "$RUNNER_TEMP/phase4-gate-${{ inputs.gate }}-acceptance.json"
+      - name: Revalidate authority before retaining evidence
+        env:
+          CONTROL_SHA: ${{ inputs.control_sha }}
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+        run: |
+          set -uo pipefail
+          report="$RUNNER_TEMP/phase4-gate-${{ inputs.gate }}-acceptance.json"
+          authority_error=""
+          if ! git fetch --force --no-tags origin main:refs/remotes/origin/main staging:refs/remotes/origin/staging; then
+            authority_error="Canonical ref refresh failed after acceptance."
+          elif [[ "$(git rev-parse origin/main 2>/dev/null || true)" != "$CONTROL_SHA" || "$(git rev-parse origin/staging 2>/dev/null || true)" != "$CANDIDATE_REVISION" ]]; then
+            authority_error="Canonical main or staging authority drifted after acceptance."
+          fi
+          if [[ -n "$authority_error" ]]; then
+            if jq --arg blocker "$authority_error" '.passed = false | .completionClaimed = false | .blockers += [$blocker]' "$report" > "$report.invalid"; then
+              mv "$report.invalid" "$report"
+            else
+              mv "$report" "$report.unretained"
+            fi
+            exit 1
+          fi
+      - name: Upload sanitized exact-gate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: phase4-gate-${{ inputs.gate }}-${{ inputs.candidate_revision }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/phase4-gate-${{ inputs.gate }}-acceptance.json
+          if-no-files-found: error
+          retention-days: 90

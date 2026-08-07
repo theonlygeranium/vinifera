@@ -178,7 +178,13 @@ days:
 
 Document sample sizes, attrition, intervention differences, and statistical
 uncertainty. A calendar duration without sufficient outcomes is not a passing
-experiment.
+experiment. The hosted acceptance evidence accepts the exact non-midnight
+timestamps produced by the experiment lifecycle RPCs and derives their UTC
+calendar dates. Every date from the start date through the completion date,
+both inclusive, must have a coverage row, so a partial first or final day cannot
+escape coverage. The exact completed experiment record must report at least 50
+evaluated outcomes, matching the database promotion constraint; a lower
+power-analysis threshold cannot relax that floor.
 
 Promote only when the completed experiment and database constraints prove the
 candidate is superior and operationally safe. Promotion must be an audited
