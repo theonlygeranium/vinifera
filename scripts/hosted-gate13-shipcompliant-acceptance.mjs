@@ -85,7 +85,7 @@ function exactUuid(value, label) {
   return normalized;
 }
 
-function exactHttpsOrigin(value, label) {
+export function exactHttpsOrigin(value, label) {
   let parsed;
   try {
     parsed = new URL(required(value, label));
@@ -105,7 +105,7 @@ function exactHttpsOrigin(value, label) {
   return parsed.origin;
 }
 
-function exactApiPath(value, label) {
+export function exactApiPath(value, label) {
   const path = required(value, label);
   expect(
     path.startsWith("/") &&

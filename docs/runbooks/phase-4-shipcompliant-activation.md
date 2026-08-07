@@ -246,8 +246,15 @@ provider.
    lowercase hash in each field of
    `config/shipcompliant-staging-acceptance-policy.json`, set its `enabled`
    field to `true`, and deliver that policy through the normal reviewed
-   `dev → staging → main` path. After the candidate revision is immutable,
-   compute SHA-256 over the manifest secret's exact JSON byte sequence and
+   `dev → staging → main` path. To generate these exact hashes without
+   normalization mistakes, export the same `SHIPCOMPLIANT_*`, `SUPABASE_URL`,
+   and `STAGING_WORKER_ORIGIN` values locally and run
+   `npm run ops:gate-policy-hash -- gate13`; it reuses the controller's own
+   `sha256`/origin/path normalization and prints a paste-ready policy object
+   (it only prints hashes, never the source values). After the candidate
+   revision is immutable,
+   compute SHA-256 over the manifest secret's exact JSON byte sequence
+   (`npm run ops:gate-policy-hash -- manifest-sha256 --manifest <file>`) and
    store it separately as the protected
    `STAGING_GATE13_ACCEPTANCE_MANIFEST_SHA256` secret. This per-run protected
    value preserves exact-byte authorization without creating a commit-SHA
