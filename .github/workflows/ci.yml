@@ -1449,7 +1449,7 @@ jobs:
               throw new Error("Gate 8 acceptance bindings do not satisfy the staging contract.");
             }
             console.log("Verified the fail-closed Gate 8 staging binding contract.");
-            NODE
+          NODE
           fi
 
       - name: Use Node.js
