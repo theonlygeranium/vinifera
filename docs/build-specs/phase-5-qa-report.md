@@ -567,6 +567,12 @@ from `CONTINUITY_BRIEF.md`; none is converted into a pass by this report.
     prove magic links, secure storage, biometrics, push, camera, offline restore,
     and relock on physical devices.
 18. Install signed builds from TestFlight and the Play internal track.
+19. Under protected owner confirmation, use Stripe-hosted Checkout for exactly
+    one allowlisted live subscription charge, prove signed webhook idempotency
+    and application lifecycle convergence, refund it once, and cancel renewal.
+    The source controller is default-disabled and has not executed.
+20. Move the production custom domain only after every hosted exit criterion is
+    evidenced.
 19. Replace Stripe test keys with approved live keys only under human
     supervision and run one controlled charge/refund.
 20. Attach `vinifera-live.edstratumlabs.ai` to the reviewed production Worker
