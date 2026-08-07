@@ -11,6 +11,21 @@
   `upsert_brand_sender_identity` with the `RESEND_FROM` email, marks the
   identity as `verified`, and disables it during cleanup.
 
+### Added
+- Add `scripts/gate-policy-hash.mjs` (`npm run ops:gate-policy-hash`) to generate
+  the exact SHA-256 policy-hash entries required to activate the Gate 13
+  (ShipCompliant) and Gate 16 (custom hostname) acceptance controllers. It reuses
+  each controller's own `sha256` and origin/path/hostname normalization — the two
+  pure Gate 13 normalizers (`exactHttpsOrigin`, `exactApiPath`) are now exported
+  for that reuse — so generated hashes cannot drift from what the controller
+  fail-closed checks, and it also computes the manifest byte hash for the
+  `STAGING_GATE1{3,6}_ACCEPTANCE_MANIFEST_SHA256` secrets. Read-only: it prints
+  only hashes (never the source values), makes no network calls, and mutates
+  nothing. The Gate 13 and Gate 16 activation runbooks now reference it at their
+  hashing steps. **Deployment impact:** operator tooling and docs only; no
+  application route, provider, database, credential, billing, DNS, Worker
+  activation, or gate status change (Gates 13 and 16 remain `pending`).
+
 - Fix indented `NODE` heredoc terminator in the `deploy-staging` job's Gate 8
   binding-verification step so the shell script no longer fails with
   `syntax error: unexpected end of file`. The terminator was nested inside an

@@ -11,9 +11,14 @@ strictly round-tripping RFC3339 `observedAt` timestamp, plus canonical `assets.p
 `assets.webManifestPath`, and at least two distinct `assets.iconPaths` values.
 
 Hash every stable target named by the policy. In one reviewed control change,
-enable the policy and add exactly one value per target hash. After the
+enable the policy and add exactly one value per target hash. To derive those
+hashes directly from your acceptance manifest without normalization mistakes,
+run `npm run ops:gate-policy-hash -- gate16 --manifest <file>`; it validates the
+manifest with the controller's own `validateManifest` and prints a paste-ready
+policy object. After the
 candidate is immutable, set `STAGING_GATE16_ACCEPTANCE_ENABLED=true` and the
-manifest plus `STAGING_GATE16_ACCEPTANCE_MANIFEST_SHA256` secrets in
+manifest plus `STAGING_GATE16_ACCEPTANCE_MANIFEST_SHA256` secrets
+(`npm run ops:gate-policy-hash -- manifest-sha256 --manifest <file>`) in
 `staging-acceptance-control` only for the run. This preserves exact manifest
 authorization without requiring the containing commit SHA to hash itself.
 Provide its scoped
