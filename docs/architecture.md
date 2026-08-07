@@ -545,7 +545,7 @@ pending until its reviewed exact revision is deployed and reverified.
 | 3 | Enable the custom access-token hook, 900-second email OTP expiry, Google OAuth, and SMTP. | Complete |
 | 4 | When service activation is explicitly resumed, reconcile the created-or-unknown Stripe test Price from run `30218801133`, then bootstrap/verify the four recurring Prices without a blind retry, register `/api/billing/webhook`, and add its signing secret. | Complete |
 | 5 | Add an EasyPost test key, configure the winery origin, and keep the production shipping simulator disabled. | Complete |
-| 6 | Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof. | Pending |
+| 6 | Create ten Stripe test members and run the Phase 2 billing, decline, label, pack, delivery, and refund proof. | Pending — protected default-disabled exact-candidate controller is source-complete; Gate 13 and hosted provider evidence remain required |
 | 7 | Run the complete hosted two-tenant RLS, staff, member magic-link, Checkout, webhook, grace-period, and suspension tests. | Complete — protected run `31089753727`, exact candidate `530a003b91642ebf40af01468b10e444116ef632`, Worker version `3978a4da-e488-4887-9900-34f2673f0cb6`, evidence artifact `8963047777` |
 | 8 | Verify a Resend sending domain, signed webhook, and at least two real staging triggers. | Pending |
 | 9 | Apply Phase 4 migration 15 to hosted Supabase and run the current-stack pgTAP assertions plus native tenant/RPC tests. | Complete (331/331 canonical native assertions) |

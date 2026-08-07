@@ -1,0 +1,153 @@
+name: Gate 6 staging acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      control_sha:
+        description: Exact 40-character commit on canonical main containing this controller
+        required: true
+        type: string
+      candidate_revision:
+        description: Exact 40-character revision already deployed to the staging Worker
+        required: true
+        type: string
+      gate13_run_id:
+        description: Successful Gate 13 acceptance run for this exact staging revision
+        required: true
+        type: string
+      confirmation:
+        description: Exact Gate 6 confirmation from the Phase 2 activation runbook
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  deployments: none
+
+concurrency:
+  group: vinifera-gate6-staging-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    name: Gate 6 hosted acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: staging-acceptance-control
+      deployment: false
+    steps:
+      - name: Validate canonical source target
+        env:
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          CONTROL_SHA: ${{ inputs.control_sha }}
+          GATE13_RUN_ID: ${{ inputs.gate13_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "theonlygeranium/vinifera" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$CONTROL_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GATE13_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+
+      - name: Check out immutable control source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.control_sha }}
+
+      - name: Verify immutable canonical main and staging commits
+        env:
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          CONTROL_SHA: ${{ inputs.control_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$CONTROL_SHA" ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          git fetch --no-tags origin staging:refs/remotes/origin/staging
+          [[ "$(git rev-parse origin/main)" == "$CONTROL_SHA" ]]
+          [[ "$(git rev-parse origin/staging)" == "$CANDIDATE_REVISION" ]]
+
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.22.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify Gate 6 control suite
+        run: npm run qa:gate6-acceptance
+
+      - name: Retrieve exact Gate 13 prerequisite evidence
+        env:
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          GH_TOKEN: ${{ github.token }}
+          GATE13_RUN_ID: ${{ inputs.gate13_run_id }}
+        run: |
+          set -euo pipefail
+          run_json="$RUNNER_TEMP/gate13-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GATE13_RUN_ID" > "$run_json"
+          [[ "$(jq -r '.conclusion' "$run_json")" == "success" ]]
+          [[ "$(jq -r '.event' "$run_json")" == "workflow_dispatch" ]]
+          [[ "$(jq -r '.path' "$run_json")" == ".github/workflows/shipcompliant-staging-acceptance.yml" ]]
+          mkdir -p "$RUNNER_TEMP/gate13"
+          gh run download "$GATE13_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "gate13-shipcompliant-$CANDIDATE_REVISION-*" \
+            --dir "$RUNNER_TEMP/gate13"
+          mapfile -t evidence_files < <(find "$RUNNER_TEMP/gate13" -type f -name 'gate13-shipcompliant-acceptance.json' -print)
+          [[ "${#evidence_files[@]}" -eq 1 ]]
+          echo "path=${evidence_files[0]}" >> "$GITHUB_OUTPUT"
+        id: gate13
+
+      - name: Revalidate immutable authority immediately before mutation
+        env:
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          CONTROL_SHA: ${{ inputs.control_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          git fetch --no-tags origin staging:refs/remotes/origin/staging
+          [[ "$(git rev-parse HEAD)" == "$CONTROL_SHA" ]]
+          [[ "$(git rev-parse origin/main)" == "$CONTROL_SHA" ]]
+          [[ "$(git rev-parse origin/staging)" == "$CANDIDATE_REVISION" ]]
+
+      - name: Run protected Phase 2 provider acceptance
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
+          COMPLIANCE_PROVIDER: shipcompliant
+          COMPLIANCE_SIMULATOR_ENABLED: "false"
+          GATE13_PREREQUISITE_RUN_ID: ${{ inputs.gate13_run_id }}
+          GATE6_ACCEPTANCE_CONFIRMATION: ${{ inputs.confirmation }}
+          GATE6_ACCEPTANCE_MANIFEST: ${{ secrets.STAGING_GATE6_ACCEPTANCE_MANIFEST }}
+          GATE6_ACCEPTANCE_MANIFEST_SHA256: ${{ vars.STAGING_GATE6_ACCEPTANCE_MANIFEST_SHA256 }}
+          GATE6_CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          GATE6_CONTROL_SHA: ${{ inputs.control_sha }}
+          LIVE_BILLING_ENABLED: "false"
+          SHIPPING_PROVIDER: easypost
+          SHIPPING_SIMULATOR_ENABLED: "false"
+          STAGING_GATE6_ACCEPTANCE_ENABLED: ${{ vars.STAGING_GATE6_ACCEPTANCE_ENABLED }}
+          STAGING_WORKER_ORIGIN: ${{ vars.STAGING_WORKER_ORIGIN }}
+          STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node scripts/hosted-gate6-phase2-acceptance.mjs \
+            --gate13-evidence "${{ steps.gate13.outputs.path }}" \
+            --output "$RUNNER_TEMP/gate6-phase2-acceptance.json"
+
+      - name: Upload sanitized Gate 6 evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: gate6-phase2-${{ inputs.candidate_revision }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gate6-phase2-acceptance.json
+          if-no-files-found: error
+          retention-days: 90

@@ -151,6 +151,35 @@
   policy remains disabled with empty allowlists, and no signing, provider
   upload, device operation, store submission, merge, promotion, or gate status
   changes occur.
+- Add a protected, default-disabled Gate 6 hosted acceptance controller that
+  binds canonical control and staging revisions to a successful exact-candidate
+  Gate 13 artifact, exactly ten tenant-scoped test members, Stripe test
+  charges/decline/recovery/refund, compliant EasyPost labels, fulfillment
+  transitions, durable provider IDs, audit evidence, and reversible fixture
+  retirement. **Deployment impact:** source and protected workflow only; target
+  hashes and the one-shot switch remain empty/disabled, no hosted workflow was
+  dispatched, and Gate 6 remains pending provider evidence. Reject non-test
+  Stripe credentials before client construction, hash the exact untrimmed
+  fixture-manifest bytes, bind audit proof to every expected entity/action and
+  sequence/hash link, and restrict Cloudflare Access transport to the hashed
+  staging Worker and Access-protected Supabase origins. Require the isolation
+  negative control to be a real active brand in another staging organization,
+  bind the fixture staff row to its declared tenant, and accept only an exact
+  403 denial rather than treating a missing UUID as isolation evidence. Reuse
+  the deletion-aware hosted cookie-jar contract so cleared base cookies cannot
+  shadow valid Supabase SSR chunks during staff-session verification. Remove
+  the candidate-specific manifest digest from checked-in policy: retain the
+  stable fixture-contract and provider-target hashes there, require the manifest
+  itself to name the exact staging candidate, and authorize its exact-byte hash
+  from protected environment state populated after the immutable candidate
+  exists. This removes the policy/candidate fixed point while preserving exact
+  runtime and Gate 13 evidence binding. Require the fixture staff principal to
+  be an active owner or admin before creating provider objects, preventing a
+  manager-only run from consuming the lifecycle and failing at the final
+  owner/admin-only refund. Re-fetch and revalidate canonical `main` and
+  `staging` after Gate 13 artifact retrieval and immediately before controller
+  invocation so a branch advance during setup cannot leave stale authority to
+  consume the one-shot fixtures.
 - Add the opt-in hosted Gate 8 acceptance controller and its complete review
   hardening: exact paginated Resend domain/webhook inventory, verified active
   senders, Access-authenticated bounded Worker probes, an exact tenant/brand/

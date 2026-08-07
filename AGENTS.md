@@ -206,6 +206,7 @@ workflows under `.github/workflows/`:
 | `production-worker-release.yml` | Manual, protected | Bootstrap, upload, deploy, or roll back the production Worker with automatic prior-version recovery; attach `vinifera-live.edstratumlabs.ai` only after exact Gates 1–19 exit evidence, or independently restore its verified `vinifera-live` Pages fallback. The marketing hostname is never a target. |
 | `promote-dev-to-staging.yml` | Manual/owner-authorized | Open/update, validate, and auto-merge a consolidated `dev` to `staging` promotion unless dry-run or explicitly disabled; never starts after every `dev` push |
 | `stripe-test-catalog.yml` | Manual, mixed | Stripe test Price catalog probe/verify without reviewer approval; bootstrap remains staging-protected |
+| `gate6-staging-acceptance.yml` | Manual, protected | Exact-candidate Phase 2 Stripe/EasyPost acceptance after matching Gate 13 evidence (default-disabled) |
 | `resend-staging-provisioning.yml` | Manual, protected | Trusted default-branch Resend domain/webhook bootstrap, exact-policy Cloudflare DNS application, protected staging secret handoff, and sanitized verification evidence |
 | `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
 | `stripe-live-proof.yml` | Manual, protected | Default-disabled two-dispatch Gate 19 proof: one Stripe-hosted live Checkout handoff, then exact charge/webhook/refund/application-lifecycle reconciliation and renewal cleanup. It never changes Worker bindings. |
