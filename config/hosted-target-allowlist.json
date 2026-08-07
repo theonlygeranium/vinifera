@@ -21,6 +21,7 @@
     "shipCompliantSandboxOriginSha256": []
   },
   "deniedProductionCustomHostnameOrigins": [
-    "vinifera.edstratumlabs.ai"
+    "vinifera.edstratumlabs.ai",
+    "vinifera-live.edstratumlabs.ai"
   ]
 }

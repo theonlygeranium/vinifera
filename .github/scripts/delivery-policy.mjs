@@ -139,6 +139,7 @@ const HIGH_RISK_FILES = new Set([
   ".nvmrc",
   "capacitor.config.json",
   "config/gate14-integration-acceptance-policy.json",
+  "config/hosted-activation-gates.json",
   "config/hosted-target-allowlist.json",
   "config/resend-staging-provisioning-policy.json",
   "package-lock.json",
@@ -205,6 +206,7 @@ export function isAuthorityHighRiskPath(path) {
     [
       ".env.example",
       "config/gate14-integration-acceptance-policy.json",
+      "config/hosted-activation-gates.json",
       "config/hosted-target-allowlist.json",
       "config/resend-staging-provisioning-policy.json",
       "package-lock.json",
