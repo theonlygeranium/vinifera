@@ -1,0 +1,50 @@
+name: Hosted activation exit evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: Exact current main candidate after Gates 1-19 are live-passed
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vinifera-hosted-activation-exit
+  cancel-in-progress: false
+
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.git_sha }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.22.0
+      - name: Validate current main and create exact exit evidence
+        env:
+          ACTIVATION_EXIT_GIT_SHA: ${{ inputs.git_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$GITHUB_SHA" == "$ACTIVATION_EXIT_GIT_SHA" ]]
+          [[ "$(git rev-parse HEAD)" == "$ACTIVATION_EXIT_GIT_SHA" ]]
+          git fetch --no-tags origin main
+          [[ "$(git rev-parse origin/main)" == "$ACTIVATION_EXIT_GIT_SHA" ]]
+          node scripts/hosted-activation-exit.mjs create \
+            config/hosted-activation-gates.json \
+            "$RUNNER_TEMP/hosted-activation-exit.json"
+      - name: Upload exact activation exit evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          if-no-files-found: error
+          name: hosted-activation-exit-${{ inputs.git_sha }}
+          path: ${{ runner.temp }}/hosted-activation-exit.json
+          retention-days: 90

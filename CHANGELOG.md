@@ -2,6 +2,48 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Classify the hosted activation-gate policy as an authority-bearing high-risk
+  file so production-origin changes cannot fail closed as an unknown delivery
+  surface before their required checks run. **Deployment impact:** CI delivery
+  classification only; no hosted gate, Worker, DNS, or provider mutation.
+- Extended the production hostname cutover recovery boundary through the final
+  marketing-content invariant check, so any late digest mismatch removes the
+  Worker domain and restores the retained Pages topology; custom-domain
+  verification also rejects any non-production Worker environment identity.
+
+### Changed
+- Keep pre-cutover production Auth callbacks on the exact allowlisted
+  `workers.dev` origin used by signed Gate 17/18 builds, and validate Worker
+  domain attachment by Cloudflare's documented domain identity followed by
+  bounded public HTTPS health instead of requiring a nonexistent `cert_id`
+  field. **Deployment impact:** protected production release behavior only; no
+  Worker, domain, provider, billing, store, or database mutation was performed.
+- Make `vinifera-live.edstratumlabs.ai` the single production application,
+  mobile API, and association-file origin while preserving
+  `vinifera.edstratumlabs.ai` as the marketing Pages hostname. Add protected,
+  exact-confirmation operations that attach only the live hostname to a
+  reviewed sole-active Worker version or restore it to the `vinifera-live`
+  Pages project; require exact domain attachment and the full hosted HTTPS health
+  contract, exact revision, root/app/portal and mobile associations; require an
+  exact-current-`main` Gates 1–19 exit artifact; make domain transitions
+  resumable; validate the retained Pages production branch/deployment and exact
+  fallback content; restore Pages automatically after a failed attachment; and
+  recover the fully verified prior topology after a failed Pages restore.
+  A failed restore from a neither-attached baseline now reconverges to no
+  owner instead of creating a Worker attachment that did not previously exist.
+  Signed internal mobile builds now verify the exact allowlisted pre-cutover
+  production Worker revision and association payload, removing the Gates
+  17/18-to-20 circular dependency. Failed production deploy or explicit
+  rollback commands and smoke checks reconverge to the captured prior
+  sole-active version and exact annotated revision. **Deployment
+  impact:** source, policy, native
+  association, and protected release-control behavior only; no provider,
+  hostname, Worker deployment, billing, database, credential, or store-track
+  mutation was performed. The integrated regression gate passes 593/593
+  Vitest tests, generated Worker types, TypeScript, the Vite build, and the
+  Worker dry-run package.
 ### Added
 - Add the complete Cursor Pro+ integration package (22 files) enabling
   WRITER Agent to orchestrate Cursor cloud agents as code-writing workers

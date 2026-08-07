@@ -14,8 +14,8 @@
   },
   "vars": {
     "APP_ENV": "production",
-    "APP_ORIGIN": "https://vinifera.edstratumlabs.ai",
-    "ALLOWED_ORIGINS": "https://vinifera.edstratumlabs.ai,capacitor://localhost,https://localhost"
+    "APP_ORIGIN": "https://vinifera-live.edstratumlabs.ai",
+    "ALLOWED_ORIGINS": "https://vinifera-live.edstratumlabs.ai,capacitor://localhost,https://localhost"
   },
   "observability": {
     "enabled": true,
@@ -186,8 +186,8 @@
       },
       "vars": {
         "APP_ENV": "production",
-        "APP_ORIGIN": "https://vinifera.edstratumlabs.ai",
-        "ALLOWED_ORIGINS": "https://vinifera.edstratumlabs.ai,capacitor://localhost,https://localhost",
+        "APP_ORIGIN": "https://vinifera-live.edstratumlabs.ai",
+        "ALLOWED_ORIGINS": "https://vinifera-live.edstratumlabs.ai,capacitor://localhost,https://localhost",
         "LIVE_BILLING_ENABLED": "false"
       }
     },
