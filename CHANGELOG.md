@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Recognize `.cursor/` and `openapi/` path prefixes as routine and add
+  `IMPLEMENTATION_GUIDE.md` to root documentation in the delivery policy
+  classifier so that promotion diffs containing Cursor Pro+ integration
+  tooling no longer fail closed with `unknown_path_fail_closed`.
+
 - Integrate Gate 15 core same-organization isolation into the canonical Gates
   10–16 exact-candidate evidence flow. Require an exact reviewed Supabase-origin
   hash before client creation; use a predeclared, dependency-ordered all-settled
