@@ -211,6 +211,8 @@ workflows under `.github/workflows/`:
 | `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
 | `stripe-live-proof.yml` | Manual, protected | Default-disabled two-dispatch Gate 19 proof: one Stripe-hosted live Checkout handoff, then exact charge/webhook/refund/application-lifecycle reconciliation and renewal cleanup. It never changes Worker bindings. |
 | `credential-envelope-rotation.yml` | Manual, protected | Rotate encrypted credential envelopes |
+| `mobile-release.yml` | Manual, protected | Signed iOS/Android artifacts for TestFlight and Play internal tracks |
+| `mobile-acceptance.yml` | Manual, protected | Default-disabled exact-release physical-device and internal-track evidence for Gates 17–18 |
 | `mobile-release.yml` | Manual, protected | Signed iOS/Android artifacts for TestFlight and Play internal tracks after exact pre-cutover production Worker revision and association proof |
 
 ### Deployment topology

@@ -136,6 +136,21 @@
 - Document Cursor Cloud VM development setup under a new `## Cursor Cloud specific instructions` section in `AGENTS.md`: how to start the Docker daemon manually (no systemd) for the full `npm run dev` stack, the Docker 29 + fuse-overlayfs `containerd-snapshotter=false` requirement, the `ubuntu` docker-group / `sg docker` note, seeded local login accounts, and the cold-run timeout caveat for `tests/scripts/promotion-smoke.test.mjs`. **Deployment impact:** documentation only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Changed
+- Add a default-disabled protected mobile acceptance controller for Gates 17
+  and 18. It validates Ed25519-signed, schema-strict iOS and Android evidence
+  against the exact current reviewed `main` commit and successful signed-mobile
+  release workflow path/run, reviewed API/signing identity hashes, and the
+  protected production promotion. Gate 17 requires the complete physical-device
+  magic-link, storage, biometric, push, camera, offline/relock, and
+  accessibility matrix; Gate 18 requires the same-release Gate 17 pass plus
+  successful fixed-track uploads and processed TestFlight/Play installs. Only
+  digest-level evidence is retained for 90 days, with canonical `main` and
+  emergency promotion controls revalidated immediately before publication.
+  **Deployment impact:** new
+  protected manual evidence controller, policy, ADR, templates, and QA only;
+  policy remains disabled with empty allowlists, and no signing, provider
+  upload, device operation, store submission, merge, promotion, or gate status
+  changes occur.
 - Add a default-disabled protected Gate 14 controller that binds an exact
   staging revision, winery organization/brand, Supabase/Worker targets, and
   immutable acceptance scope; requires AES-256-GCM winery-specific envelopes for

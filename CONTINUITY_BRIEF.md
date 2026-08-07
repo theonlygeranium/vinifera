@@ -858,6 +858,15 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   hashes remain empty, so no production mutation can run yet.
 - Signed Android/iOS build and Play internal/TestFlight delivery are wired as a
   protected manual workflow. Normal CI remains explicitly compile-only.
+- Gates 17 and 18 now have a separate source-complete, default-disabled
+  protected acceptance controller. It requires Ed25519-signed schema-strict
+  iOS and Android evidence bound to the current exact `main` SHA, the exact
+  successful signed-release workflow path/run, reviewed API/signing identity
+  hashes, and the merged `staging → main` promotion. Gate 18 additionally
+  requires the same-release Gate 17 pass and successful `upload-internal`
+  evidence before it can accept processed TestFlight and Play internal-track
+  installs. The policy allowlists remain empty and no physical-device or store
+  evidence has been collected, so both gates remain pending.
 - Commit `5cc1bda` passed the complete GitHub quality and Android run
   `30217201984`. The mutation jobs skipped because staging activation remains
   off.
