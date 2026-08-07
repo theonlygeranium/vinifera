@@ -499,6 +499,14 @@ test("minimum mandated security and delivery paths are high-risk", () => {
     "scripts/hosted-gate6-phase2-acceptance.mjs",
     "scripts/production-release.mjs",
     "config/gate6-staging-acceptance-policy.json",
+    "config/gate14-integration-acceptance-policy.json",
+    "config/gate16-custom-hostname-acceptance-policy.json",
+    "config/gate6-staging-acceptance-policy.json",
+    "config/hosted-activation-gates.json",
+    "config/hosted-target-allowlist.json",
+    "config/phase4-hosted-acceptance-policy.json",
+    "config/resend-staging-provisioning-policy.json",
+    "config/shipcompliant-staging-acceptance-policy.json",
     "config/hosted-activation-gates.json",
     "scripts/resend-staging-provisioning.mjs",
     "config/hosted-target-allowlist.json",
@@ -533,6 +541,14 @@ test("minimum mandated security and delivery paths are high-risk", () => {
     "scripts/hosted-gate6-phase2-acceptance.mjs",
     "scripts/production-release.mjs",
     "config/gate6-staging-acceptance-policy.json",
+    "config/gate14-integration-acceptance-policy.json",
+    "config/gate16-custom-hostname-acceptance-policy.json",
+    "config/gate6-staging-acceptance-policy.json",
+    "config/hosted-activation-gates.json",
+    "config/hosted-target-allowlist.json",
+    "config/phase4-hosted-acceptance-policy.json",
+    "config/resend-staging-provisioning-policy.json",
+    "config/shipcompliant-staging-acceptance-policy.json",
     "config/hosted-activation-gates.json",
     "scripts/resend-staging-provisioning.mjs",
     "config/hosted-target-allowlist.json",
@@ -1117,7 +1133,46 @@ test("trusted preview publisher never executes PR-head code beside credentials",
   assert.match(workflow, /--commit-hash "\$HEAD_SHA"/);
   assert.match(workflow, /classifyDeliveryChange/);
   assert.match(workflow, /readChangedRecords/);
-  assert.match(workflow, /applicable" != "\$trusted_applicable/);
+  assert.match(
+    workflow,
+    /git show "\$base_sha":\.github\/scripts\/delivery-policy\.mjs/,
+  );
+  assert.match(workflow, /TRUSTED_POLICY_PATH="\$trusted_policy"/);
+  assert.match(workflow, /pathToFileURL\(process\.env\.TRUSTED_POLICY_PATH\)/);
+  const isolated = workflow.slice(
+    workflow.indexOf("  validate:"),
+    workflow.indexOf("  publish:"),
+  );
+  const privileged = workflow.slice(workflow.indexOf("  publish:"));
+  assert.match(isolated, /name: Isolated preview policy validation/);
+  assert.match(isolated, /persist-credentials: false/);
+  assert.match(isolated, /trusted_applicable=\$\(env -i/);
+  assert.doesNotMatch(isolated, /\bsecrets\./);
+  assert.doesNotMatch(isolated, /contents: write/);
+  const tokenlessPolicy = workflow.slice(
+    workflow.indexOf("Evaluate exact base policy without credentials"),
+    workflow.indexOf("  publish:"),
+  );
+  assert.doesNotMatch(tokenlessPolicy, /GH_TOKEN|github\.token|\bsecrets\./);
+  assert.doesNotMatch(tokenlessPolicy, /continue-on-error: true/);
+  assert.match(privileged, /name: Frontend preview evidence/);
+  assert.match(privileged, /Fresh trusted default-branch checkout/);
+  assert.match(privileged, /needs: validate/);
+  assert.doesNotMatch(privileged, /pathToFileURL|classifyDeliveryChange/);
+  assert.match(
+    privileged,
+    /Revalidate exact identity without base code execution/,
+  );
+  assert.match(privileged, /candidate_eligible=\$\(jq -r '\.candidate_eligible'/);
+  assert.match(
+    privileged,
+    /A non-candidate cannot require privileged publication/,
+  );
+  assert.doesNotMatch(
+    workflow,
+    /import[\s\S]*from "\.\/\.github\/scripts\/delivery-policy\.mjs"/,
+  );
+  assert.match(workflow, /APPLICABLE" != "\$trusted_applicable/);
   assert.match(
     workflow,
     /Protected environment branches do not receive frontend preview deployments/,

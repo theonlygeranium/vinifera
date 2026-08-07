@@ -18,6 +18,14 @@ and commit-status responses in runner-local JSON files before exact evidence
 selection. This fixes the runner argument-length failure observed on PR #291
 without weakening PR/base/head binding or the immediate pre-merge check.
 
+The trusted frontend-preview publisher now loads its delivery classifier from
+the live pull request's exact validated `dev` base SHA only inside an isolated
+read-only job. GitHub API identity validation exits before a distinct tokenless
+step launches the policy process with a stripped environment. A separate fresh
+trusted runner re-downloads the candidate and revalidates the exact live
+PR identity before any Pages credential is available; it executes neither base
+nor PR-head code. This avoids false `unknown_path_fail_closed` results without
+expanding the privileged execution boundary.
 Promotion-smoke tests that create and compare three local Git branches use a
 30-second per-test budget. The local-drill and staged-classifier fixtures use
 the same bounded budget. Their logic is unchanged; the prior five-second
