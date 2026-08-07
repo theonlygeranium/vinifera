@@ -114,19 +114,33 @@ deferred** — they are the opposite of the owner's current goal. They remain
 documented as the alternative direction if the owner later wants true
 independent review on the production/billing tier.
 
-### Owner GitHub settings to apply for the loosening
+### Owner GitHub settings for the loosening
 
-These are external GitHub controls (not representable by repository code) and
-should be applied by the owner or via an admin-scoped token:
+These are external GitHub controls (not representable by repository code).
+**Verified via the GitHub API on 2026-08-07** — the reversible tier was already
+loosened, so no environment mutation was required:
 
-- [ ] Set required reviewers to **0** on the `promotion-control`, `staging`, and
-  `development-worker` environments (keep them for secret scoping only).
-- [ ] Keep required reviewers on `production` and `mobile-release` (these remain
-  human-gated critical escalations).
+- [x] `promotion-control` — **0 required reviewers** (no protection rules).
+- [x] `staging` — **0 required reviewers** (branch policy only; the global
+  required-reviewer rule was removed 2026-08-06).
+- [x] `development-worker` — not provisioned; it defaults to 0 required reviewers
+  when created, which is the intended state.
+- [x] `production` — required reviewer `theonlygeranium` retained (human-gated
+  critical escalation).
+- [x] `mobile-release` — required reviewer `theonlygeranium` retained
+  (human-gated critical escalation).
+
+Remaining, non-blocking:
+
 - [ ] Confirm the two new workflows are present on the default branch so their
-  `workflow_run`/`schedule` triggers activate.
+  `workflow_run`/`schedule` triggers activate (happens when this change reaches
+  `main`).
 - [ ] Optional: add an `ESCALATION_WEBHOOK_URL` secret to also receive alerts in
   Slack/Teams; the GitHub issue `@`-mention works without it.
+
+> If a second reviewer is ever added, `production`/`mobile-release` can also set
+> `prevent_self_review=true` (currently `false`); that is the deferred
+> security-hardening direction below, not part of this loosening.
 
 ## Recommended human configuration (deferred — security-hardening alternative)
 
