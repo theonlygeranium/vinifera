@@ -26,6 +26,13 @@ while the isolated suite passed.
 
 ## 2026-08-06 Gates 10-16 acceptance foundation
 
+Canonical-`main` Resend provisioning now uses the separate
+`staging-acceptance-control` environment. This keeps its provider/DNS mutation
+credentials reachable from trusted default-branch code without broadening the
+staging deployment environment's staging-only branch policy. Its external
+Resend, Cloudflare-zone, and staging-secret-update credentials remain to be
+provisioned.
+
 The protected staging deployment now supports independent opt-in readiness
 reports for Gates 10 through 16. Each report verifies the exact deployed
 candidate and only its gate's required configuration groups, retains a
@@ -905,6 +912,20 @@ The code must remain fail-closed until these external connections are active:
    and requires idempotent welcome/pre-shipment delivery plus signed webhook
    reconciliation before retaining sanitized evidence. Provider/DNS
    provisioning and a successful exact-candidate run remain outstanding.
+8. **Pending; protected provisioning source-complete on its feature branch:**
+   populate and review the exact disabled-by-default Resend/Cloudflare target
+   hashes, bootstrap the provider domain, webhook, and separate domain-scoped
+   sending-only runtime key from trusted `main`, review the generated key ID and
+   every DNS tuple hash, apply and post-read verify exact unproxied Cloudflare
+   DNS, then prove the signed webhook and at least two real staging triggers.
+   One-time webhook and runtime-key credentials are durably bound to their
+   exact endpoint or domain before missing-ID inventory, so an interrupted
+   lookup can resume through protected controller recovery before any provider
+   update or readiness claim; if both persistence and ID inventory fail, only
+   a later confirmed bootstrap can replace that single exact unbound resource.
+   Evidence is bound to exact source SHA, policy digest, repository, and run.
+   No provider, DNS, secret, or gate-status mutation has been performed by
+   source completion.
 9. Apply Phase 4 migration 15 to hosted Supabase and run the 37 current-stack
    pgTAP assertions plus native tenant/RPC tests.
 10. Connect a winery with real Phase 2/3 operations and verify every analytics

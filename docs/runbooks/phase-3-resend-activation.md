@@ -28,6 +28,89 @@ Resend reports the domain as verified before using it in a production sender.
 `onboarding@resend.dev` is reserved for development testing. It is not the
 production sender.
 
+### Protected staging provisioning sequence
+
+Staging provider and DNS mutation runs only through
+`.github/workflows/resend-staging-provisioning.yml` from an immutable commit
+equal to canonical `main`. The workflow reads mutation credentials from the
+main-branch-only `staging-acceptance-control` environment and writes only the
+resulting runtime bindings into the separate `staging` deployment environment.
+Its exact operation confirmations are:
+
+```text
+PROBE VINIFERA STAGING RESEND
+BOOTSTRAP VINIFERA STAGING RESEND
+APPLY VINIFERA STAGING RESEND DNS
+VERIFY VINIFERA STAGING RESEND
+```
+
+`config/resend-staging-provisioning-policy.json` ships disabled and empty. Do
+not enable it until the exact Cloudflare account, Cloudflare zone, sending
+domain, and protected staging Worker webhook endpoint hashes are reviewed and
+populated. The endpoint must be exactly the isolated staging Worker origin plus
+`/api/webhooks/resend`. Leave `runtimeApiKeyIdSha256` and `dnsRecords` empty for
+the first bootstrap.
+
+Use the exported `sha256` helper locally to derive hashes without writing raw
+targets to repository files or workflow artifacts. Normalize the values as a
+lowercase 32-character Cloudflare account ID, lowercase 32-character zone ID,
+lowercase sending domain without a trailing dot, and the exact HTTPS webhook
+URL.
+
+Before bootstrap, store one stable `STAGING_UNSUBSCRIBE_SIGNING_SECRET` in the
+`staging-acceptance-control` environment. Every mutating retry copies that same
+value to `staging`; it never generates a replacement. Run `bootstrap` with the
+exact reviewed default-branch SHA. It creates or
+inventories one exact domain and webhook, updates the webhook to the complete
+enabled event contract when necessary, and creates one runtime API key with
+`sending_access` restricted to the exact Resend `domain_id`. It never writes
+DNS. Every domain, webhook, and API-key inventory follows all Resend cursor
+pages before absence can authorize creation. The one-time runtime token is
+first written with the exact Resend domain-ID hash as one atomic
+`STAGING_RESEND_RUNTIME_KEY_RECOVERY` envelope in the main-only controller
+environment, before missing-ID inventory or other postchecks. Once the exact
+key ID is known, the controller writes `STAGING_RESEND_API_KEY`, binds the ID
+hash, and removes the envelope. A later protected bootstrap can therefore
+finish an interrupted missing-ID lookup against only the single exact
+runtime-key name. A failed write deletes only the API key created by the
+current attempt when its ID can be recovered; a missing or malformed token
+response follows the same rollback.
+The one-time webhook signing secret is first written with the exact endpoint
+hash as one atomic `STAGING_RESEND_WEBHOOK_RECOVERY` envelope in the
+main-only controller environment, before a missing provider ID can require
+inventory. Once the exact ID is known, the controller writes the secret to
+`staging`, writes the ID binding, and removes the recovery envelope. If ID
+inventory is interrupted, a later protected retry can finalize only the one
+unambiguous webhook at that exact endpoint. A failed write deletes that newly
+created webhook when its ID can be recovered. An existing webhook is accepted
+only when its ID hashes to the protected
+`STAGING_RESEND_WEBHOOK_ID_SHA256` value written to the main-only controller
+environment or when that exact recovery envelope is finalized before any
+provider mutation.
+If a recovery-envelope write and provider ID inventory both fail, the next
+explicitly confirmed protected `bootstrap` may replace only the single unbound
+resource at the reserved webhook endpoint or runtime-key name. `probe`,
+`apply`, and `verify` cannot use this replacement path; duplicates, malformed
+bindings, and a binding to another provider ID continue to fail closed.
+The sanitized artifact supplies the runtime key's ID hash and each returned
+record's `nameSha256`, `type`, `valueSha256`, and `priority`. Copy the exact key
+ID hash and complete tuple set into the policy in a second reviewed change; do
+not infer, shorten, or hand-edit provider values. Duplicate provider tuples
+fail before set comparison, so one reviewed tuple cannot satisfy multiple
+inventory entries while another is absent. If a post-creation check
+interrupts the first bootstrap, a retry inventories the existing key, writes
+its sanitized ID hash into the failure artifact, and then fails closed until
+that hash is present in reviewed policy.
+
+Run `apply` only after that exact DNS policy reaches `main`. It accepts one
+matching unproxied Cloudflare record, creates an absent unproxied record, and
+fails on duplicates, proxying, or conflicting content. It never overwrites or
+deletes DNS. The operation then requests Resend verification and polls it. It
+refetches the domain, webhook, runtime key, zone, and every DNS record and fails
+unless those post-mutation reads prove the domain, all returned records, sending
+capability, runtime-key ID, and exact webhook are ready. Follow with read-only
+`verify` on the same reviewed policy.
+
 Phase 5 brand senders are verified independently from the legacy/default
 sender. In the staff **White-label** surface, save the exact brand sender name
 and address, start domain verification, and publish the returned DNS records.
@@ -35,7 +118,7 @@ The sender remains `pending` until Resend reports both domain verification and
 sending capability. Replacing the address resets verification; clearing it
 disables that brand sender.
 
-## 2. Configure repository secrets
+## 2. Configure protected controller secrets
 
 For the protected staging environment, add the following encrypted GitHub
 environment secrets (the Worker receives the unprefixed binding names):
@@ -49,9 +132,45 @@ STAGING_RESEND_SENDING_DOMAIN
 STAGING_RESEND_DOMAIN_VERIFIED=true
 STAGING_RESEND_WEBHOOK_SECRET
 STAGING_UNSUBSCRIBE_SIGNING_SECRET
+The provisioning workflow consumes these secrets from
+`staging-acceptance-control` (repository-level values with the same names may
+be used only where already governed there):
+
+```text
+RESEND_PROVISIONING_API_KEY
+CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_ZONE_ID
+CLOUDFLARE_API_TOKEN
 ```
 
-`RESEND_FROM` must use `RESEND_SENDING_DOMAIN`, and
+`RESEND_PROVISIONING_API_KEY` requires provider resource administration and is
+used only by the protected controller. Bootstrap creates a separate
+domain-restricted `sending_access` key and writes only that token to
+`STAGING_RESEND_API_KEY`; the provisioning key is never a Worker runtime secret.
+
+`STAGING_GITHUB_VARIABLES_TOKEN` in `staging-acceptance-control` must be
+authorized to update the separate `staging` environment's Actions secrets. The
+controller streams values directly into `gh secret set` and writes these staging environment
+bindings without workflow outputs or artifacts:
+
+```text
+STAGING_EMAIL_PROVIDER=resend
+STAGING_EMAIL_SIMULATOR_ENABLED=false
+STAGING_RESEND_API_KEY
+STAGING_RESEND_FROM
+STAGING_RESEND_SENDING_DOMAIN
+STAGING_RESEND_DOMAIN_VERIFIED
+STAGING_RESEND_WEBHOOK_SECRET
+STAGING_UNSUBSCRIBE_SIGNING_SECRET
+```
+
+The controller also manages `STAGING_RESEND_RUNTIME_KEY_RECOVERY`,
+`STAGING_RESEND_RUNTIME_KEY_ID_SHA256`, `STAGING_RESEND_WEBHOOK_RECOVERY`, and
+`STAGING_RESEND_WEBHOOK_ID_SHA256` only in `staging-acceptance-control`. Each
+recovery envelope is temporary and removed after its runtime secret and exact
+provider-resource ID binding are both durable.
+
+The unprefixed Worker binding `RESEND_FROM` must use `RESEND_SENDING_DOMAIN`, and
 `RESEND_DOMAIN_VERIFIED` must remain false until Resend reports the domain as
 verified. Generate
 `UNSUBSCRIBE_SIGNING_SECRET` as a high-entropy server-only value and rotate it
@@ -68,6 +187,9 @@ Actions variable because GitHub evaluates job conditions before loading the
 before deployment unless the complete binding set and
 `STAGING_HOSTED_ACCEPTANCE_EMAIL_BASE` environment variable are present and
 consistent.
+Every artifact is bound to the validated exact git SHA, SHA-256 digest of the
+policy bytes, canonical repository, and GitHub run ID/attempt. Do not accept an
+artifact whose binding differs from the dispatched immutable commit or run.
 
 These bindings establish provider access and the default transactional sender;
 they do not mark every brand sender verified. A branded delivery must resolve a
@@ -201,3 +323,7 @@ required notices follow the configured message classification.
   fail-closed activation state.
 - Correct database behavior with a forward migration; do not delete delivery,
   loyalty, cancellation, or audit history.
+- If provisioning stops after provider creation, retain the resource and rerun
+  the same operation. Do not create a duplicate domain or webhook.
+- If DNS policy is incomplete or stale, update the reviewed hashes; never bypass
+  the policy or overwrite a conflicting Cloudflare record.
