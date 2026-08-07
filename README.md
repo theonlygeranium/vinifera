@@ -129,7 +129,10 @@ Available runtime secrets are attached atomically to that staging version.
 A protected manual controller can later bootstrap, upload, deploy, or roll
 back an immutable production Worker artifact without changing the public
 marketing/rollback domain. Domain cutover and Pages restoration remain a
-separate, explicitly authorized legacy control. A separate protected workflow produces
+separate, explicitly authorized legacy control. Stripe binding cutover and the
+default-disabled Gate 19 hosted Checkout/charge/refund proof are also separate
+protected workflows, so financial proof cannot silently change Worker
+credentials. A separate protected workflow produces
 signed Android/iOS artifacts and optionally uploads only to internal tracks.
 All three paths ship fail-closed until their scoped credentials, target hashes,
 and confirmations exist.
