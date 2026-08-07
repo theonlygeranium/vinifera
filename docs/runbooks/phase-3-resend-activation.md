@@ -120,6 +120,18 @@ disables that brand sender.
 
 ## 2. Configure protected controller secrets
 
+For the protected staging environment, add the following encrypted GitHub
+environment secrets (the Worker receives the unprefixed binding names):
+
+```text
+STAGING_EMAIL_PROVIDER=resend
+STAGING_EMAIL_SIMULATOR_ENABLED=false
+STAGING_RESEND_API_KEY
+STAGING_RESEND_FROM
+STAGING_RESEND_SENDING_DOMAIN
+STAGING_RESEND_DOMAIN_VERIFIED=true
+STAGING_RESEND_WEBHOOK_SECRET
+STAGING_UNSUBSCRIBE_SIGNING_SECRET
 The provisioning workflow consumes these secrets from
 `staging-acceptance-control` (repository-level values with the same names may
 be used only where already governed there):
@@ -168,6 +180,13 @@ links.
 Do not expose any of these values through Vite-prefixed variables or browser
 configuration.
 
+The protected staging deployment maps every value above into the immutable
+Worker upload. `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED` is a repository-level
+Actions variable because GitHub evaluates job conditions before loading the
+`staging` environment. If it is `true`, deployment fails
+before deployment unless the complete binding set and
+`STAGING_HOSTED_ACCEPTANCE_EMAIL_BASE` environment variable are present and
+consistent.
 Every artifact is bound to the validated exact git SHA, SHA-256 digest of the
 policy bytes, canonical repository, and GitHub run ID/attempt. Do not accept an
 artifact whose binding differs from the dispatched immutable commit or run.
@@ -225,6 +244,52 @@ Enable the welcome and pre-shipment templates for the staging winery.
 
 Repeat activation checks for decline, shipped, birthday, and re-engagement
 before enabling them for a production winery.
+
+### Protected one-shot Gate 8 acceptance
+
+After the provider domain and webhook prerequisites exist, set the protected
+repository Actions variable `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED=true` for one reviewed
+promotion. The controller:
+
+1. confirms the exact Resend domain is verified with sending, DKIM, and SPF;
+2. confirms the exact staging webhook is enabled for every supported event and
+   that its provider signing secret matches the deployed binding;
+3. creates an isolated member and release in the dedicated acceptance tenant;
+4. lets the member insert enqueue welcome, replays pre-shipment twice through
+   the exact organization-, brand-, member-, and release-scoped command, and
+   requires exactly one logical message of each type without scanning other
+   tenants' due communications;
+5. waits for the actual deployed hourly Worker Cron Trigger within the
+   controller-wide 70-minute pre-cleanup budget, shortening the delivery wait
+   by time already spent on discovery and fixture setup;
+6. requires two completed outbox records, two distinct provider messages, and
+   a signed `email.delivered` webhook event for both (`email.sent` is not
+   completion evidence), with every delivery table read scoped to the exact
+   acceptance organization and brand; and
+7. retires the member, tier, and release while retaining durable email and
+   audit evidence.
+
+The mutation runs only after the staging deployment job succeeds, in a
+dedicated 100-minute job with a bounded 70-minute controller pre-cleanup
+deadline. Checkout and dependency installation retain a 15-minute allowance;
+runtime/provider discovery, fixture setup, and delivery polling all consume the
+same 70-minute deadline, leaving the final 15 minutes for fixture retirement
+and evidence upload.
+While the Gate 8 toggle is active, a later staging run does not supersede the in-flight
+workflow, preserving the reserved cleanup window for fixture retirement and
+sanitized evidence upload.
+
+The sanitized `vinifera-hosted-gate8-acceptance.json` artifact is necessary but
+does not by itself mark the gate passed; bind it to the reviewed candidate,
+Worker version, and protected staging run. Set the toggle back to `false` after
+the accepted one-shot run.
+
+Resend-domain, webhook, and DNS creation are deliberately not performed by the
+acceptance controller. A future trusted provisioning operation must authorize
+the exact sending-domain and Cloudflare zone hashes, run default-branch code,
+write the returned webhook signing secret directly to the staging environment,
+and publish only sanitized evidence. Until then, complete Sections 1–3 before
+enabling acceptance.
 
 ## 5. Verify independent daily work
 
