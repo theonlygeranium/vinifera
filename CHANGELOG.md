@@ -431,6 +431,19 @@
 - Reconcile Octopus↔Cloudflare deployment model (ADR: `2026-08-05-octopus-cloudflare-deployment-reconciliation.md`). Correct `AppHealthUrl` in `.octopus/variables.ocl` from `http://localhost:3000/health` to the real Worker health endpoint `https://vinifera-development.jeff-f69.workers.dev/health`. Deprecate PM2 `restart-application` step in `.octopus/deployment_process.ocl`, replacing it with a `verify-worker-health` evidence probe that checks the deployed Cloudflare Worker; merge the former `smoke-test` step into the probe. Reduce `.github/workflows/octopus-main-deploy.yml` to evidence-only — remove the non-functional "Deploy to Development" step and keep Octopus release creation as an audit record. Octopus now serves as review/orchestration and release-audit ledger; GitHub Actions owns Worker deployment via Wrangler. **Deployment impact:** CI/release-control and Octopus process configuration only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Fixed
+- Load trusted frontend-preview delivery policy from the live pull request's
+  exact validated `dev` base SHA rather than from potentially stale `main`, but
+  evaluate that base policy only in a distinct tokenless step after the isolated
+  read-only identity step has exited, with credentials stripped from the policy
+  process. The privileged Pages publisher starts on a
+  fresh runner, re-downloads the candidate, and revalidates exact PR/head/base
+  identity without executing base or PR-head code. Newly reviewed base-policy
+  paths therefore no longer fail as unknown solely because production promotion
+  has not occurred, without expanding the credentialed execution boundary.
+  **Deployment impact:** trusted preview evidence classification and Pages
+  publication workflow only; no application route, provider, database,
+  credential, billing, DNS, Worker activation, or production/mobile
+  approval-gate state changes.
 - Give the promotion-smoke local-drill fixture the same 30-second bounded Git
   operation budget as the three multi-branch fixture tests. This prevents
   full-suite host contention from exhausting Vitest's unrelated 5-second
@@ -1487,6 +1500,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Teach the trusted default-branch classifier the exact remaining-gate policy
+  filenames so non-frontend PRs can publish an authoritative non-applicable
+  preview result without weakening unknown-path fail-closed behavior.
+  **Deployment impact:** trusted preview classification only; no gate,
+  provider, database, Worker, DNS, billing, or mobile-store mutation.
 - **What changed:** Octopus Rule 8 now models assigned descendants of a shared
   `.from(...)` table builder as independent leaf chains. A regression combines
   a scoped select and unscoped delete from the same root and verifies the delete
