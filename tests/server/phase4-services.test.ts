@@ -8,6 +8,7 @@ import {
 } from "../../server/lib/analytics-events";
 import {
   aggregateAnalyticsDashboards,
+  benchmarkPeriod,
   composeChurnIntelligenceDto,
   enforceModelGuardrails,
   mlArtifactHash,
@@ -1552,6 +1553,13 @@ describe("Phase 4 analytics boundaries", () => {
 });
 
 describe("Phase 4 benchmark artifacts", () => {
+  it("reports the exact stored benchmark month on a quarterly delivery cadence", () => {
+    expect(benchmarkPeriod("2026-04-01")).toEqual({
+      end: "2026-04-30",
+      label: "2026-04",
+      start: "2026-04-01",
+    });
+  });
   it("suppresses non-k-anonymous cohorts and provides non-metric guidance", () => {
     expect(() =>
       createBenchmarkReportArtifact({

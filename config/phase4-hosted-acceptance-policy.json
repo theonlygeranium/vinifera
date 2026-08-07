@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "enabledGates": [],
+  "stagingWorkerOriginSha256": [],
+  "stagingSupabaseUrlSha256": []
+}
