@@ -32,6 +32,27 @@ the same bounded budget. Their logic is unchanged; the prior five-second
 default repeatedly timed out only under concurrent full-suite filesystem load
 while the isolated suite passed.
 
+## 2026-08-06 Gate 6 Phase 2 hosted acceptance controller
+
+Gate 6 now has a protected, default-disabled, exact-candidate controller and
+sanitized evidence contract. It requires a successful retained Gate 13
+artifact for the same staging revision, exactly ten dedicated same-tenant
+members, Stripe test mode, real EasyPost and ShipCompliant adapters, one
+decline/recovery, ten labels, pick/pack/ship/deliver, one refund, scoped audit
+evidence, and reversible fixture retirement. Deterministic provider and
+database identifiers prevent blind duplicate charges or labels. This is source
+readiness only: policy hashes and the one-shot switch remain empty/disabled,
+the hosted workflow has not run, and Gate 6 remains pending.
+The stable reviewed policy authorizes the fixture contract and provider targets;
+the exact candidate-bound manifest digest is set only afterward in the protected
+environment, removing the policy/candidate fixed point without weakening the
+exact runtime or Gate 13 bindings.
+The preflight also requires an active owner/admin fixture principal before any
+provider object is created, so the final refund cannot discover insufficient
+authority only after the one-shot lifecycle has been partially consumed.
+The workflow re-fetches and compares canonical `main` and `staging` again after
+Gate 13 artifact retrieval and immediately before controller invocation, so a
+branch advance during setup fails closed before provider mutation.
 ## 2026-08-06 production activation-chain repair
 
 Gate 20 now fails closed on a 90-day exact-current-`main` exit artifact derived

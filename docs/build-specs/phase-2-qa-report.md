@@ -2,8 +2,10 @@
 
 **Date:** 2026-07-26
 **Candidate:** Phase 2 production architecture
-**Gate status:** Architecture/local QA pass; hosted money-movement and label
-exit proof is deferred pending provider activation.
+**Gate status:** Architecture/local QA pass; a protected default-disabled
+hosted acceptance controller is source-complete, while money-movement and label
+exit proof remains pending its exact-candidate Gate 13 prerequisite and hosted
+run.
 
 ## Outcome
 
@@ -112,6 +114,11 @@ tests. Hosted results must include the provider mode and sample size.
 - [x] The production runtime rejects the shipping simulator.
 
 ## Exit criterion evidence
+
+The guarded execution and evidence contract is documented in
+[`phase-2-hosted-acceptance.md`](../runbooks/phase-2-hosted-acceptance.md). Its
+sanitized artifact always records `completionClaimed: false`; only inspected
+provider evidence can change the checklist below.
 
 - [ ] Hosted Supabase Phase 1 and Phase 2 migrations applied.
 - [ ] One real test winery exists.
