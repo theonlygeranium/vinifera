@@ -140,6 +140,7 @@ const HIGH_RISK_FILES = new Set([
   "capacitor.config.json",
   "config/gate6-staging-acceptance-policy.json",
   "config/hosted-target-allowlist.json",
+  "config/resend-staging-provisioning-policy.json",
   "package-lock.json",
   "package.json",
   "tests/e2e/smoke.spec.ts",
@@ -150,6 +151,9 @@ const AUTHORITY_HIGH_RISK_FILES = new Set([
   ".github/workflows/gate6-staging-acceptance.yml",
   "config/gate6-staging-acceptance-policy.json",
   "scripts/hosted-gate6-phase2-acceptance.mjs",
+  ".github/workflows/resend-staging-provisioning.yml",
+  "config/resend-staging-provisioning-policy.json",
+  "scripts/resend-staging-provisioning.mjs",
 ]);
 
 const MOBILE_PREFIXES = Object.freeze([
@@ -204,6 +208,7 @@ export function isAuthorityHighRiskPath(path) {
     [
       ".env.example",
       "config/hosted-target-allowlist.json",
+      "config/resend-staging-provisioning-policy.json",
       "package-lock.json",
       "wrangler.jsonc",
     ].includes(path)

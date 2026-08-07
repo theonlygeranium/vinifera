@@ -329,6 +329,17 @@ RESEND_WEBHOOK_SECRET
 UNSUBSCRIBE_SIGNING_SECRET
 ```
 
+Staging domain, webhook, DNS, and protected environment-secret provisioning is
+controlled by the disabled-by-default exact hashes in
+`config/resend-staging-provisioning-policy.json` and the trusted `main`-only
+`.github/workflows/resend-staging-provisioning.yml`. Use `bootstrap` to obtain
+the domain-restricted sending-only runtime-key ID hash and sanitized
+provider-generated DNS tuple hashes, review the complete tuple policy, then use
+`apply` and read-only `verify`. The protected controller alone uses
+`RESEND_PROVISIONING_API_KEY`; the Worker receives only the generated
+domain-scoped `STAGING_RESEND_API_KEY`. `npm run qa:resend-provisioning`
+validates the local control contract without contacting either provider.
+
 Register `POST /api/webhooks/resend` and keep its raw-body signature
 verification enabled. Missing or unverified configuration leaves email work
 queued and returns an explicit activation state. A deterministic email adapter
@@ -566,7 +577,7 @@ then runs the remaining test and build gates. This keeps validation reproducible
 from a fresh checkout while leaving the generated artifact untracked.
 
 The current credential-independent architecture gate passes generated Worker
-types, TypeScript, 574/574 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+types, TypeScript, 596/596 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
 3 199/199, Phase 4 159/159, Phase 5 515/515 embedded PostgreSQL/pgTAP
 assertions, and the integrated Playwright suite with 155 passed and three
 hosted-only cases skipped, with zero axe violations in executed cases.
