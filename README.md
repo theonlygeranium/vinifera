@@ -138,6 +138,22 @@ signed Android/iOS artifacts and optionally uploads only to internal tracks.
 All three paths ship fail-closed until their scoped credentials, target hashes,
 and confirmations exist.
 
+### Agent tooling
+
+Project-scoped Cursor Agent Skills live under `.cursor/skills/`. The
+`vinifera-outline-publisher` skill packages the guarded Outline publishing
+workflow, canonical collection maps, and reusable drafting templates for
+session continuity and status updates. Cursor agents should invoke its
+read-only verification before previewing or applying any wiki update:
+
+```bash
+python3 .cursor/skills/vinifera-outline-publisher/scripts/publish.py verify
+```
+
+The publisher defaults to dry-run, resolves its own directory at runtime, and
+uses the existing macOS Keychain service or `OUTLINE_API_TOKEN` environment
+binding without storing credential values in the repository.
+
 ### Candidate delivery
 
 Vinifera uses ready pull-request heads as development candidates. Local and

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Add a project-scoped Cursor Agent Skill for publishing verified Vinifera
+  continuity, status, architecture, operations, and authorized vault updates
+  to the private Outline collection through Schubert. The package includes the
+  dry-run-by-default publisher, canonical collection maps, and drafting
+  templates; it introduces no application, database, workflow, deployment, or
+  activation-gate change.
+
 - Fix indented `NODE` heredoc terminator in the `deploy-staging` job's Gate 8
   binding-verification step so the shell script no longer fails with
   `syntax error: unexpected end of file`. The terminator was nested inside an

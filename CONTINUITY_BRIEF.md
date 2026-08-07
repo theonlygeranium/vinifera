@@ -1,6 +1,6 @@
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-08-06
+**Last updated:** 2026-08-07
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
 
 ## Project identity
@@ -12,6 +12,20 @@
 - Build specifications: `docs/build-specs/`
 
 Read `AGENTS.md`, the phase specification, and this brief before editing.
+
+## 2026-08-07 project-scoped Cursor Outline publisher
+
+The repository now carries a self-contained Cursor Agent Skill at
+`.cursor/skills/vinifera-outline-publisher/`. It adapts the Vinifera Outline
+publisher to resolve resources relative to its own `SKILL.md`, and includes the
+publisher script, canonical Vinifera and Schubert document maps, plus the four
+session/status drafting templates. Its normal workflow verifies the private
+collection contract, previews each write, applies only an explicit mutation,
+appends the knowledge-base update log, and verifies again.
+
+This is agent-tooling documentation only. It does not change application code,
+hosted providers, deployment workflows, database state, or activation-gate
+status.
 
 ## 2026-08-06 Gate 15 core evidence repair
 
