@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- Fix indented `NODE` heredoc terminator in the `deploy-staging` job's Gate 8
+  binding-verification step so the shell script no longer fails with
+  `syntax error: unexpected end of file`. The terminator was nested inside an
+  `if` block at 12 spaces YAML indentation, but `<<'NODE'` requires it at the
+  block's base indentation (10 spaces) so it lands at column 0 after YAML
+  stripping. This blocked the staging Worker deployment and caused the
+  `gate8-acceptance` job to be skipped.
+
 - Recognize `.cursor/` and `openapi/` path prefixes as routine and add
   `IMPLEMENTATION_GUIDE.md` to root documentation in the delivery policy
   classifier so that promotion diffs containing Cursor Pro+ integration
