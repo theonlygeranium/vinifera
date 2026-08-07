@@ -152,6 +152,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 <body — what changed and why>
 
 Verification: <commands run and results, e.g. "npm run check; 624/624 Vitest; npm run qa:e2e; 155 passed Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 596/596 Vitest; 155 passed Playwright/axe">
 ```
 
 **Types:** `feat`, `fix`, `docs`, `chore`, `refactor`, `perf`, `test`, `ci`
@@ -202,6 +203,7 @@ workflows under `.github/workflows/`:
 | `production-worker-release.yml` | Manual, protected | Bootstrap, upload, deploy, or roll back the production Worker without domain/Pages mutation (credential-gated) |
 | `promote-dev-to-staging.yml` | Manual/owner-authorized | Open/update, validate, and auto-merge a consolidated `dev` to `staging` promotion unless dry-run or explicitly disabled; never starts after every `dev` push |
 | `stripe-test-catalog.yml` | Manual, mixed | Stripe test Price catalog probe/verify without reviewer approval; bootstrap remains staging-protected |
+| `resend-staging-provisioning.yml` | Manual, protected | Trusted default-branch Resend domain/webhook bootstrap, exact-policy Cloudflare DNS application, protected staging secret handoff, and sanitized verification evidence |
 | `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
 | `stripe-live-proof.yml` | Manual, protected | Default-disabled two-dispatch Gate 19 proof: one Stripe-hosted live Checkout handoff, then exact charge/webhook/refund/application-lifecycle reconciliation and renewal cleanup. It never changes Worker bindings. |
 | `credential-envelope-rotation.yml` | Manual, protected | Rotate encrypted credential envelopes |
@@ -251,11 +253,12 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 ## 6. Quality Assurance
 
-### Current verified test counts (2026-08-05 hosted-gate QA baseline)
+### Current verified test counts (2026-08-06 Resend provisioning baseline)
 
 | Suite | Count | Command |
 |-------|-------|---------|
 | Vitest unit/integration | 624 | `npm run check` |
+| Vitest unit/integration | 596 | `npm run check` |
 | Phase 1 DB (foundation) | 92 assertions | `npm run qa:db:phase1` |
 | Phase 2 DB (core club) | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB (retention) | 199 assertions | `npm run qa:db:phase3` |
