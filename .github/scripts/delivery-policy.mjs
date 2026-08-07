@@ -140,10 +140,17 @@ const HIGH_RISK_FILES = new Set([
   "capacitor.config.json",
   "config/hosted-activation-gates.json",
   "config/hosted-target-allowlist.json",
+  "config/resend-staging-provisioning-policy.json",
   "package-lock.json",
   "package.json",
   "tests/e2e/smoke.spec.ts",
   "wrangler.jsonc",
+]);
+
+const AUTHORITY_HIGH_RISK_FILES = new Set([
+  ".github/workflows/resend-staging-provisioning.yml",
+  "config/resend-staging-provisioning-policy.json",
+  "scripts/resend-staging-provisioning.mjs",
 ]);
 
 const MOBILE_PREFIXES = Object.freeze([
@@ -191,6 +198,7 @@ export function isHighRiskPath(path) {
 
 export function isAuthorityHighRiskPath(path) {
   if (
+    AUTHORITY_HIGH_RISK_FILES.has(path) ||
     path.startsWith(".github/") ||
     path.startsWith(".octopus/") ||
     path.startsWith("supabase/migrations/") ||
@@ -198,6 +206,7 @@ export function isAuthorityHighRiskPath(path) {
       ".env.example",
       "config/hosted-activation-gates.json",
       "config/hosted-target-allowlist.json",
+      "config/resend-staging-provisioning-policy.json",
       "package-lock.json",
       "wrangler.jsonc",
     ].includes(path)
