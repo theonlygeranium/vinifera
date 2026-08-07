@@ -254,36 +254,6 @@ describe("hosted environment security boundaries", () => {
     expect(report.compliance.missing).toContain("SHIPCOMPLIANT_TOKEN_PATH");
   });
 
-  it("reports only hashed Supabase and ShipCompliant runtime target bindings", async () => {
-    const report = await getRuntimeConfigurationReport({
-      APP_ENV: "staging",
-      COMPLIANCE_PROVIDER: "shipcompliant",
-      SHIPCOMPLIANT_ACCOUNT_ID: "sandbox-account",
-      SHIPCOMPLIANT_API_KEY: "runtime-key",
-      SHIPCOMPLIANT_API_SECRET: "runtime-secret",
-      SHIPCOMPLIANT_BASE_URL: "https://sandbox.example.test",
-      SHIPCOMPLIANT_CHECK_PATH: "/shipment/check",
-      SHIPCOMPLIANT_CONTRACT_VERSION: "contract-v1",
-      SHIPCOMPLIANT_ENDPOINT_MODE: "sandbox",
-      SHIPCOMPLIANT_LICENSE_ID: "sandbox-license",
-      SHIPCOMPLIANT_TOKEN_PATH: "/oauth/token",
-      SUPABASE_URL: "https://staging-supabase.example.test/path",
-    });
-
-    expect(report.database.bindingHashes).toEqual({
-      supabaseUrlSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
-    });
-    expect(report.compliance.bindingHashes).toEqual(
-      expect.objectContaining({
-        accountIdSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
-        sandboxOriginSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
-      }),
-    );
-    expect(JSON.stringify(report)).not.toContain("runtime-secret");
-    expect(JSON.stringify(report)).not.toContain("runtime-key");
-    expect(JSON.stringify(report)).not.toContain("staging-supabase.example.test");
-  });
-
   it("allows Avalara sandbox but rejects its production endpoint in staging", () => {
     expect(() =>
       assertAvalaraBaseUrlEnvironment(

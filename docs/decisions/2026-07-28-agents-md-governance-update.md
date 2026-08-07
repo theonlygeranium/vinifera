@@ -1,9 +1,9 @@
 # ADR 2026-07-28: AGENTS.md Ownership and Governance Policy Update
 
-**Date:** 2026-07-28  
-**Status:** Accepted  
-**Deciders:** Human owner (EdStratum Labs) + Writer Agent  
-**Branch:** docs/agents-md-rewrite  
+**Date:** 2026-07-28
+**Status:** Accepted
+**Deciders:** Human owner (EdStratum Labs) + Writer Agent
+**Branch:** docs/agents-md-rewrite
 
 ---
 

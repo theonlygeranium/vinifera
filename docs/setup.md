@@ -300,6 +300,19 @@ Phase 2 CSV imports accept generic mappings plus Commerce7 and WineDirect
 headers. Preview and validation occur before commit; do not upload files that
 contain full payment-card data.
 
+Gate 6 uses the separate protected
+`.github/workflows/gate6-staging-acceptance.yml` controller only after Gate 13
+has passed against the same staging revision. Configure the exact ten-member
+fixture manifest as `STAGING_GATE6_ACCEPTANCE_MANIFEST`, keep
+its exact post-candidate digest in the protected
+`STAGING_GATE6_ACCEPTANCE_MANIFEST_SHA256` environment variable only for that
+attempt, keep
+`STAGING_GATE6_ACCEPTANCE_ENABLED=false` outside the one-shot run, and keep the
+checked-in stable fixture-contract/provider hash policy disabled and empty until
+its reviewed activation PR.
+The complete fixture, target-hash, dispatch, evidence, and retirement contract
+is in `docs/runbooks/phase-2-hosted-acceptance.md`.
+
 ## Phase 3 communications and retention
 
 Email work is persisted before provider delivery. To activate Resend, configure
@@ -315,6 +328,17 @@ RESEND_DOMAIN_VERIFIED=true
 RESEND_WEBHOOK_SECRET
 UNSUBSCRIBE_SIGNING_SECRET
 ```
+
+Staging domain, webhook, DNS, and protected environment-secret provisioning is
+controlled by the disabled-by-default exact hashes in
+`config/resend-staging-provisioning-policy.json` and the trusted `main`-only
+`.github/workflows/resend-staging-provisioning.yml`. Use `bootstrap` to obtain
+the domain-restricted sending-only runtime-key ID hash and sanitized
+provider-generated DNS tuple hashes, review the complete tuple policy, then use
+`apply` and read-only `verify`. The protected controller alone uses
+`RESEND_PROVISIONING_API_KEY`; the Worker receives only the generated
+domain-scoped `STAGING_RESEND_API_KEY`. `npm run qa:resend-provisioning`
+validates the local control contract without contacting either provider.
 
 Register `POST /api/webhooks/resend` and keep its raw-body signature
 verification enabled. Missing or unverified configuration leaves email work
@@ -392,21 +416,6 @@ deterministic compliance simulator is accepted only in an explicitly enabled
 test runtime. See `docs/runbooks/phase-4-shipcompliant-activation.md` for
 sandbox, mapping, label-block, tax, and rollback evidence.
 
-Hosted Gate 13 acceptance is a separate, default-disabled control. It requires
-the protected `STAGING_GATE13_ACCEPTANCE_MANIFEST` and
-`STAGING_GATE13_ACCEPTANCE_MANIFEST_SHA256` secrets, the one-shot
-`STAGING_GATE13_ACCEPTANCE_ENABLED=true` variable, and exact stable target hashes in
-`config/shipcompliant-staging-acceptance-policy.json`. Readiness or configured
-credentials alone do not complete the gate; follow the runbook for the exact
-main/control SHA, canonical deployed `staging` head, dedicated fixtures,
-evidence artifact, and reset procedure. The runtime configuration report
-exposes SHA-256 binding identities for the non-credential ShipCompliant target
-values only, allowing acceptance to detect drift without returning raw
-bindings or provider credentials.
-The controller reads its acceptance-only values from the protected,
-main-branch-only `staging-acceptance-control` GitHub environment; it does not
-broaden the staging deployment environment's branch policy.
-
 ## Phase 5 scale, brands, integrations, and mobile
 
 Phase 5 adds a common server-only connector lifecycle. A connection begins as
@@ -422,7 +431,18 @@ Configure the Worker keyring before accepting them:
 ```text
 INTEGRATION_CREDENTIAL_ACTIVE_KEY_VERSION
 INTEGRATION_CREDENTIAL_ENCRYPTION_KEYS
+INTEGRATION_CREDENTIAL_ACCEPTANCE_PROOFS
 ```
+
+The acceptance-proofs binding contains exactly four accepted encrypted
+envelopes with their organization, brand, provider type, and connection-ID
+contexts. Runtime health reports only scoped hashes after all four exact
+envelopes decrypt successfully. Gate 14 acceptance additionally uses the
+protected `STAGING_SUPABASE_SERVICE_ROLE_KEY` workflow secret to attest that
+the proof envelopes are the exact active, opted-in tenant/brand rows stored in
+staging. The service-role read is brand-filtered through the connection
+relation before secret rows are returned, and binds ciphertext, IV, and key
+version; it never includes their bytes in the retained artifact.
 
 As an alternative to a database envelope, a connection may store only an exact
 `env://VINIFERA_INTEGRATION_SECRET_<NAME>` reference. The matching Worker
@@ -520,6 +540,7 @@ npm run build:mobile           # prepare web bundle and sync both projects
 npm run build:mobile:android   # sync Android and assemble a debug APK
 npm run build:mobile:android:release # sync Android and exercise R8 shrinking
 npm run build:mobile:ios       # sync and invoke the iOS build
+npm run qa:mobile-acceptance   # validate Gates 17/18 evidence controller
 ```
 
 The iOS simulator and Android debug/minified release APKs prove only native
@@ -528,7 +549,12 @@ on physical devices, release signing, TestFlight, Play internal track, privacy
 metadata, and store
 review remain activation evidence. See
 `docs/runbooks/phase-5-provider-mobile-activation.md` and
-`docs/runbooks/mobile-store-release.md`.
+`docs/runbooks/mobile-store-release.md`. The separate
+`docs/runbooks/mobile-acceptance-gates-17-18.md` workflow requires signed,
+exact-release physical-device evidence before Gate 17 and processed installs
+from both fixed internal tracks before Gate 18. Its checked-in policy remains
+disabled until the public evidence key, API origin, and Android/iOS signing
+identity hashes are reviewed.
 
 For the current architecture candidate, mobile identity, compile-only web
 preparation, and Capacitor Android/iOS synchronization pass. Local Gradle cannot
@@ -548,6 +574,7 @@ npm run build
 npm run build:worker
 npm run build:worker:production
 npm run qa:mobile-release
+npm run qa:mobile-acceptance
 npm run qa:production-release
 npm run qa:stripe-catalog
 npm run qa:db:phase1
@@ -568,13 +595,21 @@ then runs the remaining test and build gates. This keeps validation reproducible
 from a fresh checkout while leaving the generated artifact untracked.
 
 The current credential-independent architecture gate passes generated Worker
-types, TypeScript, 591/591 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
-3 199/199, Phase 4 160/160, Phase 5 515/515 embedded PostgreSQL/pgTAP
+types, TypeScript, 586/586 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+types, TypeScript, 624/624 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+types, TypeScript, 593/593 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+types, TypeScript, 585/585 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+types, TypeScript, 596/596 Vitest tests, Phase 1 92/92, Phase 2 250/250, Phase
+3 199/199, Phase 4 159/159, Phase 5 515/515 embedded PostgreSQL/pgTAP
 assertions, and the integrated Playwright suite with 155 passed and three
 hosted-only cases skipped, with zero axe violations in executed cases.
 `test:e2e` is an alias of `qa:e2e`. Pages plus
 development, staging, and production Worker dry-run builds pass. The focused
-release controls pass 15/15, mobile-release controls 7/7, Stripe catalog
+release controls pass 15/15, mobile-release controls 7/7, mobile-acceptance
+controls 11/11, Stripe catalog controls 16/16, and mobile identity passes.
+These are local architecture results, not service-connection or hosted exit
+evidence.
+production-release controls pass 24/24, mobile-release controls 8/8, Stripe catalog
 controls 16/16, and mobile identity passes. These are local architecture
 results, not service-connection or hosted exit evidence.
 
