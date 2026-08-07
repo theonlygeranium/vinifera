@@ -50,6 +50,42 @@
   secret binding only; no provider
   resource, winery data, fixture, model, integration, DNS, live-billing,
   mobile-store, or production mutation.
+- Add the disabled-by-default trusted Gate 8 provisioning controller and its
+  complete review hardening: exact hashed target policy, all-page Resend
+  domain/webhook/runtime-key inventory before creation, two-stage DNS review,
+  duplicate-proof exact DNS tuple-set comparison, idempotent Cloudflare
+  reconciliation, asynchronous verification, exact-source
+  evidence binding, and post-mutation re-inventory. Split the provisioning key
+  from the domain-restricted sending-only runtime key, persist its one-time
+  token in an atomic domain-bound controller recovery envelope before fallible
+  postchecks or missing-ID recovery, then finalize the staging token and exact
+  runtime-key ID binding; persist the webhook's one-time signing secret in an
+  atomic endpoint-bound controller recovery envelope before
+  provider re-read or missing-ID recovery, then finalize the staging secret
+  and webhook-ID binding and remove that envelope; reject inventoried runtime
+  keys without their exact persisted token binding or controlled recovery; reuse the stable controller-owned
+  unsubscribe secret across retries. If either one-time secret write fails,
+  delete only the resource created by that attempt so a retry can recreate it;
+  if both envelope persistence and immediate ID recovery fail, allow only a
+  protected confirmed bootstrap to replace the single exact unbound reserved
+  webhook or runtime-key resource;
+  malformed runtime-key creation responses enter the same rollback path, and
+  inventoried webhooks require the persisted ID hash that binds their signing
+  secret before readiness can pass;
+  on other interrupted-bootstrap retries, emit the existing key's sanitized ID
+  hash before rejecting incomplete policy. Secrets
+  stream only over stdin and evidence retains hashes rather than raw targets or
+  credentials. Run canonical-`main` provisioning through the dedicated
+  `staging-acceptance-control` environment without broadening the staging
+  deployment environment's branch policy. Validate an inventoried webhook's
+  persisted signing-secret binding before any provider update. Keep the static secret-writer guard
+  aligned with its environment-parameterized, repository-bound command.
+  Verification: 21/21 focused provisioning tests and 596/596 full Vitest
+  tests, app build, and Worker dry-run. **Deployment impact:** protected
+  manual workflow/source only; empty policy blocks provider/DNS mutation,
+  provider deletion is restricted to same-attempt one-time-secret recovery or
+  protected-bootstrap replacement of one exact unbound reserved resource, and source
+  completion does not change Gate 8 status.
 - Remove the broad required-reviewer rule from the protected `staging` GitHub
   environment while retaining its staging-only branch policy and the
   repository's exact-candidate, provider-target, confirmation, health,

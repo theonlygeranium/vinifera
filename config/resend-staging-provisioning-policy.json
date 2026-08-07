@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "cloudflareAccountIdSha256": [],
+  "cloudflareZoneIdSha256": [],
+  "sendingDomainSha256": [],
+  "webhookEndpointSha256": [],
+  "runtimeApiKeyIdSha256": [],
+  "dnsRecords": []
+}
