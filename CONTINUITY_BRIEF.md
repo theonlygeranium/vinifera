@@ -391,8 +391,7 @@ immutable release controls are source-complete on `dev` but remain inactive
 until their trusted controllers reach the default branch and their protected
 environments are provisioned.
 
-The original nightly Octopus failure (`30606684736`) was a first-request HTTP
-403. Redacted reproduction identified Cloudflare browser heuristics and stale
+The original nightly Octopus failure (`30606684736`) was a first-request HTTP 403. Redacted reproduction identified Cloudflare browser heuristics and stale
 repository credentials. The already-scoped service token was renewed, GitHub
 and the private vault were synchronized, a hostname-only rule disabled Browser
 Integrity Check for `octopus.schubert.life`, and zone Bot Fight Mode was
@@ -603,14 +602,14 @@ billing, email, push, deployment, or merge activation occurred.
 
 ## Runtime architecture
 
-| Route | Implementation |
-|---|---|
-| `/`, `/guide/*` | Existing static marketing and guide assets |
-| `/app/*` | React staff application |
-| `/portal/*` | React member portal |
-| `/api/*` | Express backend-for-frontend |
-| `/.well-known/*` | Worker-generated Apple/Android app association documents |
-| hourly cron | access reconciliation, releases/retries, email claims, churn, loyalty, analytics, connector sync/reconciliation, and mobile push |
+| Route            | Implementation                                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `/`, `/guide/*`  | Existing static marketing and guide assets                                                                                       |
+| `/app/*`         | React staff application                                                                                                          |
+| `/portal/*`      | React member portal                                                                                                              |
+| `/api/*`         | Express backend-for-frontend                                                                                                     |
+| `/.well-known/*` | Worker-generated Apple/Android app association documents                                                                         |
+| hourly cron      | access reconciliation, releases/retries, email claims, churn, loyalty, analytics, connector sync/reconciliation, and mobile push |
 
 Web staff and member JWTs live only in distinct secure HTTP-only cookies.
 Winery Klaviyo, Avalara, and Meta credentials and QuickBooks connection tokens
@@ -935,6 +934,14 @@ The code must remain fail-closed until these external connections are active:
    Checkout, signed-webhook lifecycle, grace/restriction/suspension/recovery,
    and reusable-fixture cleanup contract for exact candidate
    `530a003b91642ebf40af01468b10e444116ef632`.
+8. **Pending; acceptance controller source-complete:** provision and verify the
+   Resend sending domain and exact staging webhook, then enable
+   the repository Actions variable `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED`
+   for one reviewed staging
+   promotion. The protected controller waits for the real hourly Cron Trigger
+   and requires idempotent welcome/pre-shipment delivery plus signed webhook
+   reconciliation before retaining sanitized evidence. Provider/DNS
+   provisioning and a successful exact-candidate run remain outstanding.
 8. **Pending; protected provisioning source-complete on its feature branch:**
    populate and review the exact disabled-by-default Resend/Cloudflare target
    hashes, bootstrap the provider domain, webhook, and separate domain-scoped
