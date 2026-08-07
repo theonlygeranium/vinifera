@@ -233,6 +233,49 @@ test("operator tooling patches require changelog and select focused coverage", (
   );
 });
 
+test("cursor integration tooling selects operator-tooling lane with changelog", () => {
+  const missingChangelog = classifyDeliveryChange([
+    record("A", ".cursor/rules/agent-boundaries.mdc"),
+    record("A", ".cursor/hooks/block-protected-branches.js"),
+    record("A", ".cursor/mcp.json"),
+    record("A", "openapi/cursor-cloud-agents-connector.json"),
+    record("A", "scripts/cursor-client.js"),
+    record("A", "IMPLEMENTATION_GUIDE.md"),
+  ]);
+  assert.equal(missingChangelog.classificationSucceeded, false);
+  assert.equal(missingChangelog.lane, "invalid");
+  assert.equal(
+    missingChangelog.reason,
+    "operator_tooling_fastlane_missing_changelog",
+  );
+
+  const result = classifyDeliveryChange([
+    record("A", ".cursor/rules/agent-boundaries.mdc"),
+    record("A", ".cursor/hooks/block-protected-branches.js"),
+    record("A", ".cursor/skills/gate-validation/SKILL.md"),
+    record("A", ".cursor/mcp.json"),
+    record("A", ".cursor/environment.json"),
+    record("A", "openapi/cursor-cloud-agents-connector.json"),
+    record("A", "scripts/cursor-client.js"),
+    record("A", "scripts/implement-issue.js"),
+    record("A", "AGENTS.md"),
+    record("A", "IMPLEMENTATION_GUIDE.md"),
+    record("A", "CHANGELOG.md"),
+  ]);
+  assert.equal(result.classificationSucceeded, true);
+  assert.equal(result.lane, "operator-tooling-tested");
+  assert.equal(result.reason, "operator_tooling_fastlane_allowlist_match");
+  assert.equal(result.risk, "medium");
+  assert.equal(result.mobileRequired, false);
+  assert.equal(result.browserRequired, false);
+  assert.equal(result.previewRequired, false);
+  assert.deepEqual(selectFocusedTests(result.paths, result.lane), [
+    ".github/scripts/delivery-policy.policy.mjs",
+    ".github/scripts/operator-tooling-policy.policy.mjs",
+    "tests/scripts",
+  ]);
+});
+
 test("dependency tooling patches require changelog and select focused coverage", () => {
   const missingChangelog = classifyDeliveryChange([
     record("M", "package.json"),
@@ -453,10 +496,24 @@ test("minimum mandated security and delivery paths are high-risk", () => {
     "supabase/migrations/999.sql",
     ".octopus/config.yml",
     "scripts/credential-envelope-rotation.mjs",
-    "scripts/hosted-phase4-acceptance.mjs",
+    "scripts/hosted-gate14-integration-acceptance.mjs",
+    "scripts/hosted-gate6-phase2-acceptance.mjs",
     "scripts/production-release.mjs",
-    "config/phase4-hosted-acceptance-policy.json",
+    "config/gate6-staging-acceptance-policy.json",
+    "scripts/stripe-live-proof.mjs",
+    "config/stripe-live-proof-policy.json",
+    "config/gate14-integration-acceptance-policy.json",
+    "config/gate16-custom-hostname-acceptance-policy.json",
+    "config/gate6-staging-acceptance-policy.json",
+    "config/hosted-activation-gates.json",
     "config/hosted-target-allowlist.json",
+    "config/phase4-hosted-acceptance-policy.json",
+    "config/resend-staging-provisioning-policy.json",
+    "config/shipcompliant-staging-acceptance-policy.json",
+    "config/hosted-activation-gates.json",
+    "scripts/resend-staging-provisioning.mjs",
+    "config/hosted-target-allowlist.json",
+    "config/resend-staging-provisioning-policy.json",
     "wrangler.jsonc",
     "package-lock.json",
     ".nvmrc",
@@ -481,11 +538,26 @@ test("minimum mandated security and delivery paths are high-risk", () => {
     "server/services/stripe.ts",
     "supabase/migrations/999.sql",
     ".github/workflows/ci.yml",
+    ".github/workflows/resend-staging-provisioning.yml",
     ".octopus/config.yml",
     "scripts/credential-envelope-rotation.mjs",
+    "scripts/hosted-gate6-phase2-acceptance.mjs",
     "scripts/production-release.mjs",
-    "config/phase4-hosted-acceptance-policy.json",
+    "config/gate6-staging-acceptance-policy.json",
+    "scripts/stripe-live-proof.mjs",
+    "config/stripe-live-proof-policy.json",
+    "config/gate14-integration-acceptance-policy.json",
+    "config/gate16-custom-hostname-acceptance-policy.json",
+    "config/gate6-staging-acceptance-policy.json",
+    "config/hosted-activation-gates.json",
     "config/hosted-target-allowlist.json",
+    "config/phase4-hosted-acceptance-policy.json",
+    "config/resend-staging-provisioning-policy.json",
+    "config/shipcompliant-staging-acceptance-policy.json",
+    "config/hosted-activation-gates.json",
+    "scripts/resend-staging-provisioning.mjs",
+    "config/hosted-target-allowlist.json",
+    "config/resend-staging-provisioning-policy.json",
     "wrangler.jsonc",
     "package-lock.json",
   ]) {
@@ -1066,7 +1138,46 @@ test("trusted preview publisher never executes PR-head code beside credentials",
   assert.match(workflow, /--commit-hash "\$HEAD_SHA"/);
   assert.match(workflow, /classifyDeliveryChange/);
   assert.match(workflow, /readChangedRecords/);
-  assert.match(workflow, /applicable" != "\$trusted_applicable/);
+  assert.match(
+    workflow,
+    /git show "\$base_sha":\.github\/scripts\/delivery-policy\.mjs/,
+  );
+  assert.match(workflow, /TRUSTED_POLICY_PATH="\$trusted_policy"/);
+  assert.match(workflow, /pathToFileURL\(process\.env\.TRUSTED_POLICY_PATH\)/);
+  const isolated = workflow.slice(
+    workflow.indexOf("  validate:"),
+    workflow.indexOf("  publish:"),
+  );
+  const privileged = workflow.slice(workflow.indexOf("  publish:"));
+  assert.match(isolated, /name: Isolated preview policy validation/);
+  assert.match(isolated, /persist-credentials: false/);
+  assert.match(isolated, /trusted_applicable=\$\(env -i/);
+  assert.doesNotMatch(isolated, /\bsecrets\./);
+  assert.doesNotMatch(isolated, /contents: write/);
+  const tokenlessPolicy = workflow.slice(
+    workflow.indexOf("Evaluate exact base policy without credentials"),
+    workflow.indexOf("  publish:"),
+  );
+  assert.doesNotMatch(tokenlessPolicy, /GH_TOKEN|github\.token|\bsecrets\./);
+  assert.doesNotMatch(tokenlessPolicy, /continue-on-error: true/);
+  assert.match(privileged, /name: Frontend preview evidence/);
+  assert.match(privileged, /Fresh trusted default-branch checkout/);
+  assert.match(privileged, /needs: validate/);
+  assert.doesNotMatch(privileged, /pathToFileURL|classifyDeliveryChange/);
+  assert.match(
+    privileged,
+    /Revalidate exact identity without base code execution/,
+  );
+  assert.match(privileged, /candidate_eligible=\$\(jq -r '\.candidate_eligible'/);
+  assert.match(
+    privileged,
+    /A non-candidate cannot require privileged publication/,
+  );
+  assert.doesNotMatch(
+    workflow,
+    /import[\s\S]*from "\.\/\.github\/scripts\/delivery-policy\.mjs"/,
+  );
+  assert.match(workflow, /APPLICABLE" != "\$trusted_applicable/);
   assert.match(
     workflow,
     /Protected environment branches do not receive frontend preview deployments/,

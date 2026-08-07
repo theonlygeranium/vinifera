@@ -15,7 +15,7 @@
 - `https://vinifera-staging.edstratumlabs.ai` — Staging / validation gate (branch: `staging`)
 - `https://vinifera-live.edstratumlabs.ai` — Production application (branch: `main`)
 
-**Deployed on:** Cloudflare Pages (four projects — see Section 5)  
+**Deployed on:** Cloudflare Pages (four projects — see Section 5)
 **Owner contact:** `founder@edstratumlabs.ai`
 
 ### Current status

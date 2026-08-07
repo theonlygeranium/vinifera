@@ -1,7 +1,7 @@
 # ADR: Switch AI Code Review from Greptile to Octopus (Self-Hosted)
 
-**Date:** 2026-07-28  
-**Status:** Accepted  
+**Date:** 2026-07-28
+**Status:** Accepted
 **Author:** Founder & Principal
 
 ---
