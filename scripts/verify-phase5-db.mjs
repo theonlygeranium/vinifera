@@ -63,6 +63,7 @@ const migrations = [
   "supabase/migrations/202608050028_email_outbox_digest_input.sql",
   "supabase/migrations/202608050029_email_outbox_early_event_reconciliation.sql",
   "supabase/migrations/202608050030_release_shipment_brand_scope.sql",
+  "supabase/migrations/202608060032_shipping_label_attempt_brand_scope.sql",
 ];
 const tests = [
   "supabase/tests/013_phase_5_schema.test.sql",

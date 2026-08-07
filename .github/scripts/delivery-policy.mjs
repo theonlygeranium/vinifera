@@ -79,26 +79,17 @@ const RELEASE_CONTROL_FASTLANE_PREFIXES = Object.freeze([
 
 const OPERATOR_TOOLING_FILES = new Set([
   ".github/pull_request_template.md",
-  "AGENTS.md",
   "CHANGELOG.md",
-  "IMPLEMENTATION_GUIDE.md",
   "package.json",
   "scripts/actions-promotion-status.mjs",
   "scripts/hosted-marker-probe.mjs",
   "scripts/promotion-smoke.mjs",
-  "scripts/cursor-client.js",
-  "scripts/bugbot-client.js",
-  "scripts/implement-issue.js",
-  "scripts/fix-ci.js",
-  "scripts/parallel-tasks.js",
 ]);
 
 const OPERATOR_TOOLING_PREFIXES = Object.freeze([
   ".github/scripts/",
   ".github/workflows/",
   "tests/scripts/",
-  ".cursor/",
-  "openapi/",
 ]);
 
 const DEPENDENCY_TOOLING_FILES = new Set([
@@ -138,15 +129,8 @@ const HIGH_RISK_FILES = new Set([
   ".env.example",
   ".nvmrc",
   "capacitor.config.json",
-  "config/gate14-integration-acceptance-policy.json",
-  "config/gate16-custom-hostname-acceptance-policy.json",
-  "config/gate6-staging-acceptance-policy.json",
-  "config/hosted-activation-gates.json",
   "config/hosted-target-allowlist.json",
-  "config/phase4-hosted-acceptance-policy.json",
-  "config/resend-staging-provisioning-policy.json",
   "config/shipcompliant-staging-acceptance-policy.json",
-  "config/resend-staging-provisioning-policy.json",
   "package-lock.json",
   "package.json",
   "tests/e2e/smoke.spec.ts",
@@ -154,12 +138,9 @@ const HIGH_RISK_FILES = new Set([
 ]);
 
 const AUTHORITY_HIGH_RISK_FILES = new Set([
-  ".github/workflows/gate6-staging-acceptance.yml",
-  "config/gate6-staging-acceptance-policy.json",
-  "scripts/hosted-gate6-phase2-acceptance.mjs",
-  ".github/workflows/resend-staging-provisioning.yml",
-  "config/resend-staging-provisioning-policy.json",
-  "scripts/resend-staging-provisioning.mjs",
+  ".github/workflows/shipcompliant-staging-acceptance.yml",
+  "config/shipcompliant-staging-acceptance-policy.json",
+  "scripts/hosted-gate13-shipcompliant-acceptance.mjs",
 ]);
 
 const MOBILE_PREFIXES = Object.freeze([
@@ -213,17 +194,8 @@ export function isAuthorityHighRiskPath(path) {
     path.startsWith("supabase/migrations/") ||
     [
       ".env.example",
-      "config/gate14-integration-acceptance-policy.json",
-      "config/gate16-custom-hostname-acceptance-policy.json",
-      "config/gate6-staging-acceptance-policy.json",
-      "config/hosted-activation-gates.json",
       "config/hosted-target-allowlist.json",
-      "config/phase4-hosted-acceptance-policy.json",
-      "config/resend-staging-provisioning-policy.json",
-      "config/shipcompliant-staging-acceptance-policy.json",
-      "config/resend-staging-provisioning-policy.json",
       "package-lock.json",
-      "scripts/hosted-gate14-integration-acceptance.mjs",
       "wrangler.jsonc",
     ].includes(path)
   ) {

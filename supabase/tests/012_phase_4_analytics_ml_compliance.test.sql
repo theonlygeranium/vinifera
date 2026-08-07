@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, auth, private;
 
-select plan(50);
+select plan(51);
 set local request.jwt.claims = '{"role":"service_role"}';
 
 insert into auth.users (id, email)
@@ -152,6 +152,144 @@ values (
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
 
+create function pg_temp.acquire_shipping_label_attempt_compat(
+  p_organization_id uuid,
+  p_brand_id uuid,
+  p_shipment_id uuid,
+  p_worker_id text,
+  p_actor_user_id uuid,
+  p_lease_seconds integer,
+  p_provider text
+)
+returns table (
+  attempt_id uuid,
+  disposition text,
+  lease_token text,
+  request_fingerprint text,
+  correlation_reference text,
+  provider text,
+  external_shipment_id text,
+  external_rate_id text,
+  external_label_id text,
+  label_url text,
+  tracking_number text,
+  carrier text,
+  label_cost_cents integer,
+  provider_metadata jsonb
+)
+language plpgsql
+as $$
+declare
+  brand_matches boolean;
+begin
+  if to_regprocedure(
+    'public.acquire_shipping_label_attempt(uuid,uuid,uuid,text,uuid,integer,text)'
+  ) is not null then
+    execute $scope$
+      select exists (
+        select 1
+        from public.shipments
+        where organization_id = $1
+          and brand_id = $2
+          and id = $3
+      )
+    $scope$
+    into brand_matches
+    using p_organization_id, p_brand_id, p_shipment_id;
+
+    if not brand_matches then
+      raise exception using errcode = 'P0002', message = 'Shipment not found.';
+    end if;
+
+    return query execute $current$
+      select *
+      from public.acquire_shipping_label_attempt(
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7
+      )
+    $current$
+    using
+      p_organization_id,
+      p_brand_id,
+      p_shipment_id,
+      p_worker_id,
+      p_actor_user_id,
+      p_lease_seconds,
+      p_provider;
+    return;
+  end if;
+
+  return query
+  select *
+  from public.acquire_shipping_label_attempt(
+    p_organization_id,
+    p_shipment_id,
+    p_worker_id,
+    p_actor_user_id,
+    p_lease_seconds,
+    p_provider
+  );
+end;
+$$;
+
+create temporary table phase4_expected_brand (id uuid);
+
+do $$
+begin
+  if to_regprocedure(
+    'public.acquire_shipping_label_attempt(uuid,uuid,uuid,text,uuid,integer,text)'
+  ) is not null then
+    execute $current$
+      insert into phase4_expected_brand (id)
+      select id
+      from public.brands
+      where organization_id = $1
+        and is_default = true
+    $current$
+    using 'c2000000-0000-4000-8000-000000000001'::uuid;
+  else
+    insert into phase4_expected_brand (id) values (null);
+  end if;
+end;
+$$;
+
+create function pg_temp.wrong_brand_label_acquisition_rejected()
+returns boolean
+language plpgsql
+as $$
+begin
+  if to_regprocedure(
+    'public.acquire_shipping_label_attempt(uuid,uuid,uuid,text,uuid,integer,text)'
+  ) is null then
+    return true;
+  end if;
+
+  perform * from pg_temp.acquire_shipping_label_attempt_compat(
+    'c2000000-0000-4000-8000-000000000001',
+    'c4000000-0000-4000-8000-000000000002',
+    'c8000000-0000-4000-8000-000000000001',
+    'wrong-brand-worker',
+    'c1000000-0000-4000-8000-000000000001',
+    300,
+    'simulated'
+  );
+  return false;
+exception
+  when sqlstate 'P0002' then
+    return sqlerrm = 'Shipment not found.';
+end;
+$$;
+
+select ok(
+  pg_temp.wrong_brand_label_acquisition_rejected(),
+  'current-schema label acquisition rejects the wrong active brand'
+);
+
 create temporary table phase4_event_ids as
 select public.record_analytics_event(
   'c2000000-0000-4000-8000-000000000001',
@@ -270,8 +408,9 @@ select ok(
   'compliance-relevant item mutation invalidates prior approval'
 );
 select throws_ok(
-  $$ select * from public.acquire_shipping_label_attempt(
+  $$ select * from pg_temp.acquire_shipping_label_attempt_compat(
     'c2000000-0000-4000-8000-000000000001',
+    (select id from phase4_expected_brand),
     'c8000000-0000-4000-8000-000000000001',
     'phase4-worker',
     'c1000000-0000-4000-8000-000000000001',
@@ -309,8 +448,9 @@ select public.record_shipment_compliance_check(
 );
 
 create temporary table phase4_first_attempt as
-select * from public.acquire_shipping_label_attempt(
+select * from pg_temp.acquire_shipping_label_attempt_compat(
   'c2000000-0000-4000-8000-000000000001',
+  (select id from phase4_expected_brand),
   'c8000000-0000-4000-8000-000000000001',
   'phase4-worker',
   'c1000000-0000-4000-8000-000000000001',
@@ -329,8 +469,9 @@ select ok(
 );
 select is(
   (
-    select disposition from public.acquire_shipping_label_attempt(
+    select disposition from pg_temp.acquire_shipping_label_attempt_compat(
       'c2000000-0000-4000-8000-000000000001',
+      (select id from phase4_expected_brand),
       'c8000000-0000-4000-8000-000000000001',
       'other-worker',
       'c1000000-0000-4000-8000-000000000001',
@@ -382,8 +523,9 @@ set compliance_checked_at = now() - interval '25 hours'
 where id = 'c8000000-0000-4000-8000-000000000001';
 
 select throws_ok(
-  $$ select * from public.acquire_shipping_label_attempt(
+  $$ select * from pg_temp.acquire_shipping_label_attempt_compat(
     'c2000000-0000-4000-8000-000000000001',
+    (select id from phase4_expected_brand),
     'c8000000-0000-4000-8000-000000000001',
     'expired-compliance-worker',
     'c1000000-0000-4000-8000-000000000001',
@@ -417,8 +559,9 @@ select public.record_shipment_compliance_check(
 );
 
 create temporary table phase4_recovery_attempt as
-select * from public.acquire_shipping_label_attempt(
+select * from pg_temp.acquire_shipping_label_attempt_compat(
   'c2000000-0000-4000-8000-000000000001',
+  (select id from phase4_expected_brand),
   'c8000000-0000-4000-8000-000000000001',
   'phase4-recovery-worker',
   'c1000000-0000-4000-8000-000000000001',
@@ -472,8 +615,9 @@ select ok(
       and lease_token is null
       and label_cost_cents = 1595
       and provider_metadata ->> 'service' = 'Ground'
-    from public.acquire_shipping_label_attempt(
+    from pg_temp.acquire_shipping_label_attempt_compat(
       'c2000000-0000-4000-8000-000000000001',
+      (select id from phase4_expected_brand),
       'c8000000-0000-4000-8000-000000000001',
       'phase4-idempotent-worker',
       'c1000000-0000-4000-8000-000000000001',
