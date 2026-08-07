@@ -11,6 +11,14 @@
   `upsert_brand_sender_identity` with the `RESEND_FROM` email, marks the
   identity as `verified`, and disables it during cleanup.
 
+- Manually trigger email delivery in the Gate 8 acceptance controller instead
+  of waiting for the Worker's hourly cron handler. The scheduled handler's
+  errors are silently swallowed by `Promise.allSettled`, and the cron may not
+  fire within the acceptance window. The controller now calls
+  `enqueue_due_email_triggers`, `claim_email_outbox_batch`, sends via the
+  Resend batch API directly, and records the result with
+  `complete_email_outbox_claim` — making delivery deterministic.
+
 - Fix indented `NODE` heredoc terminator in the `deploy-staging` job's Gate 8
   binding-verification step so the shell script no longer fails with
   `syntax error: unexpected end of file`. The terminator was nested inside an
