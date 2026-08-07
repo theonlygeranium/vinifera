@@ -35,7 +35,10 @@ promotion, and status changes.
    calls the fail-closed compliance adapter, so Gate 6 cannot produce valid
    label evidence while ShipCompliant is unconfigured; the test-only simulator
    is not acceptable hosted compliance authority.
-4. Complete Gate 6, then run its dedicated hosted evidence and regression QA.
+4. Use the protected, default-disabled Gate 6 controller to run its dedicated
+   hosted evidence only after matching Gate 13 proof, then inspect its retained
+   artifact and run regression QA. Controller source readiness does not change
+   the pending gate status.
 5. Complete Gates 10, 15, and 16 before scale-dependent Gates 11, 12, and 14
    where their prerequisites overlap.
 6. Complete Gates 17 and 18 with physical-device and internal-store artifacts

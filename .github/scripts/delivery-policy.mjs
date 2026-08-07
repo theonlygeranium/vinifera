@@ -154,6 +154,9 @@ const HIGH_RISK_FILES = new Set([
 ]);
 
 const AUTHORITY_HIGH_RISK_FILES = new Set([
+  ".github/workflows/gate6-staging-acceptance.yml",
+  "config/gate6-staging-acceptance-policy.json",
+  "scripts/hosted-gate6-phase2-acceptance.mjs",
   ".github/workflows/resend-staging-provisioning.yml",
   "config/resend-staging-provisioning-policy.json",
   "scripts/resend-staging-provisioning.mjs",
