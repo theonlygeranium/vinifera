@@ -11,6 +11,7 @@ const zoneId = "b".repeat(32);
 const fallbackOrigin = "origin.staging.example.test";
 const fcmProjectId = "vinifera-staging-123";
 const shipCompliantOrigin = "https://sandbox.shipcompliant.example";
+const supabaseOrigin = "https://supabase.staging.example.test";
 
 function policy() {
   return {
@@ -19,22 +20,18 @@ function policy() {
       cloudflareAccountIdSha256: [
         hashActivationTarget("cloudflare", accountId),
       ],
-      cloudflareZoneIdSha256: [
-        hashActivationTarget("cloudflare-zone", zoneId),
-      ],
+      cloudflareZoneIdSha256: [hashActivationTarget("cloudflare-zone", zoneId)],
       cloudflareFallbackOriginSha256: [
         hashActivationTarget("cloudflare-origin", fallbackOrigin),
       ],
-      fcmProjectIdSha256: [
-        hashActivationTarget("fcm-project", fcmProjectId),
-      ],
+      fcmProjectIdSha256: [hashActivationTarget("fcm-project", fcmProjectId)],
       shipCompliantSandboxOriginSha256: [
-        hashActivationTarget(
-          "shipcompliant-origin",
-          shipCompliantOrigin,
-        ),
+        hashActivationTarget("shipcompliant-origin", shipCompliantOrigin),
       ],
       supabaseProjectRefSha256: [],
+      supabaseOriginSha256: [
+        hashActivationTarget("supabase-origin", supabaseOrigin),
+      ],
     },
     deniedProduction: {
       cloudflareAccountIdSha256: [],
@@ -43,10 +40,9 @@ function policy() {
       fcmProjectIdSha256: [],
       shipCompliantSandboxOriginSha256: [],
       supabaseProjectRefSha256: [],
+      supabaseOriginSha256: [],
     },
-    deniedProductionCustomHostnameOrigins: [
-      "vinifera.edstratumlabs.ai",
-    ],
+    deniedProductionCustomHostnameOrigins: ["vinifera.edstratumlabs.ai"],
   };
 }
 
@@ -59,6 +55,7 @@ describe("staging provider target activation policy", () => {
       ["cloudflare-origin", fallbackOrigin],
       ["fcm-project", fcmProjectId],
       ["shipcompliant-origin", shipCompliantOrigin],
+      ["supabase-origin", supabaseOrigin],
     ]) {
       expect(
         verifyActivationTarget({
@@ -102,6 +99,7 @@ describe("staging provider target activation policy", () => {
     expect(checkedIn.staging.cloudflareFallbackOriginSha256).toEqual([]);
     expect(checkedIn.staging.fcmProjectIdSha256).toEqual([]);
     expect(checkedIn.staging.shipCompliantSandboxOriginSha256).toEqual([]);
+    expect(checkedIn.staging.supabaseOriginSha256).toEqual([]);
 
     const workflow = await readFile(".github/workflows/ci.yml", "utf8");
     const deployment = workflow.indexOf(
@@ -117,9 +115,7 @@ describe("staging provider target activation policy", () => {
       expect(workflow.indexOf(command)).toBeGreaterThan(-1);
       expect(workflow.indexOf(command)).toBeLessThan(deployment);
     }
-    expect(workflow).toContain(
-      'EASYPOST_LIVE_LABELS_ENABLED: "false"',
-    );
+    expect(workflow).toContain('EASYPOST_LIVE_LABELS_ENABLED: "false"');
     const productionWorkflow = await readFile(
       ".github/workflows/production-worker-release.yml",
       "utf8",

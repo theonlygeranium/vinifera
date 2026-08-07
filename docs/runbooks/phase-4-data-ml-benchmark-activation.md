@@ -18,6 +18,11 @@ explanations, privacy-thresholded benchmarks, scheduled jobs, and
 ShipCompliant boundary are implemented. Production promotion remains closed
 until lawful real history and the time-based gates below exist.
 
+Before collecting gate-specific proof, use
+`docs/runbooks/hosted-gates-10-16-evidence.md` to bind configuration readiness
+to the exact staging revision. That shared report is not analytics, model, or
+benchmark completion evidence.
+
 ## 1. Establish provenance and retention
 
 For every participating winery, record:
@@ -173,7 +178,13 @@ days:
 
 Document sample sizes, attrition, intervention differences, and statistical
 uncertainty. A calendar duration without sufficient outcomes is not a passing
-experiment.
+experiment. The hosted acceptance evidence accepts the exact non-midnight
+timestamps produced by the experiment lifecycle RPCs and derives their UTC
+calendar dates. Every date from the start date through the completion date,
+both inclusive, must have a coverage row, so a partial first or final day cannot
+escape coverage. The exact completed experiment record must report at least 50
+evaluated outcomes, matching the database promotion constraint; a lower
+power-analysis threshold cannot relax that floor.
 
 Promote only when the completed experiment and database constraints prove the
 candidate is superior and operationally safe. Promotion must be an audited

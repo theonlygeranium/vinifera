@@ -5,12 +5,20 @@ import { resolveMobileBuildTarget } from "./lib/activation-guard.mjs";
 const projectRoot = resolve(import.meta.dirname, "..");
 const source = resolve(projectRoot, "dist/app.html");
 const target = resolve(projectRoot, "dist/index.html");
+const productionPolicy = JSON.parse(
+  await readFile(
+    resolve(projectRoot, "config/production-release-policy.json"),
+    "utf8",
+  ),
+);
 
 await stat(source);
 const mobileTarget = resolveMobileBuildTarget({
   apiOrigin: process.env.VITE_MOBILE_API_ORIGIN,
   buildProfile: process.env.MOBILE_BUILD_PROFILE,
   productionAuthorized: process.env.MOBILE_PRODUCTION_ORIGIN_AUTHORIZED,
+  productionWorkerOriginHashes:
+    productionPolicy.targetHashes?.workerOriginSha256,
 });
 const apiOrigin = new URL(mobileTarget.origin);
 
@@ -51,10 +59,7 @@ await writeFile(
   "utf8",
 );
 const output = await readFile(target, "utf8");
-if (
-  !output.includes(contentPolicy) ||
-  !output.includes(buildClassification)
-) {
+if (!output.includes(contentPolicy) || !output.includes(buildClassification)) {
   throw new Error("Native policy and build classification were not written.");
 }
 console.log(

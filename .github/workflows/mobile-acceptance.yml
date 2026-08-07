@@ -1,0 +1,278 @@
+name: Mobile activation acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      gate:
+        description: Activation gate to validate
+        required: true
+        type: choice
+        options:
+          - "17"
+          - "18"
+      git_sha:
+        description: Exact current canonical main commit tested on devices
+        required: true
+        type: string
+      release_run_id:
+        description: Successful Signed mobile internal release run for this exact commit
+        required: true
+        type: string
+      gate17_acceptance_run_id:
+        description: Gate 18 only - successful Gate 17 acceptance run for this release
+        required: false
+        default: ""
+        type: string
+      attestation_base64:
+        description: Canonical UTF-8 JSON device or store-install attestation, base64 encoded
+        required: true
+        type: string
+      signature_base64:
+        description: Ed25519 signature over the exact decoded attestation bytes
+        required: true
+        type: string
+      confirmation:
+        description: Exact gate-specific confirmation from the mobile acceptance policy
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  deployments: none
+  pull-requests: read
+
+concurrency:
+  group: vinifera-mobile-acceptance-${{ inputs.gate }}
+  cancel-in-progress: false
+
+jobs:
+  accept:
+    name: Validate Gate ${{ inputs.gate }} mobile evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    environment:
+      name: mobile-release
+      deployment: false
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MOBILE_ACCEPTANCE_ATTESTATION_BASE64: ${{ inputs.attestation_base64 }}
+      MOBILE_ACCEPTANCE_CONFIRMATION: ${{ inputs.confirmation }}
+      MOBILE_ACCEPTANCE_GATE: ${{ inputs.gate }}
+      MOBILE_ACCEPTANCE_GATE17_RUN_ID: ${{ inputs.gate17_acceptance_run_id }}
+      MOBILE_ACCEPTANCE_GIT_SHA: ${{ inputs.git_sha }}
+      MOBILE_ACCEPTANCE_PUBLIC_KEY_BASE64: ${{ secrets.MOBILE_ACCEPTANCE_EVIDENCE_PUBLIC_KEY_PEM_BASE64 }}
+      MOBILE_ACCEPTANCE_RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+      MOBILE_ACCEPTANCE_SIGNATURE_BASE64: ${{ inputs.signature_base64 }}
+    steps:
+      - name: Validate immutable main-only dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "theonlygeranium/vinifera" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$MOBILE_ACCEPTANCE_GIT_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$MOBILE_ACCEPTANCE_RELEASE_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+          if [[ "$MOBILE_ACCEPTANCE_GATE" == "17" ]]; then
+            [[ -z "$MOBILE_ACCEPTANCE_GATE17_RUN_ID" ]]
+          else
+            [[ "$MOBILE_ACCEPTANCE_GATE17_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+          fi
+
+      - name: Check out exact trusted release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.git_sha }}
+
+      - name: Revalidate current canonical main
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$MOBILE_ACCEPTANCE_GIT_SHA" ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          [[ "$(git rev-parse refs/remotes/origin/main)" == "$MOBILE_ACCEPTANCE_GIT_SHA" ]]
+
+      - name: Revalidate reviewed production promotion controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          promotion_prs="$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$GITHUB_REPOSITORY/commits/$MOBILE_ACCEPTANCE_GIT_SHA/pulls")"
+          promotion_pr="$(jq -c \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg release_sha "$MOBILE_ACCEPTANCE_GIT_SHA" \
+            '[.[] |
+              select(.merged_at != null) |
+              select(.base.ref == "main") |
+              select(.head.ref == "staging") |
+              select(.merge_commit_sha == $release_sha) |
+              select(.head.repo.full_name == $repository)] |
+             sort_by(.merged_at) | last // empty' <<<"$promotion_prs")"
+          [[ -n "$promotion_pr" ]]
+          if jq -e \
+            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+            <<<"$promotion_pr" >/dev/null; then
+            echo "The production release is paused by an emergency control." >&2
+            exit 1
+          fi
+
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          cache: npm
+          node-version: 22.22.0
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify acceptance controller tests
+        run: npm run qa:mobile-acceptance
+
+      - name: Enforce the default-disabled gate policy and exact request
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/mobile-acceptance.mjs validate-request \
+            --gate "$MOBILE_ACCEPTANCE_GATE" \
+            --git-sha "$MOBILE_ACCEPTANCE_GIT_SHA" \
+            --release-run-id "$MOBILE_ACCEPTANCE_RELEASE_RUN_ID" \
+            --gate17-run-id "$MOBILE_ACCEPTANCE_GATE17_RUN_ID" \
+            --policy .github/mobile-acceptance/policy.json
+
+      - name: Prepare private evidence workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_dir="$RUNNER_TEMP/mobile-acceptance-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          install -d -m 700 "$evidence_dir/release/android" "$evidence_dir/release/ios"
+          {
+            echo "MOBILE_ACCEPTANCE_DIR=$evidence_dir"
+            echo "MOBILE_ACCEPTANCE_OUTPUT=$evidence_dir/gate-${{ inputs.gate }}-acceptance.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Materialize signed attestation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/mobile-acceptance.mjs materialize \
+            --attestation "$MOBILE_ACCEPTANCE_DIR/attestation.json" \
+            --signature "$MOBILE_ACCEPTANCE_DIR/attestation.sig" \
+            --public-key "$MOBILE_ACCEPTANCE_DIR/evidence-public-key.pem"
+
+      - name: Fetch exact signed release evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$MOBILE_ACCEPTANCE_RELEASE_RUN_ID" \
+            > "$MOBILE_ACCEPTANCE_DIR/release-run.json"
+          gh run download "$MOBILE_ACCEPTANCE_RELEASE_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name android-mobile-release-evidence \
+            --dir "$MOBILE_ACCEPTANCE_DIR/release/android"
+          gh run download "$MOBILE_ACCEPTANCE_RELEASE_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name ios-mobile-release-evidence \
+            --dir "$MOBILE_ACCEPTANCE_DIR/release/ios"
+          [[ "$(find "$MOBILE_ACCEPTANCE_DIR/release/android" -type f -name '*.json' | wc -l | tr -d ' ')" == "1" ]]
+          [[ "$(find "$MOBILE_ACCEPTANCE_DIR/release/ios" -type f -name '*.json' | wc -l | tr -d ' ')" == "1" ]]
+
+      - name: Fetch exact prior Gate 17 evidence
+        if: inputs.gate == '18'
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$MOBILE_ACCEPTANCE_DIR/gate17"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$MOBILE_ACCEPTANCE_GATE17_RUN_ID" \
+            > "$MOBILE_ACCEPTANCE_DIR/gate17-run.json"
+          gh run download "$MOBILE_ACCEPTANCE_GATE17_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name gate17-mobile-acceptance-evidence \
+            --dir "$MOBILE_ACCEPTANCE_DIR/gate17"
+          [[ "$(find "$MOBILE_ACCEPTANCE_DIR/gate17" -type f -name '*.json' | wc -l | tr -d ' ')" == "1" ]]
+
+      - name: Validate exact Gate 17 evidence
+        if: inputs.gate == '17'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/mobile-acceptance.mjs validate \
+            --gate 17 \
+            --git-sha "$MOBILE_ACCEPTANCE_GIT_SHA" \
+            --release-run-id "$MOBILE_ACCEPTANCE_RELEASE_RUN_ID" \
+            --policy .github/mobile-acceptance/policy.json \
+            --attestation "$MOBILE_ACCEPTANCE_DIR/attestation.json" \
+            --signature "$MOBILE_ACCEPTANCE_DIR/attestation.sig" \
+            --public-key "$MOBILE_ACCEPTANCE_DIR/evidence-public-key.pem" \
+            --release-run "$MOBILE_ACCEPTANCE_DIR/release-run.json" \
+            --android "$(find "$MOBILE_ACCEPTANCE_DIR/release/android" -type f -name '*.json' -print -quit)" \
+            --ios "$(find "$MOBILE_ACCEPTANCE_DIR/release/ios" -type f -name '*.json' -print -quit)" \
+            --output "$MOBILE_ACCEPTANCE_OUTPUT"
+
+      - name: Validate exact Gate 18 evidence
+        if: inputs.gate == '18'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/mobile-acceptance.mjs validate \
+            --gate 18 \
+            --git-sha "$MOBILE_ACCEPTANCE_GIT_SHA" \
+            --release-run-id "$MOBILE_ACCEPTANCE_RELEASE_RUN_ID" \
+            --gate17-run-id "$MOBILE_ACCEPTANCE_GATE17_RUN_ID" \
+            --policy .github/mobile-acceptance/policy.json \
+            --attestation "$MOBILE_ACCEPTANCE_DIR/attestation.json" \
+            --signature "$MOBILE_ACCEPTANCE_DIR/attestation.sig" \
+            --public-key "$MOBILE_ACCEPTANCE_DIR/evidence-public-key.pem" \
+            --release-run "$MOBILE_ACCEPTANCE_DIR/release-run.json" \
+            --android "$(find "$MOBILE_ACCEPTANCE_DIR/release/android" -type f -name '*.json' -print -quit)" \
+            --ios "$(find "$MOBILE_ACCEPTANCE_DIR/release/ios" -type f -name '*.json' -print -quit)" \
+            --gate17-run "$MOBILE_ACCEPTANCE_DIR/gate17-run.json" \
+            --gate17-evidence "$(find "$MOBILE_ACCEPTANCE_DIR/gate17" -type f -name '*.json' -print -quit)" \
+            --output "$MOBILE_ACCEPTANCE_OUTPUT"
+
+      - name: Final revalidation before accepting evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --force origin main:refs/remotes/origin/main
+          [[ "$(git rev-parse refs/remotes/origin/main)" == "$MOBILE_ACCEPTANCE_GIT_SHA" ]]
+          promotion_prs="$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$GITHUB_REPOSITORY/commits/$MOBILE_ACCEPTANCE_GIT_SHA/pulls")"
+          promotion_pr="$(jq -c \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg release_sha "$MOBILE_ACCEPTANCE_GIT_SHA" \
+            '[.[] |
+              select(.merged_at != null) |
+              select(.base.ref == "main") |
+              select(.head.ref == "staging") |
+              select(.merge_commit_sha == $release_sha) |
+              select(.head.repo.full_name == $repository)] |
+             sort_by(.merged_at) | last // empty' <<<"$promotion_prs")"
+          [[ -n "$promotion_pr" ]]
+          if jq -e \
+            'any(.labels[]?; .name == "human-review-required" or .name == "do-not-merge")' \
+            <<<"$promotion_pr" >/dev/null; then
+            echo "The production release is paused by an emergency control." >&2
+            exit 1
+          fi
+
+      - name: Upload sanitized acceptance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: gate${{ inputs.gate }}-mobile-acceptance-evidence
+          path: ${{ env.MOBILE_ACCEPTANCE_OUTPUT }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Remove attestation material
+        if: always()
+        shell: bash
+        run: |
+          case "${MOBILE_ACCEPTANCE_DIR:-}" in
+            "$RUNNER_TEMP"/mobile-acceptance-*)
+              rm -rf -- "$MOBILE_ACCEPTANCE_DIR"
+              ;;
+          esac

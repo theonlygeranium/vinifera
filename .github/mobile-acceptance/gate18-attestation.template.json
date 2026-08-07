@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "gate": 18,
+  "repository": "theonlygeranium/vinifera",
+  "environment": "production",
+  "gitSha": "REPLACE_WITH_40_CHARACTER_MAIN_SHA",
+  "releaseRunId": "REPLACE_WITH_UPLOAD_INTERNAL_RUN_ID",
+  "releaseAction": "upload-internal",
+  "app": {
+    "id": "ai.edstratumlabs.vinifera",
+    "versionCode": 5,
+    "versionName": "0.5.0"
+  },
+  "testedAt": "REPLACE_WITH_ISO_8601_TIMESTAMP",
+  "apiOriginSha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+  "platforms": [
+    {
+      "platform": "ios",
+      "osVersion": "REPLACE_WITH_IOS_VERSION",
+      "deviceEvidenceSha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "signingIdentitySha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "installSource": "testflight-internal",
+      "checks": {
+        "storeProcessingAvailable": true,
+        "installed": true,
+        "launched": true
+      }
+    },
+    {
+      "platform": "android",
+      "osVersion": "REPLACE_WITH_ANDROID_VERSION",
+      "deviceEvidenceSha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "signingIdentitySha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "installSource": "google-play-internal",
+      "checks": {
+        "storeProcessingAvailable": true,
+        "installed": true,
+        "launched": true
+      }
+    }
+  ]
+}

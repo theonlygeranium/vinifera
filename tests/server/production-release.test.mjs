@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import {
   assertActiveDeployment,
@@ -12,11 +13,13 @@ import {
   parseWranglerStagingVersionUploadOutput,
   parseWranglerVersionUploadOutput,
   soleActiveVersionId,
+  versionGitSha,
   verifyProductionTargets,
 } from "../../scripts/lib/production-release-guard.mjs";
 import {
   captureProductionState,
   cutoverToWorker,
+  probeWorkerDomainAttachment,
   restorePages,
   workerResourceExists,
 } from "../../scripts/lib/cloudflare-production-control.mjs";
@@ -25,10 +28,15 @@ const gitSha = "a".repeat(40);
 const versionId = "11111111-1111-4111-8111-111111111111";
 const accountId = "1".repeat(32);
 const zoneId = "2".repeat(32);
-const hostname = "vinifera.edstratumlabs.ai";
-const pagesProjectName = "vinifera";
+const hostname = "vinifera-live.edstratumlabs.ai";
+const marketingHostname = "vinifera.edstratumlabs.ai";
+const pagesProjectName = "vinifera-live";
 const workerName = "vinifera-production";
 const workerOrigin = "https://vinifera-production.example.workers.dev";
+const certificateId = "33333333-3333-4333-8333-333333333333";
+const pagesRoot = "<title>Vinifera</title>";
+const pagesApp = "Fall 2026 Club Release";
+const marketingGuide = "Vinifera Investor Guide";
 const cutoverCapabilities = [
   "app",
   "database",
@@ -50,13 +58,14 @@ const cutoverCapabilities = [
 function policy() {
   return {
     confirmations: {
+      "attach-live-domain": "ATTACH VINIFERA LIVE DOMAIN TO WORKER",
       bootstrap: "BOOTSTRAP VINIFERA PRODUCTION WORKER",
-      cutover: "CUT OVER VINIFERA DOMAIN TO WORKER",
       deploy: "DEPLOY VINIFERA PRODUCTION VERSION",
       rollback: "ROLL BACK VINIFERA PRODUCTION WORKER",
-      "restore-pages": "RESTORE VINIFERA DOMAIN TO PAGES",
+      "restore-live-pages": "RESTORE VINIFERA LIVE DOMAIN TO PAGES",
       upload: "UPLOAD VINIFERA PRODUCTION VERSION",
     },
+    applicationOrigin: `https://${hostname}`,
     coreHealthCapabilities: [
       "app",
       "database",
@@ -68,6 +77,13 @@ function policy() {
     liveBilling: {
       activationPath: "separate-human-approved-live-billing-cutover",
       enabled: false,
+    },
+    marketingOrigin: `https://${marketingHostname}`,
+    pagesRollback: {
+      appSha256: createHash("sha256").update(pagesApp).digest("hex"),
+      deploymentHostnameSuffix: "vinifera-live.pages.dev",
+      productionBranch: "main",
+      rootSha256: createHash("sha256").update(pagesRoot).digest("hex"),
     },
     optionalSecrets: ["SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
     requiredSecretGroups: [
@@ -106,6 +122,7 @@ function policy() {
       workerOriginSha256: [hashProductionTarget("workerOrigin", workerOrigin)],
     },
     version: 1,
+    pagesProjectName,
     workerName,
   };
 }
@@ -155,10 +172,14 @@ function configurationPayload(
 
 function cloudflareMock({
   healthOk = true,
+  includeCertificateId = true,
+  marketingChangesAfterCutover = false,
+  pagesPostFails = false,
   pagesDomain = true,
   pagesStatus = "active",
   workerExists = true,
   workerDomain = false,
+  workerDomainEnvironment = "production",
 } = {}) {
   const calls = [];
   const state = {
@@ -189,6 +210,8 @@ function cloudflareMock({
             data: {
               service: healthOk ? "vinifera-api" : "wrong-service",
               status: "ok",
+              environment: "production",
+              revision: gitSha,
             },
           }),
           { headers: { "Content-Type": "application/json" } },
@@ -199,15 +222,65 @@ function cloudflareMock({
           headers: { "Content-Type": "application/json" },
         });
       }
+      if (url.hostname === marketingHostname) {
+        return new Response(
+          marketingChangesAfterCutover && state.workerDomain
+            ? "unexpected marketing mutation"
+            : url.pathname === "/guide/"
+              ? marketingGuide
+              : pagesRoot,
+          { headers: { "Content-Type": "text/html" } },
+        );
+      }
       if (url.pathname === "/") {
-        return new Response("<title>Vinifera</title>", {
+        return new Response(pagesRoot, {
           headers: { "Content-Type": "text/html" },
         });
       }
       if (url.pathname === "/app/") {
-        return new Response("Fall 2026 Club Release", {
+        return new Response(
+          state.pagesDomain ? pagesApp : "Vinifera Club Management",
+          {
+            headers: { "Content-Type": "text/html" },
+          },
+        );
+      }
+      if (url.pathname === "/portal/") {
+        return new Response("Vinifera Club Management", {
           headers: { "Content-Type": "text/html" },
         });
+      }
+      if (url.pathname === "/.well-known/apple-app-site-association") {
+        return new Response(
+          JSON.stringify({
+            applinks: {
+              details: [
+                {
+                  appIDs: ["ABCDE12345.ai.edstratumlabs.vinifera"],
+                  components: [
+                    "/portal",
+                    "/portal/auth",
+                    "/app/fulfillment",
+                  ].map((path) => ({ "/": path })),
+                },
+              ],
+            },
+          }),
+        );
+      }
+      if (url.pathname === "/.well-known/assetlinks.json") {
+        return new Response(
+          JSON.stringify([
+            {
+              relation: ["delegate_permission/common.handle_all_urls"],
+              target: {
+                namespace: "android_app",
+                package_name: "ai.edstratumlabs.vinifera",
+                sha256_cert_fingerprints: ["AA:".repeat(31) + "AA"],
+              },
+            },
+          ]),
+        );
       }
       return new Response(null, { status: 404 });
     }
@@ -232,7 +305,8 @@ function cloudflareMock({
         state.workerDomain
           ? [
               {
-                environment: "production",
+                ...(includeCertificateId ? { cert_id: certificateId } : {}),
+                environment: workerDomainEnvironment,
                 hostname,
                 id: "worker-domain-1",
                 service: workerName,
@@ -245,7 +319,21 @@ function cloudflareMock({
     if (url.pathname.endsWith("/workers/domains") && method === "PUT") {
       state.workerDomain = true;
       return json({
-        environment: "production",
+        ...(includeCertificateId ? { cert_id: certificateId } : {}),
+        environment: workerDomainEnvironment,
+        hostname,
+        id: "worker-domain-1",
+        service: workerName,
+        zone_id: zoneId,
+      });
+    }
+    if (
+      url.pathname.endsWith("/workers/domains/worker-domain-1") &&
+      method === "GET"
+    ) {
+      return json({
+        ...(includeCertificateId ? { cert_id: certificateId } : {}),
+        environment: workerDomainEnvironment,
         hostname,
         id: "worker-domain-1",
         service: workerName,
@@ -266,7 +354,7 @@ function cloudflareMock({
       return json({
         name: pagesProjectName,
         production_branch: "main",
-        subdomain: "vinifera.pages.dev",
+        subdomain: "vinifera-live.pages.dev",
       });
     }
     if (
@@ -279,7 +367,7 @@ function cloudflareMock({
         {
           environment: "production",
           id: "pages-deployment-1",
-          url: "https://vinifera.pages.dev",
+          url: "https://vinifera-live.pages.dev",
         },
       ]);
     }
@@ -304,6 +392,7 @@ function cloudflareMock({
       url.pathname.endsWith(`/pages/projects/${pagesProjectName}/domains`) &&
       method === "POST"
     ) {
+      if (pagesPostFails) return json(null, 500);
       state.pagesDomain = true;
       return json({ name: hostname, status: "pending" });
     }
@@ -317,8 +406,15 @@ const controlOptions = (fetcher) => ({
   apiToken: "control-plane-token",
   attempts: 1,
   fetcher,
+  expectedRevision: gitSha,
   hostname,
   pagesProjectName,
+  mobile: {
+    androidPackageName: "ai.edstratumlabs.vinifera",
+    androidSigningCertSha256: "AA:".repeat(31) + "AA",
+    appleTeamId: "ABCDE12345",
+    iosBundleId: "ai.edstratumlabs.vinifera",
+  },
   policy: policy(),
   sleep: vi.fn(),
   workerName,
@@ -368,6 +464,21 @@ describe("production release guards", () => {
         targets: targets(),
       }),
     ).not.toThrow();
+    expect(() =>
+      verifyProductionTargets({
+        policy: policy(),
+        scope: "domain",
+        targets: {
+          ...targets(),
+          customHostname: marketingHostname,
+        },
+      }),
+    ).toThrow(/not allowlisted|live application topology/);
+    expect(checkedIn.applicationOrigin).toBe(
+      "https://vinifera-live.edstratumlabs.ai",
+    );
+    expect(checkedIn.marketingOrigin).toBe("https://vinifera.edstratumlabs.ai");
+    expect(checkedIn.pagesProjectName).toBe("vinifera-live");
     expect(checkedIn.liveBilling).toEqual({
       activationPath: "separate-human-approved-live-billing-cutover",
       enabled: false,
@@ -527,21 +638,46 @@ describe("production release guards", () => {
   it("requires both API identity and profile-specific configuration health gates", () => {
     expect(() =>
       assertHealthPayload(
-        { data: { service: "vinifera-api", status: "ok" } },
+        {
+          data: {
+            environment: "production",
+            revision: gitSha,
+            service: "vinifera-api",
+            status: "ok",
+          },
+        },
         configurationPayload(),
         policy(),
+        "core",
+        gitSha,
       ),
     ).not.toThrow();
     expect(() =>
       assertHealthPayload(
-        { data: { service: "vinifera-api", status: "ok" } },
+        {
+          data: {
+            environment: "production",
+            revision: gitSha,
+            service: "vinifera-api",
+            status: "ok",
+          },
+        },
         configurationPayload(false),
         policy(),
+        "core",
+        gitSha,
       ),
     ).toThrow(/capability app is not activated/);
     expect(() =>
       assertHealthPayload(
-        { data: { service: "vinifera-api", status: "ok" } },
+        {
+          data: {
+            environment: "production",
+            revision: gitSha,
+            service: "vinifera-api",
+            status: "ok",
+          },
+        },
         configurationPayload(true, [
           "app",
           "database",
@@ -551,16 +687,52 @@ describe("production release guards", () => {
         ]),
         policy(),
         "cutover",
+        gitSha,
       ),
     ).toThrow(/capability compliance is not activated/);
+    expect(() =>
+      assertHealthPayload(
+        {
+          data: {
+            environment: "production",
+            revision: "b".repeat(40),
+            service: "vinifera-api",
+            status: "ok",
+          },
+        },
+        configurationPayload(),
+        policy(),
+        "core",
+        gitSha,
+      ),
+    ).toThrow(/exact production/);
     expect(() => parseWranglerJson("not-json", "deployment")).toThrow(
       /did not return valid JSON/,
     );
   });
+
+  it("recovers an exact reviewed Git SHA from prior Worker version metadata", () => {
+    expect(
+      versionGitSha({
+        annotations: {
+          "workers/message": `vinifera production git_sha=${gitSha}`,
+          "workers/tag": `git-${gitSha}`,
+        },
+      }),
+    ).toBe(gitSha);
+    expect(() =>
+      versionGitSha({
+        annotations: {
+          "workers/message": "missing exact identity",
+          "workers/tag": `git-${gitSha}`,
+        },
+      }),
+    ).toThrow(/exact reviewed Git SHA/);
+  });
 });
 
 describe("production release workflow", () => {
-  it("is manual, pinned, reversible, test-mode only, and cannot mutate Pages or domains", async () => {
+  it("is manual, pinned, reversible, test-mode only, and protects the live-domain mutation", async () => {
     const workflow = await readFile(
       new URL(
         "../../.github/workflows/production-worker-release.yml",
@@ -574,12 +746,8 @@ describe("production release workflow", () => {
     expect(workflow).toContain("contents: read");
     expect(workflow).toContain("actions: read");
     expect(workflow).toContain("pull-requests: read");
-    expect(workflow).toContain(
-      '[[ "$GITHUB_REF" != "refs/heads/main" ]]',
-    );
-    expect(workflow).toContain(
-      '[[ "$GITHUB_SHA" != "$PRODUCTION_GIT_SHA" ]]',
-    );
+    expect(workflow).toContain('[[ "$GITHUB_REF" != "refs/heads/main" ]]');
+    expect(workflow).toContain('[[ "$GITHUB_SHA" != "$PRODUCTION_GIT_SHA" ]]');
     expect(workflow).toContain(
       "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     );
@@ -589,14 +757,17 @@ describe("production release workflow", () => {
     expect(workflow).toContain(
       "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
     );
-    expect(workflow).toContain(
-      "wrangler deploy release/worker/worker.js",
-    );
+    expect(workflow).toContain("wrangler deploy release/worker/worker.js");
     expect(workflow).toContain(
       "wrangler versions upload release/worker/worker.js",
     );
     expect(workflow).toContain("--no-bundle --assets release/dist");
     expect(workflow).toContain("release_artifact_run_id:");
+    expect(workflow).toContain("activation_exit_evidence_run_id:");
+    expect(workflow).toContain("hosted-activation-exit-${{ inputs.git_sha }}");
+    expect(workflow).toContain(
+      "node scripts/hosted-activation-exit.mjs verify",
+    );
     expect(workflow).toContain("artifact_source_sha:");
     expect(workflow).toContain("release-artifact.mjs verify");
     expect(workflow).toContain("wrangler versions deploy");
@@ -616,21 +787,61 @@ describe("production release workflow", () => {
     expect(workflow).toContain(
       "control_git_sha=$PRODUCTION_GIT_SHA artifact_git_sha=$PRODUCTION_ARTIFACT_GIT_SHA",
     );
-    expect(workflow).not.toContain("restore-pages");
+    expect(workflow).toContain("attach-live-domain");
+    expect(workflow).toContain("restore-live-pages");
+    expect(workflow).toContain("node scripts/production-release.mjs snapshot");
+    expect(workflow).toContain(
+      "node scripts/production-release.mjs attach-live-domain",
+    );
+    expect(workflow).toContain(
+      "node scripts/production-release.mjs restore-live-pages",
+    );
+    expect(workflow).toContain("PRIOR_PRODUCTION_VERSION_ID");
+    expect(workflow).toContain("automatic production rollback");
+    expect(workflow).toContain("automatic_rollback_ready");
+    expect(workflow).toContain(
+      "The prior production Worker did not reconverge after automatic rollback.",
+    );
+    expect(workflow).toContain("steps.worker-smoke.outcome == 'failure'");
+    expect(workflow).toContain("steps.deploy-worker.outcome == 'failure'");
+    expect(workflow).toContain("steps.rollback-worker.outcome == 'failure'");
+    expect(workflow).toContain(
+      "node scripts/production-release.mjs version-git-sha",
+    );
+    expect(workflow).toContain("if: inputs.operation != 'restore-live-pages'");
+    expect(workflow).toContain("--max-filesize 1048576");
     expect(workflow).not.toContain("cutover-domain");
     expect(workflow).not.toContain("pages project delete");
     expect(workflow).not.toMatch(/wrangler\s+pages\s+project\s+delete/);
     expect(workflow).not.toMatch(/--(?:route|routes|domain|domains)\b/);
+    expect(workflow).toContain(
+      '--var "APP_ORIGIN:$PRODUCTION_WORKER_ORIGIN"',
+    );
+    expect(workflow).toContain(
+      '--var "ALLOWED_ORIGINS:$PRODUCTION_WORKER_ORIGIN,https://vinifera-live.edstratumlabs.ai,capacitor://localhost,https://localhost"',
+    );
+    expect(workflow).not.toContain(
+      '--var "APP_ORIGIN:https://vinifera.edstratumlabs.ai"',
+    );
   });
 
   it("keeps the named production Worker on workers.dev without automatic routes", async () => {
     const wrangler = JSON.parse(
       await readFile(new URL("../../wrangler.jsonc", import.meta.url), "utf8"),
     );
+    const environmentExample = await readFile(
+      new URL("../../.env.example", import.meta.url),
+      "utf8",
+    );
+    const supabaseConfig = await readFile(
+      new URL("../../supabase/config.toml", import.meta.url),
+      "utf8",
+    );
     expect(wrangler.env.production).toMatchObject({
       name: workerName,
       preview_urls: true,
       vars: {
+        APP_ORIGIN: "https://vinifera-live.edstratumlabs.ai",
         LIVE_BILLING_ENABLED: "false",
       },
       workers_dev: true,
@@ -639,6 +850,21 @@ describe("production release workflow", () => {
     expect(wrangler.env.production).not.toHaveProperty("route");
     expect(wrangler.env.production).not.toHaveProperty("domains");
     expect(wrangler.env.production).not.toHaveProperty("domain");
+    expect(environmentExample).toContain(
+      "PRODUCTION_CUSTOM_HOSTNAME=vinifera-live.edstratumlabs.ai",
+    );
+    expect(environmentExample).toContain(
+      "PRODUCTION_PAGES_PROJECT_NAME=vinifera-live",
+    );
+    expect(supabaseConfig).toContain(
+      "https://vinifera-live.edstratumlabs.ai/api/auth/staff/callback",
+    );
+    expect(supabaseConfig).toContain(
+      "https://vinifera-live.edstratumlabs.ai/api/auth/member/callback",
+    );
+    expect(supabaseConfig).not.toContain(
+      '"https://vinifera.edstratumlabs.ai/api/auth/',
+    );
   });
 });
 
@@ -676,7 +902,12 @@ describe("Cloudflare production control plane", () => {
     await expect(
       cutoverToWorker(controlOptions(mock.fetcher)),
     ).resolves.toMatchObject({
-      attached: { hostname, service: workerName },
+      attached: {
+        environment: "production",
+        hostname,
+        service: workerName,
+        zoneId,
+      },
     });
     expect(mock.state).toEqual({ pagesDomain: false, workerDomain: true });
     expect(
@@ -697,10 +928,53 @@ describe("Cloudflare production control plane", () => {
     ).toBe(false);
   });
 
+  it("requires the exact Worker custom-domain attachment before HTTPS health", async () => {
+    const mock = cloudflareMock({ includeCertificateId: false });
+    await expect(
+      probeWorkerDomainAttachment({
+        ...controlOptions(mock.fetcher),
+        domainId: "worker-domain-1",
+      }),
+    ).resolves.toMatchObject({
+      environment: "production",
+      hostname,
+      service: workerName,
+      zoneId,
+    });
+  });
+
+  it("rejects a Worker domain attached to a non-production environment", async () => {
+    const mock = cloudflareMock({
+      workerDomain: true,
+      workerDomainEnvironment: "staging",
+    });
+    await expect(
+      probeWorkerDomainAttachment({
+        ...controlOptions(mock.fetcher),
+        domainId: "worker-domain-1",
+      }),
+    ).rejects.toThrow(/allowlisted target/);
+  });
+
   it("restores Pages automatically when post-cutover Worker health fails", async () => {
     const mock = cloudflareMock({ healthOk: false });
     await expect(cutoverToWorker(controlOptions(mock.fetcher))).rejects.toThrow(
-      /Pages restoration was attempted/,
+      /Pages was restored/,
+    );
+    expect(mock.state).toEqual({ pagesDomain: true, workerDomain: false });
+    expect(
+      mock.calls.some(
+        (call) =>
+          call.method === "POST" &&
+          call.pathname.endsWith(`/pages/projects/${pagesProjectName}/domains`),
+      ),
+    ).toBe(true);
+  });
+
+  it("restores Pages when the final marketing invariant changes", async () => {
+    const mock = cloudflareMock({ marketingChangesAfterCutover: true });
+    await expect(cutoverToWorker(controlOptions(mock.fetcher))).rejects.toThrow(
+      /Pages was restored/,
     );
     expect(mock.state).toEqual({ pagesDomain: true, workerDomain: false });
   });
@@ -724,6 +998,91 @@ describe("Cloudflare production control plane", () => {
         (call) =>
           call.method === "DELETE" &&
           call.pathname.endsWith(`/pages/projects/${pagesProjectName}`),
+      ),
+    ).toBe(false);
+  });
+
+  it("resumes an already attached Worker after an interrupted cutover", async () => {
+    const mock = cloudflareMock({ pagesDomain: false, workerDomain: true });
+    await expect(
+      cutoverToWorker(controlOptions(mock.fetcher)),
+    ).resolves.toMatchObject({
+      resumed: true,
+      publicProof: {
+        routes: { androidAssociation: true, appleAssociation: true },
+      },
+    });
+    expect(mock.state).toEqual({ pagesDomain: false, workerDomain: true });
+  });
+
+  it("continues cutover safely from an unowned interrupted topology", async () => {
+    const mock = cloudflareMock({ pagesDomain: false, workerDomain: false });
+    await expect(
+      cutoverToWorker(controlOptions(mock.fetcher)),
+    ).resolves.toMatchObject({
+      resumed: true,
+    });
+    expect(mock.state).toEqual({ pagesDomain: false, workerDomain: true });
+  });
+
+  it("treats an already restored Pages domain as converged", async () => {
+    const mock = cloudflareMock({ pagesDomain: true, workerDomain: false });
+    await expect(
+      restorePages(controlOptions(mock.fetcher)),
+    ).resolves.toMatchObject({
+      restored: true,
+      resumed: true,
+    });
+    expect(mock.state).toEqual({ pagesDomain: true, workerDomain: false });
+  });
+
+  it("restores Pages from an unowned interrupted topology", async () => {
+    const mock = cloudflareMock({ pagesDomain: false, workerDomain: false });
+    await expect(
+      restorePages(controlOptions(mock.fetcher)),
+    ).resolves.toMatchObject({
+      restored: true,
+      resumed: true,
+    });
+    expect(mock.state).toEqual({ pagesDomain: true, workerDomain: false });
+  });
+
+  it("fails closed when both Pages and Worker claim the live hostname", async () => {
+    const mock = cloudflareMock({ pagesDomain: true, workerDomain: true });
+    await expect(cutoverToWorker(controlOptions(mock.fetcher))).rejects.toThrow(
+      /both Worker and Pages/,
+    );
+    await expect(restorePages(controlOptions(mock.fetcher))).rejects.toThrow(
+      /both Worker and Pages/,
+    );
+  });
+
+  it("fully verifies Worker recovery when Pages restoration fails", async () => {
+    const mock = cloudflareMock({
+      pagesDomain: false,
+      pagesPostFails: true,
+      workerDomain: true,
+    });
+    await expect(restorePages(controlOptions(mock.fetcher))).rejects.toThrow(
+      /Worker was fully restored/,
+    );
+    expect(mock.state).toEqual({ pagesDomain: false, workerDomain: true });
+  });
+
+  it("restores an unowned topology when Pages attachment fails", async () => {
+    const mock = cloudflareMock({
+      pagesDomain: false,
+      pagesPostFails: true,
+      workerDomain: false,
+    });
+    await expect(restorePages(controlOptions(mock.fetcher))).rejects.toThrow(
+      /prior unowned topology was restored/,
+    );
+    expect(mock.state).toEqual({ pagesDomain: false, workerDomain: false });
+    expect(
+      mock.calls.some(
+        (call) =>
+          call.method === "PUT" && call.pathname.endsWith("/workers/domains"),
       ),
     ).toBe(false);
   });

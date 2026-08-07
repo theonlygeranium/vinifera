@@ -1,5 +1,6 @@
 import { copyFile, mkdir, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import sharp from 'sharp';
 
 const ROOT = '.';
 const DIST = 'dist';
@@ -28,6 +29,17 @@ try {
   }
 } catch {
   console.log('  no public/ directory');
+}
+
+const iconDirectory = join(DIST, 'icons');
+await mkdir(iconDirectory, { recursive: true });
+for (const size of [192, 512]) {
+  const target = join(iconDirectory, `vinifera-${size}.png`);
+  await sharp(join(ROOT, 'mobile/assets/vinifera-mobile-mark.svg'))
+    .resize(size, size)
+    .png()
+    .toFile(target);
+  console.log(`  generated ${target}`);
 }
 
 console.log(

@@ -259,6 +259,10 @@ eligible only when it:
 
 Missing, queued, in-progress, neutral, skipped, cancelled, stale, or failed
 required evidence blocks the mutation. High-risk work is never auto-merged.
+The trusted evaluator streams paginated check-run and commit-status responses
+to runner-local files and parses them with `jq --slurpfile`; it does not place
+the unbounded historical response set in process arguments. Exact PR, base,
+and head binding is still applied to the selected current evidence.
 
 ### Development deployment and selected release candidate
 

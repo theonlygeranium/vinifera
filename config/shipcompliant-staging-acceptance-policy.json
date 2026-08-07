@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "accountIdSha256": [],
+  "contractVersionSha256": [],
+  "licenseIdSha256": [],
+  "sandboxOriginSha256": [],
+  "tokenPathSha256": [],
+  "checkPathSha256": [],
+  "stagingWorkerOriginSha256": [],
+  "stagingSupabaseUrlSha256": []
+}

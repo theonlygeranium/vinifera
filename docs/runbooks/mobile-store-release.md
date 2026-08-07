@@ -26,12 +26,18 @@ self-review.
 Both platforms force:
 
 ```text
-MOBILE_BUILD_PROFILE=production-authorized
+MOBILE_BUILD_PROFILE=production-precutover
 MOBILE_PRODUCTION_ORIGIN_AUTHORIZED=true
-VITE_MOBILE_API_ORIGIN=https://vinifera.edstratumlabs.ai
+VITE_MOBILE_API_ORIGIN=<PRODUCTION_WORKER_ORIGIN repository variable>
 ```
 
-Any other origin fails before signing.
+The origin must be the exact policy-allowlisted production `workers.dev`
+origin. Before signing, each platform verifies the exact requested production
+revision and its own association payload on that origin. This permits Gates 17
+and 18 before Gate 20 moves the canonical
+`vinifera-live.edstratumlabs.ai` hostname. Any other origin fails before
+signing. The marketing and prototype hostname at
+`vinifera.edstratumlabs.ai` is not a mobile API or associated-link target.
 
 ## Android credentials
 
@@ -128,6 +134,7 @@ Always-run steps delete:
 
 Evidence artifacts contain only the immutable Git SHA, platform, action,
 signed-build result, signature-verification result, and internal-upload result.
+They also retain a sanitized exact-revision/association verification result.
 They exclude provider response bodies, edit IDs, access tokens, email
 identities, certificate material, and private keys.
 
@@ -150,6 +157,11 @@ and record:
 Do not describe a signed build as store-installed until both internal tracks
 and physical-device evidence are retained. Public store submission and Stripe
 live billing are separate human-approved decisions.
+
+Use `mobile-acceptance-gates-17-18.md` to validate the physical-device matrix
+as Gate 17 and the actual TestFlight/Play internal-track installs as Gate 18.
+That controller binds both results to the exact successful signed-release run;
+upload success from this workflow is only a prerequisite.
 
 ## Rotation
 

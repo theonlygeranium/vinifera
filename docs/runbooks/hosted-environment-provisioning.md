@@ -24,7 +24,7 @@ Three GitHub environments separate authority:
 | --- | --- | --- |
 | `staging` | Supabase migration, native pgTAP, isolated Worker, read-only readiness | Stripe test mode and provider sandboxes only |
 | `production` | Production Worker bootstrap/version/deploy/Worker rollback | Stripe test mode only; no live-billing activation |
-| `mobile-release` | Signed Android/iOS builds and optional internal-track upload | App signing and store-delivery authority only |
+| `mobile-release` | Signed Android/iOS builds, optional internal-track upload, and signed Gates 17–18 evidence acceptance | App signing, store-delivery, and exact-release device-evidence authority only |
 
 Create a fourth control environment before enabling deliberate promotion:
 
@@ -242,9 +242,12 @@ or store the credential value in the reference column.
 
 ## Production policy preparation
 
-`config/production-release-policy.json` contains hashes for the known Pages
-project, public hostname, and Worker name. Account, zone, and Worker-origin
-arrays are empty until those exact resources are resolved and reviewed.
+`config/production-release-policy.json` contains reviewed hashes for the
+production Cloudflare account, zone, `vinifera-live` Pages project,
+`vinifera-live.edstratumlabs.ai` application hostname, Worker name, and Worker
+origin. Its raw topology fields independently require the live application
+origin and reject the separate marketing hostname. Recompute and review a hash
+only when that exact resource is intentionally replaced.
 
 Generate the remaining hashes locally without writing raw values to tracked
 files:
@@ -293,8 +296,10 @@ Before production deployment, all configuration capabilities listed in the
 production policy must report configured. Follow
 `production-cutover-rollback.md`; do not use Worker bootstrap, version upload,
 or Worker deployment as proof that the public application is operational. The
-standard release dispatch does not expose the legacy domain-cutover or
-Pages-restoration operations.
+standard release dispatch exposes only the protected `attach-live-domain` and
+`restore-live-pages` operations for the authorized live hostname and Pages
+project; it rejects the marketing hostname and legacy generic domain operation
+names.
 
 Production credentials remain scoped to the protected `production`
 environment. A release must consume the same reviewed staging artifact or
@@ -330,6 +335,38 @@ immutable commit, exact confirmation, and post-change health evidence.
 Reversion restores only the reviewed test bindings. Do not populate or execute
 this control while service connections are deferred.
 
+Gate 19 financial proof is a third, distinct control plane. Its
+`config/stripe-live-proof-policy.json` also ships disabled and with empty
+target hashes. It does not upload or deploy a Worker version and cannot change
+Stripe bindings. Before execution, independently review and populate exactly
+one SHA-256 hash for the live Stripe account, dedicated proof customer, exact
+brand UUID, exact organization UUID, live Price, canonical plan name, maximum
+integer cent amount, production Supabase origin, and production Worker origin.
+Configure the protected `production`
+environment with:
+
+```text
+PRODUCTION_STRIPE_LIVE_PROOF_BRAND_ID
+PRODUCTION_STRIPE_LIVE_PROOF_CUSTOMER_ID
+PRODUCTION_STRIPE_LIVE_PROOF_HANDOFF_CERTIFICATE_BASE64
+PRODUCTION_STRIPE_LIVE_PROOF_PRICE_ID
+PRODUCTION_STRIPE_LIVE_PROOF_PLAN
+PRODUCTION_STRIPE_LIVE_PROOF_MAX_AMOUNT_CENTS
+PRODUCTION_STRIPE_LIVE_PROOF_ORGANIZATION_ID
+PRODUCTION_STRIPE_LIVE_SECRET_KEY
+PRODUCTION_STRIPE_LIVE_WEBHOOK_SECRET
+PRODUCTION_SUPABASE_URL
+PRODUCTION_SUPABASE_SERVICE_ROLE_KEY
+PRODUCTION_WORKER_ORIGIN
+```
+
+The handoff certificate is a base64-encoded PEM X.509 certificate whose
+matching private key remains with the owner; the workflow uses it to retain
+only an encrypted Checkout handoff. The customer must map to exactly one
+independently billed production brand. Follow `stripe-live-proof.md` for local
+handoff decryption, the owner Checkout, finalize dispatch, refund/cancellation
+evidence, and optional separate binding reversion.
+
 ## Mobile-release environment
 
 Compilation in normal CI uses:
@@ -344,6 +381,14 @@ Signed production releases require the protected `mobile-release` environment
 and the credential matrix in `mobile-store-release.md`. Production native
 builds reuse the exact public origin guard and cannot be made against a
 different or credential-bearing URL.
+
+The separate `Mobile activation acceptance` workflow also uses this
+environment. Add `MOBILE_ACCEPTANCE_EVIDENCE_PUBLIC_KEY_PEM_BASE64`, then
+review and activate the public-key, API-origin, and per-platform signing hashes
+in `.github/mobile-acceptance/policy.json`. The checked-in policy is disabled
+and cannot accept Gate 17 or Gate 18 evidence. See
+`mobile-acceptance-gates-17-18.md` for the exact attestation schemas and
+sequence.
 
 ## Read-only readiness
 

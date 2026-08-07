@@ -14,6 +14,11 @@ The architecture is complete and the services in this runbook are currently
 disconnected. No activation, provider retry, DNS write, filing enrollment,
 live payment, or store submission is authorized merely by this document.
 
+For Gates 14 through 16, first collect the exact-revision configuration report
+described in `docs/runbooks/hosted-gates-10-16-evidence.md`. That readiness
+artifact never substitutes for provider reconciliation, multi-brand isolation,
+DNS ownership, or active-certificate evidence.
+
 ## 1. Shared production prerequisites
 
 1. Apply every Supabase migration in order and run `npm run qa:db:phase5`.
@@ -361,6 +366,14 @@ Stripe live activation additionally remains disabled in
 reviewed Worker/account/webhook hashes, canonical test/live Price contracts,
 an immutable commit, exact protected confirmation, and post-change health
 evidence. Production Worker deployment cannot turn live billing on.
+
+The controlled charge/refund proof uses the separate, default-disabled
+`config/stripe-live-proof-policy.json` and `stripe-live-proof.yml`. It requires
+an owner-completed Stripe-hosted Checkout, exactly one hash-authorized live
+charge and refund, signed subscription-webhook idempotency, application
+active-to-canceled convergence, and subscription cleanup. It cannot upload a
+Worker version or change Stripe bindings; optional reversion uses the cutover
+workflow independently.
 
 Phase 5's hosted exit criterion passes only after at least Klaviyo,
 QuickBooks, and one of Avalara or Meta are verified against real provider

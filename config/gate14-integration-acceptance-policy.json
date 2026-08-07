@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "stagingWorkerOriginSha256": [],
+  "stagingSupabaseUrlSha256": [],
+  "acceptanceScopeSha256": []
+}

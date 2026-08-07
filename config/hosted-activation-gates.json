@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "gates": [
+    {
+      "gate": 1,
+      "status": "live-passed",
+      "evidence": ["hosted-migration-ledger", "linked-pgtap-331"]
+    },
+    {
+      "gate": 2,
+      "status": "live-passed",
+      "evidence": ["staging-run-31073800654", "runtime-artifact-8956720306"]
+    },
+    {
+      "gate": 3,
+      "status": "live-passed",
+      "evidence": ["hosted-auth-configuration"]
+    },
+    {
+      "gate": 4,
+      "status": "live-passed",
+      "evidence": ["stripe-test-catalog", "signed-webhook-replay"]
+    },
+    {
+      "gate": 5,
+      "status": "live-passed",
+      "evidence": ["easypost-test-address-verification"]
+    },
+    { "gate": 6, "status": "pending", "evidence": [] },
+    {
+      "gate": 7,
+      "status": "live-passed",
+      "evidence": ["staging-run-31089753727", "artifact-8963047777"]
+    },
+    { "gate": 8, "status": "pending", "evidence": [] },
+    { "gate": 9, "status": "live-passed", "evidence": ["linked-pgtap-331"] },
+    { "gate": 10, "status": "pending", "evidence": [] },
+    { "gate": 11, "status": "pending", "evidence": [] },
+    { "gate": 12, "status": "pending", "evidence": [] },
+    { "gate": 13, "status": "pending", "evidence": [] },
+    { "gate": 14, "status": "pending", "evidence": [] },
+    { "gate": 15, "status": "pending", "evidence": [] },
+    { "gate": 16, "status": "pending", "evidence": [] },
+    { "gate": 17, "status": "pending", "evidence": [] },
+    { "gate": 18, "status": "pending", "evidence": [] },
+    { "gate": 19, "status": "pending", "evidence": [] }
+  ]
+}

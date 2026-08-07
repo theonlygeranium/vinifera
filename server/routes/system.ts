@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getConfigurationReport } from "../config";
+import { getConfigurationReport, getRuntimeConfigurationReport } from "../config";
 import {
   androidAssetLinks,
   appleAppSiteAssociation,
@@ -45,8 +45,8 @@ export default function createSystemRouter(context: RouteContext): Router {
     });
   });
 
-  router.get("/api/health/configuration", (_request, response) => {
-    data(response, getConfigurationReport(options.getEnv()));
+  router.get("/api/health/configuration", async (_request, response) => {
+    data(response, await getRuntimeConfigurationReport(options.getEnv()));
   });
 
   router.get("/api/portal/branding", async (request, response) => {
