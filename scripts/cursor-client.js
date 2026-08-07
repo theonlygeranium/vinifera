@@ -1,12 +1,12 @@
 /**
  * Cursor Cloud Agents API Client
- * 
+ *
  * A lightweight Node.js client for the Cursor Cloud Agents API v1 (public beta).
  * Used by WRITER Agent orchestration scripts to launch and manage Cursor cloud agents.
- * 
+ *
  * Authentication: Bearer token (Cursor API key from Dashboard → API Keys)
  * Base URL: https://api.cursor.com
- * 
+ *
  * Usage:
  *   const client = new CursorClient(process.env.CURSOR_API_KEY);
  *   const { agent, run } = await client.createAgent({ prompt: { text: "..." }, repos: [...] });

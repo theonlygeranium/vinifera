@@ -1,13 +1,13 @@
 /**
  * Bugbot API Client
- * 
+ *
  * A lightweight client for the Cursor Bugbot API.
  * Used by WRITER Agent to trigger automated code reviews and retrieve analytics.
- * 
+ *
  * Authentication: Basic Auth (API key with admin:* scope)
  * Endpoint: POST https://api.cursor.com/bugbot/review
  * Rate limit: 30 requests/minute (10/min for dryRun)
- * 
+ *
  * Note: The Bugbot API requires an Enterprise plan API key with admin:* scope.
  */
 

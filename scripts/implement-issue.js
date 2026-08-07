@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
  * Manager-Worker Orchestration Example
- * 
+ *
  * Demonstrates the WRITER Agent → Cursor cloud agent manager-worker pattern:
  * 1. Launch a Cursor cloud agent to implement a feature from a GitHub issue
  * 2. Poll for completion
  * 3. Retrieve the result (pushed branches, PR URL)
  * 4. Trigger a Bugbot dry-run review
  * 5. Output a summary for WRITER Agent to verify against governance constraints
- * 
+ *
  * Usage:
  *   CURSOR_API_KEY=crsr_xxx node implement-issue.js --issue 298 --repo theonlygeranium/vinifera
- * 
+ *
  * Environment variables:
  *   CURSOR_API_KEY - Cursor API key (Bearer auth for Cloud Agents API)
  *   GITHUB_REPO_URL - Optional default repo URL (default: https://github.com/theonlygeranium/vinifera)
@@ -56,7 +56,7 @@ async function main() {
   const repoUrl = args.repo ? `https://github.com/${args.repo}` : REPO_URL;
 
   // Construct the implementation prompt
-  const promptText = args.prompt || `Implement the feature described in GitHub issue #${args.issue}. 
+  const promptText = args.prompt || `Implement the feature described in GitHub issue #${args.issue}.
 
 Constraints:
 - Target the dev branch (never staging or main)

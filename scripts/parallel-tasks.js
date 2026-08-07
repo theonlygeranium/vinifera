@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
  * Parallel Agent Fan-Out Example
- * 
+ *
  * Demonstrates WRITER Agent launching multiple Cursor cloud agents in parallel
  * for independent tasks. Each agent runs in its own isolated VM.
- * 
+ *
  * Usage:
  *   CURSOR_API_KEY=crsr_xxx node parallel-tasks.js tasks.json
- * 
+ *
  * tasks.json format:
  * [
  *   { "name": "fix-typo", "prompt": "Fix the typo in the README...", "branch": "fix/readme-typo" },

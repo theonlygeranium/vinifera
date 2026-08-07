@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
  * CI Auto-Fix Orchestration Example
- * 
+ *
  * Demonstrates WRITER Agent using the Cursor Cloud Agents API to fix CI failures:
  * 1. Detect a failing CI check on a PR (via GitHub API)
  * 2. Fetch the failing job logs
  * 3. Launch a Cursor cloud agent with the failure context to fix it
  * 4. The agent pushes the fix to the PR branch
  * 5. Verify CI passes on the updated PR
- * 
+ *
  * This replaces the automatic CI auto-fix that's only available on Cursor Teams plans.
  * On Pro+, WRITER Agent can orchestrate this flow programmatically.
- * 
+ *
  * Usage:
  *   CURSOR_API_KEY=crsr_xxx node fix-ci.js --pr 306 --repo theonlygeranium/vinifera
  */
