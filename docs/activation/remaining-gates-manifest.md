@@ -40,8 +40,10 @@ promotion, and status changes.
    where their prerequisites overlap.
 6. Complete Gates 17 and 18 with physical-device and internal-store artifacts
    only after the production mobile API and association routes are executable.
-7. Complete Gate 19 only through its protected live-billing workflow and exact
-   controlled charge/refund evidence.
+7. Activate live bindings only through the protected cutover workflow, then
+   complete Gate 19 through the distinct protected hosted Checkout proof with
+   exact one-charge/one-refund, signed-webhook, application-convergence, and
+   cleanup evidence.
 8. Complete Gate 20 last, using the identical reviewed artifact, live health,
    route verification, and proven rollback target.
 

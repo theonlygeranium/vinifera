@@ -50,6 +50,7 @@
     "qa:gate14-acceptance": "vitest run tests/scripts/hosted-gate14-integration-acceptance.test.mjs",
     "qa:resend-provisioning": "vitest run tests/scripts/resend-staging-provisioning.test.mjs",
     "qa:stripe-catalog": "vitest run tests/scripts/stripe-test-catalog.test.mjs",
+    "qa:stripe-live-proof": "vitest run tests/scripts/stripe-live-proof.test.mjs",
     "qa:worker-types": "wrangler types --check",
     "test": "vitest run",
     "test:unit": "vitest run",
