@@ -151,6 +151,46 @@
   policy remains disabled with empty allowlists, and no signing, provider
   upload, device operation, store submission, merge, promotion, or gate status
   changes occur.
+- Add a default-disabled protected Gate 14 controller that binds an exact
+  staging revision, winery organization/brand, Supabase/Worker targets, and
+  immutable acceptance scope; requires AES-256-GCM winery-specific envelopes for
+  Klaviyo, Avalara, Meta, and QuickBooks; verifies each provider lifecycle,
+  runtime-supported envelope format, distinct connection IDs, exact
+  QuickBooks receipts/split refund, OAuth/rolling-token persistence, and the
+  complete Avalara partial/completing refund and interrupted-checkpoint
+  recovery, including exact reconciliation of each adjacent liability total
+  with its corresponding observed refund tax reduction, and every mapped Meta
+  event lifecycle; binds the fresh manifest,
+  runtime-reported Supabase target, validated active key version, deployed
+  key-version set, and successful decryption of all four exact accepted
+  connection envelopes to the candidate using a tenant/provider/ciphertext/
+  IV/key-version scope hash. The protected controller now carries both the
+  staging merge SHA and tree-identical deployed candidate SHA and attests the
+  exact active, opted-in tenant/brand connections plus stored envelopes through
+  a database-level brand-filtered relation in staging Supabase, carrying both
+  service-role authorization and staging Cloudflare Access service-token
+  headers, before accepting the runtime proof. Placeholder proofs
+  cannot satisfy the binding.
+  The candidate SHA is excluded from the checked-in acceptance-scope hash to
+  avoid a commit fixed point, while the protected post-immutable manifest,
+  dispatch, staging tree, and live Worker checks retain exact candidate binding.
+  The controller now also resolves the exact staging merge's same-repository
+  `dev → staging` PR and requires its recorded head SHA to equal the dispatched
+  candidate, rejecting unrelated tree-equivalent commits.
+  Canonical main/staging, promotion provenance, and tree identity are
+  force-refreshed before acceptance and artifact retention; drift rewrites the
+  report as failed. Ref-fetch and promotion-API failures take the same path;
+  a rewrite failure moves the report outside the uploader path. Provider observations are strict timezone-qualified
+  RFC3339 instants collected after policy promotion and rejected after 30 minutes;
+  and retains sanitized 90-day
+  evidence without claiming completion. **Deployment impact:** trusted
+  main-only staging acceptance workflow and disabled target policy only; no
+  provider connection, credential write, OAuth grant, filing, disclosure, or
+  production mutation.
+  The Gate 14 controller and target policy are both authority-high-risk
+  delivery paths requiring trusted Octopus review.
+  Controller QA accepts both the disabled baseline and reviewed enabled policy
+  states so the protected activation preflight remains executable.
 - Add a protected, default-disabled Gate 6 hosted acceptance controller that
   binds canonical control and staging revisions to a successful exact-candidate
   Gate 13 artifact, exactly ten tenant-scoped test members, Stripe test
