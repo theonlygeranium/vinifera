@@ -18,6 +18,12 @@
 - Document Cursor Cloud VM development setup under a new `## Cursor Cloud specific instructions` section in `AGENTS.md`: how to start the Docker daemon manually (no systemd) for the full `npm run dev` stack, the Docker 29 + fuse-overlayfs `containerd-snapshotter=false` requirement, the `ubuntu` docker-group / `sg docker` note, seeded local login accounts, and the cold-run timeout caveat for `tests/scripts/promotion-smoke.test.mjs`. **Deployment impact:** documentation only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Changed
+- Apply the shared 30-second fixture-Git budget to the promotion classifier's
+  staged CLI test as well as the other repository-heavy promotion fixtures.
+  This prevents a correct subprocess invocation from inheriting Vitest's
+  unrelated five-second default under concurrent CI host load. **Deployment
+  impact:** test timing only; no workflow, branch, deployment, or runtime
+  behavior.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from
