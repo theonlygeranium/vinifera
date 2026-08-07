@@ -1,0 +1,136 @@
+name: ShipCompliant staging acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      control_sha:
+        description: Exact 40-character commit on canonical main containing this controller
+        required: true
+        type: string
+      candidate_revision:
+        description: Exact 40-character revision already deployed to the staging Worker
+        required: true
+        type: string
+      confirmation:
+        description: Exact Gate 13 confirmation from the activation runbook
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  deployments: none
+
+concurrency:
+  group: vinifera-shipcompliant-staging-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    name: Gate 13 hosted acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: staging-acceptance-control
+      deployment: false
+    steps:
+      - name: Validate canonical source target
+        env:
+          CONTROL_SHA: ${{ inputs.control_sha }}
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "theonlygeranium/vinifera" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$CONTROL_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Check out immutable control source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.control_sha }}
+
+      - name: Verify immutable canonical main commit
+        env:
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          CONTROL_SHA: ${{ inputs.control_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$CONTROL_SHA" ]]
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          git fetch --no-tags origin staging:refs/remotes/origin/staging
+          [[ "$(git rev-parse origin/main)" == "$CONTROL_SHA" ]]
+          [[ "$(git rev-parse origin/staging)" == "$CANDIDATE_REVISION" ]]
+
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.22.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify Gate 13 control suite
+        run: npm run qa:gate13-acceptance
+
+      - name: Run protected ShipCompliant sandbox acceptance
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
+          COMPLIANCE_PROVIDER: shipcompliant
+          COMPLIANCE_SIMULATOR_ENABLED: "false"
+          GATE13_ACCEPTANCE_CONFIRMATION: ${{ inputs.confirmation }}
+          GATE13_ACCEPTANCE_MANIFEST: ${{ secrets.STAGING_GATE13_ACCEPTANCE_MANIFEST }}
+          GATE13_CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          GATE13_CONTROL_SHA: ${{ inputs.control_sha }}
+          SHIPCOMPLIANT_ACCOUNT_ID: ${{ secrets.STAGING_SHIPCOMPLIANT_ACCOUNT_ID }}
+          SHIPCOMPLIANT_BASE_URL: ${{ secrets.STAGING_SHIPCOMPLIANT_BASE_URL }}
+          SHIPCOMPLIANT_CHECK_PATH: ${{ secrets.STAGING_SHIPCOMPLIANT_CHECK_PATH }}
+          SHIPCOMPLIANT_CONTRACT_VERSION: ${{ secrets.STAGING_SHIPCOMPLIANT_CONTRACT_VERSION }}
+          SHIPCOMPLIANT_ENDPOINT_MODE: ${{ secrets.STAGING_SHIPCOMPLIANT_ENDPOINT_MODE }}
+          SHIPCOMPLIANT_LICENSE_ID: ${{ secrets.STAGING_SHIPCOMPLIANT_LICENSE_ID }}
+          SHIPCOMPLIANT_TOKEN_PATH: ${{ secrets.STAGING_SHIPCOMPLIANT_TOKEN_PATH }}
+          STAGING_GATE13_ACCEPTANCE_ENABLED: ${{ vars.STAGING_GATE13_ACCEPTANCE_ENABLED }}
+          STAGING_GATE13_ACCEPTANCE_MANIFEST_SHA256: ${{ secrets.STAGING_GATE13_ACCEPTANCE_MANIFEST_SHA256 }}
+          STAGING_WORKER_ORIGIN: ${{ vars.STAGING_WORKER_ORIGIN }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node scripts/hosted-gate13-shipcompliant-acceptance.mjs \
+            --output "$RUNNER_TEMP/gate13-shipcompliant-acceptance.json"
+
+      - name: Revalidate canonical refs before evidence upload
+        if: always()
+        env:
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          CONTROL_SHA: ${{ inputs.control_sha }}
+          EVIDENCE_PATH: ${{ runner.temp }}/gate13-shipcompliant-acceptance.json
+        run: |
+          set -euo pipefail
+          git fetch --force --no-tags origin main:refs/remotes/origin/main
+          git fetch --force --no-tags origin staging:refs/remotes/origin/staging
+          if [[ "$(git rev-parse origin/main)" != "$CONTROL_SHA" ]] \
+            || [[ "$(git rev-parse origin/staging)" != "$CANDIDATE_REVISION" ]]
+          then
+            if [[ -f "$EVIDENCE_PATH" ]]; then
+              jq \
+                '.passed = false | .checks.exactRevisionAndConfiguration = false' \
+                "$EVIDENCE_PATH" > "$RUNNER_TEMP/gate13-ref-drift.json"
+              mv "$RUNNER_TEMP/gate13-ref-drift.json" "$EVIDENCE_PATH"
+            fi
+            echo "Canonical main or staging advanced during Gate 13 acceptance." >&2
+            exit 1
+          fi
+
+      - name: Upload sanitized Gate 13 evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: gate13-shipcompliant-${{ inputs.candidate_revision }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gate13-shipcompliant-acceptance.json
+          if-no-files-found: error
+          retention-days: 90

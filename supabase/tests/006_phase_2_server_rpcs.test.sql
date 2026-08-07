@@ -1038,6 +1038,7 @@ language plpgsql
 as $$
 declare
   v_attempt_id uuid;
+  v_brand_id uuid;
   v_lease_token text;
   v_shipment_id uuid := (
     select id
@@ -1047,15 +1048,22 @@ declare
   v_status public.shipment_status;
 begin
   if to_regprocedure(
-    'public.acquire_shipping_label_attempt(uuid,uuid,text,uuid,integer,text)'
+    'public.acquire_shipping_label_attempt(uuid,uuid,uuid,text,uuid,integer,text)'
   ) is not null then
+    execute $brand$
+      select brand_id
+      from public.shipments
+      where member_id = '34000000-0000-4000-8000-000000000002'
+    $brand$
+    into v_brand_id;
     execute $acquire$
       select attempt_id, lease_token
-      from public.acquire_shipping_label_attempt($1, $2, $3, $4, 300, 'simulated')
+      from public.acquire_shipping_label_attempt($1, $2, $3, $4, $5, 300, 'simulated')
     $acquire$
     into v_attempt_id, v_lease_token
     using
       '32000000-0000-4000-8000-000000000001'::uuid,
+      v_brand_id,
       v_shipment_id,
       'phase2-current-stack-worker',
       '31000000-0000-4000-8000-000000000001'::uuid;
