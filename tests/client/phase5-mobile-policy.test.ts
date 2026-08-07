@@ -48,22 +48,18 @@ describe("Phase 5 native policy gates", () => {
     ).toBe("/portal/auth");
     expect(
       routeFromMobileUrl(
-        "https://vinifera.edstratumlabs.ai/app/fulfillment",
+        "https://vinifera-live.edstratumlabs.ai/app/fulfillment",
       )?.path,
     ).toBe("/app/fulfillment");
     expect(routeFromMobileUrl("vinifera://portal/auth")).toBeNull();
     expect(
-      routeFromMobileUrl(
-        "https://evil.edstratumlabs.ai/app/fulfillment",
-      ),
+      routeFromMobileUrl("https://evil.edstratumlabs.ai/app/fulfillment"),
     ).toBeNull();
     expect(
       routeFromMobileUrl(
-        "https://vinifera.edstratumlabs.ai/app/fulfillment/admin",
+        "https://vinifera-live.edstratumlabs.ai/app/fulfillment/admin",
       ),
     ).toBeNull();
-    expect(
-      routeFromMobileUrl("vinifera.ai://portal/auth/replay"),
-    ).toBeNull();
+    expect(routeFromMobileUrl("vinifera.ai://portal/auth/replay")).toBeNull();
   });
 });

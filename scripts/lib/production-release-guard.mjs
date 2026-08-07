@@ -44,7 +44,9 @@ const TARGET_SCOPES = {
 };
 
 function normalizeCloudflareId(value) {
-  const normalized = String(value ?? "").trim().toLowerCase();
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (!CLOUDFLARE_ID.test(normalized)) {
     throw new Error("Cloudflare target metadata is missing or invalid.");
   }
@@ -52,7 +54,9 @@ function normalizeCloudflareId(value) {
 }
 
 function normalizeName(value) {
-  const normalized = String(value ?? "").trim().toLowerCase();
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (!NAME.test(normalized)) {
     throw new Error("Cloudflare resource-name metadata is missing or invalid.");
   }
@@ -92,6 +96,28 @@ function normalizeOrigin(value) {
     throw new Error(
       "Production Worker origin must be a canonical workers.dev HTTPS origin.",
     );
+  }
+  return parsed.origin.toLowerCase();
+}
+
+function normalizeApplicationOrigin(value, label) {
+  let parsed;
+  try {
+    parsed = new URL(String(value ?? "").trim());
+  } catch {
+    throw new Error(`${label} is missing or invalid.`);
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.username ||
+    parsed.password ||
+    parsed.port ||
+    parsed.pathname !== "/" ||
+    parsed.search ||
+    parsed.hash ||
+    !HOSTNAME.test(parsed.hostname.toLowerCase())
+  ) {
+    throw new Error(`${label} must be a canonical HTTPS origin.`);
   }
   return parsed.origin.toLowerCase();
 }
@@ -143,7 +169,34 @@ export function verifyProductionTargets({ policy, scope, targets }) {
     kinds.includes("workerName") &&
     normalizeName(targets.workerName) !== normalizeName(policy.workerName)
   ) {
-    throw new Error("The production Worker name does not match release policy.");
+    throw new Error(
+      "The production Worker name does not match release policy.",
+    );
+  }
+  if (kinds.includes("customHostname")) {
+    const applicationOrigin = normalizeApplicationOrigin(
+      policy.applicationOrigin,
+      "Production application origin",
+    );
+    const marketingOrigin = normalizeApplicationOrigin(
+      policy.marketingOrigin,
+      "Marketing origin",
+    );
+    if (applicationOrigin === marketingOrigin) {
+      throw new Error(
+        "Production application and marketing origins must remain separate.",
+      );
+    }
+    if (
+      normalizeHostname(targets.customHostname) !==
+        new URL(applicationOrigin).hostname ||
+      normalizeName(targets.pagesProjectName) !==
+        normalizeName(policy.pagesProjectName)
+    ) {
+      throw new Error(
+        "Production domain targets do not match the canonical live application topology.",
+      );
+    }
   }
   return verified;
 }
@@ -156,7 +209,9 @@ export function assertProductionConfirmation(policy, operation, confirmation) {
 }
 
 export function validateImmutableGitSha(value) {
-  const normalized = String(value ?? "").trim().toLowerCase();
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (!GIT_SHA.test(normalized)) {
     throw new Error("A full immutable 40-character Git SHA is required.");
   }
@@ -164,7 +219,9 @@ export function validateImmutableGitSha(value) {
 }
 
 export function validateWorkerVersionId(value) {
-  const normalized = String(value ?? "").trim().toLowerCase();
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (!UUID.test(normalized)) {
     throw new Error("A valid Worker Version ID is required.");
   }
@@ -201,7 +258,9 @@ export function buildProductionSecretBundle(environment, policy) {
   }
   const names = new Set([
     ...(policy.requiredSecrets ?? []),
-    ...(policy.requiredSecretGroups ?? []).flatMap((group) => group.anyOf ?? []),
+    ...(policy.requiredSecretGroups ?? []).flatMap(
+      (group) => group.anyOf ?? [],
+    ),
     ...(policy.optionalSecrets ?? []),
   ]);
   return Object.fromEntries(
@@ -215,9 +274,7 @@ export function buildProductionSecretBundle(environment, policy) {
 export function parseWranglerVersionUploadOutput(output) {
   const text = String(output ?? "");
   const versionIds = [
-    ...text.matchAll(
-      /Worker Version ID:\s*([0-9a-f]{8}-[0-9a-f-]{27,})/gi,
-    ),
+    ...text.matchAll(/Worker Version ID:\s*([0-9a-f]{8}-[0-9a-f-]{27,})/gi),
   ].map((match) => validateWorkerVersionId(match[1]));
   const previewUrls = [
     ...text.matchAll(/Version Preview URL:\s*(https:\/\/\S+)/gi),
@@ -236,9 +293,7 @@ export function parseWranglerStagingVersionUploadOutput(
 ) {
   const text = String(output ?? "");
   const versionIds = [
-    ...text.matchAll(
-      /Worker Version ID:\s*([0-9a-f]{8}-[0-9a-f-]{27,})/gi,
-    ),
+    ...text.matchAll(/Worker Version ID:\s*([0-9a-f]{8}-[0-9a-f-]{27,})/gi),
   ].map((match) => validateWorkerVersionId(match[1]));
   const previewUrls = [
     ...text.matchAll(/Version Preview URL:\s*(https:\/\/\S+)/gi),
@@ -269,7 +324,9 @@ export function assertVersionMatchesGitSha({
   const expectedSha = validateImmutableGitSha(gitSha);
   const expectedVersionId = validateWorkerVersionId(versionId);
   if (!version || validateWorkerVersionId(version.id) !== expectedVersionId) {
-    throw new Error("Worker version metadata does not match the approved version.");
+    throw new Error(
+      "Worker version metadata does not match the approved version.",
+    );
   }
   const tag = version.annotations?.["workers/tag"];
   const message = version.annotations?.["workers/message"];
@@ -349,9 +406,27 @@ export function soleActiveVersionId(deployment) {
     deployment.versions.length !== 1 ||
     Number(deployment.versions[0]?.percentage) !== 100
   ) {
-    throw new Error("Worker deployment must contain one version at 100% traffic.");
+    throw new Error(
+      "Worker deployment must contain one version at 100% traffic.",
+    );
   }
   return validateWorkerVersionId(deployment.versions[0]?.version_id);
+}
+
+export function versionGitSha(version) {
+  const tag = String(version?.annotations?.["workers/tag"] ?? "");
+  const match = /^git-([0-9a-f]{40})$/u.exec(tag);
+  if (
+    !match ||
+    !String(version?.annotations?.["workers/message"] ?? "").includes(
+      `git_sha=${match[1]}`,
+    )
+  ) {
+    throw new Error(
+      "Worker version does not contain one exact reviewed Git SHA.",
+    );
+  }
+  return match[1];
 }
 
 function healthCapabilities(policy, profile) {
@@ -362,7 +437,9 @@ function healthCapabilities(policy, profile) {
         ? policy.coreHealthCapabilities
         : null;
   if (!Array.isArray(capabilities) || capabilities.length === 0) {
-    throw new Error(`Production ${profile} health capability policy is missing.`);
+    throw new Error(
+      `Production ${profile} health capability policy is missing.`,
+    );
   }
   return capabilities;
 }
@@ -372,12 +449,17 @@ export function assertHealthPayload(
   configuration,
   policy,
   profile = "core",
+  expectedRevision,
 ) {
   if (
     health?.data?.service !== "vinifera-api" ||
-    health?.data?.status !== "ok"
+    health?.data?.status !== "ok" ||
+    health?.data?.environment !== "production" ||
+    validateImmutableGitSha(expectedRevision) !== health?.data?.revision
   ) {
-    throw new Error("Worker health response is not the Vinifera API contract.");
+    throw new Error(
+      "Worker health response is not the exact production Vinifera API revision.",
+    );
   }
   for (const capability of healthCapabilities(policy, profile)) {
     if (configuration?.data?.[capability]?.configured !== true) {

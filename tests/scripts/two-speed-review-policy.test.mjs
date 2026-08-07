@@ -67,30 +67,20 @@ describe("two-speed Octopus review policy", () => {
 
   it("publishes a success status instead of running Octopus for protected branch reconciles", () => {
     expect(workflow).toContain("protected-reconcile-status:");
-    expect(workflow).toContain(
-      "Publish protected reconcile non-applicability",
-    );
-    expect(workflow).toContain(
-      "github.event.pull_request.base.ref == 'dev'",
-    );
-    expect(workflow).toContain(
-      "github.event.pull_request.head.ref == 'main'",
-    );
+    expect(workflow).toContain("Publish protected reconcile non-applicability");
+    expect(workflow).toContain("github.event.pull_request.base.ref == 'dev'");
+    expect(workflow).toContain("github.event.pull_request.head.ref == 'main'");
     expect(workflow).toContain(
       "github.event.pull_request.head.ref == 'staging'",
     );
     expect(workflow).toContain(
       'description="Not applicable protected reconcile PR #$PR_NUMBER $PR_HEAD_REF -> dev@${PR_BASE_SHA:0:12}"',
     );
-    expect(workflow).toContain(
-      "github.event.pull_request.head.ref != 'main'",
-    );
+    expect(workflow).toContain("github.event.pull_request.head.ref != 'main'");
     expect(workflow).toContain(
       "github.event.pull_request.head.ref != 'staging'",
     );
-    expect(workflow).toContain(
-      "github.event.pull_request.head.ref != 'dev'",
-    );
+    expect(workflow).toContain("github.event.pull_request.head.ref != 'dev'");
   });
 
   it("runs secret-bearing review from trusted default-branch code only", () => {
@@ -105,9 +95,7 @@ describe("two-speed Octopus review policy", () => {
       'run: node .github/scripts/octopus-runbook.mjs "PR Quality Gates"',
     );
     expect(workflow).toContain("OctopusDeploy/login@v2");
-    expect(workflow).toContain(
-      "api_key: ${{ secrets.OCTOPUS_API_KEY }}",
-    );
+    expect(workflow).toContain("api_key: ${{ secrets.OCTOPUS_API_KEY }}");
     expect(workflow).toContain(
       "OCTOPUS_API_KEY: ${{ steps.octopus_login.outputs.api_key }}",
     );
@@ -202,6 +190,14 @@ describe("production authorization policy", () => {
     expect(productionWorkflow).not.toMatch(/^\s+- restore-pages$/m);
     expect(productionWorkflow).not.toMatch(/^\s+cutover-domain\)$/m);
     expect(productionWorkflow).not.toMatch(/^\s+restore-pages\)$/m);
+    expect(productionWorkflow).toMatch(/^\s+- attach-live-domain$/m);
+    expect(productionWorkflow).toMatch(/^\s+- restore-live-pages$/m);
+    expect(productionWorkflow).toContain(
+      "verify-confirmation attach-live-domain",
+    );
+    expect(productionWorkflow).toContain(
+      "verify-confirmation restore-live-pages",
+    );
     expect(productionWorkflow).not.toMatch(/\n\s+push:/);
   });
 });

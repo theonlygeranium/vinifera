@@ -19,20 +19,13 @@ function policy() {
       cloudflareAccountIdSha256: [
         hashActivationTarget("cloudflare", accountId),
       ],
-      cloudflareZoneIdSha256: [
-        hashActivationTarget("cloudflare-zone", zoneId),
-      ],
+      cloudflareZoneIdSha256: [hashActivationTarget("cloudflare-zone", zoneId)],
       cloudflareFallbackOriginSha256: [
         hashActivationTarget("cloudflare-origin", fallbackOrigin),
       ],
-      fcmProjectIdSha256: [
-        hashActivationTarget("fcm-project", fcmProjectId),
-      ],
+      fcmProjectIdSha256: [hashActivationTarget("fcm-project", fcmProjectId)],
       shipCompliantSandboxOriginSha256: [
-        hashActivationTarget(
-          "shipcompliant-origin",
-          shipCompliantOrigin,
-        ),
+        hashActivationTarget("shipcompliant-origin", shipCompliantOrigin),
       ],
       supabaseProjectRefSha256: [],
     },
@@ -46,6 +39,7 @@ function policy() {
     },
     deniedProductionCustomHostnameOrigins: [
       "vinifera.edstratumlabs.ai",
+      "vinifera-live.edstratumlabs.ai",
     ],
   };
 }
@@ -117,9 +111,7 @@ describe("staging provider target activation policy", () => {
       expect(workflow.indexOf(command)).toBeGreaterThan(-1);
       expect(workflow.indexOf(command)).toBeLessThan(deployment);
     }
-    expect(workflow).toContain(
-      'EASYPOST_LIVE_LABELS_ENABLED: "false"',
-    );
+    expect(workflow).toContain('EASYPOST_LIVE_LABELS_ENABLED: "false"');
     const productionWorkflow = await readFile(
       ".github/workflows/production-worker-release.yml",
       "utf8",
