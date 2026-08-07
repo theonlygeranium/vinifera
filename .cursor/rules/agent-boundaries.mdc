@@ -1,0 +1,40 @@
+---
+alwaysApply: true
+---
+# Agent Boundaries — Absolute Governance Constraints
+
+These constraints are non-negotiable. They apply to every agent session, every cloud agent run, and every automated workflow. Violating any of these is a blocking error, not a style preference.
+
+## Branch Targeting
+
+- **PRs target `dev` only.** Never open a PR against `staging` or `main`.
+- Never push directly to `staging` or `main`. These branches are protected.
+- Feature branches should be named `feat/`, `fix/`, `chore/`, or `docs/` prefixed.
+
+## Merge Authorization
+
+- **Merge requires owner authorization.** Do not merge any PR unless explicitly instructed by the repo owner.
+- Do not self-approve or self-merge your own PRs.
+- A passing CI check does not constitute authorization to merge.
+
+## Promotion Prohibition
+
+- **Agents do not initiate `dev → staging` or `staging → main` promotion.** Ever.
+- Promotion is a human-initiated action that triggers the Vinifera Promotion Gate and Octopus deployment.
+- Do not run promotion scripts, trigger Octopus releases, or modify deployment workflows as part of an agent task.
+
+## Label Enforcement
+
+- `human-review-required` is absolute. If this label is present on a PR, do not attempt to merge, rebase, or force-push past it. Surface it for human review.
+- `do-not-merge` is absolute. If this label is present, do not merge under any circumstances. The label may be added or removed by the repo owner only.
+- Do not remove or modify governance labels on any PR.
+
+## Data Scoping
+
+- **`brand_id` scoping is mandatory on all data queries.** No query against tenant data may execute without a `brand_id` filter.
+- Do not write or execute queries that return cross-tenant data.
+- Service-role keys must never be hardcoded, logged, or passed to the model context.
+
+## What to Do When Uncertain
+
+If any task seems to require violating one of these constraints, **stop and ask**. Do not proceed on the assumption that the constraint doesn't apply. These boundaries exist because the cost of a violation (cross-tenant data exposure, unauthorized promotion, unreviewed merge) is higher than the cost of a delay.
