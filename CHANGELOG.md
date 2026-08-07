@@ -2,103 +2,249 @@
 
 ## [Unreleased]
 
-- Add a default-disabled protected Gate 16 controller that binds the exact
-  custom hostname, Cloudflare zone, fallback origin, staging Supabase target,
-  tenant/brand, candidate-bound manifest, staging revision, and the
-  runtime-reported staging Supabase target; requires active ownership and
-  certificate state; and live-probes exact brand routing, sibling and unknown
-  denial, the Cloudflare custom-hostname record and fallback origin, exact
-  custom-host `/api/health` revision, HTTPS redirect, positive HSTS, portal
-  mixed-content state with a real Chromium loaded-resource trace, the served
-  TLS certificate expiry, web manifest, icons, and brand logo before retaining
-  sanitized 90-day evidence. Public custom branding now includes only hashed
-  organization/brand identity bindings, and every denial host must report the
-  same exact candidate revision and database target.
-  Chromium evidence now rejects failed navigation, network-failed
-  subresources, and non-successful JavaScript/CSS/image responses instead of
-  counting requested resources as successful loads.
-  Per-run manifest authorization lives in the protected acceptance environment
-  after the candidate is immutable instead of the checked-in policy, removing
-  the candidate-SHA fixed point while retaining exact manifest, staging, and
-  live-runtime revision checks.
-  Each hostname record's `custom_origin_server` must also match the reviewed
-  fallback-origin target; zone-level fallback state cannot substitute for it.
-  HTTP redirects must preserve the exact path and query on the default HTTPS
-  origin. Acceptance parses a real manifest link outside comments/scripts/styles,
-  requires its resolved URL to equal the authorized manifest URL, and requires
-  every fetched icon/logo body to decode as an image, with icon dimensions
-  matching an exact manifest `sizes` declaration, rather than passing on
-  response metadata alone. Evidence observation and certificate-expiry values
-  must also round-trip as timezone-qualified RFC3339 instants. The app now links a deployable web
-  manifest and the build generates 192px/512px PNG icons; acceptance streams
-  and cancels oversized bodies before buffering them. Full-review repairs also
-  force-refresh canonical main/staging immediately before acceptance and again
-  before artifact retention, rewriting drift or refresh failure as failed and
-  removing an unrewritable report from the uploader path. Full-review repairs also
-  route default-brand resolution through the RPC's authorized service-role
-  client followed by authenticated tenant/brand access validation, and atomic brand/profile creation through
-  tenant-aware RPCs,
-  apply organization/brand predicates to every Avalara filing read, and add a
-  tenant-authorized sender-identity upsert RPC in uniquely allocated forward migration 035. The
-  sender RPC no longer accepts provider identity, status, or verification time
-  from staff callers; it preserves those service-owned fields only when the
-  sender is unchanged and active, otherwise resetting them to pending. Phase 5
-  verification now loads migration 035 and tests complete rollback plus both
-  sender-state paths.
-  The Gate 16 controller and target policy are authority-high-risk delivery
-  paths requiring trusted Octopus review.
-  **Deployment impact:** trusted main-only acceptance workflow and disabled
-  target policy only; no hostname creation/deletion, DNS, certificate, sender,
-  domain ownership, or production mutation.
+### Fixed
+
+- Moved mutable live Price revalidation inside Gate 19's post-payment recovery
+  boundary, moved exact Worker-revision certification after metadata-bound
+  payment recovery eligibility so a concurrent deployment cannot strand a
+  live charge or renewal, deferred subscription certification until the exact
+  payment is recovery-eligible, bounded customer PaymentIntent inventory to
+  the Checkout proof window after establishing refund eligibility, stopped
+  account event pagination after finding the exact subscription event,
+  resumed pending refunds and bounded replacement of one terminally failed
+  exact refund without counting it as a successful financial mutation,
+  bound delayed finalization to the Checkout Session's immutable initial
+  invoice instead of the subscription's mutable latest renewal invoice,
+  deferred mutable Checkout Session metadata certification until the exact
+  paid Charge is refund-eligible,
+  discovered and fully refunded every captured invoice payment belonging to
+  the exact proof subscription when delayed finalization encounters renewal,
+  retained each validated renewal recovery even when a later customer payment
+  is unrelated or invalid,
+  deferred current-customer certification until the paid Charge is recoverable,
+  and bound activation to the exact durably applied created, updated, or invoice
+  event that advanced the tenant-scoped application state while disambiguating
+  incomplete events sharing Stripe's second-resolution timestamp,
+  armed refund recovery immediately after the paid PaymentIntent is proven,
+  continued attempting every validated captured-payment refund when an earlier
+  refund remains pending or fails to reconcile,
+  retained the pre-armed initial payment while independently discovering later
+  subscription payments even when repeated provider lookup fails,
+  paged the start/end-bounded proof-window PaymentIntent inventory while
+  retaining each validated subscription payment for recovery,
+  included same-second applied activation events during canceled retries,
+  re-scanned the subscription-bound payment window after cancellation and
+  retained any renewal that won the pre-cancellation boundary race,
+  applied the same cancel-then-rescan recovery order after upstream failures
+  and already-canceled retries, failed recovery closed when boundary inventory
+  could not be validated, blocked potentially settling PaymentIntents, and
+  repeated the payment inventory immediately before certification,
+  bound the completed Session client reference to the exact proof nonce, and
+  retained authenticated private-repository Git access for immediate release
+  authority revalidation,
+  re-fetched current main and the exact merged staging authorization
+  immediately before every live Checkout/refund mutation,
+  accepted out-of-order subscription creation when a later applied event
+  independently proves the active application transition, and aligned
+  the canonical QA documentation with the verified 624-test floor.
+
 ### Changed
-- Add a default-disabled protected Gate 16 controller that binds the exact
-  custom hostname, Cloudflare zone, fallback origin, staging Supabase target,
-  tenant/brand, candidate-bound manifest, staging revision, and the
-  runtime-reported staging Supabase target; requires active ownership and
-  certificate state; and live-probes exact brand routing, sibling and unknown
-  denial, the Cloudflare custom-hostname record and fallback origin, exact
-  custom-host `/api/health` revision, HTTPS redirect, positive HSTS, portal
-  mixed-content state with a real Chromium loaded-resource trace, the served
-  TLS certificate expiry, web manifest, icons, and brand logo before retaining
-  sanitized 90-day evidence. Public custom branding now includes only hashed
-  organization/brand identity bindings, and every denial host must report the
-  same exact candidate revision and database target.
-  Chromium evidence now rejects failed navigation, network-failed
-  subresources, and non-successful JavaScript/CSS/image responses instead of
-  counting requested resources as successful loads.
-  Per-run manifest authorization lives in the protected acceptance environment
-  after the candidate is immutable instead of the checked-in policy, removing
-  the candidate-SHA fixed point while retaining exact manifest, staging, and
-  live-runtime revision checks.
-  Each hostname record's `custom_origin_server` must also match the reviewed
-  fallback-origin target; zone-level fallback state cannot substitute for it.
-  HTTP redirects must preserve the exact path and query on the default HTTPS
-  origin. Acceptance parses a real manifest link outside comments/scripts/styles,
-  requires its resolved URL to equal the authorized manifest URL, and requires
-  every fetched icon/logo body to decode as an image, with icon dimensions
-  matching an exact manifest `sizes` declaration, rather than passing on
-  response metadata alone. Evidence observation and certificate-expiry values
-  must also round-trip as timezone-qualified RFC3339 instants. The app now links a deployable web
-  manifest and the build generates 192px/512px PNG icons; acceptance streams
-  and cancels oversized bodies before buffering them. Full-review repairs also
-  force-refresh canonical main/staging immediately before acceptance and again
-  before artifact retention, rewriting drift or refresh failure as failed and
-  removing an unrewritable report from the uploader path. Full-review repairs also
-  route default-brand resolution through the RPC's authorized service-role
-  client followed by authenticated tenant/brand access validation, and atomic brand/profile creation through
-  tenant-aware RPCs,
-  apply organization/brand predicates to every Avalara filing read, and add a
-  tenant-authorized sender-identity upsert RPC in uniquely allocated forward migration 035. The
-  sender RPC no longer accepts provider identity, status, or verification time
-  from staff callers; it preserves those service-owned fields only when the
-  sender is unchanged and active, otherwise resetting them to pending. Phase 5
-  verification now loads migration 035 and tests complete rollback plus both
-  sender-state paths.
-  The Gate 16 controller and target policy are authority-high-risk delivery
-  paths requiring trusted Octopus review.
-  **Deployment impact:** trusted main-only acceptance workflow and disabled
-  target policy only; no hostname creation/deletion, DNS, certificate, sender,
-  domain ownership, or production mutation.
+
+- Add a distinct, trusted-main, protected, default-disabled Gate 19 controller
+  for exactly one owner-completed Stripe-hosted live subscription charge and
+  one full refund. It hash-authorizes the live account, dedicated customer,
+  Price, plan, maximum cent amount, and Worker origin; rejects ambiguous or
+  additional PaymentIntent, Charge, or refund objects; hash-binds the exact
+  brand and organization; scopes lifecycle reads to that tenant; binds the
+  hosted Session to the same immutable main SHA; validates reused Session line
+  items and state; blocks any other open Gate 19 Session for the customer;
+  binds production health to the exact environment and deployed revision;
+  scopes the organization billing collision check through the approved brand;
+  preserves finalize cleanup against the original authorized merged SHA if
+  `main` advances after prepare; encrypts the Checkout handoff to an owner-held
+  X.509 key instead of publishing its capability in the Actions summary;
+  tolerates failed Charge attempts while selecting and refunding exactly one
+  successful captured Charge; proves signed webhook replay idempotency and durable
+  independent-brand active/canceled application convergence; guarantees an
+  idempotent refund and renewal-cancellation recovery attempt after any
+  post-charge failure; derives financial counts from Stripe; retains only
+  hashed/timestamped evidence; and leaves optional Worker binding
+  reversion to the existing separate cutover workflow. **Deployment impact:**
+  source, protected workflow, policy, tests, ADR, and runbook only; the
+  checked-in policy remains disabled with empty hashes and no live Checkout,
+  charge, refund, credential, Worker, database, or provider mutation occurred.
+  Extend the existing bounded Git-fixture timeout to the staged classifier CLI
+  regression that exhibited the same concurrency-sensitive full-suite timeout;
+  its behavior and assertions are unchanged. **Verification:** `npm test --
+  --run tests/scripts/stripe-live-proof.test.mjs` (49/49), the 9/9
+  promotion-smoke and 31/31 delivery-policy suites, `npm run check` (generated
+  types, TypeScript, 624/624 Vitest, Vite build, and Worker dry-run), and `npm
+  run qa:e2e` (155 passed Playwright/axe).
+- Classify the hosted activation-gate policy as an authority-bearing high-risk
+  file so production-origin changes cannot fail closed as an unknown delivery
+  surface before their required checks run. **Deployment impact:** CI delivery
+  classification only; no hosted gate, Worker, DNS, or provider mutation.
+- Extended the production hostname cutover recovery boundary through the final
+  marketing-content invariant check, so any late digest mismatch removes the
+  Worker domain and restores the retained Pages topology; custom-domain
+  verification also rejects any non-production Worker environment identity.
+
+### Changed
+- Keep pre-cutover production Auth callbacks on the exact allowlisted
+  `workers.dev` origin used by signed Gate 17/18 builds, and validate Worker
+  domain attachment by Cloudflare's documented domain identity followed by
+  bounded public HTTPS health instead of requiring a nonexistent `cert_id`
+  field. **Deployment impact:** protected production release behavior only; no
+  Worker, domain, provider, billing, store, or database mutation was performed.
+- Make `vinifera-live.edstratumlabs.ai` the single production application,
+  mobile API, and association-file origin while preserving
+  `vinifera.edstratumlabs.ai` as the marketing Pages hostname. Add protected,
+  exact-confirmation operations that attach only the live hostname to a
+  reviewed sole-active Worker version or restore it to the `vinifera-live`
+  Pages project; require exact domain attachment and the full hosted HTTPS health
+  contract, exact revision, root/app/portal and mobile associations; require an
+  exact-current-`main` Gates 1–19 exit artifact; make domain transitions
+  resumable; validate the retained Pages production branch/deployment and exact
+  fallback content; restore Pages automatically after a failed attachment; and
+  recover the fully verified prior topology after a failed Pages restore.
+  A failed restore from a neither-attached baseline now reconverges to no
+  owner instead of creating a Worker attachment that did not previously exist.
+  Signed internal mobile builds now verify the exact allowlisted pre-cutover
+  production Worker revision and association payload, removing the Gates
+  17/18-to-20 circular dependency. Failed production deploy or explicit
+  rollback commands and smoke checks reconverge to the captured prior
+  sole-active version and exact annotated revision. **Deployment
+  impact:** source, policy, native
+  association, and protected release-control behavior only; no provider,
+  hostname, Worker deployment, billing, database, credential, or store-track
+  mutation was performed. The integrated regression gate passes 593/593
+  Vitest tests, generated Worker types, TypeScript, the Vite build, and the
+  Worker dry-run package.
+### Added
+- Add the complete Cursor Pro+ integration package (22 files) enabling
+  WRITER Agent to orchestrate Cursor cloud agents as code-writing workers
+  via the manager-worker pattern. Includes `.cursor/rules/` (4 governance
+  rules), `.cursor/hooks/` (5 security hook scripts + config), `.cursor/skills/`
+  (3 Cursor skills), `.cursor/mcp.json` (3 read-only HTTP MCP servers),
+  `openapi/cursor-cloud-agents-connector.json` (OpenAPI 3.0.3 spec for the
+  WRITER→Cursor API bridge), `scripts/` (5 Node.js orchestration scripts),
+  and `IMPLEMENTATION_GUIDE.md` (6-phase setup guide). Extends the delivery
+  classifier's operator-tooling lane to recognize `.cursor/` and `openapi/`
+  paths. **Deployment impact:** tooling and CI classification only; no
+  application route, provider, database, credential, billing, DNS, Worker,
+  or production changes.
+- Document Cursor Cloud VM development setup under a new `## Cursor Cloud specific instructions` section in `AGENTS.md`: how to start the Docker daemon manually (no systemd) for the full `npm run dev` stack, the Docker 29 + fuse-overlayfs `containerd-snapshotter=false` requirement, the `ubuntu` docker-group / `sg docker` note, seeded local login accounts, and the cold-run timeout caveat for `tests/scripts/promotion-smoke.test.mjs`. **Deployment impact:** documentation only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
+
+### Changed
+- Add a default-disabled protected mobile acceptance controller for Gates 17
+  and 18. It validates Ed25519-signed, schema-strict iOS and Android evidence
+  against the exact current reviewed `main` commit and successful signed-mobile
+  release workflow path/run, reviewed API/signing identity hashes, and the
+  protected production promotion. Gate 17 requires the complete physical-device
+  magic-link, storage, biometric, push, camera, offline/relock, and
+  accessibility matrix; Gate 18 requires the same-release Gate 17 pass plus
+  successful fixed-track uploads and processed TestFlight/Play installs. Only
+  digest-level evidence is retained for 90 days, with canonical `main` and
+  emergency promotion controls revalidated immediately before publication.
+  **Deployment impact:** new
+  protected manual evidence controller, policy, ADR, templates, and QA only;
+  policy remains disabled with empty allowlists, and no signing, provider
+  upload, device operation, store submission, merge, promotion, or gate status
+  changes occur.
+- Add a default-disabled protected Gate 14 controller that binds an exact
+  staging revision, winery organization/brand, Supabase/Worker targets, and
+  immutable acceptance scope; requires AES-256-GCM winery-specific envelopes for
+  Klaviyo, Avalara, Meta, and QuickBooks; verifies each provider lifecycle,
+  runtime-supported envelope format, distinct connection IDs, exact
+  QuickBooks receipts/split refund, OAuth/rolling-token persistence, and the
+  complete Avalara partial/completing refund and interrupted-checkpoint
+  recovery, including exact reconciliation of each adjacent liability total
+  with its corresponding observed refund tax reduction, and every mapped Meta
+  event lifecycle; binds the fresh manifest,
+  runtime-reported Supabase target, validated active key version, deployed
+  key-version set, and successful decryption of all four exact accepted
+  connection envelopes to the candidate using a tenant/provider/ciphertext/
+  IV/key-version scope hash. The protected controller now carries both the
+  staging merge SHA and tree-identical deployed candidate SHA and attests the
+  exact active, opted-in tenant/brand connections plus stored envelopes through
+  a database-level brand-filtered relation in staging Supabase, carrying both
+  service-role authorization and staging Cloudflare Access service-token
+  headers, before accepting the runtime proof. Placeholder proofs
+  cannot satisfy the binding.
+  The candidate SHA is excluded from the checked-in acceptance-scope hash to
+  avoid a commit fixed point, while the protected post-immutable manifest,
+  dispatch, staging tree, and live Worker checks retain exact candidate binding.
+  The controller now also resolves the exact staging merge's same-repository
+  `dev → staging` PR and requires its recorded head SHA to equal the dispatched
+  candidate, rejecting unrelated tree-equivalent commits.
+  Canonical main/staging, promotion provenance, and tree identity are
+  force-refreshed before acceptance and artifact retention; drift rewrites the
+  report as failed. Ref-fetch and promotion-API failures take the same path;
+  a rewrite failure moves the report outside the uploader path. Provider observations are strict timezone-qualified
+  RFC3339 instants collected after policy promotion and rejected after 30 minutes;
+  and retains sanitized 90-day
+  evidence without claiming completion. **Deployment impact:** trusted
+  main-only staging acceptance workflow and disabled target policy only; no
+  provider connection, credential write, OAuth grant, filing, disclosure, or
+  production mutation.
+  The Gate 14 controller and target policy are both authority-high-risk
+  delivery paths requiring trusted Octopus review.
+  Controller QA accepts both the disabled baseline and reviewed enabled policy
+  states so the protected activation preflight remains executable.
+- Add a protected, default-disabled Gate 6 hosted acceptance controller that
+  binds canonical control and staging revisions to a successful exact-candidate
+  Gate 13 artifact, exactly ten tenant-scoped test members, Stripe test
+  charges/decline/recovery/refund, compliant EasyPost labels, fulfillment
+  transitions, durable provider IDs, audit evidence, and reversible fixture
+  retirement. **Deployment impact:** source and protected workflow only; target
+  hashes and the one-shot switch remain empty/disabled, no hosted workflow was
+  dispatched, and Gate 6 remains pending provider evidence. Reject non-test
+  Stripe credentials before client construction, hash the exact untrimmed
+  fixture-manifest bytes, bind audit proof to every expected entity/action and
+  sequence/hash link, and restrict Cloudflare Access transport to the hashed
+  staging Worker and Access-protected Supabase origins. Require the isolation
+  negative control to be a real active brand in another staging organization,
+  bind the fixture staff row to its declared tenant, and accept only an exact
+  403 denial rather than treating a missing UUID as isolation evidence. Reuse
+  the deletion-aware hosted cookie-jar contract so cleared base cookies cannot
+  shadow valid Supabase SSR chunks during staff-session verification. Remove
+  the candidate-specific manifest digest from checked-in policy: retain the
+  stable fixture-contract and provider-target hashes there, require the manifest
+  itself to name the exact staging candidate, and authorize its exact-byte hash
+  from protected environment state populated after the immutable candidate
+  exists. This removes the policy/candidate fixed point while preserving exact
+  runtime and Gate 13 evidence binding. Require the fixture staff principal to
+  be an active owner or admin before creating provider objects, preventing a
+  manager-only run from consuming the lifecycle and failing at the final
+  owner/admin-only refund. Re-fetch and revalidate canonical `main` and
+  `staging` after Gate 13 artifact retrieval and immediately before controller
+  invocation so a branch advance during setup cannot leave stale authority to
+  consume the one-shot fixtures.
+- Add the opt-in hosted Gate 8 acceptance controller and its complete review
+  hardening: exact paginated Resend domain/webhook inventory, verified active
+  senders, Access-authenticated bounded Worker probes, an exact tenant/brand/
+  member/release-scoped pre-shipment command with idempotent replay, explicitly
+  tenant-scoped delivery/outbox polling, two completed provider deliveries and
+  signed delivered events, and durable sanitized evidence. Reserve unique
+  migration 031 for the scoped trigger so remaining gate branches can merge in
+  dependency order. Run the mutation in
+  a non-superseded post-deployment job with 15 minutes reserved after the
+  provider wait for fixture retirement. Verification: 10/10 focused Gate 8 tests
+  and 585/585 full Vitest tests, app build, and Worker dry-run. **Deployment
+  impact:** adds one forward service-role-only database RPC plus protected
+  staging acceptance workflow/source; no provider/DNS or production mutation,
+  the repository-scoped toggle remains opt-in, the 100-minute job preserves a
+  15-minute setup allowance plus the 15-minute cleanup reserve around a
+  controller-wide 70-minute pre-cleanup deadline shared by provider discovery,
+  fixture setup, and delivery polling; fixture dates share the trigger timestamp, the
+  documented exact Vitest floor is 585, and Gate 8 remains pending until
+  reviewed hosted evidence succeeds.
+- Apply the shared 30-second fixture-Git budget to the promotion classifier's
+  staged CLI test as well as the other repository-heavy promotion fixtures.
+  This prevents a correct subprocess invocation from inheriting Vitest's
+  unrelated five-second default under concurrent CI host load. **Deployment
+  impact:** test timing only; no workflow, branch, deployment, or runtime
+  behavior.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from
@@ -110,6 +256,42 @@
   secret binding only; no provider
   resource, winery data, fixture, model, integration, DNS, live-billing,
   mobile-store, or production mutation.
+- Add the disabled-by-default trusted Gate 8 provisioning controller and its
+  complete review hardening: exact hashed target policy, all-page Resend
+  domain/webhook/runtime-key inventory before creation, two-stage DNS review,
+  duplicate-proof exact DNS tuple-set comparison, idempotent Cloudflare
+  reconciliation, asynchronous verification, exact-source
+  evidence binding, and post-mutation re-inventory. Split the provisioning key
+  from the domain-restricted sending-only runtime key, persist its one-time
+  token in an atomic domain-bound controller recovery envelope before fallible
+  postchecks or missing-ID recovery, then finalize the staging token and exact
+  runtime-key ID binding; persist the webhook's one-time signing secret in an
+  atomic endpoint-bound controller recovery envelope before
+  provider re-read or missing-ID recovery, then finalize the staging secret
+  and webhook-ID binding and remove that envelope; reject inventoried runtime
+  keys without their exact persisted token binding or controlled recovery; reuse the stable controller-owned
+  unsubscribe secret across retries. If either one-time secret write fails,
+  delete only the resource created by that attempt so a retry can recreate it;
+  if both envelope persistence and immediate ID recovery fail, allow only a
+  protected confirmed bootstrap to replace the single exact unbound reserved
+  webhook or runtime-key resource;
+  malformed runtime-key creation responses enter the same rollback path, and
+  inventoried webhooks require the persisted ID hash that binds their signing
+  secret before readiness can pass;
+  on other interrupted-bootstrap retries, emit the existing key's sanitized ID
+  hash before rejecting incomplete policy. Secrets
+  stream only over stdin and evidence retains hashes rather than raw targets or
+  credentials. Run canonical-`main` provisioning through the dedicated
+  `staging-acceptance-control` environment without broadening the staging
+  deployment environment's branch policy. Validate an inventoried webhook's
+  persisted signing-secret binding before any provider update. Keep the static secret-writer guard
+  aligned with its environment-parameterized, repository-bound command.
+  Verification: 21/21 focused provisioning tests and 596/596 full Vitest
+  tests, app build, and Worker dry-run. **Deployment impact:** protected
+  manual workflow/source only; empty policy blocks provider/DNS mutation,
+  provider deletion is restricted to same-attempt one-time-secret recovery or
+  protected-bootstrap replacement of one exact unbound reserved resource, and source
+  completion does not change Gate 8 status.
 - Remove the broad required-reviewer rule from the protected `staging` GitHub
   environment while retaining its staging-only branch policy and the
   repository's exact-candidate, provider-target, confirmation, health,
@@ -198,6 +380,7 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+
 - Give the three multi-branch promotion-smoke fixture tests a 30-second local
   Git budget instead of Vitest's 5-second default. Their assertions are
   synchronous and deterministic, but concurrent full-suite filesystem load
@@ -366,16 +549,19 @@
 - Added `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` to `WorkerEnv` type.
 
 ### Added
+
 - Migration 024: `public.resolve_default_brand_id(p_organization_id uuid)` RPC — a SECURITY DEFINER wrapper around `private.default_brand_for_org`. Granted execute to both `service_role` and `anon` (PostgREST builds its schema cache as the `anon` role; without the `anon` grant, the RPC is invisible to PostgREST and returns 404).
 
-
 ### Fixed
+
 - Restore `.octopus/runbooks/pr-quality-gates/runbook.ocl` directory structure so CI policy tests can locate the embedded quality-gate runbook (22 test failures on `main`).
 
 ### Fixed
-- Fix the automated staging deployment pipeline in `ci.yml`: (1) the `deploy-staging` job's `if` condition referenced `vars.STAGING_CLOUDFLARE_DEPLOY_ENABLED`, but this variable was set as a staging *environment* variable, which is invisible to job-level `if` conditions (environment-level variables are only available on the runner after the job starts, per GitHub's context availability rules). Moved the variable to the repository level so it is visible in the `vars` context at job-evaluation time. (2) The `deploy-staging` job required `needs.database.result == 'success'`, but the `database` job is gated by `vars.STAGING_SUPABASE_MIGRATION_ENABLED == 'true'` (not set), so it is always `skipped`. A skipped job has `result == 'skipped'`, not `'success'`, which blocked `deploy-staging` unconditionally. Updated the condition to accept `skipped` since staging migrations are applied manually on the self-hosted Supabase stack, not via `supabase link`/`supabase db push` which targets Supabase Cloud. **Deployment impact:** CI/release-control pipeline only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
+
+- Fix the automated staging deployment pipeline in `ci.yml`: (1) the `deploy-staging` job's `if` condition referenced `vars.STAGING_CLOUDFLARE_DEPLOY_ENABLED`, but this variable was set as a staging _environment_ variable, which is invisible to job-level `if` conditions (environment-level variables are only available on the runner after the job starts, per GitHub's context availability rules). Moved the variable to the repository level so it is visible in the `vars` context at job-evaluation time. (2) The `deploy-staging` job required `needs.database.result == 'success'`, but the `database` job is gated by `vars.STAGING_SUPABASE_MIGRATION_ENABLED == 'true'` (not set), so it is always `skipped`. A skipped job has `result == 'skipped'`, not `'success'`, which blocked `deploy-staging` unconditionally. Updated the condition to accept `skipped` since staging migrations are applied manually on the self-hosted Supabase stack, not via `supabase link`/`supabase db push` which targets Supabase Cloud. **Deployment impact:** CI/release-control pipeline only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Fixed
+
 - Add CF Access service token headers (`CF-Access-Client-Id`, `CF-Access-Client-Secret`) to the `staging-rest-pre` and `staging-rest-pre-merge` REST probe jobs in `promote-dev-to-staging.yml`. Without these headers, the probes receive 302 redirects from the Cloudflare Access protection on `staging-db.edstratumlabs.ai` and cannot verify staging Supabase REST health during the dev→staging promotion pipeline. The `promotion-control` environment already has `STAGING_CF_ACCESS_CLIENT_ID` and `STAGING_CF_ACCESS_CLIENT_SECRET` secrets configured. **Deployment impact:** CI/release-control pipeline only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Changed
@@ -383,12 +569,28 @@
 - Added `workers_dev` and `preview_urls` flags to the staging Wrangler environment so the isolated staging Worker receives a public preview URL for health verification during Gate 2 activation.
 
 ### Fixed
+
 - Resolve 15 pgTAP test failures on staging database: add migration 023 (87 missing FK indexes across all phases), update 4 stale test files for renamed constraints/indexes, RPC signature change, and service-role-only security boundary. pgTAP suite now passes 258/258. **Deployment impact:** database schema (87 new non-unique indexes) and test files only; no application route, provider, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Changed
+
 - Reconcile Octopus↔Cloudflare deployment model (ADR: `2026-08-05-octopus-cloudflare-deployment-reconciliation.md`). Correct `AppHealthUrl` in `.octopus/variables.ocl` from `http://localhost:3000/health` to the real Worker health endpoint `https://vinifera-development.jeff-f69.workers.dev/health`. Deprecate PM2 `restart-application` step in `.octopus/deployment_process.ocl`, replacing it with a `verify-worker-health` evidence probe that checks the deployed Cloudflare Worker; merge the former `smoke-test` step into the probe. Reduce `.github/workflows/octopus-main-deploy.yml` to evidence-only — remove the non-functional "Deploy to Development" step and keep Octopus release creation as an audit record. Octopus now serves as review/orchestration and release-audit ledger; GitHub Actions owns Worker deployment via Wrangler. **Deployment impact:** CI/release-control and Octopus process configuration only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Fixed
+
+- Load trusted frontend-preview delivery policy from the live pull request's
+  exact validated `dev` base SHA rather than from potentially stale `main`, but
+  evaluate that base policy only in a distinct tokenless step after the isolated
+  read-only identity step has exited, with credentials stripped from the policy
+  process. The privileged Pages publisher starts on a
+  fresh runner, re-downloads the candidate, and revalidates exact PR/head/base
+  identity without executing base or PR-head code. Newly reviewed base-policy
+  paths therefore no longer fail as unknown solely because production promotion
+  has not occurred, without expanding the credentialed execution boundary.
+  **Deployment impact:** trusted preview evidence classification and Pages
+  publication workflow only; no application route, provider, database,
+  credential, billing, DNS, Worker activation, or production/mobile
+  approval-gate state changes.
 - Give the promotion-smoke local-drill fixture the same 30-second bounded Git
   operation budget as the three multi-branch fixture tests. This prevents
   full-suite host contention from exhausting Vitest's unrelated 5-second
@@ -746,6 +948,7 @@
   activation-gate state changes.
 
 ### Removed
+
 - Removed the temporary hidden promotion smoke artifact at
   `public/vinifera-promotion-smoke-2026-08-01.html` after the publishing drill
   reached production and its marker was verified on `vinifera.pages.dev`,
@@ -757,6 +960,7 @@
   `git diff --check`.
 
 ### Added
+
 - Added an unlinked, noindex static promotion smoke artifact at
   `public/vinifera-promotion-smoke-2026-08-02.html` so the protected
   `dev -> staging -> main` publishing workflow can be exercised again with a
@@ -890,6 +1094,7 @@
   production resource change.
 
 ### Fixed
+
 - Reconciled `staging` ancestry back into `dev` after the Octopus workflow
   repair sequence so the next `dev → staging` promotion has a clean merge base
   instead of re-conflicting on already-reviewed deployment workflow files.
@@ -1125,7 +1330,7 @@
   Marketing interactions moved from CSP-blocked inline blocks to the
   self-hosted `public/marketing.js`, preserving signup enhancement, smooth
   scrolling, motion, and the mobile menu under the Worker's `script-src
-  'self'` policy.
+'self'` policy.
 - `CONTINUITY_BRIEF.md`: Pinned the Octopus bootstrap finding to the audited
   GitHub default-branch SHA and distinguished `main` runtime workflow code from
   the corrected but not-yet-promoted `dev` definition.
@@ -1175,6 +1380,7 @@
   readiness before marketing trial CTAs expose staff signup.
 
 ### Changed
+
 - `docs/build-specs/merge-cleanup-regression-audit-2026-07-28.md`,
   `docs/build-specs/README.md`, and `CONTINUITY_BRIEF.md`: Added an
   authoritative cross-agent handoff identifying each actor, authority,
@@ -1204,6 +1410,7 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
 ## [Unreleased] — 2026-07-28 (Octopus Dev PR Gate)
 
 ### Fixed
+
 - `.octopus/runbooks/pr-quality-gates/runbook.ocl`: Resolves immutable PR base
   and head commits from GitHub, authenticates fetches with an ephemeral HTTP
   header, removes the authenticated remote before inspection, and enforces
@@ -1285,6 +1492,7 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
   one-time bootstrap exception for this workflow correction.
 
 ### Deployment impact
+
 - No application, routing, database, provider, Pages, or Worker resource is
   changed by this commit. The published Octopus `PR Quality Gates` snapshot
   must be updated before the GitHub gate is re-triggered. Future PR failures
@@ -1292,6 +1500,7 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
   auto-fix or AI-comment runbook is dispatched.
 
 ### Verification
+
 - Validate workflow syntax, run the repository docs-only CI lane, confirm
   CodeRabbit and zero unresolved review threads on the bootstrap PR, merge it
   to `dev`, then reopen the pending product PRs and require successful Octopus
@@ -1308,39 +1517,46 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
 ## [Unreleased] — 2026-07-28 (UI Testing Work Manifest)
 
 ### Added
+
 - `docs/build-specs/ui-test-manifest-2026-07-28.md`: Recorded SA-01 through
   SA-12 test-domain assignments, isolated worktree paths, sequencing,
   single-defect fix-branch conventions, baseline evidence, and activation
   safety boundaries before subagent dispatch.
 
 ### Verification
+
 - `npm run check`: 448/448 Vitest tests passed with TypeScript, Worker type,
   Vite build, and Worker dry-run checks successful.
 - `npm run qa:e2e`: 145/145 Playwright/axe tests passed.
 
 ### Deployment impact
+
 - Documentation only. No runtime, routing, provider, hosted environment, or
   activation-gate state changed.
 
 ## [Unreleased] — 2026-07-28 (Release Schedule Tier Visibility)
 
 ### Fixed
+
 - `src/client/staff/phase2/ReleasesPage.tsx`: Release schedule cards now name
   every participating club tier alongside their date, status, wine, member,
   and embargo metadata so staff can identify the targeted tier without opening
   each release.
 
 ### Tests
+
 - `tests/e2e/phase2.spec.ts`: Added a focused browser regression asserting
   that the Fall 2026 schedule card exposes its Founders Circle tier.
 
 ### Deployment impact
+
 - Staff UI only. No API contract, database, provider, routing, hosted
   environment, or activation-gate state changed.
 
 ## [Unreleased] — 2026-07-28 (Comprehensive UI Test Report)
 
 ### Added
+
 - **What changed:** Added the consolidated UI test report with workstream
   results, defect-to-PR traceability, integrated verification, evidence
   boundaries, open decisions, a pinned-base immutable integration
@@ -1357,30 +1573,33 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
 ## [Unreleased] — 2026-07-28 (UI Testing Spec Formatting Fix)
 
 ### Fixed
+
 - `docs/build-specs/vinifera-ui-testing-doc.md`: Stripped trailing whitespace from 5 lines (lines 2, 3, 4, 786, 788) to satisfy CI docs-lane `git diff --check` policy. No content change.
 
 ## [Unreleased] — 2026-07-28 (Three-Tier Environment)
 
 ### Added
+
 - Three-tier deployment architecture: `vinifera-dev` (dev branch), `vinifera-staging` (staging branch), `vinifera-live` (main branch).
 - `staging` branch created from `dev` at `f530c46deb1a`.
 - `vinifera-staging` Cloudflare Pages project provisioned at `vinifera-staging.edstratumlabs.ai` with CNAME + Cloudflare-proxied SSL.
 - Supabase staging project blocked by free plan 2-project limit — staging Pages project provisioned but temporarily shares dev Supabase project (`cfrqrllmyquggqjkzifs`) until Pro plan upgrade.
 
 ### Changed
+
 - `AGENTS.md`: Added three-tier environment model with mandatory PR routing rules (`dev` only for all agents). Updated deployment topology table (4 Cloudflare Pages projects). Updated agent coordination model with Prime Directive-level PR routing constraint.
 - `docs/build-specs/CODEX-DISPATCH-GUIDE.md`: All 6 session PR targets updated from `main` → `dev`. All Greptile references replaced with Octopus. Added three-tier environment model header with explicit routing rule. Merge order updated to reference `dev` checks.
 
 ### Architecture
+
 - Promotion pipeline: `feature/* → PR to dev → human promotes dev→staging → human approves staging→main`
 - Agents never open PRs against `staging` or `main` — enforced in AGENTS.md Section 7 and Section 9.
 - Supabase staging DB: upgrade to Pro plan at supabase.com/dashboard to provision a third isolated project.
 
-
-
 ## [Unreleased] — 2026-07-28
 
 ### Added
+
 - `dev` branch created from `main` at `d5b0e02d` as the primary integration branch for active development.
 - Two Cloudflare Pages projects provisioned: `vinifera-dev` (branch: `dev`) and `vinifera-live` (branch: `main`).
 - Custom domains configured: `vinifera-dev.edstratumlabs.ai` and `vinifera-live.edstratumlabs.ai` with Cloudflare-proxied DNS CNAMEs.
@@ -1389,13 +1608,12 @@ require fresh PR CI, Octopus, CodeRabbit, and zero unresolved review threads.
 - `.env.example` updated with dedicated section documenting `vinifera-dev` and `vinifera-live` Cloudflare Pages environment variables and build configuration.
 
 ### Infrastructure
+
 - Build command for both Pages projects: `npm run build:pages` (`CF_PAGES=1 npm run build`)
 - Output directory: `dist/`
 - `scripts/build.mjs` confirmed to copy `/app` static prototype into `dist/` when `CF_PAGES=1`, preserving demo site at root domain.
 - Supabase Dev project: `Vinifera Dev` (`cfrqrllmyquggqjkzifs`, us-east-1, ACTIVE_HEALTHY)
 - Supabase Prod project: `Project Vinifera` (`lefbjbulzmtgidjbemzb`, ACTIVE_HEALTHY)
-
-
 
 All notable changes to this project will be documented in this file.
 
@@ -1429,6 +1647,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Teach the trusted default-branch classifier the exact remaining-gate policy
+  filenames so non-frontend PRs can publish an authoritative non-applicable
+  preview result without weakening unknown-path fail-closed behavior.
+  **Deployment impact:** trusted preview classification only; no gate,
+  provider, database, Worker, DNS, billing, or mobile-store mutation.
 - **What changed:** Octopus Rule 8 now models assigned descendants of a shared
   `.from(...)` table builder as independent leaf chains. A regression combines
   a scoped select and unscoped delete from the same root and verifies the delete
@@ -1513,6 +1736,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   syntax test, `npm run typecheck`, `npm run build`, and `git diff --check`.
 
 ### Changed
+
 - Replaced Greptile with Octopus as the AI code review tool (self-hosted). Greptile removed
   as a required GitHub branch protection check. Branch protection now requires only
   `Type, test, build, and package` and `Block direct push to main`.
@@ -1523,9 +1747,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   directory tree, ownership table, and tool registry accordingly.
 
 ### Added
+
 - ADR `docs/decisions/2026-07-28-switch-greptile-to-octopus.md` documenting the
   transition rationale, self-hosting approach, and rollback path.
-
 
 ### Removed
 
@@ -1565,7 +1789,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   against `CONTINUITY_BRIEF.md` activation gates 3 and 4, run
   `npm run check` to confirm 448 Vitest and 145 Playwright/axe counts,
   inspect ADR and updated ownership table in `AGENTS.md`.
-
 
 ### Added
 
@@ -1993,7 +2216,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   **Deployment impact:** GitHub Actions enforcement only; application,
   database, Worker, Pages, and provider behavior are unchanged.
   **Verification:** `node --test
-  .github/scripts/direct-push-guard.policy.mjs` (11 tests) and
+.github/scripts/direct-push-guard.policy.mjs` (11 tests) and
   `git diff --check`.
 - **What changed:** Release PATCH requests now reject empty bodies, direct
   status changes, ambiguous tier aliases, and unpaired tier IDs/prices; omit
@@ -2009,7 +2232,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   change; no database migration, provider activation, Pages route, or static
   asset changes are required. **Verification:** `npm run typecheck` and
   `npx vitest run tests/server/app.test.ts tests/server/core-club.test.ts
-  tests/server/retention.test.ts` (106 tests).
+tests/server/retention.test.ts` (106 tests).
 - Hardened extracted route boundaries after review: release tier/price sets and
   wine names now fail closed when inconsistent, partial email-template updates
   no longer inject `enabled: true`, padded emails normalize before validation,
@@ -2765,6 +2988,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.1.0] — 2026-07-26
 
 ### Added
+
 - Initial repository created from `github-deploy-template`
 - `AGENTS.md` — agent collaboration guide
 - `CONTINUITY_BRIEF.md` — drop-in context for new agent sessions
@@ -2790,6 +3014,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - "Investor's Guide" nav links in desktop nav, mobile drawer, and footer
 
 ### Fixed
+
 - Mobile navigation: hamburger visibility, positioning, and drawer functionality
 - Landing page CTA links pointing to `index.html` instead of `/app/`
 - App hamburger menu not opening on mobile
@@ -2808,6 +3033,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Guide page `aria-label` on divs without valid ARIA roles — added `role="group"`
 
 ### Changed
+
 - Hero gradient from dramatic near-black-to-gold to uniform deep burgundy for SVG illustration visibility
 - `--text-3` from `#9C8C78` to `#6B5D4A` for WCAG 2.1 AA compliance
 - `--text-muted` from `#9CA3AF` to `#5B6470` for WCAG 2.1 AA compliance

@@ -157,7 +157,7 @@ Create `docs/greptile-learning-notes.md`:
 ```markdown
 # Greptile Learning Notes
 
-This file documents patterns that Greptile may flag but are intentional. 
+This file documents patterns that Greptile may flag but are intentional.
 When Greptile comments on these, 👎 react and reply with the relevant note.
 
 ## HTTP-only cookie auth
@@ -167,12 +167,12 @@ Vinifera uses HTTP-only cookies for web sessions by design (see architecture.md)
 
 ## Activation guards look like dead code
 Provider calls are wrapped in activation guards that check environment flags.
-Greptile may flag these as unreachable or unnecessary. They are correct — the 
+Greptile may flag these as unreachable or unnecessary. They are correct — the
 code runs in a dormant state until the corresponding gate passes.
 👎 any suggestion to remove activation guards.
 
 ## any type in legacy service files
-`core-club.ts` and `integrations.ts` contain `any` types from before the 
+`core-club.ts` and `integrations.ts` contain `any` types from before the
 TypeScript strict mode migration. These are being addressed in BS-03 and BS-06.
 👎 Greptile comments on `any` in the original monolith files until they are deleted.
 👍 Greptile comments on `any` in new service files extracted by BS-03.
