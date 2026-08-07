@@ -4,9 +4,11 @@
 analytics, ML, benchmark, compliance, integration, multi-brand, and custom
 hostname gates.
 
-**Boundary:** This procedure never completes a gate. It does not create
-fixtures or provider resources, import winery data, qualify a model, connect an
-integration, or change DNS.
+**Boundary:** This procedure never completes a gate. Gates other than 15 are
+read-only readiness probes. Gate 15 additionally creates and cleans one
+run-scoped synthetic organization through the bounded core controller; it does
+not retain fixture data, create provider resources, import winery data, qualify
+a model, connect an external account, configure a hostname, or change DNS.
 
 ## Request one gate
 
@@ -35,6 +37,12 @@ Gate 11 also requires the protected staging secret
 boolean. Active platform-super-admin status is verified later by the guarded
 qualification RPC and cannot be inferred from this probe.
 
+Gate 15 also requires `STAGING_GATE15_ACCEPTANCE_EMAIL_BASE` and the protected
+Supabase/Access bindings. Before enabling its toggle, the exact staging
+Supabase URL origin must be reviewed in the hosted-target allowlist. A passing
+Gate 15 report contains the nested `hosted-core-partial` result and cleanup
+ledger; see `gate15-core-isolation-acceptance.md`.
+
 ## Run the collector directly
 
 The protected workflow invokes the same operator command after deployment. A
@@ -55,9 +63,12 @@ one consistent set. Exit code `0` means the requested readiness checks passed,
 `2` means a valid report was written with blockers, and `1` means arguments or
 collection failed. The direct command writes only the named local JSON file;
 the protected staging workflow uploads the corresponding sanitized
-exact-candidate artifact for 90 days. The collector is read-only and does not
-deploy, create fixtures/providers, import data, qualify models, connect
-integrations, or change DNS. It accepts only the protected
+exact-candidate artifact for 90 days. For Gates other than 15 the collector is
+read-only. Gate 15's direct command is valid only with the protected
+Supabase/Access bindings and creates a temporary synthetic fixture that must
+clean successfully. The collector never deploys, creates provider resources,
+imports data, qualifies models, connects external accounts, or changes DNS. It
+accepts only the protected
 `vinifera-staging.edstratum-labs-staging.workers.dev` origin; arbitrary HTTPS
 targets are rejected before any request.
 
@@ -72,6 +83,9 @@ Download `hosted-gates10-16-readiness-<candidate-sha>` and verify:
 - `blockers` is empty for a ready result;
 - `completionClaimed` is `false`; and
 - `externalEvidenceRemaining` still names the gate-specific proof to collect.
+
+For Gate 15 also require `gateSpecificEvidence.result=core-ready`, zero failed
+cleanup steps, and only `hostname-context-after-gate-16` remaining.
 
 The index contains summaries only. Individual gate reports contain the
 allowlisted configuration state and missing binding names, never values.

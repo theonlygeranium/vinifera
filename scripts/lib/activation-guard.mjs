@@ -130,6 +130,33 @@ const TARGETS = {
       return normalized;
     },
   },
+  "supabase-origin": {
+    allowlistKey: "supabaseOriginSha256",
+    deniedKey: "supabaseOriginSha256",
+    environmentName: "SUPABASE_URL",
+    label: "Supabase origin",
+    normalize(value) {
+      let parsed;
+      try {
+        parsed = new URL(String(value ?? "").trim());
+      } catch {
+        throw new Error("The supplied Supabase origin has an invalid format.");
+      }
+      if (
+        parsed.protocol !== "https:" ||
+        parsed.username ||
+        parsed.password ||
+        parsed.port ||
+        parsed.pathname !== "/" ||
+        parsed.search ||
+        parsed.hash ||
+        !HOSTNAME_PATTERN.test(parsed.hostname.toLowerCase())
+      ) {
+        throw new Error("The supplied Supabase origin is invalid.");
+      }
+      return parsed.origin.toLowerCase();
+    },
+  },
 };
 
 function targetDefinition(kind) {

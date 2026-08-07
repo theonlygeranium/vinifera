@@ -11,6 +11,7 @@ const zoneId = "b".repeat(32);
 const fallbackOrigin = "origin.staging.example.test";
 const fcmProjectId = "vinifera-staging-123";
 const shipCompliantOrigin = "https://sandbox.shipcompliant.example";
+const supabaseOrigin = "https://supabase.staging.example.test";
 
 function policy() {
   return {
@@ -28,6 +29,9 @@ function policy() {
         hashActivationTarget("shipcompliant-origin", shipCompliantOrigin),
       ],
       supabaseProjectRefSha256: [],
+      supabaseOriginSha256: [
+        hashActivationTarget("supabase-origin", supabaseOrigin),
+      ],
     },
     deniedProduction: {
       cloudflareAccountIdSha256: [],
@@ -36,11 +40,9 @@ function policy() {
       fcmProjectIdSha256: [],
       shipCompliantSandboxOriginSha256: [],
       supabaseProjectRefSha256: [],
+      supabaseOriginSha256: [],
     },
-    deniedProductionCustomHostnameOrigins: [
-      "vinifera.edstratumlabs.ai",
-      "vinifera-live.edstratumlabs.ai",
-    ],
+    deniedProductionCustomHostnameOrigins: ["vinifera.edstratumlabs.ai"],
   };
 }
 
@@ -53,6 +55,7 @@ describe("staging provider target activation policy", () => {
       ["cloudflare-origin", fallbackOrigin],
       ["fcm-project", fcmProjectId],
       ["shipcompliant-origin", shipCompliantOrigin],
+      ["supabase-origin", supabaseOrigin],
     ]) {
       expect(
         verifyActivationTarget({
@@ -96,6 +99,7 @@ describe("staging provider target activation policy", () => {
     expect(checkedIn.staging.cloudflareFallbackOriginSha256).toEqual([]);
     expect(checkedIn.staging.fcmProjectIdSha256).toEqual([]);
     expect(checkedIn.staging.shipCompliantSandboxOriginSha256).toEqual([]);
+    expect(checkedIn.staging.supabaseOriginSha256).toEqual([]);
 
     const workflow = await readFile(".github/workflows/ci.yml", "utf8");
     const deployment = workflow.indexOf(

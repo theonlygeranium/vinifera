@@ -1848,6 +1848,9 @@ jobs:
         if: always() && steps.activation.outputs.ready == 'true'
         continue-on-error: true
         env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
+          GATE15_ACCEPTANCE_EMAIL_BASE: ${{ vars.STAGING_GATE15_ACCEPTANCE_EMAIL_BASE }}
           ML_PLATFORM_ACTOR_USER_ID: ${{ secrets.STAGING_ML_PLATFORM_ACTOR_USER_ID }}
           STAGING_GATE_10_EVIDENCE_ENABLED: ${{ vars.STAGING_GATE_10_EVIDENCE_ENABLED }}
           STAGING_GATE_11_EVIDENCE_ENABLED: ${{ vars.STAGING_GATE_11_EVIDENCE_ENABLED }}
@@ -1857,6 +1860,9 @@ jobs:
           STAGING_GATE_15_EVIDENCE_ENABLED: ${{ vars.STAGING_GATE_15_EVIDENCE_ENABLED }}
           STAGING_GATE_16_EVIDENCE_ENABLED: ${{ vars.STAGING_GATE_16_EVIDENCE_ENABLED }}
           STAGING_WORKER_ORIGIN: ${{ vars.STAGING_WORKER_ORIGIN }}
+          SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
         shell: bash
         run: |
           set -euo pipefail
@@ -1906,7 +1912,15 @@ jobs:
               candidateRevision: $candidate,
               evidenceLevel: "hosted-readiness",
               completionClaimed: false,
-              reports: map({gate, result, blockers, externalEvidenceRemaining})
+              reports: map({
+                gate,
+                result,
+                blockers,
+                externalEvidenceRemaining,
+                gateSpecificResult: (.gateSpecificEvidence.result // null),
+                gateSpecificFailureStage: (.gateSpecificEvidence.failureStage // null),
+                cleanupFailed: (.gateSpecificEvidence.cleanup.failed // null)
+              })
             }' "$evidence_dir"/gate-*.json > "$evidence_dir/index.json"
           echo "### Hosted Gates 10-16 readiness" >> "$GITHUB_STEP_SUMMARY"
           jq -r '.reports[] | "- Gate \(.gate): \(.result); completion claimed: false"' \

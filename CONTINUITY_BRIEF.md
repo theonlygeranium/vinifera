@@ -13,6 +13,32 @@
 
 Read `AGENTS.md`, the phase specification, and this brief before editing.
 
+## 2026-08-06 Gate 15 core evidence repair
+
+Gate 15 core implementation is now integrated into the canonical Gates 10–16
+collector and its required 90-day artifact under the existing one-shot Gate 15
+toggle. It authorizes the exact staging Worker and a separately reviewed
+Supabase-origin hash before constructing clients, then exercises a run-scoped
+two-brand organization across restricted staff/member RLS, owner aggregation,
+independent sibling suspension, integration job claims, and ambiguous
+same-email handling. Its cleanup ledger is registered before mutation, targets
+exact organization/brand keys, attempts every dependency phase, and blocks the
+report on any cleanup failure.
+
+Cleanup independently reconciles the generated fixture emails to tagged hosted
+Auth users before deletion, so a committed create with a lost response cannot
+orphan an acceptance identity. Forward migration `202608060034` also rejects
+null required scoped-claim arguments before any integration-job lease mutation.
+The fixture job retains its historical queue timestamp only for deterministic
+ordering and is leased at the current run time so the normal drain cannot
+immediately reclaim it.
+
+The checked-in Supabase-origin staging and production-deny hash lists remain
+empty, so hosted Gate 15 execution is deliberately blocked until those exact
+targets are reviewed. No variable was set and no hosted controller was run.
+Successful future core evidence remains partial and records
+`completionClaimed=false`; Gate 16 hostname-derived context is still required.
+
 The trusted development auto-merge evaluator now stores paginated check-run
 and commit-status responses in runner-local JSON files before exact evidence
 selection. This fixes the runner argument-length failure observed on PR #291
