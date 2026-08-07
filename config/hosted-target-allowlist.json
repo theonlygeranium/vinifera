@@ -2,6 +2,7 @@
   "version": 1,
   "staging": {
     "supabaseProjectRefSha256": [],
+    "supabaseOriginSha256": [],
     "cloudflareAccountIdSha256": [
       "fabdb949ae1bfce81a0132f2fceb8365f3678943f00b910337449136dcde2694"
     ],
@@ -12,6 +13,7 @@
   },
   "deniedProduction": {
     "supabaseProjectRefSha256": [],
+    "supabaseOriginSha256": [],
     "cloudflareAccountIdSha256": [
       "9255ff49245aa55fe0593dd098290d4f31928f5607b79d3a8633579c1695dd01"
     ],
@@ -20,8 +22,5 @@
     "fcmProjectIdSha256": [],
     "shipCompliantSandboxOriginSha256": []
   },
-  "deniedProductionCustomHostnameOrigins": [
-    "vinifera.edstratumlabs.ai",
-    "vinifera-live.edstratumlabs.ai"
-  ]
+  "deniedProductionCustomHostnameOrigins": ["vinifera.edstratumlabs.ai"]
 }
