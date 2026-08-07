@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "github-readonly": {
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${env:GITHUB_TOKEN_READONLY}"
+      }
+    },
+    "supabase-introspection": {
+      "url": "https://mcp.supabase.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:SUPABASE_ACCESS_KEY_READONLY}"
+      }
+    },
+    "context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "X-API-KEY": "${env:CONTEXT7_API_KEY}"
+      }
+    }
+  }
+}
