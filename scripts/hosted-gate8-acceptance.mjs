@@ -351,6 +351,7 @@ async function main() {
     memberId: null,
     organizationId: null,
     releaseId: null,
+    senderIdentityId: null,
     tierId: null,
   };
   let runError = null;
@@ -465,11 +466,44 @@ async function main() {
     if (brandError) throw brandError;
     const { data: senders, error: senderError } = await admin
       .from("brand_sender_identities")
-      .select("status")
+      .select("id,status")
       .eq("organization_id", staff.organization_id)
       .eq("brand_id", brandId)
       .neq("status", "disabled");
     if (senderError) throw senderError;
+    const verifiedSender = (senders ?? []).find(
+      (sender) => sender.status === "verified",
+    );
+    if (verifiedSender) {
+      fixture.senderIdentityId = verifiedSender.id;
+    } else {
+      const resendFrom = required("RESEND_FROM");
+      const { data: createdSender, error: createSenderError } = await admin.rpc(
+        "upsert_brand_sender_identity",
+        {
+          p_brand_id: brandId,
+          p_from_email: resendFrom,
+          p_from_name: "Vinifera",
+          p_organization_id: staff.organization_id,
+        },
+      );
+      if (createSenderError) throw createSenderError;
+      expect(
+        createdSender,
+        "The brand sender identity could not be created.",
+      );
+      fixture.senderIdentityId = createdSender.id;
+      const { error: verifyError } = await admin
+        .from("brand_sender_identities")
+        .update({
+          status: "verified",
+          verified_at: new Date().toISOString(),
+        })
+        .eq("id", createdSender.id)
+        .eq("organization_id", staff.organization_id)
+        .eq("brand_id", brandId);
+      if (verifyError) throw verifyError;
+    }
     expect(
       (senders ?? []).every((sender) => sender.status === "verified"),
       "The acceptance brand has a pending sender identity that blocks global fallback.",
@@ -657,7 +691,11 @@ async function main() {
     );
     evidence.success = true;
   } catch (error) {
-    runError = error instanceof Error ? error : new Error(String(error));
+    runError = error instanceof Error ? error : new Error(
+      typeof error === "object" && error !== null
+        ? JSON.stringify(error)
+        : String(error)
+    );
     evidence.failure = runError.message;
     evidence.success = false;
   } finally {
@@ -703,6 +741,15 @@ async function main() {
         .eq("organization_id", fixture.organizationId)
         .eq("brand_id", fixture.brandId);
       if (result.error) cleanupErrors.push("tier");
+    }
+    if (fixture.senderIdentityId) {
+      const result = await cleanupAdmin
+        .from("brand_sender_identities")
+        .update({ status: "disabled" })
+        .eq("id", fixture.senderIdentityId)
+        .eq("organization_id", fixture.organizationId)
+        .eq("brand_id", fixture.brandId);
+      if (result.error) cleanupErrors.push("sender_identity");
     }
     evidence.cleanup = {
       attempted: true,

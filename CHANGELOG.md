@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- Create a verified brand sender identity as part of the Gate 8 hosted
+  acceptance fixture setup so the `claim_email_outbox_batch` function returns
+  a non-null `sender_identity_id`. Without a verified sender identity the
+  `resolveBrandSenderIdentity` function returns `undefined`, the Resend API
+  call has no `from` address, and emails are never dispatched — causing the
+  acceptance controller to time out after 70 minutes. The fixture now calls
+  `upsert_brand_sender_identity` with the `RESEND_FROM` email, marks the
+  identity as `verified`, and disables it during cleanup.
+
 - Fix indented `NODE` heredoc terminator in the `deploy-staging` job's Gate 8
   binding-verification step so the shell script no longer fails with
   `syntax error: unexpected end of file`. The terminator was nested inside an
