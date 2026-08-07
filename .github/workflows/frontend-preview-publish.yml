@@ -11,25 +11,29 @@ concurrency:
 
 permissions:
   actions: read
-  contents: write
+  contents: read
   pull-requests: read
-  statuses: write
 
 jobs:
-  publish:
-    name: Frontend preview evidence
+  validate:
+    name: Isolated preview policy validation
     if: github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    outputs:
+      applicable: ${{ steps.policy.outputs.applicable || steps.identity.outputs.applicable }}
+      base_sha: ${{ steps.policy.outputs.base_sha || steps.identity.outputs.base_sha }}
+      head_ref: ${{ steps.policy.outputs.head_ref || steps.identity.outputs.head_ref }}
+      head_sha: ${{ steps.policy.outputs.head_sha || steps.identity.outputs.head_sha }}
+      pr_number: ${{ steps.policy.outputs.pr_number || steps.identity.outputs.pr_number }}
+      publish_status: ${{ steps.policy.outputs.publish_status || steps.identity.outputs.publish_status }}
     steps:
-      - name: Check out trusted default-branch publisher
+      - name: Check out isolated default-branch validator
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
-          # Trusted default-branch code fetches exact private-repository
-          # revisions; the workflow never executes PR-head code.
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Download unprivileged candidate artifact
         id: download
@@ -42,8 +46,8 @@ jobs:
           github-token: ${{ github.token }}
           run-id: ${{ github.event.workflow_run.id }}
 
-      - name: Validate artifact against live pull request
-        id: validate
+      - name: Validate artifact and live pull request identity
+        id: identity
         continue-on-error: true
         shell: bash
         env:
@@ -131,13 +135,44 @@ jobs:
               >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"
-          trusted_applicable=$(BASE_SHA="$base_sha" HEAD_SHA="$head_sha" \
+          printf 'evaluate_policy=true\napplicable=%s\ncandidate_eligible=%s\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
+            "$applicable" "$candidate_eligible" "$base_sha" "$head_ref" "$head_sha" "$pr_number" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Evaluate exact base policy without credentials
+        id: policy
+        if: steps.identity.outputs.evaluate_policy == 'true'
+        shell: bash
+        env:
+          APPLICABLE: ${{ steps.identity.outputs.applicable }}
+          BASE_SHA: ${{ steps.identity.outputs.base_sha }}
+          CANDIDATE_ELIGIBLE: ${{ steps.identity.outputs.candidate_eligible }}
+          HEAD_REF: ${{ steps.identity.outputs.head_ref }}
+          HEAD_SHA: ${{ steps.identity.outputs.head_sha }}
+          PR_NUMBER: ${{ steps.identity.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/frontend-preview-candidate"
+          base_sha="$BASE_SHA"
+          head_sha="$HEAD_SHA"
+          git cat-file -e "$base_sha^{commit}"
+          git cat-file -e "$head_sha^{commit}"
+          trusted_policy="$RUNNER_TEMP/trusted-delivery-policy.mjs"
+          git show "$base_sha":.github/scripts/delivery-policy.mjs \
+            > "$trusted_policy"
+          mkdir -p "$RUNNER_TEMP/policy-home"
+          trusted_applicable=$(env -i \
+            PATH="$PATH" \
+            HOME="$RUNNER_TEMP/policy-home" \
+            BASE_SHA="$base_sha" \
+            HEAD_SHA="$head_sha" \
+            TRUSTED_POLICY_PATH="$trusted_policy" \
             node --input-type=module <<'NODE'
-          import {
+          import { pathToFileURL } from "node:url";
+          const {
             classifyDeliveryChange,
             readChangedRecords,
-          } from "./.github/scripts/delivery-policy.mjs";
+          } = await import(pathToFileURL(process.env.TRUSTED_POLICY_PATH).href);
           const result = classifyDeliveryChange(
             readChangedRecords(process.env.BASE_SHA, process.env.HEAD_SHA),
           );
@@ -147,11 +182,15 @@ jobs:
           process.stdout.write(String(result.previewRequired));
           NODE
           )
-          if [[ "$applicable" != "$trusted_applicable" ]]; then
+          if [[ ! "$trusted_applicable" =~ ^(true|false)$ ]]; then
+            echo "::error::Isolated preview policy returned an invalid result."
+            exit 1
+          fi
+          if [[ "$APPLICABLE" != "$trusted_applicable" ]]; then
             echo "::error::Artifact preview applicability differs from trusted live-diff policy."
             exit 1
           fi
-          if [[ "$candidate_eligible" != "true" && "$trusted_applicable" == "true" ]]; then
+          if [[ "$CANDIDATE_ELIGIBLE" != "true" && "$trusted_applicable" == "true" ]]; then
             echo "::error::A non-candidate cannot require a preview."
             exit 1
           fi
@@ -161,23 +200,145 @@ jobs:
           fi
 
           printf 'publish_status=true\napplicable=%s\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
-            "$trusted_applicable" "$base_sha" "$head_ref" "$head_sha" "$pr_number" \
+            "$trusted_applicable" "$base_sha" "$HEAD_REF" "$head_sha" "$PR_NUMBER" \
+            >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Frontend preview evidence
+    needs: validate
+    if: always() && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: read
+      statuses: write
+    steps:
+      - name: Fresh trusted default-branch checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Download exact candidate artifact again
+        id: download
+        if: needs.validate.result == 'success' && needs.validate.outputs.publish_status != 'false'
+        continue-on-error: true
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: frontend-preview-candidate
+          path: ${{ runner.temp }}/frontend-preview-candidate
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Revalidate exact identity without base code execution
+        id: revalidate
+        continue-on-error: true
+        shell: bash
+        env:
+          DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          PUBLISH_STATUS: ${{ needs.validate.outputs.publish_status }}
+          EXPECTED_APPLICABLE: ${{ needs.validate.outputs.applicable }}
+          EXPECTED_BASE_SHA: ${{ needs.validate.outputs.base_sha }}
+          EXPECTED_HEAD_REF: ${{ needs.validate.outputs.head_ref }}
+          EXPECTED_HEAD_SHA: ${{ needs.validate.outputs.head_sha }}
+          EXPECTED_PR_NUMBER: ${{ needs.validate.outputs.pr_number }}
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$PUBLISH_STATUS" == "false" ]]; then
+            echo "::notice::Preview publication is not applicable."
+            printf 'publish_status=false\nhead_sha=%s\n' "$WORKFLOW_HEAD_SHA" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$VALIDATE_RESULT" != "success" || "$DOWNLOAD_OUTCOME" != "success" ]]; then
+            echo "::error::Isolated validation or exact artifact download failed."
+            exit 1
+          fi
+
+          candidate="$RUNNER_TEMP/frontend-preview-candidate"
+          metadata="$candidate/metadata.json"
+          if [[ ! -f "$metadata" ]] || find "$candidate" -type l -print -quit | grep -q .; then
+            echo "::error::Preview candidate metadata is missing or contains a symlink."
+            exit 1
+          fi
+          jq -e '
+            type == "object" and
+            (.applicable | type == "boolean") and
+            (.candidate_eligible | type == "boolean") and
+            (.draft | type == "boolean") and
+            (.pr_number | type == "number") and
+            (.pr_number > 0) and
+            (.base_sha | test("^[0-9a-f]{40}$")) and
+            (.head_sha | test("^[0-9a-f]{40}$")) and
+            (.head_ref | test("^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")) and
+            (.head_repository | type == "string") and
+            (.repository | type == "string")
+          ' "$metadata" >/dev/null
+
+          pr_number=$(jq -r '.pr_number' "$metadata")
+          head_sha=$(jq -r '.head_sha' "$metadata")
+          base_sha=$(jq -r '.base_sha' "$metadata")
+          head_ref=$(jq -r '.head_ref' "$metadata")
+          applicable=$(jq -r '.applicable' "$metadata")
+          candidate_eligible=$(jq -r '.candidate_eligible' "$metadata")
+          draft=$(jq -r '.draft' "$metadata")
+          head_repository=$(jq -r '.head_repository' "$metadata")
+          artifact_repository=$(jq -r '.repository' "$metadata")
+          if [[ "$artifact_repository" != "$REPOSITORY" \
+            || "$head_repository" != "$REPOSITORY" \
+            || "$pr_number" != "$EXPECTED_PR_NUMBER" \
+            || "$head_sha" != "$EXPECTED_HEAD_SHA" \
+            || "$head_sha" != "$WORKFLOW_HEAD_SHA" \
+            || "$base_sha" != "$EXPECTED_BASE_SHA" \
+            || "$head_ref" != "$EXPECTED_HEAD_REF" \
+            || "$applicable" != "$EXPECTED_APPLICABLE" ]]; then
+            echo "::error::Privileged publication identity differs from isolated validation."
+            exit 1
+          fi
+
+          pr=$(gh api "repos/$REPOSITORY/pulls/$pr_number")
+          if [[ "$(jq -r '.state' <<<"$pr")" != "open" \
+            || "$(jq -r '.base.ref' <<<"$pr")" != "dev" \
+            || "$(jq -r '.base.sha' <<<"$pr")" != "$base_sha" \
+            || "$(jq -r '.head.sha' <<<"$pr")" != "$head_sha" \
+            || "$(jq -r '.head.ref' <<<"$pr")" != "$head_ref" \
+            || "$(jq -r '.head.repo.full_name' <<<"$pr")" != "$REPOSITORY" \
+            || "$(jq -r '.draft' <<<"$pr")" != "$draft" ]]; then
+            echo "::error::Pull-request identity changed before privileged publication."
+            exit 1
+          fi
+          if [[ "$candidate_eligible" != "true" && "$applicable" == "true" ]]; then
+            echo "::error::A non-candidate cannot require privileged publication."
+            exit 1
+          fi
+          if [[ "$applicable" == "true" && ! -d "$candidate/dist" ]]; then
+            echo "::error::Applicable preview assets are missing."
+            exit 1
+          fi
+          printf 'publish_status=true\napplicable=%s\nbase_sha=%s\nhead_ref=%s\nhead_sha=%s\npr_number=%s\n' \
+            "$applicable" "$base_sha" "$head_ref" "$head_sha" "$pr_number" \
             >> "$GITHUB_OUTPUT"
 
       - name: Install trusted Wrangler toolchain
-        if: steps.validate.outcome == 'success' && steps.validate.outputs.applicable == 'true'
+        if: steps.revalidate.outcome == 'success' && steps.revalidate.outputs.applicable == 'true'
         run: npm ci
 
       - name: Publish exact frontend assets to Cloudflare Pages
         id: deploy
-        if: steps.validate.outcome == 'success' && steps.validate.outputs.applicable == 'true'
+        if: steps.revalidate.outcome == 'success' && steps.revalidate.outputs.applicable == 'true'
         continue-on-error: true
         shell: bash
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          HEAD_REF: ${{ steps.validate.outputs.head_ref }}
-          HEAD_SHA: ${{ steps.validate.outputs.head_sha }}
+          HEAD_REF: ${{ steps.revalidate.outputs.head_ref }}
+          HEAD_SHA: ${{ steps.revalidate.outputs.head_sha }}
         run: |
           set -euo pipefail
           deploy_log="$RUNNER_TEMP/frontend-preview-deploy.log"
@@ -208,14 +369,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
-          APPLICABLE: ${{ steps.validate.outputs.applicable }}
-          BASE_SHA: ${{ steps.validate.outputs.base_sha }}
-          HEAD_SHA: ${{ steps.validate.outputs.head_sha || github.event.workflow_run.head_sha }}
-          PR_NUMBER: ${{ steps.validate.outputs.pr_number }}
+          VALIDATE_OUTCOME: ${{ steps.revalidate.outcome }}
+          APPLICABLE: ${{ steps.revalidate.outputs.applicable }}
+          BASE_SHA: ${{ steps.revalidate.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.revalidate.outputs.head_sha || github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ steps.revalidate.outputs.pr_number }}
           BRANCH_URL: ${{ steps.deploy.outputs.branch_url }}
           IMMUTABLE_URL: ${{ steps.deploy.outputs.immutable_url }}
-          PUBLISH_STATUS: ${{ steps.validate.outputs.publish_status }}
+          PUBLISH_STATUS: ${{ steps.revalidate.outputs.publish_status }}
         run: |
           set -euo pipefail
           if [[ "$PUBLISH_STATUS" == "false" ]]; then
@@ -253,11 +414,11 @@ jobs:
           fi
 
       - name: Wake trusted development auto-merge
-        if: steps.validate.outputs.publish_status != 'false'
+        if: steps.revalidate.outputs.publish_status != 'false'
         env:
           GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ steps.validate.outputs.head_sha }}
-          PR_NUMBER: ${{ steps.validate.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.revalidate.outputs.head_sha }}
+          PR_NUMBER: ${{ steps.revalidate.outputs.pr_number }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
