@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ANALYTICS_EVENT_TYPES,
   analyticsEventIdempotencyKey,
@@ -30,6 +30,7 @@ import {
 import {
   complianceRequestFingerprint,
   createComplianceProvider,
+  isShipCompliantTimeout,
   permitsLabelGeneration,
   ShipCompliantProvider,
   withAuditableComplianceId,
@@ -226,6 +227,102 @@ describe("Phase 4 compliance controls", () => {
     expect(calls.filter((url) => url.endsWith("/shipment/check"))).toHaveLength(
       2,
     );
+  });
+
+  it("distinguishes deadline aborts from generic provider transport failures", async () => {
+    const configuration = {
+      accountId: "sandbox-account",
+      appEnvironment: "test" as const,
+      apiKey: "key",
+      apiSecret: "secret",
+      baseUrl: "https://sandbox.example.test",
+      checkPath: "/shipment/check",
+      contractVersion: "sandbox-v1",
+      endpointMode: "sandbox" as const,
+      licenseId: "sandbox-license",
+      targetPolicy: {
+        ...providerTargetPolicy,
+        shipCompliant: {
+          ...providerTargetPolicy.shipCompliant,
+          stagingSandboxOriginSha256: [
+            sha256ProviderTarget("https://sandbox.example.test"),
+          ],
+        },
+      },
+      tokenPath: "/oauth/token",
+    };
+    const failingProvider = (failure: Error) =>
+      new ShipCompliantProvider(
+        configuration,
+        (async (url: string | URL | Request) => {
+          if (String(url).endsWith("/oauth/token")) {
+            return new Response(
+              JSON.stringify({
+                access_token: "server-only-token",
+                expires_in: 600,
+              }),
+              { headers: { "content-type": "application/json" } },
+            );
+          }
+          throw failure;
+        }) as typeof fetch,
+      );
+    let transportError: unknown;
+    let timeoutError: unknown;
+    let tokenBodyTimeoutError: unknown;
+    let checkBodyTimeoutError: unknown;
+    try {
+      await failingProvider(new TypeError("connection reset")).checkShipment(
+        complianceRequest,
+      );
+    } catch (error) {
+      transportError = error;
+    }
+    try {
+      await failingProvider(
+        new DOMException("deadline exceeded", "TimeoutError"),
+      ).checkShipment(complianceRequest);
+    } catch (error) {
+      timeoutError = error;
+    }
+    const timeoutBodyResponse = () =>
+      ({
+        json: vi.fn().mockRejectedValue(
+          new DOMException("body deadline exceeded", "TimeoutError"),
+        ),
+        ok: true,
+      }) as unknown as Response;
+    try {
+      await new ShipCompliantProvider(
+        configuration,
+        (async () => timeoutBodyResponse()) as typeof fetch,
+      ).checkShipment(complianceRequest);
+    } catch (error) {
+      tokenBodyTimeoutError = error;
+    }
+    try {
+      await new ShipCompliantProvider(
+        configuration,
+        (async (url: string | URL | Request) => {
+          if (String(url).endsWith("/oauth/token")) {
+            return new Response(
+              JSON.stringify({
+                access_token: "server-only-token",
+                expires_in: 600,
+              }),
+              { headers: { "content-type": "application/json" } },
+            );
+          }
+          return timeoutBodyResponse();
+        }) as typeof fetch,
+      ).checkShipment(complianceRequest);
+    } catch (error) {
+      checkBodyTimeoutError = error;
+    }
+    expect(isShipCompliantTimeout(transportError)).toBe(false);
+    expect(isShipCompliantTimeout(timeoutError)).toBe(true);
+    expect(isShipCompliantTimeout(tokenBodyTimeoutError)).toBe(true);
+    expect(isShipCompliantTimeout(checkBodyTimeoutError)).toBe(true);
   });
 
   it("fingerprints canonical compliance inputs without persisting raw PII", async () => {

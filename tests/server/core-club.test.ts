@@ -10,6 +10,7 @@ import {
   executeScheduledRetry,
   isCompleteShippingContact,
   ProductionCoreClubService,
+  recoveredShippingLabelResult,
   resolveCsvTierId,
   resumeProcessingReleaseShipments,
   SimulatedShippingProvider,
@@ -29,6 +30,135 @@ const address = {
   postalCode: "94558",
   state: "CA",
 };
+
+describe("durable shipping-label response recovery", () => {
+  const shipmentId = "60000000-0000-4000-8000-000000000013";
+  const completedAttempt = {
+    carrier: "USPS",
+    externalLabelId: "label_gate13",
+    externalRateId: "rate_gate13",
+    externalShipmentId: "shp_gate13",
+    labelCostCents: 1275,
+    labelUrl: "https://example.test/label.pdf",
+    providerMetadata: { service: "Priority" },
+    trackingNumber: "TRACKGATE13",
+  };
+
+  it("returns a completed provider result without purchasing another label", () => {
+    expect(recoveredShippingLabelResult(completedAttempt, "shipment-gate13"))
+      .toEqual({
+        label: {
+          carrier: "USPS",
+          labelId: "label_gate13",
+          labelUrl: "https://example.test/label.pdf",
+          providerReference: "shp_gate13",
+          rateId: "rate_gate13",
+          rateCents: 1275,
+          service: "Priority",
+          trackingNumber: "TRACKGATE13",
+        },
+        recovered: true,
+        shipmentId: "shipment-gate13",
+        success: true,
+      });
+  });
+
+  it("fails closed when completed provider evidence is incomplete", () => {
+    expect(() =>
+      recoveredShippingLabelResult(
+        { ...completedAttempt, externalLabelId: null },
+        "shipment-gate13",
+      ),
+    ).toThrow(/provider label ID/);
+    expect(() =>
+      recoveredShippingLabelResult(
+        { ...completedAttempt, labelCostCents: null },
+        "shipment-gate13",
+      ),
+    ).toThrow(/valid rate/);
+    expect(() =>
+      recoveredShippingLabelResult(
+        { ...completedAttempt, labelCostCents: "" },
+        "shipment-gate13",
+      ),
+    ).toThrow(/valid rate/);
+  });
+
+  it("reaches the completed-attempt RPC for a label-created shipment", async () => {
+    const organizationBuilder = {
+      eq: vi.fn(),
+      select: vi.fn(),
+      single: vi.fn().mockResolvedValue({
+        data: {
+          name: "Test Winery",
+          shipping_origin_address: {
+            ...address,
+            company: "Test Winery",
+            name: "Shipping Desk",
+            phone: "+17075550100",
+          },
+        },
+        error: null,
+      }),
+    };
+    organizationBuilder.select.mockReturnValue(organizationBuilder);
+    organizationBuilder.eq.mockReturnValue(organizationBuilder);
+    const shipmentBuilder = {
+      eq: vi.fn(),
+      in: vi.fn().mockResolvedValue({
+        data: [
+          {
+            brand_id: brandId,
+            id: shipmentId,
+            member_id: memberId,
+            organization_id: organizationId,
+            status: "label_created",
+          },
+        ],
+        error: null,
+      }),
+      select: vi.fn(),
+    };
+    shipmentBuilder.select.mockReturnValue(shipmentBuilder);
+    shipmentBuilder.eq.mockReturnValue(shipmentBuilder);
+    const admin = {
+      from: vi.fn((table: string) =>
+        table === "organizations" ? organizationBuilder : shipmentBuilder,
+      ),
+      rpc: vi.fn().mockResolvedValue({
+        data: { ...completedAttempt, disposition: "succeeded" },
+        error: null,
+      }),
+    };
+
+    const result = await new CoreClubServiceHarness(
+      admin as unknown as SupabaseClient,
+      true,
+      {
+        ...serviceEnv,
+        EASYPOST_API_KEY: undefined,
+        SHIPPING_PROVIDER: "easypost",
+        SHIPPING_SIMULATOR_ENABLED: "false",
+      },
+    ).generateShipmentLabels([shipmentId]);
+
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
+    expect(organizationBuilder.select).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledWith(
+      "acquire_shipping_label_attempt",
+      expect.objectContaining({
+        p_brand_id: brandId,
+        p_organization_id: organizationId,
+        p_shipment_id: shipmentId,
+      }),
+    );
+    expect(result).toMatchObject({
+      failed: 0,
+      generated: 1,
+      results: [{ recovered: true, shipmentId, success: true }],
+    });
+  });
+});
 
 describe("Phase 2 CSV import contract", () => {
   it("canonicalizes every supported browser target without dropping optional data", () => {
@@ -227,9 +357,10 @@ class CoreClubServiceHarness extends ProductionCoreClubService {
   constructor(
     admin: SupabaseClient,
     private readonly authenticated = true,
+    env: WorkerEnv = serviceEnv,
   ) {
     super(
-      serviceEnv,
+      env,
       { get: vi.fn().mockReturnValue(undefined) } as unknown as Request,
       { append: vi.fn() } as unknown as Response,
     );

@@ -73,7 +73,7 @@ Create or expand `supabase/seed.sql` to include:
 ```sql
 -- Two test brands for multi-tenant isolation testing
 INSERT INTO brands (id, name, slug, domain, stripe_account_id)
-VALUES 
+VALUES
   ('brand-test-001', 'Sunrise Valley Wine Club', 'sunrise-valley', 'localhost', 'acct_test_sunrise'),
   ('brand-test-002', 'Pacific Crest Cellar', 'pacific-crest', 'localhost-2', 'acct_test_pacific')
 ON CONFLICT (id) DO NOTHING;

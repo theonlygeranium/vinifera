@@ -271,6 +271,22 @@ confirmed Gate 13 must precede Gate 6: the real label path invokes the
 fail-closed compliance adapter, and its test-only simulator is not valid hosted
 compliance authority.
 
+Gate 13 preparation now includes a main-only protected sandbox acceptance
+controller, disabled empty exact-hash policy, dedicated fixture contract, and a
+repair allowing `label_created` shipments to reach the database's existing
+completed-attempt recovery disposition even if purchase-only provider/origin
+configuration is unavailable. The controller now binds the candidate to
+canonical `staging`, compares deployed runtime binding hashes, brand-scopes the
+cross-tenant fixture, and requires structured timeout-specific evidence that
+cannot be satisfied by a generic transport failure. Local QA passed 588/588 Vitest tests,
+the 31-case delivery-policy suite, the production client build, and Worker
+dry-run packaging. No ShipCompliant account, credential, fixture, provider
+call, workflow dispatch, or hosted Gate 13 completion evidence was created.
+The repository now has a separate `staging-acceptance-control` environment
+restricted to `main`; Gate 13 uses it without broadening the staging deployment
+environment's branch policy. Its Worker-origin variable is populated and its
+one-shot Gate 13 toggle is `false`; external secrets are not yet provisioned.
+
 The staging GitHub environment's global required-reviewer rule was removed on
 2026-08-06. Its staging-only branch policy and all workflow-level
 exact-candidate, target-policy, explicit-confirmation, health, rollback, and
@@ -1044,6 +1060,11 @@ The code must remain fail-closed until these external connections are active:
 13. Obtain vendor-approved ShipCompliant sandbox access, set the server-only
     credential and contract bindings, and prove compliant, non-compliant,
     unknown, timeout, tax, fingerprint invalidation, and label recovery cases.
+    A default-disabled protected acceptance controller and its empty exact-hash
+    policy are source-complete on the Gate 13 preparation branch. It also fixes
+    the service guard that previously prevented the existing completed-label
+    recovery RPC from being reached. No vendor account, fixture, dispatch, or
+    hosted completion evidence exists yet.
 14. Provision the integration credential keyring, then validate winery-specific
     Klaviyo, Avalara, and Meta envelopes and the QuickBooks application OAuth
     plus encrypted per-connection token lifecycle.
