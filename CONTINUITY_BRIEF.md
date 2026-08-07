@@ -990,6 +990,20 @@ The code must remain fail-closed until these external connections are active:
     prove magic links, secure storage, biometrics, push, camera, offline restore,
     and relock on physical devices.
 18. Install signed builds from TestFlight and the Play internal track.
+19. Under protected owner confirmation, use Stripe-hosted Checkout for exactly
+    one allowlisted live subscription charge, derive exactly one captured
+    Charge from Stripe, prove signed webhook idempotency and brand-scoped
+    application lifecycle convergence, refund it once, and cancel renewal.
+    `stripe-live-proof.yml` and its fail-closed controller are source-ready but
+    `config/stripe-live-proof-policy.json` remains disabled with empty target
+    hashes; no live Checkout, charge, refund, or binding change has occurred.
+    The controller binds prepare/finalize to the same main SHA and exact tenant,
+    validates reused Checkout line items, and enters idempotent refund plus
+    cancellation recovery after any post-charge failure. Local source QA passes
+    all 49 dedicated adversarial cases and the complete 624/624
+    Vitest/type/build/Worker-package regression gate.
+20. Move the production custom domain only after every hosted exit criterion is
+    evidenced.
 19. Replace Stripe test keys with approved live keys only under human
     supervision and run one controlled charge/refund.
 20. Attach `vinifera-live.edstratumlabs.ai` to the reviewed production Worker

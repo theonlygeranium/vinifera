@@ -367,6 +367,14 @@ reviewed Worker/account/webhook hashes, canonical test/live Price contracts,
 an immutable commit, exact protected confirmation, and post-change health
 evidence. Production Worker deployment cannot turn live billing on.
 
+The controlled charge/refund proof uses the separate, default-disabled
+`config/stripe-live-proof-policy.json` and `stripe-live-proof.yml`. It requires
+an owner-completed Stripe-hosted Checkout, exactly one hash-authorized live
+charge and refund, signed subscription-webhook idempotency, application
+active-to-canceled convergence, and subscription cleanup. It cannot upload a
+Worker version or change Stripe bindings; optional reversion uses the cutover
+workflow independently.
+
 Phase 5's hosted exit criterion passes only after at least Klaviyo,
 QuickBooks, and one of Avalara or Meta are verified against real provider
 accounts, two brands pass isolation checks, one custom domain is serving with
