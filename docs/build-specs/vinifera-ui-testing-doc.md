@@ -2,6 +2,8 @@
 **Version:** 1.0 | **Repo:** `theonlygeranium/vinifera` | **Branch target:** `dev`
 **Owner:** EdStratum Labs / `founder@edstratumlabs.ai`
 **Baseline:** v0.5.0 — BS-01 through BS-06 merged, 624 Vitest + 155 passed Playwright/axe with 3 hosted-only skips
+**Baseline:** v0.5.0 — BS-01 through BS-06 merged, 585 Vitest + 155 passed Playwright/axe with 3 hosted-only skips
+**Last updated:** 2026-08-06
 **Baseline:** v0.5.0 — BS-01 through BS-06 merged, 596 Vitest + 155 passed Playwright/axe with 3 hosted-only skips
 **Last updated:** 2026-08-05
 
@@ -22,6 +24,7 @@ Before writing a single line of test code or opening a browser, every agent and 
 - `CHANGELOG.md` must be updated in every commit.
 - `npm run check` must pass before every push (TypeScript + 624 Vitest), and
   `npm run qa:e2e` owns the 155 passed Playwright/axe baseline.
+- `npm run check` must pass before every push (585 Vitest + TypeScript clean + zero axe violations).
 - `npm run check` must pass before every push (596 Vitest + TypeScript clean + zero axe violations).
 - Every visual change must be verified at 375 px viewport width.
 - Touch targets must meet ≥ 44 × 44 px (WCAG 2.5.5).
@@ -781,6 +784,7 @@ cd ../vinifera-fix-<domain>-<slug>
 npm run dev:frontend    # Start server
 npm run qa:e2e          # Must still pass 155 with 3 hosted-only skips
 npm run check           # TypeScript + 624 Vitest must pass
+npm run check           # TypeScript + 585 Vitest must pass
 npm run check           # TypeScript + 596 Vitest must pass
 # Re-run the specific browser test that caught the defect
 
@@ -791,6 +795,7 @@ npm run check           # TypeScript + 596 Vitest must pass
 #    <what changed and why>
 #
 #    Verification: npm run check; 624/624 Vitest; npm run qa:e2e; 155 passed Playwright/axe
+#    Verification: npm run check; 585/585 Vitest; 155 passed Playwright/axe
 #    Verification: npm run check; 596/596 Vitest; 155 passed Playwright/axe
 # 7. Open PR targeting dev
 ```
@@ -815,6 +820,7 @@ The testing mission is complete when all of the following are true:
 | Criterion | Target |
 |-----------|--------|
 | Vitest suite | 624/624 passing (must not decrease) |
+| Vitest suite | 585/585 passing (must not decrease) |
 | Vitest suite | 596/596 passing (must not decrease) |
 | Playwright/axe suite | 155 passing with 3 hosted-only skips (must not decrease) |
 | axe-core WCAG 2.1 AA | Zero violations on all 23 routes × 3 viewports |
@@ -880,6 +886,7 @@ The baseline `dev` branch (v0.5.0, BS-01–06 merged) passes the following — d
 | Suite | Baseline count | Command |
 |-------|---------------|---------|
 | Vitest unit/integration | 624 | `npm run check` |
+| Vitest unit/integration | 585 | `npm run check` |
 | Vitest unit/integration | 596 | `npm run check` |
 | Phase 2 DB | 250 assertions | `npm run qa:db:phase2` |
 | Phase 3 DB | 199 assertions | `npm run qa:db:phase3` |
