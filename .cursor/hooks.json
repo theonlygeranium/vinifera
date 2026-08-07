@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "node .cursor/hooks/block-protected-branches.js",
+        "matcher": "git push",
+        "timeout": 5000
+      },
+      {
+        "command": "node .cursor/hooks/block-network-exfil.js",
+        "matcher": "curl|wget|nc ",
+        "timeout": 5000
+      }
+    ],
+    "beforeReadFile": [
+      {
+        "command": "node .cursor/hooks/block-secret-exposure.js",
+        "timeout": 5000
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "node .cursor/hooks/run-formatter.js",
+        "timeout": 30000
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "command": "node .cursor/hooks/audit-mcp-call.js",
+        "timeout": 5000
+      }
+    ]
+  }
+}

@@ -461,3 +461,58 @@ packaging, and evidence gathering while paused; stop only the merge,
 promotion, deployment, or other boundary-crossing mutation that requires the
 owner's decision. `do-not-merge` is an absolute merge prohibition. Only the
 owner or an explicitly trusted owner workflow may remove either control.
+
+---
+
+## Cursor Cloud specific instructions
+
+These notes cover non-obvious startup/run details for the Cursor Cloud VM. The
+startup update script already runs `npm ci` and `npx playwright install
+chromium`, so dependencies and the Chromium E2E browser are present. Standard
+lint/test/build/run commands live in `package.json` and `docs/setup.md` — refer
+to those rather than duplicating them.
+
+### Docker daemon (required for the full stack)
+
+The VM has Docker Engine installed but **no systemd**, so the daemon is not
+started automatically. Start it once per session before `npm run dev`:
+
+```bash
+sudo dockerd > /tmp/dockerd.log 2>&1 &   # then wait until `docker info` succeeds
+```
+
+- The `ubuntu` user is already in the `docker` group. In a shell started before
+  the group was applied, run docker/`npm run dev` via `sg docker -c "…"`; fresh
+  login shells pick the group up automatically.
+- This VM runs Docker 29 with the **fuse-overlayfs** storage driver, so
+  `/etc/docker/daemon.json` sets `"features": { "containerd-snapshotter": false
+  }`. Do not remove that — fuse-overlayfs will not initialize otherwise.
+- The first `npm run dev` may re-pull the pinned Supabase images if the local
+  image cache was not preserved; this is slow but requires no extra steps.
+
+### Running the app
+
+- Full integrated stack: `npm run dev` (needs the Docker daemon above). It boots
+  Supabase (Postgres/Auth/Studio/Mailpit), applies migrations + seed, seeds
+  local Auth, then serves the Worker at `http://127.0.0.1:8788/app/`, Vite at
+  `http://127.0.0.1:5173/app/`, Studio at `http://127.0.0.1:54323`, and Mailpit
+  at `http://127.0.0.1:54324`.
+- Frontend-only (no Docker): `npm run dev:frontend`.
+- E2E (`npm run qa:e2e`) starts its own `wrangler dev` Worker on port 8787 and
+  is credential-independent — it does **not** require Docker or Supabase.
+
+### Seeded local login (from `scripts/bootstrap-local-auth.mjs`)
+
+Only present after `npm run dev` seeds Auth. Password is `ViniferaLocal1!`
+(override via `VINIFERA_LOCAL_TEST_PASSWORD`).
+
+- Staff owners: `owner.sunrise@example.com`, `owner.pacific@example.com`
+- Members: `member.sunrise@example.com`, `member.pacific@example.com`
+
+### Known test caveat
+
+`tests/scripts/promotion-smoke.test.mjs` occasionally times out on a cold run
+because it builds throwaway git fixture repos under the default 5s per-test
+timeout (a different case fails each cold run). It is not a code defect — a warm
+re-run, or `npx vitest run tests/scripts/promotion-smoke.test.mjs
+--testTimeout=60000`, passes all 9.

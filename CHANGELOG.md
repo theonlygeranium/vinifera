@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+- Add the complete Cursor Pro+ integration package (22 files) enabling
+  WRITER Agent to orchestrate Cursor cloud agents as code-writing workers
+  via the manager-worker pattern. Includes `.cursor/rules/` (4 governance
+  rules), `.cursor/hooks/` (5 security hook scripts + config), `.cursor/skills/`
+  (3 Cursor skills), `.cursor/mcp.json` (3 read-only HTTP MCP servers),
+  `openapi/cursor-cloud-agents-connector.json` (OpenAPI 3.0.3 spec for the
+  WRITER→Cursor API bridge), `scripts/` (5 Node.js orchestration scripts),
+  and `IMPLEMENTATION_GUIDE.md` (6-phase setup guide). Extends the delivery
+  classifier's operator-tooling lane to recognize `.cursor/` and `openapi/`
+  paths. **Deployment impact:** tooling and CI classification only; no
+  application route, provider, database, credential, billing, DNS, Worker,
+  or production changes.
+- Document Cursor Cloud VM development setup under a new `## Cursor Cloud specific instructions` section in `AGENTS.md`: how to start the Docker daemon manually (no systemd) for the full `npm run dev` stack, the Docker 29 + fuse-overlayfs `containerd-snapshotter=false` requirement, the `ubuntu` docker-group / `sg docker` note, seeded local login accounts, and the cold-run timeout caveat for `tests/scripts/promotion-smoke.test.mjs`. **Deployment impact:** documentation only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
+
 ### Changed
 - Add the opt-in hosted Gate 8 acceptance controller and its complete review
   hardening: exact paginated Resend domain/webhook inventory, verified active
@@ -22,6 +37,12 @@
   fixture setup, and delivery polling; fixture dates share the trigger timestamp, the
   documented exact Vitest floor is 585, and Gate 8 remains pending until
   reviewed hosted evidence succeeds.
+- Apply the shared 30-second fixture-Git budget to the promotion classifier's
+  staged CLI test as well as the other repository-heavy promotion fixtures.
+  This prevents a correct subprocess invocation from inheriting Vitest's
+  unrelated five-second default under concurrent CI host load. **Deployment
+  impact:** test timing only; no workflow, branch, deployment, or runtime
+  behavior.
 - Add independent opt-in Gates 10–16 staging readiness reports that bind
   allowlisted configuration state to the exact deployed candidate, retain a
   sanitized 90-day artifact, and explicitly prohibit a readiness report from
