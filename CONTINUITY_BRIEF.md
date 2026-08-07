@@ -44,72 +44,13 @@ and commit-status responses in runner-local JSON files before exact evidence
 selection. This fixes the runner argument-length failure observed on PR #291
 without weakening PR/base/head binding or the immediate pre-merge check.
 
-The trusted frontend-preview publisher now loads its delivery classifier from
-the live pull request's exact validated `dev` base SHA only inside an isolated
-read-only job. GitHub API identity validation exits before a distinct tokenless
-step launches the policy process with a stripped environment. A separate fresh
-trusted runner re-downloads the candidate and revalidates the exact live
-PR identity before any Pages credential is available; it executes neither base
-nor PR-head code. This avoids false `unknown_path_fail_closed` results without
-expanding the privileged execution boundary.
 Promotion-smoke tests that create and compare three local Git branches use a
-30-second per-test budget. The local-drill and staged-classifier fixtures use
-the same bounded budget. Their logic is unchanged; the prior five-second
-default repeatedly timed out only under concurrent full-suite filesystem load
-while the isolated suite passed.
-
-## 2026-08-06 Gate 6 Phase 2 hosted acceptance controller
-
-Gate 6 now has a protected, default-disabled, exact-candidate controller and
-sanitized evidence contract. It requires a successful retained Gate 13
-artifact for the same staging revision, exactly ten dedicated same-tenant
-members, Stripe test mode, real EasyPost and ShipCompliant adapters, one
-decline/recovery, ten labels, pick/pack/ship/deliver, one refund, scoped audit
-evidence, and reversible fixture retirement. Deterministic provider and
-database identifiers prevent blind duplicate charges or labels. This is source
-readiness only: policy hashes and the one-shot switch remain empty/disabled,
-the hosted workflow has not run, and Gate 6 remains pending.
-The stable reviewed policy authorizes the fixture contract and provider targets;
-the exact candidate-bound manifest digest is set only afterward in the protected
-environment, removing the policy/candidate fixed point without weakening the
-exact runtime or Gate 13 bindings.
-The preflight also requires an active owner/admin fixture principal before any
-provider object is created, so the final refund cannot discover insufficient
-authority only after the one-shot lifecycle has been partially consumed.
-The workflow re-fetches and compares canonical `main` and `staging` again after
-Gate 13 artifact retrieval and immediately before controller invocation, so a
-branch advance during setup fails closed before provider mutation.
-## 2026-08-06 production activation-chain repair
-
-Gate 20 now fails closed on a 90-day exact-current-`main` exit artifact derived
-from the canonical checked-in Gates 1–19 ledger; the current ledger truthfully
-retains pending status for Gates 6, 8, and 10–19, so no Gate 20 artifact can yet
-be produced. Signed internal mobile builds use the allowlisted production
-`workers.dev` origin and verify the requested revision plus platform
-association payload before signing, removing the former Gates 17/18-to-20
-circular dependency. Pre-cutover Worker versions use that same origin for Auth
-callbacks and permit both it and the future live hostname through CORS.
-
-Production live-domain control is now resumable from Pages, Worker, or
-neither-attached states and rejects both-attached ambiguity. Attachment proves
-the documented Worker-domain identity and bounded public HTTPS readiness (the
-Workers Domains response has no `cert_id` contract),
-the exact production revision, all cutover capabilities, root/app/portal, both
-mobile associations, and an unchanged marketing baseline. Pages restoration is
-independent of expiring staging artifacts, validates the approved Pages branch,
-current production deployment, and exact fallback content digests, and fully
-verifies Worker recovery if restoration fails. Failed deploy and explicit
-rollback commands or smoke checks reconverge to the captured prior sole-active
-version and its exact annotated revision.
+30-second per-test budget. The local-drill fixture uses the same bounded budget.
+Their logic is unchanged; the prior 5-second default repeatedly timed out only
+under concurrent full-suite filesystem load while the isolated suite passed
+9/9.
 
 ## 2026-08-06 Gates 10-16 acceptance foundation
-
-Canonical-`main` Resend provisioning now uses the separate
-`staging-acceptance-control` environment. This keeps its provider/DNS mutation
-credentials reachable from trusted default-branch code without broadening the
-staging deployment environment's staging-only branch policy. Its external
-Resend, Cloudflare-zone, and staging-secret-update credentials remain to be
-provisioned.
 
 The protected staging deployment now supports independent opt-in readiness
 reports for Gates 10 through 16. Each report verifies the exact deployed
@@ -301,18 +242,11 @@ installed `/opt/supabase-staging/vinifera_backup.sh` path.
 
 ## Current production state
 
-The public marketing hostname still serves the verified static Cloudflare
-Pages prototype. The separate `vinifera-live.edstratumlabs.ai` application
-hostname also remains on its Pages rollback project: a 2026-08-06 probe
-returned static HTML from `/api/health` rather than the Worker JSON health
-contract, so the production application is not attached. Source control now
-uses that live hostname consistently for production API/mobile associations
-and provides protected exact-confirmation attach/restore operations plus
-automatic prior-version rollback when a production deploy smoke fails. No
-provider attachment or production deployment was performed by that repair. Its
-complete local regression gate now passes 593/593 Vitest tests, generated Worker
-types, TypeScript, the Vite build, and the Worker dry-run package. Version 0.5.0
-contains the complete Phase 1–5 connection-ready source architecture:
+The public custom domain still serves the verified static Cloudflare Pages
+prototype. A 2026-07-26 probe returned static HTML from `/api/health` rather
+than the Worker JSON health contract, so the production application has not
+replaced that baseline. Version 0.5.0 contains the complete Phase 1–5
+connection-ready source architecture:
 
 - The trusted Octopus PR bridge reports credential-value-free diagnostics for
   Access/API failures: visible-ASCII validation and character counts for the
@@ -462,7 +396,8 @@ immutable release controls are source-complete on `dev` but remain inactive
 until their trusted controllers reach the default branch and their protected
 environments are provisioned.
 
-The original nightly Octopus failure (`30606684736`) was a first-request HTTP 403. Redacted reproduction identified Cloudflare browser heuristics and stale
+The original nightly Octopus failure (`30606684736`) was a first-request HTTP
+403. Redacted reproduction identified Cloudflare browser heuristics and stale
 repository credentials. The already-scoped service token was renewed, GitHub
 and the private vault were synchronized, a hostname-only rule disabled Browser
 Integrity Check for `octopus.schubert.life`, and zone Bot Fight Mode was
@@ -673,14 +608,14 @@ billing, email, push, deployment, or merge activation occurred.
 
 ## Runtime architecture
 
-| Route            | Implementation                                                                                                                   |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `/`, `/guide/*`  | Existing static marketing and guide assets                                                                                       |
-| `/app/*`         | React staff application                                                                                                          |
-| `/portal/*`      | React member portal                                                                                                              |
-| `/api/*`         | Express backend-for-frontend                                                                                                     |
-| `/.well-known/*` | Worker-generated Apple/Android app association documents                                                                         |
-| hourly cron      | access reconciliation, releases/retries, email claims, churn, loyalty, analytics, connector sync/reconciliation, and mobile push |
+| Route | Implementation |
+|---|---|
+| `/`, `/guide/*` | Existing static marketing and guide assets |
+| `/app/*` | React staff application |
+| `/portal/*` | React member portal |
+| `/api/*` | Express backend-for-frontend |
+| `/.well-known/*` | Worker-generated Apple/Android app association documents |
+| hourly cron | access reconciliation, releases/retries, email claims, churn, loyalty, analytics, connector sync/reconciliation, and mobile push |
 
 Web staff and member JWTs live only in distinct secure HTTP-only cookies.
 Winery Klaviyo, Avalara, and Meta credentials and QuickBooks connection tokens
@@ -900,15 +835,6 @@ rollback baseline; Worker builds omit it and serve React at `/app/*`.
   hashes remain empty, so no production mutation can run yet.
 - Signed Android/iOS build and Play internal/TestFlight delivery are wired as a
   protected manual workflow. Normal CI remains explicitly compile-only.
-- Gates 17 and 18 now have a separate source-complete, default-disabled
-  protected acceptance controller. It requires Ed25519-signed schema-strict
-  iOS and Android evidence bound to the current exact `main` SHA, the exact
-  successful signed-release workflow path/run, reviewed API/signing identity
-  hashes, and the merged `staging → main` promotion. Gate 18 additionally
-  requires the same-release Gate 17 pass and successful `upload-internal`
-  evidence before it can accept processed TestFlight and Play internal-track
-  installs. The policy allowlists remain empty and no physical-device or store
-  evidence has been collected, so both gates remain pending.
 - Commit `5cc1bda` passed the complete GitHub quality and Android run
   `30217201984`. The mutation jobs skipped because staging activation remains
   off.
@@ -993,15 +919,19 @@ criterion can pass.
 
 ## Activation gates
 
-Gate 14 now has a source-complete protected provider-lifecycle acceptance
-controller. Its checked-in policy and one-shot switch remain disabled. A pass
-requires four active winery-specific encrypted connections, the complete
-Klaviyo/Avalara/Meta evidence matrix, and QuickBooks OAuth plus serialized
-rolling-token lifecycle against one exact tenant, a tree-identical staging
-merge/candidate pair, and database-attested stored credential envelopes.
-The checked-in acceptance scope excludes the candidate SHA; that revision is
-bound only after immutability by the protected manifest/dispatch and exact
-staging-tree/live-runtime checks, avoiding a self-referential Git hash.
+Gates 10–12 now have a source-complete protected evidence controller in
+`.github/workflows/phase4-hosted-acceptance.yml`. Its checked-in policy and
+three one-shot switches are disabled. Gate 10 requires all documented
+analytics metrics and the CSV values to equal the same source facts exactly;
+Gate 11 retains the 500-member, 50-cancellation, six-source, AUC, rules, and
+single training-run/model/experiment/promotion identity chain plus
+full 30-day outcome gates; Gate 12 retains Estate/Reserve opt-in, ten
+unique contributor organizations with a cohort-bound hashed owner opt-in audit for every winery,
+privacy checks, and confirmed quarterly delivery. Per-run manifest hashes live
+in protected post-immutable environment state rather than the candidate commit,
+so exact revision binding does not require a Git SHA fixed point. A successful
+run is hosted acceptance evidence for the selected gate, not a completion
+claim or permission to activate another gate.
 
 The code must remain fail-closed until these external connections are active:
 
@@ -1024,28 +954,7 @@ The code must remain fail-closed until these external connections are active:
    Checkout, signed-webhook lifecycle, grace/restriction/suspension/recovery,
    and reusable-fixture cleanup contract for exact candidate
    `530a003b91642ebf40af01468b10e444116ef632`.
-8. **Pending; acceptance controller source-complete:** provision and verify the
-   Resend sending domain and exact staging webhook, then enable
-   the repository Actions variable `STAGING_HOSTED_GATE8_ACCEPTANCE_ENABLED`
-   for one reviewed staging
-   promotion. The protected controller waits for the real hourly Cron Trigger
-   and requires idempotent welcome/pre-shipment delivery plus signed webhook
-   reconciliation before retaining sanitized evidence. Provider/DNS
-   provisioning and a successful exact-candidate run remain outstanding.
-8. **Pending; protected provisioning source-complete on its feature branch:**
-   populate and review the exact disabled-by-default Resend/Cloudflare target
-   hashes, bootstrap the provider domain, webhook, and separate domain-scoped
-   sending-only runtime key from trusted `main`, review the generated key ID and
-   every DNS tuple hash, apply and post-read verify exact unproxied Cloudflare
-   DNS, then prove the signed webhook and at least two real staging triggers.
-   One-time webhook and runtime-key credentials are durably bound to their
-   exact endpoint or domain before missing-ID inventory, so an interrupted
-   lookup can resume through protected controller recovery before any provider
-   update or readiness claim; if both persistence and ID inventory fail, only
-   a later confirmed bootstrap can replace that single exact unbound resource.
-   Evidence is bound to exact source SHA, policy digest, repository, and run.
-   No provider, DNS, secret, or gate-status mutation has been performed by
-   source completion.
+8. Verify a Resend sending domain, signed webhook, and at least two real staging triggers.
 9. Apply Phase 4 migration 15 to hosted Supabase and run the 37 current-stack
    pgTAP assertions plus native tenant/RPC tests.
 10. Connect a winery with real Phase 2/3 operations and verify every analytics
@@ -1056,7 +965,13 @@ The code must remain fail-closed until these external connections are active:
     history, meet held-out AUC-ROC 0.82 without underperforming rules, and
     complete the superior 30-day A/B gate before actor-audited promotion.
 12. Opt an Estate/Reserve winery into a peer cohort with at least ten
-    contributors and verify the quarterly report delivery.
+    contributors and verify the quarterly report delivery through the protected
+    service-role database attestation added by migration 036. The attestation
+    must join the persisted delivered email/event to the selected contribution
+    and least-coarsened aggregate and hash the stored body plus PDF/CSV bytes.
+    The quarterly cadence currently reports the prior-quarter-start monthly
+    snapshot; its evidence window must remain honest to that exact stored first
+    month and cannot substitute another month from the same quarter.
 13. Obtain vendor-approved ShipCompliant sandbox access, set the server-only
     credential and contract bindings, and prove compliant, non-compliant,
     unknown, timeout, tax, fingerprint invalidation, and label recovery cases.
@@ -1077,25 +992,10 @@ The code must remain fail-closed until these external connections are active:
     prove magic links, secure storage, biometrics, push, camera, offline restore,
     and relock on physical devices.
 18. Install signed builds from TestFlight and the Play internal track.
-19. Under protected owner confirmation, use Stripe-hosted Checkout for exactly
-    one allowlisted live subscription charge, derive exactly one captured
-    Charge from Stripe, prove signed webhook idempotency and brand-scoped
-    application lifecycle convergence, refund it once, and cancel renewal.
-    `stripe-live-proof.yml` and its fail-closed controller are source-ready but
-    `config/stripe-live-proof-policy.json` remains disabled with empty target
-    hashes; no live Checkout, charge, refund, or binding change has occurred.
-    The controller binds prepare/finalize to the same main SHA and exact tenant,
-    validates reused Checkout line items, and enters idempotent refund plus
-    cancellation recovery after any post-charge failure. Local source QA passes
-    all 49 dedicated adversarial cases and the complete 624/624
-    Vitest/type/build/Worker-package regression gate.
-20. Move the production custom domain only after every hosted exit criterion is
-    evidenced.
 19. Replace Stripe test keys with approved live keys only under human
     supervision and run one controlled charge/refund.
-20. Attach `vinifera-live.edstratumlabs.ai` to the reviewed production Worker
-    only after every hosted exit criterion is evidenced; leave
-    `vinifera.edstratumlabs.ai` on the marketing Pages project.
+20. Move the production custom domain only after every hosted exit criterion is
+    evidenced.
 
 Credential and target setup details are in
 `docs/runbooks/hosted-environment-provisioning.md`. Domain rollback is in
