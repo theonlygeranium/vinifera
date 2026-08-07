@@ -11,6 +11,19 @@
   `upsert_brand_sender_identity` with the `RESEND_FROM` email, marks the
   identity as `verified`, and disables it during cleanup.
 
+### Fixed
+- Define the three hosted-acceptance QA npm scripts that their workflows already
+  invoke but `package.json` was missing: `qa:gate13-acceptance`
+  (`.github/workflows/shipcompliant-staging-acceptance.yml`),
+  `qa:gate16-acceptance` (`.github/workflows/gate16-custom-hostname-acceptance.yml`),
+  and `qa:phase4-hosted-acceptance` (`.github/workflows/phase4-hosted-acceptance.yml`,
+  Gates 10–12). Each maps to its existing Vitest suite, matching the
+  `qa:gate6-acceptance`/`qa:gate14-acceptance` convention, so the Gate 13, 16, and
+  10–12 acceptance workflows no longer fail closed at their `npm run` QA step.
+  **Deployment impact:** CI/gate-controller wiring only; no application route,
+  provider, database, credential, billing, DNS, Worker activation, or gate status
+  change (all listed gates remain `pending`).
+
 - Fix indented `NODE` heredoc terminator in the `deploy-staging` job's Gate 8
   binding-verification step so the shell script no longer fails with
   `syntax error: unexpected end of file`. The terminator was nested inside an
