@@ -6,7 +6,7 @@
 	<string>$(APNS_ENTITLEMENT_ENVIRONMENT)</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>applinks:vinifera.edstratumlabs.ai</string>
+		<string>applinks:vinifera-live.edstratumlabs.ai</string>
 	</array>
 </dict>
 </plist>

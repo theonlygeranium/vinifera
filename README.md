@@ -33,8 +33,10 @@ The source architecture is connection-ready and fails closed when credentials or
 control-plane settings are absent. Hosted Supabase migration, provider account
 validation, winery DNS, Stripe live-mode approval, signed physical-device
 testing, and app-store distribution remain separate activation work. The public
-custom domain continues to serve the verified static Cloudflare Pages rollback
-baseline; it is not evidence that the Worker application is live.
+marketing hostname continues to serve the verified static Cloudflare Pages
+baseline; it is not evidence that the Worker application is live. The separate
+`vinifera-live.edstratumlabs.ai` application hostname remains on its Pages
+rollback project until the protected production attachment gate passes.
 
 The name comes from *Vitis vinifera*, the Latin species name for the primary wine grape vine. It signals domain knowledge to winery operators and reads as a premium brand word — without the overused "wine" prefix that defines most platform names in this market.
 

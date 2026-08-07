@@ -242,9 +242,12 @@ or store the credential value in the reference column.
 
 ## Production policy preparation
 
-`config/production-release-policy.json` contains hashes for the known Pages
-project, public hostname, and Worker name. Account, zone, and Worker-origin
-arrays are empty until those exact resources are resolved and reviewed.
+`config/production-release-policy.json` contains reviewed hashes for the
+production Cloudflare account, zone, `vinifera-live` Pages project,
+`vinifera-live.edstratumlabs.ai` application hostname, Worker name, and Worker
+origin. Its raw topology fields independently require the live application
+origin and reject the separate marketing hostname. Recompute and review a hash
+only when that exact resource is intentionally replaced.
 
 Generate the remaining hashes locally without writing raw values to tracked
 files:
@@ -293,8 +296,10 @@ Before production deployment, all configuration capabilities listed in the
 production policy must report configured. Follow
 `production-cutover-rollback.md`; do not use Worker bootstrap, version upload,
 or Worker deployment as proof that the public application is operational. The
-standard release dispatch does not expose the legacy domain-cutover or
-Pages-restoration operations.
+standard release dispatch exposes only the protected `attach-live-domain` and
+`restore-live-pages` operations for the authorized live hostname and Pages
+project; it rejects the marketing hostname and legacy generic domain operation
+names.
 
 Production credentials remain scoped to the protected `production`
 environment. A release must consume the same reviewed staging artifact or

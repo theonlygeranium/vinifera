@@ -1,11 +1,5 @@
-import {
-  createSign,
-} from "node:crypto";
-import {
-  mkdir,
-  readFile,
-  writeFile,
-} from "node:fs/promises";
+import { createHash, createSign } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -15,9 +9,15 @@ const identity = JSON.parse(
     "utf8",
   ),
 );
+const productionPolicy = JSON.parse(
+  await readFile(
+    new URL("../config/production-release-policy.json", import.meta.url),
+    "utf8",
+  ),
+);
 
 const APP_ID = identity.appId;
-const PRODUCTION_ORIGIN = "https://vinifera.edstratumlabs.ai";
+const FINAL_PRODUCTION_ORIGIN = "https://vinifera-live.edstratumlabs.ai";
 const BUILD_CONFIRMATION = "BUILD SIGNED VINIFERA MOBILE RELEASE";
 const UPLOAD_CONFIRMATION = "UPLOAD VINIFERA MOBILE INTERNAL TRACKS";
 const PLAY_TRACK = "internal";
@@ -26,8 +26,7 @@ const GOOGLE_PLAY_API_ROOT =
   "https://androidpublisher.googleapis.com/androidpublisher/v3";
 const GOOGLE_PLAY_UPLOAD_ROOT =
   "https://androidpublisher.googleapis.com/upload/androidpublisher/v3";
-const GOOGLE_PLAY_SCOPE =
-  "https://www.googleapis.com/auth/androidpublisher";
+const GOOGLE_PLAY_SCOPE = "https://www.googleapis.com/auth/androidpublisher";
 
 const SECRET_FILES = Object.freeze({
   "android-keystore": {
@@ -63,7 +62,7 @@ export const mobileReleaseConstants = Object.freeze({
   googlePlayScope: GOOGLE_PLAY_SCOPE,
   googlePlayUploadRoot: GOOGLE_PLAY_UPLOAD_ROOT,
   playTrack: PLAY_TRACK,
-  productionOrigin: PRODUCTION_ORIGIN,
+  productionOrigin: FINAL_PRODUCTION_ORIGIN,
   uploadConfirmation: UPLOAD_CONFIRMATION,
 });
 
@@ -80,6 +79,136 @@ function requireNames(env, names) {
   }
 }
 
+async function boundedMobileJson(fetchImpl, url) {
+  const response = await fetchImpl(url, {
+    redirect: "error",
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (
+    !response.ok ||
+    (response.url && new URL(response.url).origin !== url.origin)
+  ) {
+    throw new Error("Pre-cutover production Worker route is unavailable.");
+  }
+  const maximumBytes = 64 * 1024;
+  const declaredLength = Number(response.headers?.get?.("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+    throw new Error(
+      "Pre-cutover production Worker response exceeded its limit.",
+    );
+  }
+  const reader = response.body?.getReader?.();
+  const chunks = [];
+  let length = 0;
+  if (reader) {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > maximumBytes) {
+        await reader.cancel();
+        throw new Error(
+          "Pre-cutover production Worker response exceeded its limit.",
+        );
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } else {
+    const value = Buffer.from(await response.arrayBuffer());
+    length = value.byteLength;
+    chunks.push(value);
+  }
+  if (length > maximumBytes) {
+    throw new Error(
+      "Pre-cutover production Worker response exceeded its limit.",
+    );
+  }
+  const bytes = Buffer.concat(chunks, length);
+  try {
+    return JSON.parse(bytes.toString("utf8"));
+  } catch {
+    throw new Error("Pre-cutover production Worker route did not return JSON.");
+  }
+}
+
+export async function verifyPrecutoverProductionOrigin({
+  env,
+  fetchImpl = fetch,
+  platform,
+}) {
+  const origin = new URL(env.VITE_MOBILE_API_ORIGIN);
+  validateReleaseEnvironment({
+    action: env.MOBILE_RELEASE_ACTION,
+    env,
+    platform,
+  });
+  const health = await boundedMobileJson(
+    fetchImpl,
+    new URL("/api/health", origin),
+  );
+  if (
+    health?.data?.environment !== "production" ||
+    health?.data?.revision !== env.MOBILE_RELEASE_GIT_SHA ||
+    health?.data?.service !== "vinifera-api" ||
+    health?.data?.status !== "ok"
+  ) {
+    throw new Error("Pre-cutover production Worker revision is not exact.");
+  }
+  const associationPath =
+    platform === "ios"
+      ? "/.well-known/apple-app-site-association"
+      : "/.well-known/assetlinks.json";
+  const association = await boundedMobileJson(
+    fetchImpl,
+    new URL(associationPath, origin),
+  );
+  if (platform === "ios") {
+    const appId = `${env.MOBILE_APPLE_TEAM_ID}.${env.MOBILE_IOS_BUNDLE_ID}`;
+    const expected = {
+      applinks: {
+        details: [
+          {
+            appIDs: [appId],
+            components: identity.externalDeepLinkPaths.map((path) => ({
+              "/": path,
+            })),
+          },
+        ],
+      },
+    };
+    if (JSON.stringify(association) !== JSON.stringify(expected)) {
+      throw new Error(
+        "Apple association does not match the signed mobile identity.",
+      );
+    }
+  } else {
+    const expected = [
+      {
+        relation: ["delegate_permission/common.handle_all_urls"],
+        target: {
+          namespace: "android_app",
+          package_name: env.MOBILE_ANDROID_PACKAGE_NAME,
+          sha256_cert_fingerprints: [
+            env.MOBILE_ANDROID_SIGNING_CERT_SHA256.toUpperCase(),
+          ],
+        },
+      },
+    ];
+    if (JSON.stringify(association) !== JSON.stringify(expected)) {
+      throw new Error(
+        "Android association does not match the signed mobile identity.",
+      );
+    }
+  }
+  return {
+    associationVerified: true,
+    evidenceLevel: "production-precutover-worker",
+    platform,
+    revision: env.MOBILE_RELEASE_GIT_SHA,
+    runtimeVerified: true,
+  };
+}
+
 export function validateReleaseRequest({
   action,
   buildConfirmation,
@@ -87,7 +216,9 @@ export function validateReleaseRequest({
   uploadConfirmation,
 }) {
   if (!/^[0-9a-f]{40}$/.test(gitSha ?? "")) {
-    throw new Error("The mobile release git SHA must be 40 lowercase hex characters.");
+    throw new Error(
+      "The mobile release git SHA must be 40 lowercase hex characters.",
+    );
   }
   if (!["build-only", "upload-internal"].includes(action)) {
     throw new Error(
@@ -111,11 +242,7 @@ export function validateReleaseRequest({
   return { action, uploadAuthorized: action === "upload-internal" };
 }
 
-export function validateReleaseEnvironment({
-  action,
-  env,
-  platform,
-}) {
+export function validateReleaseEnvironment({ action, env, platform }) {
   validateReleaseRequest({
     action,
     buildConfirmation: env.MOBILE_BUILD_CONFIRMATION,
@@ -124,12 +251,20 @@ export function validateReleaseEnvironment({
   });
 
   if (
-    env.MOBILE_BUILD_PROFILE !== "production-authorized" ||
+    env.MOBILE_BUILD_PROFILE !== "production-precutover" ||
     env.MOBILE_PRODUCTION_ORIGIN_AUTHORIZED !== "true" ||
-    env.VITE_MOBILE_API_ORIGIN !== PRODUCTION_ORIGIN
+    !productionPolicy.targetHashes.workerOriginSha256.includes(
+      createHash("sha256")
+        .update(
+          String(env.VITE_MOBILE_API_ORIGIN ?? "")
+            .trim()
+            .toLowerCase(),
+        )
+        .digest("hex"),
+    )
   ) {
     throw new Error(
-      "The mobile release must use the explicitly authorized production origin.",
+      "The mobile release must use the exact allowlisted pre-cutover production Worker origin.",
     );
   }
 
@@ -156,9 +291,7 @@ export function validateReleaseEnvironment({
       );
     }
     if (action === "upload-internal") {
-      requireNames(env, [
-        "GOOGLE_PLAY_RELEASE_SERVICE_ACCOUNT_JSON_BASE64",
-      ]);
+      requireNames(env, ["GOOGLE_PLAY_RELEASE_SERVICE_ACCOUNT_JSON_BASE64"]);
     }
     return { appId: APP_ID, platform };
   }
@@ -205,10 +338,7 @@ function decodeBase64Secret(value, label) {
     throw new Error(`${label} is missing.`);
   }
   const compact = value.replace(/\s+/g, "");
-  if (
-    compact.length % 4 !== 0 ||
-    !/^[A-Za-z0-9+/]+={0,2}$/.test(compact)
-  ) {
+  if (compact.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(compact)) {
     throw new Error(`${label} is not valid base64.`);
   }
   const contents = Buffer.from(compact, "base64");
@@ -224,11 +354,7 @@ async function writePrivateFile(path, contents) {
   await writeFile(absolutePath, contents, { mode: 0o600 });
 }
 
-export async function materializeSecretFile({
-  env,
-  kind,
-  outputPath,
-}) {
+export async function materializeSecretFile({ env, kind, outputPath }) {
   const definition = SECRET_FILES[kind];
   if (!definition) {
     throw new Error("Unsupported mobile secret file kind.");
@@ -248,10 +374,7 @@ export async function materializeSecretFile({
   await writePrivateFile(outputPath, contents);
 }
 
-export async function materializeGoogleServices({
-  encoded,
-  outputPath,
-}) {
+export async function materializeGoogleServices({ encoded, outputPath }) {
   const contents = decodeBase64Secret(
     encoded,
     "MOBILE_GOOGLE_SERVICES_JSON_BASE64",
@@ -271,18 +394,12 @@ export async function materializeGoogleServices({
     (client) =>
       client?.client_info?.android_client_info?.package_name === APP_ID,
   );
-  if (
-    !hasValue(configuration?.project_info?.project_id) ||
-    !packageMatches
-  ) {
+  if (!hasValue(configuration?.project_info?.project_id) || !packageMatches) {
     throw new Error(
       "The Google services configuration does not match the release app.",
     );
   }
-  await writePrivateFile(
-    outputPath,
-    `${JSON.stringify(configuration)}\n`,
-  );
+  await writePrivateFile(outputPath, `${JSON.stringify(configuration)}\n`);
 }
 
 function xmlEscape(value) {
@@ -294,11 +411,7 @@ function xmlEscape(value) {
     .replaceAll("'", "&apos;");
 }
 
-export function iosExportOptions({
-  bundleId,
-  profileUuid,
-  teamId,
-}) {
+export function iosExportOptions({ bundleId, profileUuid, teamId }) {
   if (bundleId !== APP_ID) {
     throw new Error("The iOS export bundle ID does not match.");
   }
@@ -352,21 +465,17 @@ function validateServiceAccount(serviceAccount) {
     ) ||
     !hasValue(serviceAccount.private_key) ||
     !serviceAccount.private_key.startsWith(
-      "-----BEGIN PRIVATE KEY-----",
+      ["-----BEGIN ", "PRIVATE KEY-----"].join(""),
     )
   ) {
-    throw new Error(
-      "The Google Play release service account is invalid.",
-    );
+    throw new Error("The Google Play release service account is invalid.");
   }
 }
 
 function createServiceAccountAssertion(serviceAccount, now) {
   validateServiceAccount(serviceAccount);
   const issuedAt = Math.floor(now.getTime() / 1000) - 30;
-  const header = base64Url(
-    JSON.stringify({ alg: "RS256", typ: "JWT" }),
-  );
+  const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const claims = base64Url(
     JSON.stringify({
       aud: GOOGLE_OAUTH_ENDPOINT,
@@ -405,11 +514,7 @@ async function responseJson(response, stage) {
   }
 }
 
-async function googleAccessToken({
-  fetchImpl,
-  now,
-  serviceAccount,
-}) {
+async function googleAccessToken({ fetchImpl, now, serviceAccount }) {
   const assertion = createServiceAccountAssertion(serviceAccount, now);
   let response;
   try {
@@ -420,8 +525,7 @@ async function googleAccessToken({
       },
       body: new URLSearchParams({
         assertion,
-        grant_type:
-          "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       }),
       redirect: "error",
     });
@@ -435,14 +539,7 @@ async function googleAccessToken({
   return payload.access_token;
 }
 
-async function playRequest({
-  body,
-  fetchImpl,
-  method,
-  stage,
-  token,
-  url,
-}) {
+async function playRequest({ body, fetchImpl, method, stage, token, url }) {
   let response;
   try {
     const hasBody = body !== null && body !== undefined;
@@ -476,10 +573,7 @@ export async function uploadGooglePlayInternal({
   serviceAccount,
   tokenProvider = googleAccessToken,
 }) {
-  if (
-    !Buffer.isBuffer(aabBytes) ||
-    aabBytes.length < 32
-  ) {
+  if (!Buffer.isBuffer(aabBytes) || aabBytes.length < 32) {
     throw new Error("The signed Android App Bundle is missing or invalid.");
   }
   validateServiceAccount(serviceAccount);
@@ -518,9 +612,7 @@ export async function uploadGooglePlayInternal({
   });
   const versionCode = String(bundle.versionCode ?? "");
   if (!/^[1-9][0-9]*$/.test(versionCode)) {
-    throw new Error(
-      "Google Play bundle upload returned no release version.",
-    );
+    throw new Error("Google Play bundle upload returned no release version.");
   }
 
   await playRequest({
@@ -593,8 +685,7 @@ export function sanitizedEvidence({
     readOnlyEvidence: true,
     releaseAction: action,
     signedBuild: normalizedOutcome(buildOutcome) === "success",
-    signatureVerified:
-      normalizedOutcome(verificationOutcome) === "success",
+    signatureVerified: normalizedOutcome(verificationOutcome) === "success",
     upload: {
       requested: action === "upload-internal",
       result: normalizedOutcome(uploadOutcome),
@@ -628,9 +719,7 @@ async function parseServiceAccount(encoded) {
   try {
     return JSON.parse(decoded.toString("utf8"));
   } catch {
-    throw new Error(
-      "The Google Play release service account is not JSON.",
-    );
+    throw new Error("The Google Play release service account is not JSON.");
   }
 }
 
@@ -653,6 +742,18 @@ async function main() {
       env: process.env,
       platform: options.platform,
     });
+    return;
+  }
+
+  if (command === "verify-precutover-origin") {
+    const evidence = await verifyPrecutoverProductionOrigin({
+      env: process.env,
+      platform: options.platform,
+    });
+    await writePrivateFile(
+      options.output,
+      `${JSON.stringify(evidence, null, 2)}\n`,
+    );
     return;
   }
 

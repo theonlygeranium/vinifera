@@ -38,42 +38,51 @@ marketing/static hostname.
   owner-authorized release contract.
 - Every production target hash is populated in
   `config/production-release-policy.json`.
-- The Pages project `vinifera` still has an active
-  `vinifera.edstratumlabs.ai` custom domain and a restorable production
-  deployment.
+- The Pages project `vinifera-live` still has an active
+  `vinifera-live.edstratumlabs.ai` custom domain and a restorable production
+  deployment. The separate `vinifera` Pages project and
+  `vinifera.edstratumlabs.ai` marketing hostname are not release targets.
 - The known production rollback target is healthy and retained.
 - Neither `human-review-required` nor `do-not-merge` is present for a forward
   production release. Exact known-good rollback is exempt.
 - The production Worker uses Stripe test mode and
   `LIVE_BILLING_ENABLED=false`.
 - `config/stripe-live-billing-policy.json` remains disabled; production Worker
-  deployment and public-domain cutover cannot change payment authority.
+  deployment and live-application hostname attachment cannot change payment
+  authority.
 - Every Phase 1–5 configuration capability reports configured before public
   domain movement.
+- `config/hosted-activation-gates.json` records Gates 1–19 as `live-passed`
+  with retained evidence, and a successful exact-current-`main` **Hosted
+  activation exit evidence** run ID is available for `attach-live-domain`.
 
 ## Operations
 
 Use the manually dispatched **Production Worker release control** workflow.
 Select only one operation at a time and enter its exact phrase:
 
-| Operation | Exact confirmation |
-| --- | --- |
-| First Worker creation | `BOOTSTRAP VINIFERA PRODUCTION WORKER` |
-| Upload immutable version | `UPLOAD VINIFERA PRODUCTION VERSION` |
-| Deploy approved version | `DEPLOY VINIFERA PRODUCTION VERSION` |
-| Roll back Worker version | `ROLL BACK VINIFERA PRODUCTION WORKER` |
-| Move domain to Worker | `CUT OVER VINIFERA DOMAIN TO WORKER` |
-| Restore domain to Pages | `RESTORE VINIFERA DOMAIN TO PAGES` |
+| Operation                                | Exact confirmation                      |
+| ---------------------------------------- | --------------------------------------- |
+| First Worker creation                    | `BOOTSTRAP VINIFERA PRODUCTION WORKER`  |
+| Upload immutable version                 | `UPLOAD VINIFERA PRODUCTION VERSION`    |
+| Deploy approved version                  | `DEPLOY VINIFERA PRODUCTION VERSION`    |
+| Roll back Worker version                 | `ROLL BACK VINIFERA PRODUCTION WORKER`  |
+| Attach live application domain           | `ATTACH VINIFERA LIVE DOMAIN TO WORKER` |
+| Restore live application domain to Pages | `RESTORE VINIFERA LIVE DOMAIN TO PAGES` |
 
-The domain-move operations are legacy, high-risk controls for the marketing
-hostname. They are outside ordinary autonomous delivery and must not be used to
-replace `vinifera.edstratumlabs.ai` with the application. A future DNS/domain
-ownership change requires `human-review-required` resolution and explicit
-owner direction. Normal application release targets
-`vinifera-live.edstratumlabs.ai` and leaves the marketing/rollback hostname
-attached to Pages. The standard `Production Worker release` dispatch no longer
-offers or accepts `cutover-domain` or `restore-pages`; re-enabling either
-requires a separately reviewed workflow change and explicit owner direction.
+The two domain operations target only `vinifera-live.edstratumlabs.ai` and its
+`vinifera-live` Pages project. The checked-in raw topology plus hashed target
+allowlists must agree before either operation runs. The marketing hostname
+`vinifera.edstratumlabs.ai` is a distinct immutable baseline and is never
+accepted by this controller. Domain attachment and restoration retain the
+production environment review and exact operation confirmation.
+
+`attach-live-domain` requires `activation_exit_evidence_run_id`. The protected
+workflow validates that the run used `hosted-activation-exit.yml`, succeeded on
+the exact current `main` SHA, still has the unexpired named artifact, and that
+the artifact matches the exact checked-in ledger digest. `restore-live-pages`
+does not require staging or release-package artifacts; it derives recovery
+identity from the currently active Worker version.
 
 ### Bootstrap
 
@@ -81,6 +90,10 @@ Bootstrap first proves that the allowlisted Worker does not exist, then uses
 the named `production` Wrangler environment to create it on `workers.dev`.
 `wrangler.jsonc` contains no production route or custom domain. If the resource
 already exists, bootstrap fails and the version-upload path must be used.
+Bootstrap and pre-cutover uploads set `APP_ORIGIN` to the exact protected
+`PRODUCTION_WORKER_ORIGIN` and permit both that origin and the future live
+hostname through browser CORS. This keeps mobile magic-link callbacks
+executable during Gates 17 and 18.
 
 ### Upload and deploy
 
@@ -93,7 +106,7 @@ SHA. Success requires that version to become the sole version at 100% traffic
 and pass Worker-origin health. It must report the production environment marker
 and reviewed build SHA/artifact digest. No custom domain is moved.
 
-### Deferred legacy domain cutover
+### Live application domain attachment
 
 Immediately before mutation, capture:
 
@@ -103,12 +116,18 @@ Immediately before mutation, capture:
 - the expected account, zone, Pages project, hostname, Worker, and Worker
   origin through hash authorization.
 
-This section documents the separately authorized legacy control and is not
-executable from the standard production workflow. Cutover refuses a missing or
-non-active Pages hostname. It removes only that
-custom-domain attachment from Pages, attaches it to the production Worker, and
-polls the public health/configuration endpoints. It never deletes the Pages
-project or deployment.
+The protected controller refuses a missing or non-active `vinifera-live` Pages
+hostname, a Worker version that does not match the exact reviewed artifact, or
+a Worker version that is not already the sole 100% deployment. It removes only
+the `vinifera-live.edstratumlabs.ai` attachment from the `vinifera-live` Pages
+project, attaches that hostname to `vinifera-production`, waits until the
+Cloudflare domain record matches the exact hostname, zone, service, and
+environment, and then polls bounded, no-redirect HTTPS public probes. Those
+probes, rather than a nonexistent Workers Domains `cert_id`, prove certificate
+readiness. A repeated dispatch resumes safely if
+the Worker is already exact or if an interrupted run left neither service
+attached. It rejects a both-attached topology. It never deletes either Pages
+project or any deployment.
 
 Public health must report all of:
 
@@ -129,9 +148,18 @@ push
 shipping
 ```
 
-If health does not pass, the control script removes the attempted Worker domain
-and reattaches the hostname to Pages. Treat the workflow as failed until the
-static root and `/app/` prototype are independently reverified.
+The Cloudflare attachment record and the public health proof must each require
+`environment=production`, plus the exact artifact
+Git SHA, the root surface, `/app/`, `/portal/`, and exact Apple and Android
+association payloads for the signed identities. The separate marketing root,
+app, and guide body digests must remain unchanged.
+
+If domain attachment, HTTPS health verification, or the final independent
+marketing-content invariant does not pass, the control script removes the
+attempted Worker domain and reattaches the live hostname to its Pages project.
+Treat the workflow as failed until the restored live Pages root and `/app/`
+prototype are independently reverified. The marketing hostname is checked
+separately and must remain unchanged throughout.
 
 ## Rollback
 
@@ -147,24 +175,35 @@ rollback it repeats the mutable current-main/PR/emergency-label, ancestry,
 version-annotation, deployment-history, and current-state checks, then verifies
 sole-active state and health.
 
+Both `deploy-version` and `rollback-worker` capture the prior sole-active
+version and its annotated Git SHA. A failed mutation command or failed smoke
+automatically reconverges to that prior version and verifies its exact revision
+and core health before the run reports failure.
+
 Cloudflare and Wrangler expose only the ten most recent deployments through
 this retained-history check. A legitimate older version therefore fails closed
 and requires a separately reviewed recovery procedure rather than bypassing
 the history proof.
 
-For a domain/runtime incident, the standard workflow has no
-**Restore domain to Pages** operation. The separately authorized legacy
-procedure:
+For a domain/runtime incident, dispatch `restore-live-pages`. The protected
+operation:
 
 1. captures current Worker and retained Pages state;
 2. removes only the allowlisted Worker domain attachment;
 3. reattaches the hostname to the retained Pages project;
-4. verifies `/` contains the Vinifera static surface and `/app/` contains the
-   accepted prototype marker; and
-5. if Pages restoration fails, attempts to reattach the Worker domain so the
-   hostname is not intentionally left unowned.
+4. verifies the retained project production branch and current production
+   deployment URL, then exact SHA-256 content contracts for `/` and `/app/`;
+   and
+5. if Pages restoration fails, reattaches the prior Worker domain and verifies
+   its certificate, exact revision, capabilities, application routes, and
+   mobile associations before reporting the failed restore; when the captured
+   topology had neither owner, removes any partial Pages claim and verifies the
+   hostname remains unowned instead of attaching a new Worker owner.
 
-After any rollback, verify:
+Restoration is resumable when Pages is already active or neither service is
+attached. It rejects an ambiguous both-attached state.
+
+After any rollback, verify the marketing baseline remains unchanged:
 
 ```bash
 curl --fail --silent --show-error https://vinifera.edstratumlabs.ai/
@@ -177,6 +216,13 @@ rolled-back marker, SHA/digest, and API health at:
 
 ```bash
 curl --fail --silent --show-error https://vinifera-live.edstratumlabs.ai/api/health
+```
+
+After `restore-live-pages`, verify the live Pages fallback itself:
+
+```bash
+curl --fail --silent --show-error https://vinifera-live.edstratumlabs.ai/
+curl --fail --silent --show-error https://vinifera-live.edstratumlabs.ai/app/
 ```
 
 Do not force-push Git and do not delete the Pages project. A domain rollback
@@ -199,17 +245,19 @@ Retain workflow summaries and sanitized artifacts for:
   previously sole-active;
 - pre-mutation control-plane snapshot;
 - Worker-origin health;
-- public cutover or Pages-restore health;
+- issued custom-domain certificate identity hash and public attach or
+  Pages-restore health;
 - exact operation and actor from GitHub's audit trail; and
 - any automatic restoration attempt.
 
 After deployment, verify the production build SHA/artifact digest, environment
 marker, API health contract, primary user journey, authentication boundary,
 basic accessibility, and absence of critical console/server errors. An HTTP
-200 or the healthy marketing surface is not application evidence. If a
-critical verification fails, automatically deploy the known prior Worker
-version; use the retained Pages restoration only for the separately authorized
-domain path.
+200 or the healthy marketing surface is not application evidence. If a newly
+deployed Worker fails its post-deploy smoke, the workflow automatically rolls
+back to the captured prior sole-active version and verifies health. If
+live-domain certificate or full health fails, attachment automatically restores
+the `vinifera-live` Pages hostname.
 
 Record the run URL and outcome in the current phase QA report and
 `CONTINUITY_BRIEF.md`. Only then may the deployment state be described as
@@ -217,7 +265,8 @@ hosted or live.
 
 ## Separate Stripe live-billing control
 
-Moving the Worker or public domain never enables live Stripe. A future
+Deploying the Worker or attaching the live application hostname never enables
+live Stripe. A future
 owner-approved cutover uses the separate protected live-billing workflow only
 after:
 

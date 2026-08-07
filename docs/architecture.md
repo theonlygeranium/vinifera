@@ -376,13 +376,13 @@ Supabase CLI 2.109.1, then runs
 the linked native pgTAP/RLS suite. Optional deployment targets the isolated
 `vinifera-staging` Worker, attaches available secrets atomically to that
 version, and verifies its `workers.dev` health plus core configuration report.
-It does not move the production custom domain.
+It does not move the production application hostname.
 
 Manual protected workflows add three non-overlapping control planes:
 
 ```text
 read-only readiness ──> credential/permission/table classifications only
-production release ──> Worker bootstrap/version/deploy/Worker rollback
+production release ──> Worker version/deploy/rollback + protected live-host attach/restore
 mobile release ──────> immutable signed AAB/IPA ──> optional internal tracks
 ```
 
@@ -560,6 +560,8 @@ pending until its reviewed exact revision is deployed and reverified.
 | 18 | Install signed builds from TestFlight and the Play internal track. | Pending |
 | 19 | Under protected owner confirmation, use Stripe-hosted Checkout for exactly one allowlisted live subscription charge, prove signed webhook idempotency and application lifecycle convergence, refund it once, and cancel renewal. | Pending — source controller is default-disabled and has not executed |
 | 20 | Move the production custom domain only after every hosted exit criterion is evidenced. | Pending |
+| 19 | Replace Stripe test keys with approved live keys only under human supervision and run one controlled charge/refund. | Pending |
+| 20 | Attach `vinifera-live.edstratumlabs.ai` to the reviewed production Worker only after every hosted exit criterion is evidenced; leave the marketing hostname on Pages. | Pending |
 
 ## File ownership
 

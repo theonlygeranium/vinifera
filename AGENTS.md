@@ -152,6 +152,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 <body — what changed and why>
 
 Verification: <commands run and results, e.g. "npm run check; 624/624 Vitest; npm run qa:e2e; 155 passed Playwright/axe">
+Verification: <commands run and results, e.g. "npm run check; 593/593 Vitest; 155 passed Playwright/axe">
 Verification: <commands run and results, e.g. "npm run check; 585/585 Vitest; 155 passed Playwright/axe">
 Verification: <commands run and results, e.g. "npm run check; 596/596 Vitest; 155 passed Playwright/axe">
 ```
@@ -197,18 +198,19 @@ workflows under `.github/workflows/`:
 | `ci.yml` | Promotion PRs, staging/main, manual, nightly | Full release validation, selective/nightly Android, hidden promotion-smoke fast validation, the exact `Vinifera Promotion Gate` aggregate, and opt-in sanitized Gates 10–16 readiness evidence after an exact staging deployment |
 | `direct-push-guard.yml` | Push to main | Enforces no direct commits reach main without a merged PR; fails closed |
 | `hosted-readiness.yml` | Manual, unprotected | Read-only credential and hosted-target readiness report; performs no migration or deployment |
+| `hosted-activation-exit.yml` | Manual, trusted current `main` | Packages a 90-day exact-revision exit artifact only when the canonical ledger records Gates 1–19 as live-passed with retained evidence; performs no hosted mutation |
 | `octopus-main-deploy.yml` | Push to main, manual | Reconcile trusted Octopus configuration after the default-branch bootstrap |
 | `octopus-access-smoke.yml` | Manual, trusted default branch | Verify the protected Octopus ingress and Access identity without executing PR-head code |
 | `octopus-pr-quality-gates.yml` | Promotion PRs and explicit high-risk review requests | Validate same-repository PR source and publish the trusted Octopus result for the exact PR/head/base/attempt |
 | `octopus-security-audit.yml` | Scheduled, manual | Run the trusted Octopus security audit |
-| `production-worker-release.yml` | Manual, protected | Bootstrap, upload, deploy, or roll back the production Worker without domain/Pages mutation (credential-gated) |
+| `production-worker-release.yml` | Manual, protected | Bootstrap, upload, deploy, or roll back the production Worker with automatic prior-version recovery; attach `vinifera-live.edstratumlabs.ai` only after exact Gates 1–19 exit evidence, or independently restore its verified `vinifera-live` Pages fallback. The marketing hostname is never a target. |
 | `promote-dev-to-staging.yml` | Manual/owner-authorized | Open/update, validate, and auto-merge a consolidated `dev` to `staging` promotion unless dry-run or explicitly disabled; never starts after every `dev` push |
 | `stripe-test-catalog.yml` | Manual, mixed | Stripe test Price catalog probe/verify without reviewer approval; bootstrap remains staging-protected |
 | `resend-staging-provisioning.yml` | Manual, protected | Trusted default-branch Resend domain/webhook bootstrap, exact-policy Cloudflare DNS application, protected staging secret handoff, and sanitized verification evidence |
 | `stripe-live-billing-cutover.yml` | Manual, protected | Stripe live billing cutover (live-mode credential-gated) |
 | `stripe-live-proof.yml` | Manual, protected | Default-disabled two-dispatch Gate 19 proof: one Stripe-hosted live Checkout handoff, then exact charge/webhook/refund/application-lifecycle reconciliation and renewal cleanup. It never changes Worker bindings. |
 | `credential-envelope-rotation.yml` | Manual, protected | Rotate encrypted credential envelopes |
-| `mobile-release.yml` | Manual, protected | Signed iOS/Android artifacts for TestFlight and Play internal tracks |
+| `mobile-release.yml` | Manual, protected | Signed iOS/Android artifacts for TestFlight and Play internal tracks after exact pre-cutover production Worker revision and association proof |
 
 ### Deployment topology
 
@@ -254,6 +256,11 @@ Four Cloudflare Pages projects serve four distinct purposes:
 
 ## 6. Quality Assurance
 
+### Current verified test counts (2026-08-06 hosted-gate QA baseline)
+
+| Suite | Count | Command |
+|-------|-------|---------|
+| Vitest unit/integration | 593 | `npm run check` |
 ### Current verified test counts (2026-08-06 Gate 8 controller baseline)
 
 | Suite | Count | Command |
