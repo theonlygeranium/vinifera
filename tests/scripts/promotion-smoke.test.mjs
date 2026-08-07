@@ -146,7 +146,7 @@ describe("promotion smoke tooling", () => {
     expect(parsed.mode).toBe("staged");
     expect(parsed.records).toHaveLength(1);
     expect(parsed.classification.lane).toBe("promotion-smoke");
-  });
+  }, fixtureGitTimeoutMs);
 
   it("fails start preflight when protected environment branch trees drift", () => {
     const root = fixtureRepo();

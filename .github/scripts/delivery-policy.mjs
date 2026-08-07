@@ -79,17 +79,26 @@ const RELEASE_CONTROL_FASTLANE_PREFIXES = Object.freeze([
 
 const OPERATOR_TOOLING_FILES = new Set([
   ".github/pull_request_template.md",
+  "AGENTS.md",
   "CHANGELOG.md",
+  "IMPLEMENTATION_GUIDE.md",
   "package.json",
   "scripts/actions-promotion-status.mjs",
   "scripts/hosted-marker-probe.mjs",
   "scripts/promotion-smoke.mjs",
+  "scripts/cursor-client.js",
+  "scripts/bugbot-client.js",
+  "scripts/implement-issue.js",
+  "scripts/fix-ci.js",
+  "scripts/parallel-tasks.js",
 ]);
 
 const OPERATOR_TOOLING_PREFIXES = Object.freeze([
   ".github/scripts/",
   ".github/workflows/",
   "tests/scripts/",
+  ".cursor/",
+  "openapi/",
 ]);
 
 const DEPENDENCY_TOOLING_FILES = new Set([

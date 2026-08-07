@@ -1,0 +1,19 @@
+{
+  "build": {
+    "install": "npm ci",
+    "buildCommand": "npm run build"
+  },
+  "install": "npm ci",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "secrets": [
+    "GITHUB_TOKEN_READONLY",
+    "SUPABASE_ACCESS_KEY_READONLY",
+    "CONTEXT7_API_KEY"
+  ],
+  "startup": {
+    "command": "npm run dev",
+    "port": 8788
+  }
+}
