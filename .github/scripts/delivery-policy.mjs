@@ -5,6 +5,7 @@ const ROOT_DOCUMENTATION = new Set([
   "AGENTS.md",
   "CHANGELOG.md",
   "CONTINUITY_BRIEF.md",
+  "IMPLEMENTATION_GUIDE.md",
   "README.md",
   "REVERT.md",
 ]);
@@ -16,6 +17,8 @@ const ROUTINE_PREFIXES = Object.freeze([
   "tests/unit/",
   "public/",
   "web/",
+  ".cursor/",
+  "openapi/",
 ]);
 
 const ROUTINE_FILES = new Set([
