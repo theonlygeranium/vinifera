@@ -1,0 +1,92 @@
+# ADR: Gate 19 live financial proof control
+
+- **Date:** 2026-08-06
+- **Status:** Accepted for source; activation remains pending
+
+## Context
+
+The protected Stripe live-billing cutover changes the production Worker's
+credential and Price bindings but deliberately performs no financial
+transaction. Gate 19 separately requires one controlled live charge and
+refund. Combining those responsibilities would let a binding operation create
+money movement, make retries ambiguous, and obscure whether the application
+actually processed signed live subscription webhooks.
+
+Raw payment-card entry must remain entirely on Stripe's hosted surface. The
+proof also needs a bounded recovery path if a run stops after the refund but
+before subscription cleanup or application convergence.
+
+## Decision
+
+Gate 19 uses a distinct protected `stripe-live-proof.yml` workflow executing
+trusted code from the exact current `main` release. Its policy ships disabled
+with empty allowlists. Enabling it requires exactly one reviewed SHA-256 target
+for the live Stripe account, dedicated customer, exact brand and organization,
+live Price, plan name, maximum integer cent amount, production Supabase origin,
+and production Worker origin, plus the exact owner phrase
+`AUTHORIZE ONE VINIFERA LIVE CHARGE AND REFUND`.
+
+The proof has two dispatches sharing one UUID nonce:
+
+1. `prepare` verifies Worker billing/webhook health, the live account,
+   customer, Price, maximum amount, and the hash-authorized independent-brand
+   application mapping. It creates or reuses one idempotent subscription-mode
+   Checkout Session only after verifying its exact line item, tenant metadata,
+   immutable Git SHA, open/unpaid state, and expiration, and refuses any other
+   open Gate 19 Session for that customer, then hands its
+   private handoff to an owner-held X.509 encryption key. Only the encrypted
+   CMS artifact is retained; the job summary contains no Checkout URL, Session
+   ID, or nonce. It accepts no card data and performs no charge or refund.
+2. `finalize` accepts only that completed `cs_live_` Session. It requires one
+   succeeded PaymentIntent and exactly one captured Charge from the Checkout
+   Session's immutable initial invoice, exact revision metadata and
+   brand-scoped application subject, an applied live subscription event, and
+   two duplicate responses to a freshly signed replay before refunding. It
+   creates one full refund under an idempotency key, resumes safely if that
+   exact refund already exists, cancels renewal, waits for application
+   `canceled` state, and repeats the signed-idempotency proof for the deletion
+   event. If delayed finalization discovers later captured invoice payments
+   belonging to the exact proof subscription, it refunds each before failing
+   the one-charge acceptance contract.
+
+More than one proof-window payment or successful Charge, more than one
+terminally failed refund attempt, more than one recoverable or successful
+refund, unrelated existing refund metadata, an over-limit amount, an unbounded provider inventory, a
+wrong tenant/brand mapping, absent live webhook persistence, or failed
+application convergence stops the workflow. Sanitized evidence contains only
+hashes, counts, booleans, timestamps, and final states.
+
+Both operations require the production Worker health response to identify the
+production environment and exact authorized release SHA. Prepare requires that
+SHA to be current `main`; finalize permits the original prepare SHA after
+`main` advances only when it remains in current `main` history and is still
+bound to the merged `staging → main` authorization PR. Application billing
+identity reads bind both organization and customer collision checks through
+the exact approved independent brand relationship.
+
+Failed Charge attempts may precede the one successful captured Charge on the
+proof PaymentIntent. They remain part of the bounded inventory but do not block
+the refund path; zero or multiple successful captured Charges are ambiguous and
+stop the workflow.
+
+## Consequences
+
+The owner performs payment only on Stripe Checkout. Once the exact paid
+subscription and single Charge are validated, every later failure—including
+mutable Price/Product drift—enters an idempotent refund-and-cancellation
+recovery boundary. A stopped finalize run
+can continue cleanup without issuing another successful refund for the same
+payment. One terminally failed exact refund may be replaced; ambiguous or
+unrelated refunds fail closed. The controller never claims active-to-canceled
+convergence from a literal: first execution observes active application state,
+while a canceled recovery requires the durable creation event itself to have
+been applied. An ignored creation event remains acceptable only while an
+independently observed active subject still exists. A request to restore test
+bindings is recorded in evidence and must be
+executed through the separate protected live-billing cutover workflow; the
+proof controller has no Wrangler deployment or secret-update capability.
+
+Gate 19 remains pending until both protected dispatches succeed against the
+reviewed targets and their sanitized evidence is retained. Source readiness,
+policy enablement, binding cutover, owner payment, and hosted proof are separate
+states.

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 2,
+  "enabled": false,
+  "fixtureContractSha256": [],
+  "stagingWorkerOriginSha256": [],
+  "stagingSupabaseUrlSha256": [],
+  "stripeAccountIdSha256": []
+}

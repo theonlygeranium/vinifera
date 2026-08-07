@@ -1,0 +1,38 @@
+---
+globs:
+  - "frontend/**"
+  - "apps/web/**"
+  - "apps/admin/**"
+alwaysApply: false
+---
+# Frontend Conventions
+
+This rule applies when working with frontend code, components, or build configuration.
+
+## Component Structure
+
+- Use functional components with hooks
+- Co-locate styles in module CSS files next to the component
+- Keep components under 200 lines. Extract subcomponents when a file grows beyond that
+- Prefer composition over prop drilling
+
+## Build Dependencies
+
+The `sharp` package is a devDependency that appears in the production build path (`scripts/build.mjs`). This is a **known deployment concern, not a source bug**. Do not flag it as an error or attempt to "fix" it by moving it to dependencies. The build works locally; the concern is whether Cloudflare Pages includes devDependencies when `NODE_ENV=production` is set. If you encounter a build failure related to `sharp` on Cloudflare Pages, investigate the deployment configuration, not the dependency classification.
+
+## Framework
+
+- The project uses its established frontend framework and build tooling. Check `package.json` for the current framework version before adding or upgrading dependencies.
+- Do not introduce new UI libraries without explicit instruction. Use the existing component system.
+
+## Environment Variables
+
+- Frontend environment variables must be prefixed per the framework's convention
+- Do not hardcode API URLs, Supabase URLs, or Cloudflare Worker URLs in source files
+- Use the project's environment configuration system
+
+## Testing
+
+- Write tests for new components
+- Run the frontend test suite before submitting a PR
+- Verify that changes don't break the build (`npm run build` or equivalent)

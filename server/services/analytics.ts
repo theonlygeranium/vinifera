@@ -66,7 +66,9 @@ interface ResolvedAnalyticsRange {
 }
 
 interface DueBenchmarkReport {
+  aggregate_id: string | null;
   benchmark_available: boolean;
+  contribution_id: string | null;
   organization_id: string;
   organization_name: string;
   period: string;
@@ -177,18 +179,18 @@ function benchmarkMetrics(value: unknown): BenchmarkReportMetric[] {
     });
 }
 
-function benchmarkPeriod(value: string): {
+export function benchmarkPeriod(value: string): {
   end: string;
   label: string;
   start: string;
 } {
   const start = parseDateOnly(value.slice(0, 10), "Benchmark period");
   const end = new Date(start);
-  end.setUTCMonth(end.getUTCMonth() + 3);
+  end.setUTCMonth(end.getUTCMonth() + 1);
   end.setUTCDate(end.getUTCDate() - 1);
   return {
     end: dateOnly(end),
-    label: `${start.getUTCFullYear()}-Q${Math.floor(start.getUTCMonth() / 3) + 1}`,
+    label: `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, "0")}`,
     start: dateOnly(start),
   };
 }
@@ -326,6 +328,7 @@ async function enqueueBenchmarkReports(
   let queued = 0;
   for (const due of (data ?? []) as DueBenchmarkReport[]) {
     const period = benchmarkPeriod(due.period);
+    let benchmarkAvailable = due.benchmark_available;
     let subject: string;
     let html: string;
     let text: string;
@@ -338,6 +341,9 @@ async function enqueueBenchmarkReports(
       });
       ({ html, subject, text } = guidance);
     } else {
+      if (!due.contribution_id || !due.aggregate_id) {
+        throw databaseError("The selected benchmark source could not be bound.");
+      }
       const { data: comparison, error: comparisonError } = await admin.rpc(
         "get_peer_benchmark",
         {
@@ -380,10 +386,13 @@ async function enqueueBenchmarkReports(
           period: period.label,
         });
         ({ html, subject, text } = guidance);
+        benchmarkAvailable = false;
       }
     }
     const { error: enqueueError } = await admin.rpc(
-      "enqueue_analytics_report_artifact",
+      benchmarkAvailable
+        ? "enqueue_benchmark_report_artifact"
+        : "enqueue_analytics_report_artifact",
       {
         p_actor_user_id: due.staff_user_id,
         p_attachments: attachments,
@@ -395,6 +404,12 @@ async function enqueueBenchmarkReports(
         p_schedule_id: due.schedule_id,
         p_subject: subject,
         p_text_body: text,
+        ...(benchmarkAvailable
+          ? {
+              p_aggregate_id: due.aggregate_id,
+              p_contribution_id: due.contribution_id,
+            }
+          : {}),
       },
     );
     if (enqueueError) {

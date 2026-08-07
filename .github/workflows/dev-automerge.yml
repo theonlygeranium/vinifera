@@ -161,22 +161,26 @@ jobs:
               '
             )
 
-            local check_runs statuses context_states
-            check_runs=$(gh api --paginate \
+            local check_runs_file statuses_file context_states
+            check_runs_file="$RUNNER_TEMP/dev-automerge-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${phase}-check-runs.json"
+            statuses_file="$RUNNER_TEMP/dev-automerge-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${phase}-statuses.json"
+            gh api --paginate \
               -H "Accept: application/vnd.github+json" \
-              "repos/$REPOSITORY/commits/$head_sha/check-runs?per_page=100" |
-              jq -s '[.[].check_runs[]]')
-            statuses=$(gh api --paginate \
+              "repos/$REPOSITORY/commits/$head_sha/check-runs?per_page=100" \
+              > "$check_runs_file"
+            gh api --paginate \
               -H "Accept: application/vnd.github+json" \
-              "repos/$REPOSITORY/commits/$head_sha/statuses?per_page=100" |
-              jq -s 'add')
+              "repos/$REPOSITORY/commits/$head_sha/statuses?per_page=100" \
+              > "$statuses_file"
             context_states=$(jq -n \
               --argjson pr_number "$PR_NUMBER" \
               --arg base_sha "$base_sha" \
               --arg head_sha "$head_sha" \
               --argjson required "$required_contexts" \
-              --argjson runs "$check_runs" \
-              --argjson statuses "$statuses" '
+              --slurpfile run_pages "$check_runs_file" \
+              --slurpfile status_pages "$statuses_file" '
+              ($run_pages | [.[].check_runs[]]) as $runs |
+              ($status_pages | [.[][]]) as $statuses |
               def check_state:
                 if .status != "completed" then "pending"
                 elif .conclusion == "success" then "success"
@@ -227,6 +231,7 @@ jobs:
                   )
                 }
               ]') || return 1
+            rm -f -- "$check_runs_file" "$statuses_file"
 
             local reviews active_changes_requested
             reviews=$(gh api --paginate \

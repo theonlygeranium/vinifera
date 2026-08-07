@@ -1,7 +1,7 @@
 # Vinifera — Codex Dispatch Guide
-**Generated:** 2026-07-27 | **Updated:** 2026-07-28  
-**Owner:** EdStratum Labs / founder@edstratumlabs.ai  
-**Repo:** `theonlygeranium/vinifera`  
+**Generated:** 2026-07-27 | **Updated:** 2026-07-28
+**Owner:** EdStratum Labs / founder@edstratumlabs.ai
+**Repo:** `theonlygeranium/vinifera`
 **Target window:** 8–10 hours of unattended parallel Codex work
 
 ---

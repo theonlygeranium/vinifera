@@ -196,7 +196,7 @@ Add an entry under `[Unreleased]` in `CHANGELOG.md`:
 
 - [ ] `.greptile/config.json`, `.greptile/rules.md`, `.greptile/files.json` all exist and are valid JSON/Markdown
 - [ ] `server/services/.greptile/rules.md` exists
-- [ ] `supabase/migrations/.greptile/config.json` exists  
+- [ ] `supabase/migrations/.greptile/config.json` exists
 - [ ] `tests/.greptile/config.json` exists
 - [ ] `worker-configuration.d.ts` is absent from `git ls-files` output
 - [ ] `.gitignore` contains `worker-configuration.d.ts`

@@ -33,8 +33,10 @@ The source architecture is connection-ready and fails closed when credentials or
 control-plane settings are absent. Hosted Supabase migration, provider account
 validation, winery DNS, Stripe live-mode approval, signed physical-device
 testing, and app-store distribution remain separate activation work. The public
-custom domain continues to serve the verified static Cloudflare Pages rollback
-baseline; it is not evidence that the Worker application is live.
+marketing hostname continues to serve the verified static Cloudflare Pages
+baseline; it is not evidence that the Worker application is live. The separate
+`vinifera-live.edstratumlabs.ai` application hostname remains on its Pages
+rollback project until the protected production attachment gate passes.
 
 The name comes from *Vitis vinifera*, the Latin species name for the primary wine grape vine. It signals domain knowledge to winery operators and reads as a premium brand word — without the overused "wine" prefix that defines most platform names in this market.
 
@@ -101,6 +103,7 @@ npm run dev:frontend
 
 # Full local verification
 npm run check
+npm run qa:mobile-acceptance
 npm run qa:mobile-release
 npm run qa:production-release
 npm run qa:db:phase2
@@ -127,7 +130,10 @@ Available runtime secrets are attached atomically to that staging version.
 A protected manual controller can later bootstrap, upload, deploy, or roll
 back an immutable production Worker artifact without changing the public
 marketing/rollback domain. Domain cutover and Pages restoration remain a
-separate, explicitly authorized legacy control. A separate protected workflow produces
+separate, explicitly authorized legacy control. Stripe binding cutover and the
+default-disabled Gate 19 hosted Checkout/charge/refund proof are also separate
+protected workflows, so financial proof cannot silently change Worker
+credentials. A separate protected workflow produces
 signed Android/iOS artifacts and optionally uploads only to internal tracks.
 All three paths ship fail-closed until their scoped credentials, target hashes,
 and confirmations exist.

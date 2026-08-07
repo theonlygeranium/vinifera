@@ -2,7 +2,102 @@
 
 ## [Unreleased]
 
+- Recognize `.cursor/` and `openapi/` path prefixes as routine and add
+  `IMPLEMENTATION_GUIDE.md` to root documentation in the delivery policy
+  classifier so that promotion diffs containing Cursor Pro+ integration
+  tooling no longer fail closed with `unknown_path_fail_closed`.
+
+- Integrate Gate 15 core same-organization isolation into the canonical Gates
+  10–16 exact-candidate evidence flow. Require an exact reviewed Supabase-origin
+  hash before client creation; use a predeclared, dependency-ordered all-settled
+  cleanup ledger for run-scoped organizations, brands, Auth identities,
+  analytics, and integration jobs; bound all HTTP redirects, time, origins, and
+  response sizes; reconcile fixture Auth users by exact independently tracked
+  emails after a lost create response; use a service-role-only organization and
+  brand-scoped integration claim that rejects every null required parameter and
+  leases at the current run time so the normal drain cannot immediately reclaim
+  the synthetic job; quarantine those exact run-owned jobs with future
+  eligibility timestamps until the scoped claim atomically leases them, and
+  inject Cloudflare Access headers only inside the two-origin bounded transport
+  used by Worker and protected Supabase requests;
+  delete the exact magic-link rate-limit row; retain behavioral failure-stage
+  and cleanup evidence; and leave `completionClaimed=false` pending Gate 16
+  hostname context. Reserve migrations `202608060033` and `202608060034` after
+  detecting and repairing the remaining-gates migration-number collisions.
+  Raise the branch Vitest floor to the verified count.
+  **Deployment impact:** two forward database migrations plus the existing one-shot
+  `STAGING_GATE_15_EVIDENCE_ENABLED` protected staging toggle; synthetic staging
+  database/Auth mutations are cleaned in-run, with no provider, DNS,
+  custom-hostname, live-billing, mobile-store, or production mutation.
 ### Changed
+- Integrate Gate 15 core same-organization isolation into the canonical Gates
+  10–16 exact-candidate evidence flow. Require an exact reviewed Supabase-origin
+  hash before client creation; use a predeclared, dependency-ordered all-settled
+  cleanup ledger for run-scoped organizations, brands, Auth identities,
+  analytics, and integration jobs; bound all HTTP redirects, time, origins, and
+  response sizes; reconcile fixture Auth users by exact independently tracked
+  emails after a lost create response; use a service-role-only organization and
+  brand-scoped integration claim that rejects every null required parameter and
+  leases at the current run time so the normal drain cannot immediately reclaim
+  the synthetic job; quarantine those exact run-owned jobs with future
+  eligibility timestamps until the scoped claim atomically leases them, and
+  inject Cloudflare Access headers only inside the two-origin bounded transport
+  used by Worker and protected Supabase requests;
+  delete the exact magic-link rate-limit row; retain behavioral failure-stage
+  and cleanup evidence; and leave `completionClaimed=false` pending Gate 16
+  hostname context. Reserve migrations `202608060033` and `202608060034` after
+  detecting and repairing the remaining-gates migration-number collisions.
+  Raise the branch Vitest floor to the verified count.
+  **Deployment impact:** two forward database migrations plus the existing one-shot
+  `STAGING_GATE_15_EVIDENCE_ENABLED` protected staging toggle; synthetic staging
+  database/Auth mutations are cleaned in-run, with no provider, DNS,
+  custom-hostname, live-billing, mobile-store, or production mutation.
+- Add independent opt-in Gates 10–16 staging readiness reports that bind
+  allowlisted configuration state to the exact deployed candidate, retain a
+  sanitized 90-day artifact, and explicitly prohibit a readiness report from
+  claiming gate completion. Include the previously omitted
+  `STAGING_ML_PLATFORM_ACTOR_USER_ID` binding in the atomic staging Worker
+  secret bundle so Gate 11 can reach its guarded actor validation when real
+  source and experiment prerequisites exist. **Deployment impact:** protected
+  staging workflow, documented read-only operator command, and optional Worker
+  secret binding only; no provider
+  resource, winery data, fixture, model, integration, DNS, live-billing,
+  mobile-store, or production mutation.
+- Remove the broad required-reviewer rule from the protected `staging` GitHub
+  environment while retaining its staging-only branch policy and the
+  repository's exact-candidate, provider-target, confirmation, health,
+  rollback, and one-shot gate controls. Consequential production DNS,
+  real-money, mobile-store, destructive, and legal-provider boundaries remain
+  independently confirmed. **Deployment impact:** reversible staging workflow
+  jobs no longer wait for a generic environment approval; no Worker, provider,
+  database, credential, billing, DNS, mobile-store, or production mutation.
+- Correct the remaining-gates execution order so hosted ShipCompliant
+  activation (Gate 13) precedes the operational label proof (Gate 6), require
+  executable mobile API/association routes before Gates 17–18, and record that
+  the completed Gate 7 acceptance controller is disabled for unrelated staging
+  promotions in favor of one-shot gate-specific switches. **Deployment
+  impact:** sets the protected staging variable
+  `STAGING_HOSTED_ACCEPTANCE_ENABLED=false`; no Worker, database, provider,
+  billing, DNS, mobile-store, or production mutation.
+- Refine the orchestration manifest so bounded implementation work may be
+  delegated in isolated worktrees after read-only audits, while provider
+  mutation, integration review, hosted QA, promotion, and gate-completion
+  authority remain centralized with the chief orchestrator. **Deployment
+  impact:** collaboration documentation only; no runtime or hosted mutation.
+- Add the chief-orchestrator manifest for completing Gates 6, 8, and 10–20,
+  with non-overlapping read-only subagent audits, centralized mutation
+  authority, dependency-aware sequencing, and mandatory per-gate hosted QA.
+  **Deployment impact:** planning documentation only; no provider, database,
+  credential, billing, DNS, Worker, mobile-store, or production mutation.
+- Record hosted activation Gate 7 as `live-passed` after protected staging run
+  `31089753727` deployed reviewed exact candidate
+  `530a003b91642ebf40af01468b10e444116ef632` as Worker version
+  `3978a4da-e488-4887-9900-34f2673f0cb6` and retained successful tenant/Auth,
+  Stripe test Checkout/webhook lifecycle, and fixture-cleanup evidence in
+  artifact `8963047777`. **Deployment impact:** documentation-only
+  reconciliation of completed isolated staging evidence; no additional
+  provider, database, credential, billing, DNS, mobile-store, or production
+  mutation.
 - Raise the documented Vitest regression floor from 550 to the verified
   569-test hosted-acceptance and Auth-provider repair head. **Deployment
   impact:** QA and agent documentation only; no runtime, provider, database,
@@ -56,6 +151,20 @@
   application, provider, database, Worker, billing, DNS, or production change.
 
 ### Fixed
+- Give the three multi-branch promotion-smoke fixture tests a 30-second local
+  Git budget instead of Vitest's 5-second default. Their assertions are
+  synchronous and deterministic, but concurrent full-suite filesystem load
+  repeatedly exceeded five seconds while isolated 9/9 runs passed. **Deployment
+  impact:** test reliability only; no runtime, workflow, provider, database,
+  credential, billing, DNS, mobile-store, or production mutation.
+- Stream trusted development auto-merge check-run and commit-status pages into
+  runner-local JSON files instead of passing the unbounded historical response
+  set through `jq --argjson`. This removes the operating-system argument-length
+  failure that blocked an otherwise valid documentation PR while retaining
+  exact PR/base/head evidence binding and immediate pre-merge revalidation.
+  **Deployment impact:** trusted development merge-control execution only; no
+  application, Worker, provider, database, credential, billing, DNS,
+  mobile-store, or production mutation.
 - Run the reusable Gate 7 Stripe test Checkout before injecting the synthetic
   signed `active` subscription webhook. Run `31087028401` proved the Auth and
   two-tenant segments, then exposed that the prior order wrote a synthetic
@@ -233,6 +342,13 @@
 - Reconcile Octopus↔Cloudflare deployment model (ADR: `2026-08-05-octopus-cloudflare-deployment-reconciliation.md`). Correct `AppHealthUrl` in `.octopus/variables.ocl` from `http://localhost:3000/health` to the real Worker health endpoint `https://vinifera-development.jeff-f69.workers.dev/health`. Deprecate PM2 `restart-application` step in `.octopus/deployment_process.ocl`, replacing it with a `verify-worker-health` evidence probe that checks the deployed Cloudflare Worker; merge the former `smoke-test` step into the probe. Reduce `.github/workflows/octopus-main-deploy.yml` to evidence-only — remove the non-functional "Deploy to Development" step and keep Octopus release creation as an audit record. Octopus now serves as review/orchestration and release-audit ledger; GitHub Actions owns Worker deployment via Wrangler. **Deployment impact:** CI/release-control and Octopus process configuration only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 
 ### Fixed
+- Give the promotion-smoke local-drill fixture the same 30-second bounded Git
+  operation budget as the three multi-branch fixture tests. This prevents
+  full-suite host contention from exhausting Vitest's unrelated 5-second
+  default while preserving every assertion and command. **Deployment impact:**
+  test timing only; no application route, provider, database, credential,
+  billing, DNS, Worker activation, or production/mobile approval-gate state
+  changes.
 - Conclude OIDC service-account migration investigation: `OctopusDeploy/login@v2` OIDC exchange targets `localhost:8080/token/v1`, a sidecar provisioned only on Octopus Cloud-hosted runners. Self-hosted Octopus with GitHub-hosted runners cannot satisfy this requirement. Reverted both `octopus-main-deploy.yml` and `octopus-pr-quality-gates.yml` to the verified `api_key:` login path; retained `vinifera-gha` service account, dedicated Octopus team (`Teams-21`), Build Server role (`ScopedUserRoles-21`), and `OCTOPUS_SERVICE_ACCOUNT_ID` secret as prerequisites for a future attempt when a compatible token-exchange mechanism ships. **Deployment impact:** CI/release-control authentication behavior only; no application route, provider, database, credential, billing, DNS, Worker activation, production/mobile approval-gate, or Cloudflare Access policy state changes.
 - Split protected full-lane browser QA and database architecture checks into
   path-aware jobs so full validation still runs the common app/package gate but

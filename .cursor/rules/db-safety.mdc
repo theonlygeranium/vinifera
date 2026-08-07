@@ -1,0 +1,42 @@
+---
+globs:
+  - "supabase/migrations/**"
+  - "scripts/**"
+  - "supabase/functions/**"
+alwaysApply: false
+---
+# Database Safety — Migrations, Queries, and Brand Scoping
+
+This rule applies when working with Supabase migrations, database scripts, edge functions, or any file that touches tenant data.
+
+## Brand ID Scoping
+
+Every query, RPC, and edge function that accesses tenant data must include a `brand_id` filter. This is the primary tenant isolation mechanism.
+
+- **Correct:** `select * from profiles where brand_id = $1`
+- **Incorrect:** `select * from profiles` (returns cross-tenant data)
+- Service-role queries that intentionally span tenants (admin dashboards, analytics) must use `is_service_role()` / `is_staff_for_org()` authorization guards and the `all_brands` pattern.
+
+## Migration Numbering
+
+- Migrations are numbered sequentially in `supabase/migrations/`.
+- Before creating a new migration, check the highest existing number. Do not reuse or skip numbers.
+- If a migration allocation gap is discovered (e.g., 030 → 032 with 031 missing), document it. Do not silently fill the gap — the missing migration may be in another PR.
+
+## Hash Canonicalization
+
+PostgreSQL `jsonb::text` serialization is used for attestation hash computation. The output is not documented and is sensitive to PostgreSQL version and configuration. Manifest authors must reproduce the hash byte-identically or attestation will always mismatch. If you are writing or modifying attestation logic, test the hash against the actual database output, not an assumed format.
+
+## No Service-Role Keys in Code
+
+- Never hardcode Supabase service-role keys, anon keys, or JWT secrets in source files.
+- Use environment variables. In edge functions, use `Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")`.
+- Do not log secrets. Do not pass secrets to the model context. Do not include secrets in PR descriptions.
+
+## Migration Testing
+
+Before submitting a PR with a new migration:
+1. Run the migration locally against a clean database
+2. Run the relevant acceptance test scripts (e.g., `scripts/hosted-gate6-phase2-acceptance.mjs`)
+3. Verify the migration does not break existing pgTAP tests
+4. Check that the migration number does not collide with any open PR's migration

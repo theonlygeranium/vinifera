@@ -139,27 +139,26 @@ function credentialKeyring(env: WorkerEnv): {
     );
   }
   const keys = Object.fromEntries(
-    Object.entries(parsed as Record<string, unknown>).map(([version, value]) => {
-      if (
-        !KEY_VERSION.test(version) ||
-        typeof value !== "string"
-      ) {
-        throw new AppError(
-          503,
-          "activation_required",
-          "The integration credential encryption keyring is invalid.",
-        );
-      }
-      const decoded = decodeBase64(value);
-      if (decoded.byteLength !== 32) {
-        throw new AppError(
-          503,
-          "activation_required",
-          "Integration credential encryption keys must be 256 bits.",
-        );
-      }
-      return [version, decoded];
-    }),
+    Object.entries(parsed as Record<string, unknown>).map(
+      ([version, value]) => {
+        if (!KEY_VERSION.test(version) || typeof value !== "string") {
+          throw new AppError(
+            503,
+            "activation_required",
+            "The integration credential encryption keyring is invalid.",
+          );
+        }
+        const decoded = decodeBase64(value);
+        if (decoded.byteLength !== 32) {
+          throw new AppError(
+            503,
+            "activation_required",
+            "Integration credential encryption keys must be 256 bits.",
+          );
+        }
+        return [version, decoded];
+      },
+    ),
   );
   if (!keys[activeVersion]) {
     throw new AppError(
@@ -169,6 +168,17 @@ function credentialKeyring(env: WorkerEnv): {
     );
   }
   return { activeVersion, keys };
+}
+
+export function validateIntegrationCredentialKeyring(env: WorkerEnv): {
+  activeVersion: string;
+  versions: string[];
+} {
+  const keyring = credentialKeyring(env);
+  return {
+    activeVersion: keyring.activeVersion,
+    versions: Object.keys(keyring.keys).sort(),
+  };
 }
 
 async function importAesKey(raw: Uint8Array): Promise<CryptoKey> {
@@ -381,11 +391,7 @@ export function constantTimeEqual(left: string, right: string): boolean {
     }
   ).timingSafeEqual;
   if (typeof subtleTimingSafeEqual === "function") {
-    return subtleTimingSafeEqual.call(
-      crypto.subtle,
-      leftDigest,
-      rightDigest,
-    );
+    return subtleTimingSafeEqual.call(crypto.subtle, leftDigest, rightDigest);
   }
   // Node 22 does not expose the Workers-only SubtleCrypto extension used in
   // production, so local Vitest uses the equivalent fixed-size primitive.

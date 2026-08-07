@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "gate": 17,
+  "repository": "theonlygeranium/vinifera",
+  "environment": "production",
+  "gitSha": "REPLACE_WITH_40_CHARACTER_MAIN_SHA",
+  "releaseRunId": "REPLACE_WITH_RELEASE_RUN_ID",
+  "releaseAction": "build-only",
+  "app": {
+    "id": "ai.edstratumlabs.vinifera",
+    "versionCode": 5,
+    "versionName": "0.5.0"
+  },
+  "testedAt": "REPLACE_WITH_ISO_8601_TIMESTAMP",
+  "apiOriginSha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+  "platforms": [
+    {
+      "platform": "ios",
+      "osVersion": "REPLACE_WITH_IOS_VERSION",
+      "deviceEvidenceSha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "signingIdentitySha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "distributionSignatureVerified": true,
+      "pushProvider": "apns",
+      "checks": {
+        "magicLink": true,
+        "brandDisambiguation": true,
+        "secureStorage": true,
+        "sessionRevocation": true,
+        "biometricFallback": true,
+        "foregroundRelock": true,
+        "pushForeground": true,
+        "pushBackground": true,
+        "pushTap": true,
+        "cameraPermission": true,
+        "cameraScan": true,
+        "offlineRestore": true,
+        "reconnect": true,
+        "accessibility": true,
+        "privacyMetadata": true,
+        "storeMetadata": true
+      }
+    },
+    {
+      "platform": "android",
+      "osVersion": "REPLACE_WITH_ANDROID_VERSION",
+      "deviceEvidenceSha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "signingIdentitySha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "distributionSignatureVerified": true,
+      "pushProvider": "fcm",
+      "checks": {
+        "magicLink": true,
+        "brandDisambiguation": true,
+        "secureStorage": true,
+        "sessionRevocation": true,
+        "biometricFallback": true,
+        "foregroundRelock": true,
+        "pushForeground": true,
+        "pushBackground": true,
+        "pushTap": true,
+        "cameraPermission": true,
+        "cameraScan": true,
+        "offlineRestore": true,
+        "reconnect": true,
+        "accessibility": true,
+        "privacyMetadata": true,
+        "storeMetadata": true
+      }
+    }
+  ]
+}

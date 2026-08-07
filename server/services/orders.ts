@@ -16,6 +16,7 @@ import type {
 import {
   complianceRequestFingerprint,
   createComplianceProvider,
+  isShipCompliantTimeout,
   permitsLabelGeneration,
   withAuditableComplianceId,
   type ComplianceCheckRequest,
@@ -88,6 +89,63 @@ function parseOriginAddress(value: unknown): PostalAddress {
     );
   }
   return address;
+}
+
+export function recoveredShippingLabelResult(
+  attempt: Record<string, unknown>,
+  shipmentId: string,
+): Record<string, unknown> {
+  const requiredText = (value: unknown, label: string): string => {
+    if (typeof value !== "string" || !value.trim()) {
+      throw new AppError(
+        409,
+        "conflict",
+        `The completed shipping label has no ${label}.`,
+      );
+    }
+    return value;
+  };
+  const labelCostCents = attempt.labelCostCents;
+  if (
+    typeof labelCostCents !== "number" ||
+    !Number.isSafeInteger(labelCostCents) ||
+    labelCostCents < 0
+  ) {
+    throw new AppError(
+      409,
+      "conflict",
+      "The completed shipping label has no valid rate.",
+    );
+  }
+  const providerMetadata =
+    attempt.providerMetadata && typeof attempt.providerMetadata === "object"
+      ? (attempt.providerMetadata as Record<string, unknown>)
+      : {};
+  return {
+    label: {
+      carrier: requiredText(attempt.carrier, "carrier"),
+      labelId: requiredText(attempt.externalLabelId, "provider label ID"),
+      labelUrl: requiredText(attempt.labelUrl, "label URL"),
+      providerReference: requiredText(
+        attempt.externalShipmentId,
+        "provider shipment ID",
+      ),
+      rateId: requiredText(attempt.externalRateId, "provider rate ID"),
+      rateCents: labelCostCents,
+      service:
+        typeof providerMetadata.service === "string" &&
+        providerMetadata.service.trim()
+          ? providerMetadata.service
+          : "Recovered",
+      trackingNumber: requiredText(
+        attempt.trackingNumber,
+        "tracking number",
+      ),
+    },
+    recovered: true,
+    shipmentId,
+    success: true,
+  };
 }
 
 export class ProductionCoreClubService
@@ -182,6 +240,7 @@ export class ProductionCoreClubService
       checkedAt,
     );
     let result: ComplianceCheckResult;
+    let localFailureKind = "provider-error";
     try {
       result = await createComplianceProvider(this.env).checkShipment(request);
     } catch (error) {
@@ -190,6 +249,9 @@ export class ProductionCoreClubService
         error.code === "activation_required"
       ) {
         throw error;
+      }
+      if (isShipCompliantTimeout(error)) {
+        localFailureKind = "timeout";
       }
       result = {
         checkedAt: checkedAt.toISOString(),
@@ -212,7 +274,7 @@ export class ProductionCoreClubService
     }
     result = withAuditableComplianceId(
       result,
-      () => requestFingerprint.slice(0, 32),
+      () => `${localFailureKind}-${requestFingerprint.slice(0, 32)}`,
     );
     const { data, error } = await this.admin.rpc(
       "record_shipment_compliance_check",
@@ -855,47 +917,63 @@ export class ProductionCoreClubService
     const principal = await this.requireStaff(["owner", "admin", "manager", "staff"]);
     const organizationId = this.organizationId(principal);
     const brandId = await this.activeBrandId(principal);
-    const provider = createShippingProvider(this.env);
-    const { data: organization, error: organizationError } = await this.admin
-      .from("organizations")
-      .select("name,shipping_origin_address")
-      .eq("id", organizationId)
-      .single();
-    if (organizationError || !organization) {
-      throw databaseError("The winery shipping settings could not be loaded.");
-    }
-    const fromAddress = parseOriginAddress(organization.shipping_origin_address);
-    const originConfig =
-      organization.shipping_origin_address &&
-      typeof organization.shipping_origin_address === "object"
-        ? (organization.shipping_origin_address as Record<string, unknown>)
-        : {};
-    const originName =
-      typeof originConfig.name === "string" && originConfig.name.trim()
-        ? originConfig.name.trim()
-        : String(organization.name ?? "").trim();
-    const originCompany =
-      typeof originConfig.company === "string" && originConfig.company.trim()
-        ? originConfig.company.trim()
-        : String(organization.name ?? "").trim();
-    const originPhone =
-      typeof originConfig.phone === "string" ? originConfig.phone.trim() : "";
-    if (
-      !isCompleteShippingContact(
-        {
-          company: originCompany,
-          name: originName,
-          phone: originPhone,
-        },
-        true,
-      )
-    ) {
-      throw new AppError(
-        503,
-        "activation_required",
-        "Complete the winery shipping origin name, company, and phone before generating alcohol labels.",
+    const loadPurchaseContext = async () => {
+      const provider = createShippingProvider(this.env);
+      const { data: organization, error: organizationError } = await this.admin
+        .from("organizations")
+        .select("name,shipping_origin_address")
+        .eq("id", organizationId)
+        .single();
+      if (organizationError || !organization) {
+        throw databaseError("The winery shipping settings could not be loaded.");
+      }
+      const fromAddress = parseOriginAddress(
+        organization.shipping_origin_address,
       );
-    }
+      const originConfig =
+        organization.shipping_origin_address &&
+        typeof organization.shipping_origin_address === "object"
+          ? (organization.shipping_origin_address as Record<string, unknown>)
+          : {};
+      const originName =
+        typeof originConfig.name === "string" && originConfig.name.trim()
+          ? originConfig.name.trim()
+          : String(organization.name ?? "").trim();
+      const originCompany =
+        typeof originConfig.company === "string" && originConfig.company.trim()
+          ? originConfig.company.trim()
+          : String(organization.name ?? "").trim();
+      const originPhone =
+        typeof originConfig.phone === "string" ? originConfig.phone.trim() : "";
+      if (
+        !isCompleteShippingContact(
+          {
+            company: originCompany,
+            name: originName,
+            phone: originPhone,
+          },
+          true,
+        )
+      ) {
+        throw new AppError(
+          503,
+          "activation_required",
+          "Complete the winery shipping origin name, company, and phone before generating alcohol labels.",
+        );
+      }
+      return {
+        fromAddress,
+        originCompany,
+        originName,
+        originPhone,
+        provider,
+      };
+    };
+    let purchaseContextPromise:
+      | ReturnType<typeof loadPurchaseContext>
+      | undefined;
+    const purchaseContext = () =>
+      (purchaseContextPromise ??= loadPurchaseContext());
     const { data, error } = await this.admin
       .from("shipments")
       .select(
@@ -918,6 +996,46 @@ export class ProductionCoreClubService
       5,
       async (shipment): Promise<Record<string, unknown>> => {
         try {
+          if (shipment.status === "label_created") {
+            const { data: attemptData, error: attemptError } =
+              await this.admin.rpc("acquire_shipping_label_attempt", {
+                p_actor_user_id: principal.user.id,
+                p_brand_id: brandId,
+                p_lease_seconds: 300,
+                p_organization_id: organizationId,
+                p_provider: this.env.SHIPPING_PROVIDER,
+                p_shipment_id: shipment.id,
+                p_worker_id: `staff:${principal.user.id}`,
+              });
+            if (attemptError) {
+              throw databaseError(
+                "The completed shipping label could not be recovered.",
+              );
+            }
+            const attempt = rpcRecord(attemptData);
+            if (String(attempt.disposition ?? "") !== "succeeded") {
+              throw new AppError(
+                409,
+                "conflict",
+                "The completed shipment has no recoverable label attempt.",
+              );
+            }
+            const recovered = recoveredShippingLabelResult(
+              attempt,
+              shipment.id,
+            );
+            await this.recordDomainAnalyticsEvent(principal, {
+              eventData: {
+                carrier: String(attempt.carrier ?? "unknown"),
+                provider: String(attempt.provider ?? "unknown"),
+                rateCents: Number(attempt.labelCostCents),
+              },
+              eventType: "shipment.label_created",
+              memberId: shipment.member_id,
+              requestKey: `label:${shipment.id}:${String(attempt.externalLabelId)}`,
+            });
+            return recovered;
+          }
           if (shipment.status !== "charged") {
             throw new AppError(
               409,
@@ -925,6 +1043,13 @@ export class ProductionCoreClubService
               "Only successfully charged shipments can receive labels.",
             );
           }
+          const {
+            fromAddress,
+            originCompany,
+            originName,
+            originPhone,
+            provider,
+          } = await purchaseContext();
           const member = oneRelation(shipment.members);
           const toAddress = getAddress(shipment.shipping_address);
           if (!toAddress) {
@@ -1053,6 +1178,7 @@ export class ProductionCoreClubService
             const { data: attemptData, error: attemptError } =
               await this.admin.rpc("acquire_shipping_label_attempt", {
                 p_actor_user_id: principal.user.id,
+                p_brand_id: brandId,
                 p_lease_seconds: 300,
                 p_organization_id: organizationId,
                 p_provider: this.env.SHIPPING_PROVIDER,
@@ -1067,39 +1193,21 @@ export class ProductionCoreClubService
             const attempt = rpcRecord(attemptData);
             const disposition = String(attempt.disposition ?? "");
             if (disposition === "succeeded") {
-              const providerMetadata =
-                attempt.providerMetadata &&
-                typeof attempt.providerMetadata === "object"
-                  ? (attempt.providerMetadata as Record<string, unknown>)
-                  : {};
+              const recovered = recoveredShippingLabelResult(
+                attempt,
+                shipment.id,
+              );
               await this.recordDomainAnalyticsEvent(principal, {
                 eventData: {
                   carrier: String(attempt.carrier ?? "unknown"),
                   provider: String(attempt.provider ?? "unknown"),
-                  rateCents: Number(attempt.labelCostCents ?? 0),
+                  rateCents: Number(attempt.labelCostCents),
                 },
                 eventType: "shipment.label_created",
                 memberId: shipment.member_id,
                 requestKey: `label:${shipment.id}:${String(attempt.externalLabelId)}`,
               });
-              return {
-                label: {
-                  carrier: attempt.carrier,
-                  labelId: attempt.externalLabelId,
-                  labelUrl: attempt.labelUrl,
-                  providerReference: attempt.externalShipmentId,
-                  rateId: attempt.externalRateId,
-                  rateCents: Number(attempt.labelCostCents ?? 0),
-                  service:
-                    typeof providerMetadata.service === "string"
-                      ? providerMetadata.service
-                      : "Recovered",
-                  trackingNumber: attempt.trackingNumber,
-                },
-                recovered: true,
-                shipmentId: shipment.id,
-                success: true,
-              };
+              return recovered;
             }
             if (disposition === "in_progress") {
               throw new AppError(
