@@ -19,10 +19,10 @@ selection. This fixes the runner argument-length failure observed on PR #291
 without weakening PR/base/head binding or the immediate pre-merge check.
 
 Promotion-smoke tests that create and compare three local Git branches use a
-30-second per-test budget. The local-drill fixture uses the same bounded budget.
-Their logic is unchanged; the prior 5-second default repeatedly timed out only
-under concurrent full-suite filesystem load while the isolated suite passed
-9/9.
+30-second per-test budget. The local-drill and staged-classifier fixtures use
+the same bounded budget. Their logic is unchanged; the prior five-second
+default repeatedly timed out only under concurrent full-suite filesystem load
+while the isolated suite passed.
 
 ## 2026-08-06 Gate 6 Phase 2 hosted acceptance controller
 
