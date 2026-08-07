@@ -1,0 +1,36 @@
+{
+  "workspace_url": "https://wiki.edstratumlabs.ai",
+  "ssh_host": "schubert",
+  "api_base_url": "http://127.0.0.1:3101/api",
+  "collection": {
+    "id": "ea8dd892-8295-4ffb-b2eb-fe742258ee07",
+    "name": "Schubert — Server Bible",
+    "required_permission": "read",
+    "max_active_users": 1,
+    "max_memberships": 1,
+    "sharing_must_be_disabled": false
+  },
+  "keychain": {
+    "service": "codex.vinifera.outline",
+    "account": "$USER"
+  },
+  "documents": {
+    "Overview": "f8ea2bb2-962c-4e7c-9f65-99106a5daa1a",
+    "Operations & Maintenance": "b0f75d73-f668-4b8c-bbdb-cd251e10fe02",
+    "Port & Domain Map": "8e6efb9e-1d14-4b56-89af-0c87a7fdb5a5",
+    "CI/CD & GitHub Actions Runners": "affc3ff6-2042-437a-9d70-4f90e749f7fa",
+    "MCP Servers": "4cf9472d-f9a3-4b11-882c-30fcc1a1a543",
+    "Application Services": "14383cb9-6b0e-4cb4-ace9-2c81f1c53062",
+    "AI & ML Services": "a1778758-cd56-4766-b810-11e1965c1519",
+    "Infrastructure Services": "541c5b9b-e18b-4242-87df-e687313fdb62",
+    "Docker Infrastructure": "0618bf13-9d5e-4bf7-8c31-cef8ec986e0d",
+    "Cloudflare Configuration": "9638cbf3-2f3d-4682-b354-334ba9e268fd",
+    "Networking": "548535bf-6bb3-4049-befa-995509913822",
+    "Operating System & Core Software": "fab7a5de-e9ac-4dc8-bfb0-c543b6fe1037",
+    "Hardware": "5eb27ec4-b2e8-45a5-bf41-826585d850de",
+    "Outline & WRITER Knowledge System": "2a58f92a-64e2-4e6b-a129-71a24fadd1ae",
+    "Cloudflare Access for Machine Clients": "558da189-6724-4309-bd26-a036514f400c"
+  },
+  "vault_root_title": null,
+  "update_log_title": null
+}

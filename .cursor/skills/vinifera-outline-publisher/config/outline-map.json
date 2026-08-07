@@ -1,0 +1,46 @@
+{
+  "workspace_url": "https://wiki.edstratumlabs.ai",
+  "ssh_host": "schubert",
+  "api_base_url": "http://127.0.0.1:3101/api",
+  "collection": {
+    "id": "393bdf92-cd1b-4ae6-a5fd-91fabce5c523",
+    "name": "Vinifera — Product & Engineering",
+    "required_permission": null,
+    "max_active_users": 1,
+    "max_memberships": 1,
+    "sharing_must_be_disabled": true
+  },
+  "keychain": {
+    "service": "codex.vinifera.outline",
+    "account": "$USER"
+  },
+  "documents": {
+    "Vinifera Home": "0673158e-b681-45d1-94c8-cc49095f6f4a",
+    "Project Story & Continuity": "263844cf-2d08-4dc8-9233-48c1b5ccdd25",
+    "Sessions 6–8 — Two-Speed Delivery & CI Restoration": "03ab5978-0173-4360-9784-8fc6291e83e5",
+    "Chapter 5 — A Living Knowledge System": "2352c39f-2ce6-4ea7-9f4e-86c64b3a1048",
+    "Resume from Here": "08003f13-5c77-4c0e-9aaf-a30f7e27fb5b",
+    "Product & Experience": "fc5c6e79-59a0-47b4-8c31-a6e3ba54510d",
+    "System Architecture": "4fc4678a-0f82-4121-9e44-4c92fc9f50d1",
+    "Security, Privacy & Observability": "231d4e82-1134-4cc1-87bf-35e680c92eea",
+    "Engineering Handbook": "111cf888-3eb1-4fb1-b625-a871e3ce28d7",
+    "Delivery & Operations": "34008a2b-2df7-4ccf-b547-b4df871d8eb9",
+    "CI/CD & Automated Review": "566d1e1c-580c-4110-bb95-21a7df33db4f",
+    "Promotion & Release Controls": "b51e03ec-ced2-40ee-8bd6-6b510d82c000",
+    "Hosted Activation Gateboard": "040671bc-80a4-426a-a4e8-c7bb3209a0a9",
+    "Operations & Runbook Index": "f9363ca7-c088-41db-8b83-41f39be84bfa",
+    "Governance & Reference": "ec906b64-be7b-44b0-acca-7ad886ecb6d0",
+    "Source-of-Truth Registry": "36c0a40a-ab4a-4b64-8c6b-55d64e9f109f",
+    "Current Status Snapshot": "172bb2fd-fc13-4ce1-ad34-b371323569c6",
+    "Secure Operations Vault": "06251a3a-ff92-4438-9e18-d308a0e908d5",
+    "Vault Guide & Rotation Priorities": "69c45295-5e6c-4342-b442-38bbc312ee58",
+    "Master Credentials": "a5de8251-307b-406e-bbc5-c3d7bccb7ec4",
+    "Master Continuity Source Archive": "eddf136a-4a84-4382-ab18-52c26769cd37",
+    "Outline & WRITER Knowledge Sync Continuity — 2026-07-30": "fe0ea972-0906-4df7-b1a0-94bb5d2b9af8",
+    "Schubert External Services Credentials — 2026-07-30": "25de137d-d0ee-43e8-9b66-5d5bdd47f552",
+    "Sessions 6–8 Continuity Archive — 2026-07-29": "ccbb4dc7-aecc-4d1f-95fc-a49e2ccaec56",
+    "Change Log & Knowledge Base Updates": "44a116c1-87ab-46f3-9e95-b4d6e5d03591"
+  },
+  "vault_root_title": "Secure Operations Vault",
+  "update_log_title": "Change Log & Knowledge Base Updates"
+}
