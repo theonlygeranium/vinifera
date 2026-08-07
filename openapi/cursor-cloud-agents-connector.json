@@ -1,0 +1,406 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Cursor Cloud Agents API",
+    "version": "1.0.0",
+    "description": "Cursor Cloud Agents API wrapper for WRITER Agent. Enables WRITER Agent to programmatically launch and manage Cursor cloud agents that implement code changes, fix CI failures, and run code-review passes. This connector wraps the Cursor Cloud Agents API v1 (public beta) and the Bugbot API. Authentication uses a Cursor API key (Bearer token). Generate a key from Cursor Dashboard → API Keys."
+  },
+  "servers": [
+    {
+      "url": "https://api.cursor.com",
+      "description": "Cursor API (production)"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Cursor API key. Generate from Cursor Dashboard → API Keys. Pass as: Authorization: Bearer YOUR_API_KEY"
+      }
+    },
+    "schemas": {
+      "Prompt": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The instruction text for the agent."
+          },
+          "images": {
+            "type": "array",
+            "description": "Optional image inputs for the prompt. Maximum 5 images, 15 MB each.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "data": {
+                  "type": "string",
+                  "description": "Base64-encoded image bytes (required if url not provided)."
+                },
+                "mimeType": {
+                  "type": "string",
+                  "description": "MIME type of the image (required if data is provided). Supported: image/png, image/jpeg, image/gif, image/webp."
+                },
+                "url": {
+                  "type": "string",
+                  "description": "HTTP or HTTPS URL that Cursor fetches (alternative to data)."
+                }
+              }
+            }
+          }
+        }
+      },
+      "Model": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Model identifier, e.g. 'composer-2.5'."
+          },
+          "params": {
+            "type": "array",
+            "description": "Optional model parameters.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "value": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "Repo": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Repository URL, e.g. https://github.com/theonlygeranium/vinifera"
+          },
+          "startingRef": {
+            "type": "string",
+            "description": "Starting branch or ref, e.g. 'dev'."
+          },
+          "prUrl": {
+            "type": "string",
+            "description": "PR URL if the agent should work on an existing PR."
+          }
+        }
+      },
+      "MCPServer": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "description": "'stdio' or 'http'." },
+          "url": { "type": "string", "description": "Required for HTTP MCP servers." },
+          "command": { "type": "string", "description": "Required for stdio MCP servers." },
+          "args": { "type": "array", "items": { "type": "string" } },
+          "env": { "type": "object" }
+        }
+      },
+      "CreateAgentRequest": {
+        "type": "object",
+        "required": ["prompt"],
+        "properties": {
+          "prompt": { "$ref": "#/components/schemas/Prompt" },
+          "model": { "$ref": "#/components/schemas/Model" },
+          "name": { "type": "string", "description": "Optional name for the agent." },
+          "env": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "description": "Environment type, e.g. 'cloud'." },
+              "name": { "type": "string", "description": "Optional environment name." }
+            }
+          },
+          "repos": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Repo" }
+          },
+          "workOnCurrentBranch": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, work on the current branch instead of creating a new one."
+          },
+          "autoCreatePR": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, automatically create a PR when the agent pushes changes."
+          },
+          "envVars": {
+            "type": "object",
+            "description": "Environment variables for the agent run. Use for short-lived credentials."
+          },
+          "mcpServers": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MCPServer" }
+          },
+          "customSubagents": {
+            "type": "array",
+            "description": "Custom subagent definitions.",
+            "items": { "type": "object" }
+          },
+          "mode": { "type": "string", "description": "Agent mode, e.g. 'agent'." },
+          "agentId": { "type": "string", "description": "Optional ID for the agent." }
+        }
+      },
+      "Agent": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Agent ID. Cloud agents are prefixed with 'bc-'." },
+          "name": { "type": "string" },
+          "status": { "type": "string", "enum": ["ACTIVE", "ARCHIVED"] },
+          "env": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" }
+            }
+          },
+          "repos": { "type": "array", "items": { "$ref": "#/components/schemas/Repo" } },
+          "workOnCurrentBranch": { "type": "boolean" },
+          "autoCreatePR": { "type": "boolean" },
+          "url": { "type": "string", "description": "URL to view the agent in Cursor Web." },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "latestRunId": { "type": "string" }
+        }
+      },
+      "CreateRunRequest": {
+        "type": "object",
+        "required": ["prompt"],
+        "properties": {
+          "prompt": { "$ref": "#/components/schemas/Prompt" },
+          "mcpServers": {
+            "type": "array",
+            "description": "Inline MCP servers for this run. Replaces create-time servers.",
+            "items": { "$ref": "#/components/schemas/MCPServer" }
+          },
+          "mode": { "type": "string" }
+        }
+      },
+      "Run": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Run ID." },
+          "agentId": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["CREATING", "RUNNING", "COMPLETED", "ERROR", "CANCELLED"],
+            "description": "Run status. Only one run can be active per agent."
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "result": { "type": "string", "description": "Final result (terminal runs only)." },
+          "durationMs": { "type": "integer", "description": "Duration in milliseconds (terminal runs only)." },
+          "pushedBranches": {
+            "type": "array",
+            "description": "Branches pushed by the agent (terminal runs only).",
+            "items": { "type": "string" }
+          },
+          "prUrl": { "type": "string", "description": "PR URL if autoCreatePR was enabled." }
+        }
+      },
+      "ListAgentsResponse": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Agent" } },
+          "cursor": { "type": "string", "description": "Pagination cursor for next page." }
+        }
+      },
+      "ListRunsResponse": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Run" } },
+          "cursor": { "type": "string", "description": "Pagination cursor for next page." }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "message": { "type": "string" },
+          "code": {
+            "type": "string",
+            "description": "Error code, e.g. 'agent_busy' (409), 'rate_limit_exceeded' (429)."
+          }
+        }
+      },
+      "BugbotReviewRequest": {
+        "type": "object",
+        "required": ["prUrl"],
+        "properties": {
+          "prUrl": {
+            "type": "string",
+            "description": "Full GitHub pull request or GitLab merge request URL."
+          },
+          "dryRun": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, run analysis without posting comments to the SCM. Findings are persisted and retrievable via analytics endpoint."
+          }
+        }
+      },
+      "BugbotReviewResponse": {
+        "type": "object",
+        "properties": {
+          "outcome": { "type": "string", "description": "'success' or error indicator." },
+          "message": { "type": "string" },
+          "request_id": { "type": "string", "description": "Save to match completed review in analytics." },
+          "dry_run": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/v1/agents": {
+      "post": {
+        "operationId": "createAgent",
+        "summary": "Create a Cloud Agent and enqueue its initial run",
+        "description": "Creates a new Cursor cloud agent and immediately enqueues its initial run. The response returns both the durable agent and the initial run. Use this to launch a code-writing agent against a repository.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateAgentRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agent created with initial run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agent": { "$ref": "#/components/schemas/Agent" },
+                    "run": { "$ref": "#/components/schemas/Run" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad request.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "429": { "description": "Rate limit exceeded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "get": {
+        "operationId": "listAgents",
+        "summary": "List Cloud Agents",
+        "description": "List cloud agents. Use cursor for pagination. Filter by prUrl to find agents working on a specific PR.",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "number" }, "description": "Maximum number of agents to return." },
+          { "name": "cursor", "in": "query", "schema": { "type": "string" }, "description": "Pagination cursor." },
+          { "name": "prUrl", "in": "query", "schema": { "type": "string" }, "description": "Filter agents by PR URL." },
+          { "name": "includeArchived", "in": "query", "schema": { "type": "boolean", "default": true }, "description": "Include archived agents." }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of agents.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ListAgentsResponse" } } }
+          },
+          "401": { "description": "Unauthorized.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/v1/agents/{id}": {
+      "get": {
+        "operationId": "getAgent",
+        "summary": "Get an Agent",
+        "description": "Retrieve durable metadata for an agent. Execution status lives on runs — fetch latestRunId and call getRun to read run state.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Agent ID, e.g. bc-00000000-0000-0000-0000-000000000001" }
+        ],
+        "responses": {
+          "200": { "description": "Agent details.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Agent" } } } },
+          "404": { "description": "Agent not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/v1/agents/{id}/runs": {
+      "post": {
+        "operationId": "createRun",
+        "summary": "Send a follow-up prompt to an existing agent",
+        "description": "Send a follow-up prompt to an existing active agent. The new run uses the agent's current conversation and workspace state. Only one run can be active per agent — returns 409 agent_busy if another run is CREATING or RUNNING.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Agent ID." }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateRunRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Run created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Run" } } } },
+          "409": { "description": "Agent is busy (another run is active).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "get": {
+        "operationId": "listRuns",
+        "summary": "List runs for an agent",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "number" } },
+          { "name": "cursor", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "List of runs.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ListRunsResponse" } } } }
+        }
+      }
+    },
+    "/v1/agents/{id}/runs/{runId}": {
+      "get": {
+        "operationId": "getRun",
+        "summary": "Get a specific run",
+        "description": "Retrieve status, timestamps, and (for terminal runs) the final result, duration, and pushed branches for a specific run.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "runId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Run details.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Run" } } } },
+          "404": { "description": "Run not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/v1/agents/{id}/runs/{runId}/cancel": {
+      "post": {
+        "operationId": "cancelRun",
+        "summary": "Cancel an active run",
+        "description": "Cancel a run that is CREATING or RUNNING. Use this when you need to send a new prompt but the agent is busy (409 agent_busy).",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "runId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Run cancelled.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Run" } } } },
+          "409": { "description": "Run is not in a cancellable state.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/bugbot/review": {
+      "post": {
+        "operationId": "triggerBugbotReview",
+        "summary": "Queue a Bugbot review for a pull request",
+        "description": "Trigger an automated code review on a GitHub PR or GitLab MR. The review runs asynchronously. Use dryRun to run analysis without posting comments to the SCM. Requires API key with admin:* scope. Limited to 30 requests/minute per team (10/min for dryRun).",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BugbotReviewRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Review queued.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BugbotReviewResponse" } } } },
+          "400": { "description": "Bad request — Bugbot cannot review the PR.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "429": { "description": "Rate limit exceeded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    }
+  }
+}
