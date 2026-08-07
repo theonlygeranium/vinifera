@@ -233,6 +233,48 @@ test("operator tooling patches require changelog and select focused coverage", (
   );
 });
 
+test("cursor integration tooling selects operator-tooling lane with changelog", () => {
+  const missingChangelog = classifyDeliveryChange([
+    record("A", ".cursor/rules/agent-boundaries.mdc"),
+    record("A", ".cursor/hooks/block-protected-branches.js"),
+    record("A", ".cursor/mcp.json"),
+    record("A", "openapi/cursor-cloud-agents-connector.json"),
+    record("A", "scripts/cursor-client.js"),
+    record("A", "IMPLEMENTATION_GUIDE.md"),
+  ]);
+  assert.equal(missingChangelog.classificationSucceeded, false);
+  assert.equal(missingChangelog.lane, "invalid");
+  assert.equal(
+    missingChangelog.reason,
+    "operator_tooling_fastlane_missing_changelog",
+  );
+
+  const result = classifyDeliveryChange([
+    record("A", ".cursor/rules/agent-boundaries.mdc"),
+    record("A", ".cursor/hooks/block-protected-branches.js"),
+    record("A", ".cursor/skills/gate-validation/SKILL.md"),
+    record("A", ".cursor/mcp.json"),
+    record("A", ".cursor/environment.json"),
+    record("A", "openapi/cursor-cloud-agents-connector.json"),
+    record("A", "scripts/cursor-client.js"),
+    record("A", "scripts/implement-issue.js"),
+    record("A", "IMPLEMENTATION_GUIDE.md"),
+    record("A", "CHANGELOG.md"),
+  ]);
+  assert.equal(result.classificationSucceeded, true);
+  assert.equal(result.lane, "operator-tooling-tested");
+  assert.equal(result.reason, "operator_tooling_fastlane_allowlist_match");
+  assert.equal(result.risk, "medium");
+  assert.equal(result.mobileRequired, false);
+  assert.equal(result.browserRequired, false);
+  assert.equal(result.previewRequired, false);
+  assert.deepEqual(selectFocusedTests(result.paths, result.lane), [
+    ".github/scripts/delivery-policy.policy.mjs",
+    ".github/scripts/operator-tooling-policy.policy.mjs",
+    "tests/scripts",
+  ]);
+});
+
 test("dependency tooling patches require changelog and select focused coverage", () => {
   const missingChangelog = classifyDeliveryChange([
     record("M", "package.json"),
