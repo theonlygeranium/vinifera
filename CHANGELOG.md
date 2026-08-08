@@ -11,6 +11,16 @@
   `upsert_brand_sender_identity` with the `RESEND_FROM` email, marks the
   identity as `verified`, and disables it during cleanup.
 
+- Strip angle brackets from `RESEND_FROM` and `sender_from_email` before
+  constructing the Resend `from` field. The `RESEND_FROM` secret was set to
+  `vinifera <noreply@jgeronimo.com>` (with a display name and angle brackets),
+  and the `brand_sender_identities.from_email` column stored the same value.
+  When the controller wrapped it as `Vinifera <vinifera <noreply@jgeronimo.com>>`,
+  the nested angle brackets caused the Resend batch API to reject the entire
+  batch with HTTP 422 ("Invalid `from` field"). The fix extracts the bare
+  email address from any `Name <email>` format before constructing the `from`
+  header.
+
 - Filter claimed email outbox entries by the acceptance brand's `brand_id`
   before sending to the Resend batch API. The `claim_email_outbox_batch`
   function claims entries across ALL brands, and stale entries from other
