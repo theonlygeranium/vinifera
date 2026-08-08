@@ -635,7 +635,33 @@ async function main() {
       },
     );
     if (claimError) throw claimError;
-    const claimed = Array.isArray(claimedRows) ? claimedRows : [];
+    const allClaimed = Array.isArray(claimedRows) ? claimedRows : [];
+    // Filter to only entries belonging to the acceptance brand — the
+    // claim function returns entries across ALL brands, and stale entries
+    // from other brands (e.g. Gate 7 test fixtures with invalid recipient
+    // domains like gate7.test) would cause the Resend batch API to reject
+    // the entire batch with HTTP 422.
+    const claimed = allClaimed.filter(
+      (row) => row.brand_id === brandId,
+    );
+    // Release non-matching entries back to pending so they don't block.
+    for (const row of allClaimed) {
+      if (row.brand_id !== brandId) {
+        try {
+          await admin
+            .from("email_outbox")
+            .update({
+              status: "pending",
+              worker_id: null,
+              lease_expires_at: null,
+              completion_token: null,
+            })
+            .eq("id", row.outbox_id);
+        } catch {
+          /* best-effort release */
+        }
+      }
+    }
     if (claimed.length > 0) {
       const resendFrom = required("RESEND_FROM");
       const messages = claimed.map((row) => {

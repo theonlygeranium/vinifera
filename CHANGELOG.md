@@ -11,6 +11,14 @@
   `upsert_brand_sender_identity` with the `RESEND_FROM` email, marks the
   identity as `verified`, and disables it during cleanup.
 
+- Filter claimed email outbox entries by the acceptance brand's `brand_id`
+  before sending to the Resend batch API. The `claim_email_outbox_batch`
+  function claims entries across ALL brands, and stale entries from other
+  brands (e.g. Gate 7 test fixtures with invalid recipient domains like
+  `gate7.test`) cause the Resend batch API to reject the entire batch with
+  HTTP 422 ("Invalid `to` field"). Non-matching entries are released back
+  to `pending` so they don't block.
+
 - Fix `admin.rpc(...).catch is not a function` runtime crash in the Gate 8
   acceptance controller's manual email delivery cleanup path. The Supabase JS
   client's `.rpc()` returns a `PromiseLike` (only `.then()`), not a full
