@@ -2,14 +2,6 @@
 
 ## [Unreleased]
 
-- Document the Gate 8 release-candidate package sequencing requirement.
-  The `release-candidate-package.yml` workflow must be dispatched from the
-  `main` branch with `candidate_sha` and `promotion_pr_number` inputs
-  before merging the dev-to-staging promotion PR. Without the immutable
-  artifact, the `deploy-staging` CI job fails with "No successful immutable
-  package exists for this candidate" and Gate 8 acceptance is skipped.
-  Discovered during Gate 8 re-test #6 (2026-08-08).
-
 - Create a verified brand sender identity as part of the Gate 8 hosted
   acceptance fixture setup so the `claim_email_outbox_batch` function returns
   a non-null `sender_identity_id`. Without a verified sender identity the
@@ -18,6 +10,16 @@
   acceptance controller to time out after 70 minutes. The fixture now calls
   `upsert_brand_sender_identity` with the `RESEND_FROM` email, marks the
   identity as `verified`, and disables it during cleanup.
+
+- Strip angle brackets from `RESEND_FROM` and `sender_from_email` before
+  constructing the Resend `from` field. The `RESEND_FROM` secret was set to
+  `vinifera <noreply@jgeronimo.com>` (with a display name and angle brackets),
+  and the `brand_sender_identities.from_email` column stored the same value.
+  When the controller wrapped it as `Vinifera <vinifera <noreply@jgeronimo.com>>`,
+  the nested angle brackets caused the Resend batch API to reject the entire
+  batch with HTTP 422 ("Invalid `from` field"). The fix extracts the bare
+  email address from any `Name <email>` format before constructing the `from`
+  header.
 
 - Filter claimed email outbox entries by the acceptance brand's `brand_id`
   before sending to the Resend batch API. The `claim_email_outbox_batch`

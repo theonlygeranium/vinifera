@@ -477,7 +477,10 @@ async function main() {
     if (verifiedSender) {
       fixture.senderIdentityId = verifiedSender.id;
     } else {
-      const resendFrom = required("RESEND_FROM");
+      const resendFrom = required("RESEND_FROM").replace(
+        /^.*<([^>]+)>.*$/u,
+        "$1",
+      ).trim();
       const { data: createdSender, error: createSenderError } = await admin.rpc(
         "upsert_brand_sender_identity",
         {
@@ -663,7 +666,10 @@ async function main() {
       }
     }
     if (claimed.length > 0) {
-      const resendFrom = required("RESEND_FROM");
+      const resendFrom = required("RESEND_FROM").replace(
+        /^.*<([^>]+)>.*$/u,
+        "$1",
+      ).trim();
       const messages = claimed.map((row) => {
         const variables = Object.fromEntries(
           Object.entries(row.payload ?? {})
@@ -678,9 +684,12 @@ async function main() {
             /\{\{(\w+)\}\}/gu,
             (_, key) => variables[key] ?? "",
           );
+        const fromEmail = row.sender_from_email
+          ? row.sender_from_email.replace(/^.*<([^>]+)>.*$/u, "$1").trim()
+          : "";
         const from =
-          row.sender_from_name && row.sender_from_email
-            ? `${row.sender_from_name} <${row.sender_from_email}>`
+          row.sender_from_name && fromEmail
+            ? `${row.sender_from_name} <${fromEmail}>`
             : resendFrom;
         const unsubscribeUrl = new URL(
           "/portal/preferences",
