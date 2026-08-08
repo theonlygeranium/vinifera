@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- Document the Gate 8 release-candidate package sequencing requirement.
+  The `release-candidate-package.yml` workflow must be dispatched from the
+  `main` branch with `candidate_sha` and `promotion_pr_number` inputs
+  before merging the dev-to-staging promotion PR. Without the immutable
+  artifact, the `deploy-staging` CI job fails with "No successful immutable
+  package exists for this candidate" and Gate 8 acceptance is skipped.
+  Discovered during Gate 8 re-test #6 (2026-08-08).
+
 - Create a verified brand sender identity as part of the Gate 8 hosted
   acceptance fixture setup so the `claim_email_outbox_batch` function returns
   a non-null `sender_identity_id`. Without a verified sender identity the
