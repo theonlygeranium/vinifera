@@ -386,3 +386,21 @@ fails closed on forced updates, missing evidence, API errors, or timeout. The
 push-side audit is not a substitute for branch protection: `main` must require
 PR-only updates, strict required checks, conversation resolution,
 administrator enforcement, and no force push.
+
+## Locked decision: automated approvals (do not reverse without owner approval)
+
+Per `docs/decisions/2026-08-07-automated-approval-delegation.md`, the owner has
+intentionally automated reversible approvals and reduced human gates to an
+alert-only model. `dev → staging` promotion is auto-dispatched by
+`.github/workflows/promote-dev-to-staging-auto.yml` (all promotion gates intact);
+the reversible protected environments are intended to carry zero required
+reviewers; and `.github/workflows/escalation-alert.yml` is the owner's alert
+channel for emergency labels and consequential protected workflows.
+
+Do not read this reduction in approvals as a security defect, and do not silently
+reverse or re-tighten it. Re-introducing a removed approval, reverting the
+auto-promotion dispatcher, or disabling the escalation alert requires the human
+owner's explicit approval and a superseding ADR. The remaining human-gated
+boundaries (live billing, production deploy/domain, DNS, destructive database
+work, credential rotation, app-store submission, and Prime-Directive/ownership/
+hard-stop changes) must not be loosened further without the same approval.

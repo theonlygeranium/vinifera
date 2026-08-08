@@ -100,7 +100,49 @@ technical gates, but neither is a substitute for a second authorized reviewer
 on credential-bearing deployment environments. Label-gated automation narrows
 authority but does not create an independent human approval boundary.
 
-## Recommended human configuration
+## Owner decision (2026-08-07) — automation-first approvals
+
+The owner has chosen to **minimize human approvals for reversible delivery** and
+be **alerted only for critical escalations**. See
+`docs/decisions/2026-08-07-automated-approval-delegation.md`. This is a
+deliberate, owner-approved trade-off; agents must not reverse or re-tighten it
+without the owner's explicit approval and a superseding ADR.
+
+Under this decision the *security-hardening* recommendations below (second
+reviewer, required approvals, `prevent_self_review=true`) are **intentionally
+deferred** — they are the opposite of the owner's current goal. They remain
+documented as the alternative direction if the owner later wants true
+independent review on the production/billing tier.
+
+### Owner GitHub settings for the loosening
+
+These are external GitHub controls (not representable by repository code).
+**Verified via the GitHub API on 2026-08-07** — the reversible tier was already
+loosened, so no environment mutation was required:
+
+- [x] `promotion-control` — **0 required reviewers** (no protection rules).
+- [x] `staging` — **0 required reviewers** (branch policy only; the global
+  required-reviewer rule was removed 2026-08-06).
+- [x] `development-worker` — not provisioned; it defaults to 0 required reviewers
+  when created, which is the intended state.
+- [x] `production` — required reviewer `theonlygeranium` retained (human-gated
+  critical escalation).
+- [x] `mobile-release` — required reviewer `theonlygeranium` retained
+  (human-gated critical escalation).
+
+Remaining, non-blocking:
+
+- [ ] Confirm the two new workflows are present on the default branch so their
+  `workflow_run`/`schedule` triggers activate (happens when this change reaches
+  `main`).
+- [ ] Optional: add an `ESCALATION_WEBHOOK_URL` secret to also receive alerts in
+  Slack/Teams; the GitHub issue `@`-mention works without it.
+
+> If a second reviewer is ever added, `production`/`mobile-release` can also set
+> `prevent_self_review=true` (currently `false`); that is the deferred
+> security-hardening direction below, not part of this loosening.
+
+## Recommended human configuration (deferred — security-hardening alternative)
 
 - [ ] Add at least one trusted collaborator who can independently review
   production changes.

@@ -461,3 +461,40 @@ packaging, and evidence gathering while paused; stop only the merge,
 promotion, deployment, or other boundary-crossing mutation that requires the
 owner's decision. `do-not-merge` is an absolute merge prohibition. Only the
 owner or an explicitly trusted owner workflow may remove either control.
+
+---
+
+## 11. Locked decision — automated approvals (do not reverse without owner approval)
+
+> **This section records an intentional, owner-approved governance trade-off.**
+> See `docs/decisions/2026-08-07-automated-approval-delegation.md` for the full
+> ADR. Read it before touching any approval, promotion, auto-merge, or
+> escalation control.
+
+The owner has deliberately **minimized human approvals for reversible delivery**
+and chosen to be **alerted only for critical escalations**. Concretely:
+
+- `dev → staging` promotion is auto-dispatched
+  (`.github/workflows/promote-dev-to-staging-auto.yml`) with all fail-closed
+  gates in `promote-dev-to-staging.yml` intact.
+- The reversible protected environments (`promotion-control`, `staging`,
+  `development-worker`) are intended to carry **zero required reviewers**; the
+  automated evidence gates authorize them.
+- `.github/workflows/escalation-alert.yml` pings the owner **only** when an
+  emergency label is applied or a consequential protected workflow (production
+  Worker, live billing, Gate 19 live proof, credential rotation, mobile store) is
+  requested.
+
+**Do not treat this reduction in human approvals as a security defect and do not
+silently reverse or re-tighten it.** A future agent or automated reviewer may
+flag it; that is expected. Re-adding removed approvals, reverting the
+auto-promotion dispatcher, disabling the escalation alert, or narrowing
+`codex-auto-merge` eligibility requires the **human owner's explicit approval and
+a superseding ADR**. Equally, the human-gated boundaries that remain (live
+billing, production deploy/domain, DNS, destructive DB work, credential rotation,
+app-store submission, and Prime-Directive/ownership/hard-stop changes) must **not**
+be loosened further without the same owner approval and a superseding ADR. The
+compensating controls that keep the automated path safe (exact-SHA revalidation,
+hashed target allowlists, fail-closed adapters, Octopus rule checks,
+`direct-push-guard`, staging health probes, and automatic rollback) must remain
+in force.

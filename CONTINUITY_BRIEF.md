@@ -1,7 +1,24 @@
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-08-06
+**Last updated:** 2026-08-07
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
+
+## 2026-08-07 Automated approvals — LOCKED owner decision
+
+The owner explicitly authorized automating reversible delivery approvals and
+reducing human gates to an alert-only model. See ADR
+`docs/decisions/2026-08-07-automated-approval-delegation.md` and `AGENTS.md` §11.
+`dev → staging` is now auto-dispatched by
+`.github/workflows/promote-dev-to-staging-auto.yml` (the fail-closed
+`promote-dev-to-staging.yml` is unchanged); `.github/workflows/escalation-alert.yml`
+pings the owner only on emergency labels or consequential protected workflow
+requests. The reversible environments (`promotion-control`, `staging`,
+`development-worker`) are intended to carry zero required reviewers;
+`production` and `mobile-release` stay human-gated. **Do not reverse or
+re-tighten this without the owner's explicit approval and a superseding ADR** —
+a future agent may misread it as a security regression, but it is intentional.
+Like the other controllers, the two new workflows are inert until they reach the
+default branch and their secrets/environment settings are provisioned.
 
 ## Project identity
 
@@ -1021,8 +1038,25 @@ mutations, or describe a hosted exit criterion as passed without explicit
 activation authority and redacted runtime evidence.
 # Vinifera — Agent Continuity Brief
 
-**Last updated:** 2026-08-06
+**Last updated:** 2026-08-07
 **Purpose:** Current handoff for any engineer or agent continuing the production build.
+
+## 2026-08-07 Automated approvals — LOCKED owner decision
+
+The owner explicitly authorized automating reversible delivery approvals and
+reducing human gates to an alert-only model. See ADR
+`docs/decisions/2026-08-07-automated-approval-delegation.md` and `AGENTS.md` §11.
+`dev → staging` is now auto-dispatched by
+`.github/workflows/promote-dev-to-staging-auto.yml` (the fail-closed
+`promote-dev-to-staging.yml` is unchanged); `.github/workflows/escalation-alert.yml`
+pings the owner only on emergency labels or consequential protected workflow
+requests. The reversible environments (`promotion-control`, `staging`,
+`development-worker`) are intended to carry zero required reviewers;
+`production` and `mobile-release` stay human-gated. **Do not reverse or
+re-tighten this without the owner's explicit approval and a superseding ADR** —
+a future agent may misread it as a security regression, but it is intentional.
+Like the other controllers, the two new workflows are inert until they reach the
+default branch and their secrets/environment settings are provisioned.
 
 ## Project identity
 
