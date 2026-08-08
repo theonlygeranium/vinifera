@@ -614,6 +614,135 @@ async function main() {
     );
     evidence.checks.triggerIdempotency = true;
     const logIds = logicalRows.map((row) => row.id);
+
+    // Manually trigger email delivery instead of waiting for the hourly cron.
+    // The Worker's scheduled handler (0 * * * *) may not fire within the
+    // acceptance window, and its errors are silently swallowed by
+    // Promise.allSettled. This makes delivery deterministic.
+    const { error: enqueueDueError } = await admin.rpc(
+      "enqueue_due_email_triggers",
+      { p_as_of: new Date().toISOString() },
+    );
+    // Don't throw — entries may already be enqueued from the trigger setup.
+
+    const manualWorkerId = `gate8-acceptance-${randomUUID()}`;
+    const { data: claimedRows, error: claimError } = await admin.rpc(
+      "claim_email_outbox_batch",
+      {
+        p_lease_seconds: 300,
+        p_limit: 100,
+        p_worker_id: manualWorkerId,
+      },
+    );
+    if (claimError) throw claimError;
+    const claimed = Array.isArray(claimedRows) ? claimedRows : [];
+    if (claimed.length > 0) {
+      const resendFrom = required("RESEND_FROM");
+      const messages = claimed.map((row) => {
+        const variables = Object.fromEntries(
+          Object.entries(row.payload ?? {})
+            .filter(
+              ([, v]) =>
+                ["string", "number", "boolean"].includes(typeof v),
+            )
+            .map(([k, v]) => [k, String(v)]),
+        );
+        const interpolate = (text) =>
+          String(text ?? "").replace(
+            /\{\{(\w+)\}\}/gu,
+            (_, key) => variables[key] ?? "",
+          );
+        const from =
+          row.sender_from_name && row.sender_from_email
+            ? `${row.sender_from_name} <${row.sender_from_email}>`
+            : resendFrom;
+        const unsubscribeUrl = new URL(
+          "/portal/preferences",
+          origin,
+        ).toString();
+        return {
+          from,
+          headers: row.member_id
+            ? {
+                "List-Unsubscribe": `<${unsubscribeUrl}>`,
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+              }
+            : undefined,
+          html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;font-family:Arial,sans-serif">${interpolate(row.body)}</body></html>`,
+          subject: interpolate(row.subject),
+          to: row.to_email,
+        };
+      });
+      const batchResponse = await fetch(
+        `${RESEND_API_ORIGIN}/emails/batch`,
+        {
+          body: JSON.stringify(
+            messages.map((msg) => ({
+              from: msg.from,
+              headers: msg.headers,
+              html: msg.html,
+              subject: msg.subject,
+              to: [msg.to],
+            })),
+          ),
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "Idempotency-Key": `gate8-acceptance:${manualWorkerId}`.slice(
+              0,
+              256,
+            ),
+          },
+          method: "POST",
+          signal: AbortSignal.timeout(
+            remainingMilliseconds(preCleanupDeadline),
+          ),
+        },
+      );
+      const batchPayload = await batchResponse
+        .json()
+        .catch(() => ({}));
+      if (
+        !batchResponse.ok ||
+        !Array.isArray(batchPayload.data) ||
+        batchPayload.data.length !== claimed.length
+      ) {
+        for (const row of claimed) {
+          await admin
+            .rpc("complete_email_outbox_claim", {
+              p_completion_token: row.completion_token,
+              p_error: "provider_delivery_failed",
+              p_outbox_id: row.outbox_id,
+              p_resend_id: null,
+              p_status: "failed",
+            })
+            .catch(() => undefined);
+        }
+        throw new Error(
+          `Resend batch API returned HTTP ${batchResponse.status}.`,
+        );
+      }
+      for (let i = 0; i < claimed.length; i += 1) {
+        const resendId = batchPayload.data[i]?.id ?? "";
+        const { error: completeError } = await admin.rpc(
+          "complete_email_outbox_claim",
+          {
+            p_completion_token: claimed[i].completion_token,
+            p_error: resendId ? null : "provider_delivery_failed",
+            p_outbox_id: claimed[i].outbox_id,
+            p_resend_id: resendId || null,
+            p_status: resendId ? "sent" : "failed",
+          },
+        );
+        if (completeError) throw completeError;
+      }
+    }
+
+    // Brief delay to allow Resend to process and fire webhook events.
+    await new Promise((resolveDelay) =>
+      setTimeout(resolveDelay, 5_000),
+    );
+
     const deadline = Math.min(
       Date.now() + waitSeconds * 1_000,
       preCleanupDeadline,
