@@ -263,7 +263,7 @@ describe("hosted Gate 8 acceptance controller", () => {
     );
   });
 
-  it("performs read-only provider discovery and retains sanitized durable evidence", async () => {
+  it("performs provider discovery and manual email delivery with sanitized durable evidence", async () => {
     const controller = await readFile(
       new URL("scripts/hosted-gate8-acceptance.mjs", repositoryRoot),
       "utf8",
@@ -271,15 +271,16 @@ describe("hosted Gate 8 acceptance controller", () => {
     expect(controller).toContain('method: "GET"');
     expect(controller).toMatch(/providerList\(\s*"\/domains"/u);
     expect(controller).toMatch(/providerList\(\s*"\/webhooks"/u);
-    expect(controller).not.toMatch(
-      /method:\s*"(?:POST|PUT|PATCH|DELETE)"/u,
-    );
+    expect(controller).toContain('method: "POST"');
     expect(controller).toContain(
       'admin.rpc(\n      "enqueue_scoped_pre_shipment_trigger"',
     );
-    expect(controller).not.toContain(
-      'admin.rpc("enqueue_due_email_triggers"',
+    expect(controller).toContain(
+      'admin.rpc(\n      "enqueue_due_email_triggers"',
     );
+    expect(controller).toContain("claim_email_outbox_batch");
+    expect(controller).toContain("complete_email_outbox_claim");
+    expect(controller).toContain("/emails/batch");
     expect(controller).toContain('fixtureMode: "durable-one-shot-staging"');
     expect(controller).toContain('disposition: "durable-evidence-retained"');
     expect(controller).not.toMatch(/\.delete\(/u);
