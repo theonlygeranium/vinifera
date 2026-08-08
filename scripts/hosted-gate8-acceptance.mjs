@@ -708,15 +708,17 @@ async function main() {
         batchPayload.data.length !== claimed.length
       ) {
         for (const row of claimed) {
-          await admin
-            .rpc("complete_email_outbox_claim", {
+          try {
+            await admin.rpc("complete_email_outbox_claim", {
               p_completion_token: row.completion_token,
               p_error: "provider_delivery_failed",
               p_outbox_id: row.outbox_id,
               p_resend_id: null,
               p_status: "failed",
-            })
-            .catch(() => undefined);
+            });
+          } catch {
+            /* best-effort cleanup */
+          }
         }
         throw new Error(
           `Resend batch API returned HTTP ${batchResponse.status}.`,

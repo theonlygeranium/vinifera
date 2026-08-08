@@ -11,6 +11,13 @@
   `upsert_brand_sender_identity` with the `RESEND_FROM` email, marks the
   identity as `verified`, and disables it during cleanup.
 
+- Fix `admin.rpc(...).catch is not a function` runtime crash in the Gate 8
+  acceptance controller's manual email delivery cleanup path. The Supabase JS
+  client's `.rpc()` returns a `PromiseLike` (only `.then()`), not a full
+  `Promise`, so `.catch()` does not exist on it. Replaced the
+  `.catch(() => undefined)` cleanup pattern with a `try/catch` block so
+  best-effort failure cleanup no longer crashes the controller.
+
 - Manually trigger email delivery in the Gate 8 acceptance controller instead
   of waiting for the Worker's hourly cron handler. The scheduled handler's
   errors are silently swallowed by `Promise.allSettled`, and the cron may not
